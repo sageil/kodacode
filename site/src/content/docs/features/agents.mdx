@@ -1,0 +1,206 @@
+---
+title: Agent System
+description: Specialized agents for different development tasks
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+KodaCode's agent system lets you define specialized AI personas with custom prompts, tools, permissions, and model preferences. Models delegate to agents automatically when the task fits.
+
+## Built-in Agents
+
+### Builder (default)
+General-purpose development agent. Researches, plans, builds, and validates. Has access to all tools.
+
+### Explorer
+Fast, read-only codebase research agent. Uses the utility model for cost savings. Has only read-only tools (read, glob, grep, search, lsp, tree, git) — no write, bash, or subagent access.
+
+```
+/explorer how does authentication work?
+/explorer what files handle database migrations?
+```
+
+### Planner
+Creates structured implementation plans with numbered steps. Each step includes What, Where, How, and Risk. Creates tasks automatically from the plan.
+
+```
+/planner add rate limiting to the API
+/planner migrate the auth system to JWT
+```
+
+### Polish
+Detects and removes AI-generated code artifacts. Calibrates against your project's actual style by sampling sibling files, then applies targeted fixes. Runs build/test to verify changes don't break anything.
+
+```
+/polish src/handler.go
+/polish clean up the recent changes
+```
+
+### Refactor
+Restructures code for clarity and maintainability without changing behavior. Orchestrates multiple subagents in parallel — explorer agents map callers and tests, then targeted edits are applied and verified.
+
+```
+/refactor extract the auth middleware
+/refactor split the monolithic handler into separate files
+```
+
+### Insight
+Extracts non-obvious learnings (hidden dependencies, gotchas, implicit conventions) and persists them to AGENTS.md files. Only appends — never overwrites existing entries.
+
+```
+/insight
+/insight analyze the patterns in the auth module
+```
+
+## Agent Modes
+
+- **`primary`** — shown in the agent picker (`/agents`) and `Tab` cycling
+- **`subagent`** — hidden from the picker, invoked via delegation or slash commands
+
+The builder agent is `primary` by default. The explorer, planner, polish, refactor, and insight agents are `subagent` mode — they're invoked via `/<agent-name>` commands or by the model's subagent tool.
+
+## Custom Agents
+
+Create agents as markdown files with YAML frontmatter:
+
+**Global**: `~/.config/koda/agents/reviewer.md`
+**Project-local**: `.koda/agents/reviewer.md`
+
+```markdown
+---
+name: reviewer
+description: Careful code reviewer
+mode: primary
+model: anthropic/claude-sonnet-4-6
+tools:
+  - read
+  - grep
+  - glob
+  - search
+  - lsp
+  - git
+permission:
+  read:
+    "*": allow
+reasoning_budget: 5000
+---
+
+You are a careful code reviewer. Focus on correctness,
+security, and maintainability. Never execute commands.
+```
+
+### Frontmatter Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | Display name shown in the agent picker |
+| `description` | string | Short description of the agent's purpose |
+| `mode` | string | `primary` (shown in picker) or `subagent` (hidden, invoked via tool) |
+| `model` | string | `utility`, `provider/model-id`, or empty (inherit session model) |
+| `temperature` | float | Sampling temperature (0-2). Omit for provider default |
+| `max_tokens` | int | Max response tokens. 0 = provider default |
+| `tools` | list | Allowlist of tool names. Empty = all tools available |
+| `deny_tools` | list | Denylist applied after allowlist filtering |
+| `permission` | object | Per-tool permission overrides (same format as global permissions) |
+| `reasoning_budget` | int | Thinking token budget for extended reasoning |
+| `skills.allow` | list | Skill allowlist |
+| `skills.deny` | list | Skill denylist |
+
+### Example: Read-Only Auditor
+
+```markdown
+---
+name: auditor
+description: Security-focused code auditor
+mode: primary
+tools:
+  - read
+  - grep
+  - glob
+  - search
+  - lsp
+  - tree
+  - git
+deny_tools:
+  - bash
+  - write
+  - edit
+---
+
+You are a security auditor. Analyze code for vulnerabilities,
+injection risks, and authentication issues. Never modify files.
+Report findings with file paths and line numbers.
+```
+
+### Example: Fast Utility Agent
+
+```markdown
+---
+name: quick
+description: Fast answers using a cheap model
+mode: primary
+model: utility
+max_tokens: 2048
+---
+
+Answer questions concisely. Use tools only when necessary.
+Prefer short, direct responses.
+```
+
+## Model Routing
+
+Agents inherit the session's model by default. The `model` field supports three modes:
+
+- **Empty** — inherits the parent session's model
+- **`utility`** — uses the configured `utility_model` (cheap/fast)
+- **`provider/model-id`** — uses a specific model regardless of session
+
+## System Prompt Overrides
+
+Beyond agent-level prompts, you can override the system prompt per provider or per model by dropping a markdown file in `~/.config/koda/prompts/`:
+
+```
+~/.config/koda/prompts/
+├── anthropic.md              # All Anthropic models
+├── openai.md                 # All OpenAI models
+├── gemini.md                 # All Google Gemini models
+├── default.md                # Fallback for any provider
+├── anthropic/
+│   └── claude-sonnet-4-6.md  # Specific model override
+└── lmstudio/
+    └── qwen3-coder-30b.md    # Specific local model
+```
+
+Supports both `.md` and `.txt` extensions. No config changes needed — just create the file.
+
+### Resolution order
+
+The prompt loader checks in this order, using the first match:
+
+1. **Agent system prompt** — markdown body from the agent definition file
+2. **Per-model override** — `prompts/{providerID}/{modelID}.md`
+3. **Per-provider override** — `prompts/{providerID}.md`
+4. **Canonical override** — `prompts/anthropic.md`, `openai.md`, `gemini.md`, or `default.md`
+5. **Built-in prompt** — embedded in the KodaCode binary
+
+This means you can tailor instructions for specific models without affecting other models.
+
+## Subagent Delegation
+
+When a model uses the `subagent` tool, it spawns an ephemeral session with a specific agent and task. Ephemeral sessions skip compaction, title generation, and persistence for efficiency. Multiple subagents can run concurrently (up to `max_subagents`, default 10).
+
+Each subagent has a timeout (default 5 minutes) after which it is cancelled. Increase this for complex tasks or slower providers:
+
+```yaml
+session:
+  subagent_timeout: 10   # minutes
+```
+
+```
+subagent agentId="explorer" task="Find all API endpoints"
+subagent agentId="planner" task="Plan the auth migration"
+```
+
+<Aside type="tip">
+Agents are loaded in priority order: built-in, then global (`~/.config/koda/agents/`), then project-local (`.koda/agents/`). Later sources override earlier ones by filename.
+</Aside>

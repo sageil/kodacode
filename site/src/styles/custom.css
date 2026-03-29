@@ -1,0 +1,405 @@
+/* ── Force dark mode, hide theme toggle ── */
+:root {
+	color-scheme: dark;
+}
+
+starlight-theme-select {
+	display: none !important;
+}
+
+/* ── Color tokens ── */
+:root,
+:root[data-theme='light'],
+:root[data-theme='dark'] {
+	/* Accent: koda red */
+	--sl-color-accent-low: #1f0a10;
+	--sl-color-accent: #e94560;
+	--sl-color-accent-high: #f8d7da;
+
+	/* Background layers */
+	--sl-color-bg: #0a0a0f;
+	--sl-color-bg-nav: rgba(14, 14, 22, 0.85);
+	--sl-color-bg-sidebar: #0c0c14;
+	--sl-color-bg-inline-code: rgba(233, 69, 96, 0.08);
+
+	/* Borders */
+	--sl-color-hairline-shade: #1e1e2e;
+	--sl-color-hairline-light: #161622;
+	--sl-color-hairline: #1a1a28;
+
+	/* Text */
+	--sl-color-white: #f0f0f5;
+	--sl-color-gray-1: #e0e0e8;
+	--sl-color-gray-2: #c0c0cc;
+	--sl-color-gray-3: #888899;
+	--sl-color-gray-4: #555566;
+	--sl-color-gray-5: #333344;
+	--sl-color-gray-6: #1e1e2e;
+	--sl-color-gray-7: #111118;
+	--sl-color-black: #0a0a0f;
+
+	/* Typography */
+	--sl-font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+	--sl-font-system: var(--sl-font);
+
+	--sl-sidebar-width: 18rem;
+}
+
+/* ── Global ── */
+body {
+	background: #0a0a0f;
+}
+
+/* ── Navigation bar ── */
+header.header {
+	background: rgba(14, 14, 22, 0.85) !important;
+	backdrop-filter: blur(12px);
+	-webkit-backdrop-filter: blur(12px);
+	border-bottom: 1px solid #1e1e2e !important;
+}
+
+/* ── Site title ── */
+.site-title {
+	font-weight: 700 !important;
+	letter-spacing: -0.02em;
+}
+
+/* ── Sidebar ── */
+nav.sidebar {
+	background: #0c0c14;
+	border-right: 1px solid #1a1a28;
+}
+
+nav.sidebar a {
+	transition: color 0.2s, background 0.2s;
+	border-radius: 6px;
+}
+
+nav.sidebar a[aria-current='page'],
+nav.sidebar a[aria-current='true'] {
+	background: rgba(233, 69, 96, 0.1) !important;
+	color: #e94560 !important;
+	font-weight: 600;
+}
+
+/* ══════════════════════════════════════════
+   HERO / SPLASH PAGE
+   ══════════════════════════════════════════ */
+
+.hero {
+	text-align: center !important;
+	padding: 6rem 2rem 4rem !important;
+	min-height: calc(50vh) !important;
+	display: flex !important;
+	align-items: center !important;
+	justify-content: center !important;
+	background: radial-gradient(ellipse at 50% 0%, #1a1a2e 0%, #0a0a0f 70%) !important;
+	position: relative;
+}
+
+.hero::before {
+	content: '';
+	position: absolute;
+	top: -30%;
+	left: 50%;
+	transform: translateX(-50%);
+	width: 700px;
+	height: 700px;
+	background: radial-gradient(circle, rgba(233, 69, 96, 0.06) 0%, transparent 70%);
+	pointer-events: none;
+}
+
+/* Center the hero stack */
+.hero .stack {
+	align-items: center !important;
+}
+
+.hero .copy {
+	align-items: center !important;
+	text-align: center !important;
+}
+
+/* Giant gradient title */
+.hero h1 {
+	font-size: clamp(2.5rem, 10vw, 6.5rem) !important;
+	font-weight: 800 !important;
+	letter-spacing: -0.03em !important;
+	background: linear-gradient(135deg, #fff 30%, #e94560 100%) !important;
+	-webkit-background-clip: text !important;
+	-webkit-text-fill-color: transparent !important;
+	background-clip: text !important;
+	line-height: 1.1 !important;
+	width: 100% !important;
+}
+
+/* Tagline under title — contains em + subtitle spans */
+.hero .tagline {
+	font-size: 1.15rem !important;
+	color: #999 !important;
+	font-weight: 300 !important;
+	max-width: 560px !important;
+	margin: 0 auto !important;
+	line-height: 1.7 !important;
+	text-align: center !important;
+}
+
+.hero .tagline em {
+	font-style: italic;
+	letter-spacing: 0.15em;
+	color: #888;
+}
+
+.hero .tagline .hero-sub {
+	color: #999;
+	font-style: normal;
+	letter-spacing: normal;
+}
+
+.hero .tagline .hero-sub--bold {
+	color: #e0e0e8;
+	font-weight: 500;
+}
+
+/* Center buttons */
+.hero .actions {
+	justify-content: center !important;
+}
+
+/* Primary CTA — solid red */
+.hero .sl-link-button.primary {
+	background: #e94560 !important;
+	border-color: #e94560 !important;
+	color: #fff !important;
+	border-radius: 8px !important;
+	padding: 0.75rem 2rem !important;
+	font-weight: 500 !important;
+	transition: all 0.2s !important;
+}
+
+.hero .sl-link-button.primary:hover {
+	background: #d63851 !important;
+	border-color: #d63851 !important;
+}
+
+/* Secondary CTA — border style */
+.hero .sl-link-button.minimal {
+	background: transparent !important;
+	border: 1px solid #333 !important;
+	color: #999 !important;
+	border-radius: 8px !important;
+	padding: 0.75rem 2rem !important;
+	font-weight: 500 !important;
+	transition: all 0.2s !important;
+}
+
+.hero .sl-link-button.minimal:hover {
+	border-color: #555 !important;
+	color: #ccc !important;
+}
+
+/* ══════════════════════════════════════════
+   CARDS
+   ══════════════════════════════════════════ */
+
+.card {
+	background: linear-gradient(135deg, #111118 0%, #0e0e16 100%) !important;
+	border: 1px solid #1e1e2e !important;
+	border-radius: 12px !important;
+	transition: border-color 0.3s, transform 0.2s !important;
+}
+
+.card:hover {
+	border-color: #e94560 !important;
+	transform: translateY(-2px);
+}
+
+.card .title {
+	color: #f0f0f5 !important;
+	font-weight: 600 !important;
+}
+
+.card .body {
+	color: #888899 !important;
+}
+
+/* Card icon color */
+.card .icon {
+	color: #e94560 !important;
+}
+
+/* ══════════════════════════════════════════
+   SPLASH PAGE SECTIONS
+   ══════════════════════════════════════════ */
+
+.splash-section {
+	max-width: 1100px;
+	margin: 0 auto;
+	padding: 3rem 0;
+}
+
+.splash-section__header {
+	text-align: center;
+	margin-bottom: 2.5rem;
+}
+
+.splash-section__header h2 {
+	font-size: 2.2rem !important;
+	font-weight: 700 !important;
+	color: #fff !important;
+	border-bottom: none !important;
+	padding-bottom: 0 !important;
+	margin-top: 0 !important;
+	margin-bottom: 0.75rem !important;
+}
+
+.accent {
+	color: #e94560 !important;
+}
+
+.splash-section__header p {
+	color: #777 !important;
+	font-size: 1.05rem;
+	max-width: 550px;
+	margin: 0 auto;
+}
+
+/* Center the anchor links away on splash headings */
+.splash-section__header .sl-heading-wrapper {
+	justify-content: center;
+}
+
+.splash-section__header .sl-anchor-link {
+	display: none;
+}
+
+/* ══════════════════════════════════════════
+   CONTENT TYPOGRAPHY
+   ══════════════════════════════════════════ */
+
+/* Inline code */
+:not(pre) > code {
+	background: rgba(233, 69, 96, 0.08) !important;
+	color: #e94560 !important;
+	padding: 0.15em 0.4em !important;
+	border-radius: 4px !important;
+	font-size: 0.88em !important;
+}
+
+/* Code blocks */
+pre {
+	background: #0d0d15 !important;
+	border: 1px solid #1e1e2e !important;
+	border-radius: 8px !important;
+}
+
+/* Tables */
+table {
+	border-collapse: collapse;
+}
+
+th {
+	background: #111118 !important;
+	color: #f0f0f5 !important;
+	font-weight: 600 !important;
+	border-bottom: 2px solid #1e1e2e !important;
+}
+
+td {
+	border-bottom: 1px solid #161622 !important;
+}
+
+th, td {
+	padding: 0.6rem 0.9rem !important;
+}
+
+/* Asides / callouts */
+.starlight-aside {
+	border-radius: 8px !important;
+	border-left-width: 3px !important;
+	background: #111118 !important;
+}
+
+.starlight-aside--tip {
+	border-color: #e94560 !important;
+}
+
+/* Links */
+.sl-markdown-content a {
+	color: #e94560;
+	text-decoration: none;
+	transition: color 0.2s;
+}
+
+.sl-markdown-content a:hover {
+	color: #f06880;
+}
+
+/* Headings */
+.sl-markdown-content h1 {
+	font-weight: 800 !important;
+	letter-spacing: -0.02em;
+}
+
+.sl-markdown-content h2 {
+	font-weight: 700 !important;
+	color: #f0f0f5 !important;
+	border-bottom: 1px solid #1a1a28;
+	padding-bottom: 0.4rem;
+	margin-top: 2.5rem;
+}
+
+.sl-markdown-content h3 {
+	font-weight: 600 !important;
+	color: #e0e0e8 !important;
+}
+
+/* ══════════════════════════════════════════
+   FOOTER NAV
+   ══════════════════════════════════════════ */
+
+.pagination-links a {
+	background: #111118 !important;
+	border: 1px solid #1e1e2e !important;
+	border-radius: 10px !important;
+	transition: border-color 0.3s !important;
+}
+
+.pagination-links a:hover {
+	border-color: #e94560 !important;
+}
+
+/* ══════════════════════════════════════════
+   SCROLLBAR
+   ══════════════════════════════════════════ */
+
+::-webkit-scrollbar {
+	width: 6px;
+	height: 6px;
+}
+
+::-webkit-scrollbar-track {
+	background: #0a0a0f;
+}
+
+::-webkit-scrollbar-thumb {
+	background: #2a2a3e;
+	border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+	background: #3a3a4e;
+}
+
+/* ══════════════════════════════════════════
+   TABLE OF CONTENTS (right sidebar)
+   ══════════════════════════════════════════ */
+
+starlight-toc a {
+	color: #666 !important;
+	transition: color 0.2s;
+}
+
+starlight-toc a:hover,
+starlight-toc a[aria-current='true'] {
+	color: #e94560 !important;
+}

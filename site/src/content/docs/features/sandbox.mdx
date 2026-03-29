@@ -1,0 +1,134 @@
+---
+title: Sandbox
+description: Project-scoped confinement for every tool call
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Every tool call in KodaCode is sandboxed to your project directory by default. File reads, writes, searches, and shell commands are confined — escaping the project boundary requires explicit user permission.
+
+## Path Confinement
+
+File-based tools are automatically confined to the project directory:
+
+| Tool | Confined Parameter |
+|------|-------------------|
+| **read** | `filePath` |
+| **write** | `filePath` |
+| **edit** | `filePath` |
+| **glob** | `path` |
+| **grep** | `path` |
+
+Paths are resolved through symlinks (handling macOS `/tmp` → `/private/tmp` consistency), then checked against the project directory and any configured `allowed_paths`. If a path escapes, the sandbox prompts for permission before proceeding.
+
+## Bash Command Checks
+
+Shell commands get two layers of safety checking:
+
+### Outside-path detection
+
+The sandbox detects commands that reference paths outside the project:
+
+- Home directory expansion (`~`, `~/...`)
+- Environment variables (`$HOME`, `${VAR}`, `%USERPROFILE%`)
+- Absolute paths (`/etc/passwd`, `C:\Windows\...`)
+- Parent traversal (`..`) that escapes the project root
+
+Commands are parsed respecting quoted paths with spaces.
+
+### Delete command restrictions
+
+`rm` and `rmdir` commands are gated separately via the `bash_rm` permission rule:
+
+```yaml
+permission:
+  bash:
+    "rm *": ask     # ask before any delete
+    "rm -rf *": deny  # block recursive deletes
+```
+
+## Allowed Paths
+
+### Default allowed paths
+
+The following paths are allowed without prompting, even outside the project directory:
+
+| Path | Reason |
+|------|--------|
+| `~/.config/koda/` | KodaCode's own config, agents, themes, and prompts |
+| `/dev/null` | Standard output sink |
+| `/dev/zero` | Zero byte source |
+| `/dev/urandom`, `/dev/random` | Random data sources |
+| `/dev/stdin`, `/dev/stdout`, `/dev/stderr` | Standard I/O streams |
+
+### Custom allowed paths
+
+Configure additional directories that tools can access without prompting:
+
+```yaml
+allowed_paths:
+  - /path/to/shared/library
+  - /tmp/build-artifacts
+  - ~/shared-libs
+```
+
+Allowed paths are merged from global config (`~/.config/koda/config.yaml`) and project-local config (`./koda.yaml`).
+
+### Example: Monorepo with Shared Libraries
+
+```yaml
+allowed_paths:
+  - ../shared-utils        # sibling directory in monorepo
+  - /opt/company/sdk       # shared SDK
+```
+
+## Ignore Patterns
+
+The sandbox enforces ignore patterns that prevent tools from traversing noisy directories. Built-in defaults include:
+
+```
+node_modules/**, .git/**, __pycache__/**, .next/**, dist/**,
+build/**, vendor/**, .cache/**, coverage/**, .tox/**,
+.venv/**, venv/**, .gradle/**, target/**, .idea/**, .vscode/**
+```
+
+Add your own patterns in config (appended to defaults, never replaces them):
+
+```yaml
+ignore_patterns:
+  - "*.generated.go"
+  - "vendor/**"
+  - ".terraform/**"
+  - "*.min.js"
+```
+
+## MCP Tools
+
+MCP tools (prefixed with their server name) are dispatched directly to their MCP server **without** path confinement — the MCP server itself is responsible for its own access control.
+
+<Aside type="tip">
+The sandbox is not process isolation (no containers). It's path-level access control with permission prompts — designed for developer workflows where tools run in the user's environment but shouldn't silently touch files outside the project.
+</Aside>
+
+## Best Practices
+
+### Allowed Paths
+Add paths outside your project that the model legitimately needs:
+```yaml
+allowed_paths:
+  - ~/shared-libs         # shared libraries used across projects
+  - /tmp                  # temporary files
+```
+
+### Ignore Patterns
+Keep the model focused by excluding large or irrelevant directories:
+```yaml
+ignore_patterns:
+  - "*.generated.go"
+  - ".terraform/**"
+  - "coverage/**"
+```
+
+### Troubleshooting
+- **False permission prompts**: If you're asked about paths inside your project, check that koda was started from the correct directory. The project root is determined by the working directory at startup.
+- **Shell variables**: Loop variables (`$file`, `$i`) no longer trigger false prompts. Only path-bearing env vars like `$HOME` and `$TMPDIR` are checked.

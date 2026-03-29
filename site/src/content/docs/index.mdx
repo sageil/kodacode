@@ -1,0 +1,105 @@
+---
+title: KodaCode
+description: AI-powered CLI assistant — truly yours.
+template: splash
+hero:
+  tagline: |
+    <em>truly yours.</em>
+    <br/><br/>
+    <span class="hero-sub">An AI coding assistant that lives in your terminal.</span>
+  actions:
+    - text: Get Started
+      link: /kodacode/getting-started/introduction/
+      icon: right-arrow
+      variant: primary
+    - text: View on GitHub
+      link: https://github.com/sageil/kodacode
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+<div class="splash-section">
+<div class="splash-section__header">
+<h2>What makes KodaCode <span class="accent">truly yours</span></h2>
+<p><span class="accent">Your AI, your rules.</span> Prompts, agents, themes, models, and permissions are all files you control.</p>
+</div>
+
+<CardGrid>
+	<Card title="Project Memory" icon="document">
+		KodaCode remembers your project conventions across sessions. Layer global, project, and personal instructions via `KODA.md` files. Use `/remember` to save learnings on the fly — no file editing needed.
+	</Card>
+	<Card title="Sandboxed by Default" icon="warning">
+		Every tool call is confined to your project directory. Path escapes, delete commands, and external access require explicit permission. No silent side-effects.
+	</Card>
+	<Card title="Multi-Provider Freedom" icon="random">
+		Use Anthropic, OpenAI, Google, Groq, Ollama, LM Studio, or any OpenAI-compatible endpoint. Switch mid-session. Mix cloud and local models. No vendor lock-in.
+	</Card>
+	<Card title="Your Own Agents" icon="puzzle">
+		Define agents as markdown files with YAML frontmatter. Set their tools, permissions, model, and reasoning budget. Share them across projects or keep them personal.
+	</Card>
+	<Card title="20 Built-in Tools" icon="approve-check-circle">
+		File ops, shell commands, git, LSP, web fetch, clipboard, code notebooks, background tasks, and more — all sandboxed with glob-based permissions.
+	</Card>
+	<Card title="Overridable Prompts" icon="pencil">
+		System prompts are markdown files, not compiled strings. Override per agent, per provider, or per model — just drop a file in `~/.config/koda/prompts/`.
+	</Card>
+</CardGrid>
+</div>
+
+<div class="splash-section">
+<div class="splash-section__header">
+<h2>Full-Featured Out of the Box</h2>
+<p>Everything you need for AI-assisted development, built in.</p>
+</div>
+
+<CardGrid>
+	<Card title="Task Persistence" icon="rocket">
+		When a model gives up mid-task — empty responses, hedging language — KodaCode detects it and nudges the model to keep going. Your tasks finish, not stall.
+	</Card>
+	<Card title="LSP-Powered Code Intelligence" icon="setting">
+		Go-to-definition, find references, hover info, and diagnostics via language servers. Auto-discovers servers from your project's tooling — biome, eslint, rust-analyzer, and more. Zero config.
+	</Card>
+	<Card title="Smart Context" icon="document">
+		Three-stage context management: pruning old tool outputs, LLM-generated summaries, and safety limits. Long sessions stay coherent without manual intervention.
+	</Card>
+	<Card title="Live Diff Preview" icon="open-book">
+		See file changes as the AI writes them — before they hit disk. Per-hunk accept/reject. Cancel mid-write if something looks wrong.
+	</Card>
+	<Card title="Background Tasks & Subagents" icon="list-format">
+		Run shell commands in the background while the model keeps working. Spawn subagents for parallel independent tasks. Auto-react to background task results.
+	</Card>
+	<Card title="MCP Integration" icon="add-document">
+		Extend with any Model Context Protocol server — stdio or SSE. Non-blocking startup. Tools merge seamlessly with built-ins.
+	</Card>
+	<Card title="Sessions & Time Travel" icon="list-format">
+		Persistent sessions with branching, git snapshots, and turn-by-turn replay. Restore any point in your conversation's workspace state.
+	</Card>
+	<Card title="Cost Tracking & Budgets" icon="warning">
+		Per-session cost tracking with configurable budget limits and warnings. Utility model routing sends cheap tasks to fast models. Live cost in the TUI footer.
+	</Card>
+	<Card title="Custom Themes" icon="seti:image">
+		Ship your own color schemes as YAML files. Auto-detects terminal palette on startup. Every color in the TUI is configurable.
+	</Card>
+</CardGrid>
+</div>
+
+<div class="splash-section">
+<div class="splash-section__header">
+<h2>Quick Install</h2>
+</div>
+
+```bash
+# macOS / Linux
+curl -fsSL https://raw.githubusercontent.com/sageil/koda/main/install.sh | sh
+
+# Homebrew
+brew tap sageil/tap && brew install koda
+
+# Go
+go install github.com/sageil/kodacode/v1/cmd/koda@latest
+```
+
+Then run `koda` to start.
+</div>

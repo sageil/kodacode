@@ -1,0 +1,86 @@
+---
+title: Cost Tracking
+description: Per-session cost tracking with budget caps
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+KodaCode tracks token usage and dollar cost for every LLM call, with configurable budget caps to prevent runaway spending.
+
+## Live Cost Display
+
+The current session cost is shown in the TUI footer, next to the context utilization indicator. Cost updates in real-time as each LLM call completes — you can watch it increment during tool loops.
+
+Use `/cost` to see a detailed breakdown:
+
+```
+/cost
+```
+
+This shows input tokens, output tokens, reasoning tokens, and estimated dollar cost for the current session.
+
+## Budget Caps
+
+Set a maximum dollar cost per session:
+
+```yaml
+session:
+  budget: 5.00
+  budget_warn: 0.8
+```
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `budget` | `0` | Maximum dollars per session. 0 = unlimited |
+| `budget_warn` | `0.8` | Fraction of budget at which a warning is shown (e.g. 0.8 = 80%) |
+
+When the budget is exceeded, the tool loop stops — tools are removed and the model is forced to respond with what it has.
+
+### Example
+
+```yaml
+session:
+  budget: 2.00       # Cap at $2.00 per session
+  budget_warn: 0.8   # Warn at $1.60
+```
+
+## Blended Pricing
+
+Each LLM call in a session may use a different model:
+
+- **Primary model** — the model selected for the session
+- **Utility model** — the cheaper model used for titles, compaction summaries
+- **Fallback models** — tried when the primary fails
+
+Cost is accumulated per-call using the actual model's pricing rates, not a fixed session-wide rate. This gives accurate blended cost across all models used.
+
+## Model Pricing Data
+
+Pricing comes from the models.dev registry, cached locally. The cache is refreshed based on `model_refresh_interval` (default: 7 days). If your provider has zero pricing in the registry (e.g. subscription plans or local models), cost will show as $0.
+
+## Persistence
+
+Session costs are persisted to SQLite. When resuming a session, the accumulated cost is restored immediately. Budget applies per session — starting a new session resets the counter.
+
+<Aside type="tip">
+Use `/cost` in the TUI to see the current session cost breakdown at any time.
+</Aside>
+
+## Best Practices
+
+### Setting Budgets
+- Start with a generous budget and tighten based on observed spending
+- Use `budget_warn` at 80% to get an early warning
+- Budget applies per session — starting a new session resets the counter
+
+### Reducing Costs
+- Set `utility_model` to a fast, cheap model (e.g., `anthropic/claude-haiku-4-5-20251001`) for background tasks
+- Use `/cost` to identify expensive sessions and understand what drove the cost
+- Large file reads consume significant input tokens — use offset/limit when possible
+- Compaction itself costs tokens (the utility model generates the summary), but it saves tokens on subsequent turns
+
+### Typical Costs
+Costs vary by provider and model. As a rough guide:
+- Simple bug fix: $0.05–0.20
+- Feature implementation with tests: $0.50–2.00
+- Large refactoring across many files: $2.00–10.00

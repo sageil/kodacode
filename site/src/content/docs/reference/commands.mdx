@@ -1,0 +1,86 @@
+---
+title: Slash Commands
+description: All available slash commands
+---
+
+Type `/` in the input to open the fuzzy command menu, or press `Ctrl+P` to open the **command palette** — a unified fuzzy finder across files, symbols, sessions, and commands.
+
+## Command Palette
+
+Press `Ctrl+P` to open the command palette. It searches across four categories:
+
+- **Files** — project files (from `git ls-files`). Selecting attaches the file to your next message.
+- **Symbols** — workspace symbols via LSP. Type `@query` to search. Selecting attaches the symbol's file.
+- **Sessions** — existing sessions. Type `#query` to prioritize. Selecting resumes the session.
+- **Commands** — slash commands. Type `/query` to prioritize. Selecting runs the command.
+
+The palette uses fuzzy matching with scoring for consecutive matches, word boundaries, and camelCase. Results update as you type.
+
+## Navigation
+
+| Command | Description |
+|---------|-------------|
+| `/agents` | Open the agent picker |
+| `/models` | Open the model picker |
+| `/sessions` | Browse session history |
+| `/palette` | Open command palette (`Ctrl+P`) |
+| `/theme [name]` | Apply a theme or open the theme picker |
+| `/connect` | Provider OAuth connection dialog |
+| `/new` | Start a new session |
+| `/help` | Help dialog |
+| `/exit` | Exit koda (also `/quit`, `/q`) |
+
+## Session Tools
+
+| Command | Description |
+|---------|-------------|
+| `/search <query>` | Search in current session messages |
+| `/attach <path>` | Attach file to next message |
+| `/init [filename]` | Generate project instruction file (KODA.md, AGENTS.md, or CLAUDE.md) |
+| `/pin <instruction>` | Pin instruction that survives compaction |
+| `/pins` | List pinned instructions |
+| `/unpin <number>` | Remove pinned instruction by number |
+| `/reload` | Check for externally modified files |
+| `/diff [args]` | Show current branch diff |
+| `/undo [file]` | Revert last file change |
+| `/cost` | Show token usage, model info, and session cost |
+| `/export [path]` | Export session as markdown |
+| `/replay` | Navigate session snapshots (requires `snapshot: true`) |
+| `/variant` | Cycle thinking effort: low/high/max (reasoning models only) |
+| `/logs [clear]` | View or clear the log file |
+
+## Memory Commands
+
+| Command | Description |
+|---------|-------------|
+| `/remember <text>` | Save a project memory |
+| `/memories` | List all saved memories |
+| `/forget <id>` | Remove a saved memory by ID |
+
+## Subagent Delegation
+
+Invoke any agent directly as a slash command. These launch a subagent session:
+
+| Command | Description |
+|---------|-------------|
+| `/explorer [question]` | Research codebase (read-only, uses utility model) |
+| `/insight [task]` | Extract learnings and persist to AGENTS.md |
+| `/polish [task]` | Clean up AI-generated code artifacts |
+| `/planner [task]` | Create structured implementation plan |
+| `/refactor [task]` | Restructure code without changing behavior |
+
+### Examples
+
+```
+/explorer how does the authentication flow work?
+/planner add rate limiting to the API endpoints
+/polish src/handler.go
+/refactor extract database queries into a repository layer
+/insight
+```
+
+Custom agents you create are also available as slash commands using their filename (without `.md`).
+
+## Fuzzy Autocomplete
+
+All commands support fuzzy matching. Type `/exp` to match `/explorer` and `/export`. The menu filters as you type, showing up to 8 completions with prefix matches ranked first.

@@ -1,0 +1,126 @@
+---
+title: HTTP API
+description: Programmatic access to KodaCode via REST API
+---
+
+KodaCode embeds an HTTP server (Echo) for programmatic access. The server starts automatically on a random port (configurable via `server.port`).
+
+## Health & Config
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/health` | Health check (returns HTTP 200) |
+| `GET` | `/config` | Runtime config (tool count, MCP status, providers) |
+
+## Sessions
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/sessions` | Create new session (accepts `agent_id`, `model_id`) |
+| `GET` | `/sessions` | List all sessions |
+| `GET` | `/sessions/:id` | Get session details (includes cost) |
+| `PATCH` | `/sessions/:id` | Update session (change agent or model) |
+| `DELETE` | `/sessions/:id` | Delete session |
+
+## Messages
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/sessions/:id/messages` | Send message (supports attachments and variant) |
+| `GET` | `/sessions/:id/messages` | List messages |
+| `POST` | `/sessions/:id/answer` | Respond to permission/question prompts |
+| `POST` | `/sessions/:id/branch` | Branch session from a specific message |
+
+## Streaming
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/sessions/:id/stream` | SSE stream for real-time updates |
+
+## Snapshots
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/sessions/:id/snapshots` | List snapshots for a session |
+| `POST` | `/sessions/:id/snapshots/:turn/restore` | Restore workspace to a snapshot |
+
+## Agents
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/agents` | List all agents |
+| `GET` | `/agents/:id` | Get agent details |
+| `POST` | `/agents` | Create agent |
+| `PUT` | `/agents/:id` | Update agent |
+| `DELETE` | `/agents/:id` | Delete agent (built-in agents cannot be deleted) |
+
+## Models
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/models` | List available models from all providers |
+| `POST` | `/models/refresh` | Refresh model metadata cache |
+
+## Settings
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/settings/:key` | Get a setting value |
+| `PUT` | `/settings/:key` | Set a setting value |
+
+## SSE Events
+
+The `/sessions/:id/stream` endpoint delivers real-time events:
+
+| Event | Description |
+|-------|-------------|
+| `delta` | Streaming text from the model |
+| `reasoning_delta` | Streaming reasoning/thinking tokens |
+| `reasoning_done` | Reasoning block complete |
+| `tool_start` | Tool execution begins |
+| `tool_input_delta` | Streaming tool input (for live diff preview) |
+| `tool_output` | Streaming tool output |
+| `tool_end` | Tool execution complete |
+| `done` | Turn complete (includes session cost) |
+| `error` | Error occurred |
+| `retry` | Retrying after failure |
+| `title_updated` | Session title changed |
+| `compaction` | Context compaction triggered |
+| `user_question` | Permission or question prompt for the user |
+
+## Example: Create a Session and Send a Message
+
+```bash
+# Create a session
+SESSION=$(curl -s -X POST http://localhost:PORT/sessions \
+  -H "Content-Type: application/json" \
+  -d '{"agent_id": "builder"}' | jq -r '.id')
+
+# Send a message
+curl -X POST http://localhost:PORT/sessions/$SESSION/messages \
+  -H "Content-Type: application/json" \
+  -d '{"content": "Explain the main function"}'
+
+# Stream responses
+curl -N http://localhost:PORT/sessions/$SESSION/stream
+```
+
+## Example: Create an Agent via API
+
+```bash
+curl -X POST http://localhost:PORT/agents \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "reviewer",
+    "name": "reviewer",
+    "description": "Code review agent",
+    "tools": ["read", "grep", "glob", "search", "lsp", "git"],
+    "system_prompt": "You are a careful code reviewer."
+  }'
+```
+
+## Example: List Models
+
+```bash
+curl -s http://localhost:PORT/models | jq '.[].id'
+```

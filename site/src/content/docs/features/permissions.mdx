@@ -1,0 +1,160 @@
+---
+title: Permissions
+description: Fine-grained control over tool access
+---
+
+KodaCode's permission system gives you granular control over what the AI can do. Permissions are checked before every tool execution.
+
+## Permission Actions
+
+| Action | Behavior |
+|--------|----------|
+| `allow` | Auto-approve without prompting |
+| `ask` | Show inline panel for user approval |
+| `deny` | Block entirely |
+
+## Configuration
+
+Permissions support two formats: simple string shorthand and glob-based pattern matching.
+
+### String Shorthand
+
+Apply a single action to all invocations of a tool:
+
+```yaml
+permission:
+  write: ask        # Ask before any write
+  edit: allow       # Auto-allow all edits
+  bash: ask         # Ask before any bash command
+```
+
+### Glob Patterns
+
+Match specific arguments with glob patterns. More specific patterns take priority over wildcards:
+
+```yaml
+permission:
+  bash:
+    "*": ask              # Ask for all bash commands
+    "ls *": allow         # Auto-allow ls
+    "go test *": allow    # Auto-allow go test
+    "go build *": allow   # Auto-allow go build
+    "rm *": deny          # Block rm commands
+    "sudo *": deny        # Block sudo
+  read:
+    "*": allow            # Allow all reads
+    "*.env": deny         # Block reading .env files
+    "*.env.example": allow  # But allow .env.example
+  write: ask              # Ask before any write
+  edit: allow             # Auto-allow edits
+```
+
+## Inline Permission Panels
+
+When a tool requires permission (`ask` action), KodaCode shows a non-intrusive inline panel at the bottom of the TUI:
+
+- Press `1` to **allow once**
+- Press `2` to **always allow** (adds to session permissions)
+- Press `3` to **deny**
+
+The panel shows the tool name, a summary of what it wants to do, and auto-scrolls to the triggering tool call.
+
+## Per-Agent Permissions
+
+Agents can override global permissions in their frontmatter:
+
+```yaml
+---
+name: reviewer
+permission:
+  bash: deny          # This agent cannot run bash commands
+  write: deny         # Or write files
+  read:
+    "*": allow        # But can read anything
+---
+```
+
+Agent-level permissions are applied on top of global permissions.
+
+## Tool Allowlists and Denylists
+
+Agents can restrict which tools are available entirely:
+
+```yaml
+---
+name: explorer
+tools:             # Only these tools are available
+  - read
+  - grep
+  - glob
+  - search
+  - lsp
+  - tree
+  - git
+---
+```
+
+Or deny specific tools while allowing all others:
+
+```yaml
+---
+name: safe-builder
+deny_tools:        # These tools are removed
+  - bash
+  - web_fetch
+---
+```
+
+When `tools` is set, only listed tools are available. When `deny_tools` is set, those tools are removed from the full set. If both are set, `deny_tools` is ignored.
+
+## Best Practices
+
+### Recommended Starting Config
+
+```yaml
+permission:
+  # Auto-approve read-only tools
+  read: allow
+  glob: allow
+  grep: allow
+
+  # Allow specific bash patterns
+  bash:
+    "*": ask
+    "go test *": allow
+    "go build *": allow
+    "npm test": allow
+    "npm run build": allow
+    "ls *": allow
+    "rm *": deny
+
+  # Ask before file modifications
+  write: ask
+  edit: allow
+```
+
+### Per-Agent Security
+
+Create agents with different permission levels for different tasks:
+
+```yaml
+# A code-review agent that can only read
+---
+name: reviewer
+tools: [read, grep, glob, search, lsp, git, tree]
+permission:
+  read: allow
+---
+
+# A builder agent with broader access
+---
+name: builder
+permission:
+  bash:
+    "*": allow
+    "rm -rf *": ask
+    "sudo *": deny
+  write: allow
+  edit: allow
+---
+```

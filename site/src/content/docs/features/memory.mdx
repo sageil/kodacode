@@ -1,0 +1,126 @@
+---
+title: Project Memory
+description: Persistent instructions and auto-memories that follow your project
+---
+
+KodaCode learns your project's conventions and carries them across every session. Instead of repeating yourself — "use snake_case", "always run tests before committing", "the auth middleware is in src/middleware/" — you tell Koda once and it remembers.
+
+## Instruction Files (KODA.md)
+
+Write project conventions in markdown files. KodaCode loads them in layers, with more specific files taking priority:
+
+| File | Scope | Version controlled |
+|------|-------|-------------------|
+| `~/.config/koda/KODA.md` | Global — applies to all projects | No (personal) |
+| `KODA.md` or `.koda/KODA.md` | Project — shared with your team | Yes |
+| `KODA.local.md` | Personal project overrides | No (gitignore this) |
+
+All three files are loaded and concatenated into the system prompt. KodaCode also reads `AGENTS.md`, `CLAUDE.md`, and `CONTEXT.md` if present — so existing instruction files from other tools work out of the box.
+
+### Example: Project KODA.md
+
+```markdown
+# Project Conventions
+
+- This is a Go project using the standard library. No frameworks.
+- Use table-driven tests with t.Run subtests.
+- Error messages start lowercase, no trailing punctuation.
+- All SQL queries go through the repository layer, never in handlers.
+- The deploy target is ARM64 Linux — avoid x86-specific code.
+```
+
+### Example: Global KODA.md
+
+```markdown
+# Personal Preferences
+
+- I prefer concise responses. Skip preamble.
+- When writing commit messages, use conventional commits format.
+- Never add comments that restate what the code does.
+```
+
+### Example: KODA.local.md
+
+```markdown
+# Local Setup Notes
+
+- My local Postgres runs on port 5433 (not default 5432).
+- Use the staging API at https://staging.internal.company.com for testing.
+```
+
+### Generating an Instruction File
+
+Use `/init` to create a project instruction file:
+
+```
+/init                # Creates KODA.md (default)
+/init AGENTS.md      # Creates AGENTS.md
+/init CLAUDE.md      # Creates CLAUDE.md
+```
+
+## Auto-Memory
+
+For things that come up during conversation, use `/remember` instead of editing files. KodaCode saves these as individual memory entries in `.koda/memories/` and injects them into future sessions automatically.
+
+### Commands
+
+| Command | Description |
+|---------|-------------|
+| `/remember <text>` | Save a memory for this project |
+| `/memories` | List all saved memories |
+| `/forget <id>` | Remove a memory by its ID |
+
+### Examples
+
+```
+/remember the auth middleware validates JWT tokens from the Authorization header
+/remember use MongoDB native driver, not Mongoose — we migrated in March 2026
+/remember the CI pipeline runs on GitHub Actions, config is in .github/workflows/
+/remember API responses must include X-Request-ID header for tracing
+```
+
+Each memory is stored as a small markdown file in `.koda/memories/` with a timestamp-based ID. They're project-scoped and not version-controlled — add `.koda/memories/` to your `.gitignore`.
+
+### Budget
+
+Auto-memories are injected into the system prompt with a character budget to avoid consuming too much context. When the budget is exceeded, the oldest memories are dropped first.
+
+```yaml
+memory_budget: 4000  # max characters for auto-memories (default: 4000)
+```
+
+## Pinned Instructions
+
+For temporary instructions that should only last for the current session, use `/pin`:
+
+```
+/pin Always use TypeScript strict mode for this session
+/pin Don't modify any files in the legacy/ directory
+```
+
+Pinned instructions survive compaction but are session-scoped — they don't persist across sessions.
+
+| Command | Description |
+|---------|-------------|
+| `/pin <instruction>` | Pin instruction for this session |
+| `/pins` | List pinned instructions |
+| `/unpin <number>` | Remove a pinned instruction |
+
+## When to Use What
+
+| Situation | Use |
+|-----------|-----|
+| Team conventions that everyone should follow | `KODA.md` in project root |
+| Personal preferences across all projects | `~/.config/koda/KODA.md` |
+| Local environment details (ports, URLs, paths) | `KODA.local.md` |
+| Something you learned during a session | `/remember` |
+| Temporary instruction for one session only | `/pin` |
+
+## Compatibility
+
+KodaCode reads instruction files from other AI coding tools:
+- `CLAUDE.md` (Claude Code)
+- `AGENTS.md` (OpenCode)
+- `CONTEXT.md` (generic)
+
+If you're migrating from another tool, your existing instruction files will work without changes.

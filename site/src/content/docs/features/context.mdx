@@ -1,0 +1,112 @@
+---
+title: Context Management
+description: How KodaCode keeps long sessions coherent
+---
+
+KodaCode uses a three-stage system to manage context window usage, keeping long coding sessions productive without manual intervention.
+
+## Stage 1: Pruning
+
+Old tool outputs (bash results, file contents, search results) are replaced with compact summaries:
+
+```
+[pruned: 584 lines of file content]
+```
+
+- Targets outputs older than the most recent tool calls
+- Protects the last 40K tokens from pruning (configurable via `prune_protect_tokens`)
+- Only prunes if total savings exceed 20K tokens (configurable via `prune_min_savings`)
+- Edit/patch outputs are never pruned (needed for correctness)
+
+## Stage 2: Compaction
+
+When context usage exceeds the threshold (default 80%), KodaCode generates a structured summary using the utility model:
+
+The summary follows a strict format:
+- **Goal** — what the user is trying to accomplish
+- **Key instructions** — constraints and preferences
+- **Discoveries** — what was learned during the session
+- **Accomplished** — what has been done
+- **Relevant files** — files that matter for the current task
+
+The most recent turns (default 10) are preserved verbatim. Everything older is replaced by the summary.
+
+## Stage 3: Context Limit Safety
+
+At 90% of the model's actual input capacity, KodaCode stops the tool loop and forces a final response. This prevents context overflow errors that would lose the entire turn.
+
+Additional safety measures:
+- At 60% context usage: tool parameter descriptions are stripped (the model has seen them before)
+- At 90% context usage: tools are removed entirely, forcing a text response
+
+## Configuration
+
+```yaml
+session:
+  compaction_threshold: 0.8      # Trigger compaction at 80%
+  compaction_keep_turns: 10      # Preserve last 10 turns
+  prune_protect_tokens: 40000    # Protect last 40K tokens from pruning
+  prune_min_savings: 20000       # Only prune if saves 20K+ tokens
+  context_limit: 0.9             # Stop tool loop at 90%
+
+  # Per-model overrides
+  models:
+    openai/gpt-4o:
+      compaction_threshold: 0.9
+      prune_protect_tokens: 80000
+```
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `compaction_threshold` | `0.8` | Fraction of context window that triggers compaction |
+| `compaction_keep_turns` | `10` | Recent turns preserved verbatim after compaction |
+| `prune_protect_tokens` | `40000` | Tokens protected from pruning |
+| `prune_min_savings` | `20000` | Minimum savings required to trigger pruning |
+| `context_limit` | `0.9` | Fraction of context that stops the tool loop |
+
+## Pinned Instructions
+
+Use `/pin` to add instructions that survive compaction:
+
+```
+/pin Always use TypeScript strict mode
+/pin Never modify files in the vendor/ directory
+/pin Use table-driven tests for all new Go tests
+```
+
+Pinned instructions are injected into every system prompt, even after compaction clears the conversation history.
+
+| Command | Description |
+|---------|-------------|
+| `/pin <instruction>` | Pin a new instruction |
+| `/pins` | List all pinned instructions |
+| `/unpin <number>` | Remove a pin by number |
+
+### Example: Protecting Conventions During Long Sessions
+
+```
+> /pin All database queries must go through the repository layer
+> /pin Error messages start lowercase, no trailing punctuation
+> /pin Run tests after every code change
+```
+
+These instructions persist through compaction, so even if the model's conversation history is summarized, it still follows your rules.
+
+## Best Practices
+
+### Monitoring Context Usage
+Use `/cost` to see current token usage. Watch for:
+- **60%**: Tool parameter descriptions are stripped to save space
+- **80%**: Compaction triggers — older turns are summarized
+- **90%**: Tool loop stops, model forced to respond with available information
+
+### Tuning for Your Workflow
+- **Long refactoring sessions**: Lower `compaction_threshold` (0.7) and increase `compaction_keep_turns` (15) to preserve more recent context
+- **Quick Q&A sessions**: Defaults work well — compaction rarely triggers
+- **Large codebases**: Increase `prune_protect_tokens` (60000+) to keep more tool output visible
+
+### When Context Gets Lost
+If the model forgets something important after compaction:
+- Use `/pin` to make critical instructions survive compaction
+- Use `KODA.md` for project conventions that should always be present
+- Re-state key context in your next message — the model will pick it up

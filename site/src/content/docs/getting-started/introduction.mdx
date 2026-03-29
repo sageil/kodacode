@@ -1,0 +1,50 @@
+---
+title: Introduction
+description: What is KodaCode and why you should use it
+---
+
+KodaCode is an AI-powered CLI assistant with a modern terminal UI (TUI) and HTTP API. Built in Go, it connects to multiple AI providers and gives the model direct access to your codebase through 20 built-in tools — file operations, shell commands, code search, LSP queries, git integration, clipboard access, and more.
+
+## Key Capabilities
+
+- **Multi-provider**: OpenAI, Anthropic (with OAuth), Google Gemini, and any OpenAI-compatible endpoint (Groq, LM Studio, Ollama, etc.)
+- **Agent system**: Specialized agents for different tasks — building, exploring, planning, polishing, refactoring. Define your own with a markdown file
+- **Parallel tool execution**: When the model requests multiple tool calls, they run concurrently
+- **Live diff preview**: See write/edit changes streaming in real-time before they hit disk
+- **Smart context management**: Three-stage preservation (pruning, compaction, safety limits) keeps long sessions coherent
+- **Background tasks**: Run long commands in the background; results are automatically delivered back to the model
+- **Session management**: Conversation history with branching, context compaction, and time-travel snapshots
+- **Permission system**: Fine-grained control over what tools can do with glob-based allow/ask/deny rules
+- **MCP integration**: Extend capabilities with Model Context Protocol servers (stdio and SSE transports)
+- **LSP integration**: Code intelligence via language servers — auto-discovers gopls, vtsls, pyright, biome, eslint, rust-analyzer, and more
+- **Project memory**: Persistent instructions via `KODA.md` files and `/remember` for on-the-fly learnings
+- **HTTP API**: Embedded server for programmatic access
+- **Cost tracking**: Per-session token usage and dollar cost with configurable budget caps
+
+## How It Works
+
+When you send a message, KodaCode:
+
+1. Builds a system prompt with project context, agent instructions, memories, and pinned instructions
+2. Sends your message to the configured AI model
+3. The model responds with text and/or tool calls
+4. Tool calls execute in parallel — reading files, running commands, searching code
+5. Results feed back to the model for the next iteration
+6. The cycle continues until the model has a final response
+
+All of this streams in real-time through the TUI. You see tool calls executing, diffs rendering, and the response building as it happens.
+
+## Architecture
+
+KodaCode uses clean hexagonal architecture with no circular dependencies:
+
+- **Providers** adapt to different AI APIs (Anthropic, OpenAI, Google)
+- **A middleware pipeline** processes each turn (system prompt, compaction, tool resolution, LLM execution)
+- **Tools** are sandboxed with per-agent allowlists and permission checks
+- **The TUI** renders everything through Bubble Tea with per-message caching for performance
+- **SQLite** stores sessions, messages, and conversation history
+
+## Next Steps
+
+- [Install KodaCode](/kodacode/getting-started/installation/) on your machine
+- [Quick Start](/kodacode/getting-started/quick-start/) to run your first session

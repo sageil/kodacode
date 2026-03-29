@@ -1,0 +1,104 @@
+---
+title: Architecture
+description: How KodaCode is built internally
+---
+
+KodaCode is a Go application using clean hexagonal architecture with no circular dependencies.
+
+## Project Structure
+
+```
+cmd/koda/main.go          # Entry point, CLI, bootstrap
+internal/
+  api/                    # HTTP handlers (Echo)
+  service/                # Business logic, orchestration
+  repository/             # Data access (SQLite)
+  provider/               # AI provider adapters
+  pipeline/               # Middleware chain interfaces
+  sandbox/                # Tool execution sandboxing
+  agent/                  # Agent definition & loading
+  tool/                   # Built-in tool implementations
+  config/                 # Configuration management
+  tui/                    # Bubble Tea terminal UI
+  message/                # Typed message content model
+  lsp/                    # Language Server Protocol client
+  mcp/                    # Model Context Protocol client
+  snapshot/               # Per-turn git snapshots
+  permission/             # Permission system
+```
+
+## Pipeline Architecture
+
+Every conversation turn flows through a middleware chain:
+
+1. **SandboxMiddleware** — sets up tool execution context with working directory and environment
+2. **SystemPromptMiddleware** — builds the system prompt from agent instructions, project context, pinned instructions, and environment info
+3. **CompactionMiddleware** — checks context usage and triggers pruning/compaction when needed
+4. **ToolResolverMiddleware** — resolves available tools (built-in + MCP), filtered by agent allowlists
+5. **TitleMiddleware** — generates session titles from the first user message
+6. **LLMMiddleware** — executes the streaming chat loop with parallel tool execution and fallback
+
+Each middleware wraps the next, forming a chain. Ephemeral sessions (subagents) skip compaction and title generation for efficiency.
+
+## Provider Layer
+
+Providers implement a common interface:
+
+```go
+type Provider interface {
+    ID() string
+    Name() string
+    Models(ctx context.Context) ([]Model, error)
+    Chat(ctx context.Context, model string, messages []Message,
+         opts ChatOptions) (<-chan StreamChunk, error)
+}
+```
+
+Adapters exist for Anthropic (native SDK), OpenAI (native SDK), Google Gemini (native SDK), and any OpenAI-compatible endpoint.
+
+## Tool Execution
+
+Tools are registered in a central registry and resolved per-turn based on the active agent's allowlist:
+
+1. Model returns tool calls in its response
+2. Multiple calls execute in parallel via goroutines
+3. Each call is permission-checked before execution
+4. Results are collected and fed back to the model
+5. The cycle repeats until the model produces a final text response
+
+Tool output is streamed in real-time to the TUI via SSE events.
+
+## Data Layer
+
+SQLite stores all persistent data:
+
+- **Sessions** — metadata, model, agent, title
+- **Messages** — role, content, tool calls/results
+- **Message parts** — typed content (text, tool calls, files, images)
+
+The database lives at `~/.local/share/koda/koda.db`. Model metadata is cached separately at `~/.local/share/koda/models-cache.json`.
+
+## TUI Architecture
+
+The terminal UI is built with [Bubble Tea](https://github.com/charmbracelet/bubbletea):
+
+- **App** — top-level model routing between home and session views
+- **Messages** — scrollable viewport with per-message render caching
+- **Tool panels** — expandable blocks with diff rendering, syntax highlighting
+- **Footer** — input textarea with slash command autocomplete
+- **Header** — session info, agent, model, variant display
+
+Render performance is optimized with dirty-flag tracking — only changed messages are re-rendered, and tool output is batched.
+
+## Key Dependencies
+
+| Package | Purpose |
+|---------|---------|
+| Bubble Tea + Bubbles | Terminal UI framework |
+| Echo | HTTP server |
+| Anthropic SDK | Claude API |
+| OpenAI SDK | GPT API |
+| Google Gemini SDK | Gemini API |
+| Goldmark | Markdown parsing |
+| modernc.org/sqlite | Pure Go SQLite |
+| Chroma | Syntax highlighting |

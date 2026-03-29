@@ -1,0 +1,76 @@
+---
+title: Keyboard Shortcuts
+description: All keyboard shortcuts for the KodaCode TUI
+---
+
+## General
+
+| Key | Action |
+|-----|--------|
+| `Ctrl+C` | Quit |
+| `Ctrl+P` | Open command palette |
+| `Esc` | Close dialogs / cancel stream / deselect / clear errors |
+| `Tab` | Cycle through primary agents |
+
+## Command Palette
+
+Press `Ctrl+P` (or `/palette`) to open the command palette — a fuzzy finder over files, symbols, sessions, and commands.
+
+| Key | Action |
+|-----|--------|
+| `Ctrl+P` | Open palette |
+| Type | Filter results with fuzzy matching |
+| `Up/Down` | Navigate results |
+| `Enter` | Select (attach file, go to symbol, resume session, run command) |
+| `Esc` | Close palette |
+
+### Prefix shortcuts
+
+| Prefix | Effect |
+|--------|--------|
+| `/` | Prioritize commands |
+| `@` | Search workspace symbols via LSP (async) |
+| `#` | Prioritize sessions |
+
+Files are loaded from `git ls-files`. Symbols are queried from running LSP servers when you type `@`. Sessions and commands are always available.
+
+## Home View
+
+| Key | Action |
+|-----|--------|
+| `Ctrl+J` | Navigate down in recent sessions |
+| `Ctrl+K` | Navigate up in recent sessions |
+| `Enter` | Open selected recent session |
+| `Esc` | Deselect current session |
+
+## Input
+
+| Key | Action |
+|-----|--------|
+| `Enter` | Send message |
+| `Shift+Enter` | Insert newline |
+| `Ctrl+F` / `Ctrl+B` | Character forward / backward |
+| `Ctrl+A` / `Ctrl+E` | Line start / end |
+| `Alt+F` / `Alt+B` | Word forward / backward |
+| `Ctrl+W` | Delete word backward |
+| `Ctrl+U` | Delete to line start |
+| `Ctrl+K` | Delete to line end |
+| `Ctrl+D` | Delete character forward |
+| `Ctrl+Y` | Paste from clipboard |
+
+## Navigation
+
+| Key | Action |
+|-----|--------|
+| `Page Up` | Scroll up |
+| `Page Down` | Scroll down |
+| `Click` | Toggle tool block expand/collapse |
+
+## Dialogs
+
+| Key | Action |
+|-----|--------|
+| `Up/Down` | Navigate options |
+| `Space` | Toggle selection (multi-select) |
+| `Enter` | Confirm selection |
+| `Esc` | Cancel |

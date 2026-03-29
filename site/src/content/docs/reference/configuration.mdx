@@ -1,0 +1,382 @@
+---
+title: Configuration Reference
+description: Complete reference for config.yaml
+---
+
+Configuration files are loaded in order, with later sources overriding earlier ones:
+
+1. `~/.config/koda/config.yaml` — global defaults
+2. `./koda.yaml` — project-specific overrides
+
+Environment variables (`${VAR_NAME}`) are expanded automatically in `api_key`, `base_url`, `env`, and `headers` fields.
+
+## Providers
+
+```yaml
+providers:
+  - id: anthropic
+    api_key: ${ANTHROPIC_API_KEY}          # leave empty for OAuth
+    thinking_budget: 10000                 # default for all models from this provider
+    thinking_type: adaptive                # "adaptive" (default) or "enabled"
+
+  - id: openai
+    api_key: ${OPENAI_API_KEY}
+    models:                                 # optional static model definitions
+      - id: custom-model
+        name: Custom Model
+        context_size: 128000
+        thinking_budget: 8000              # per-model reasoning token budget
+
+  - id: google
+    api_key: ${GOOGLE_API_KEY}             # leave empty for OAuth
+    models:
+      - id: gemini-3-pro-preview
+        thinking_budget: 10000             # enable thinking for this model
+
+  - id: groq
+    api_key: ${GROQ_API_KEY}
+    base_url: https://api.groq.com/openai/v1
+
+  - id: ollama
+    base_url: http://localhost:11434/v1    # local models auto-discovered
+
+  - id: lmstudio
+    base_url: http://localhost:8000/v1     # local models auto-discovered
+```
+
+### Thinking type (Anthropic OAuth only)
+
+The `thinking_type` field controls how thinking is injected for Anthropic OAuth/subscription requests:
+
+| Value | Behavior |
+|-------|----------|
+| `adaptive` (default) | Model decides how much to think based on query complexity. More token-efficient. |
+| `enabled` | Fixed token budget from `thinking_budget`. Predictable but uses more tokens. |
+
+```yaml
+# Adaptive: model decides thinking depth (recommended)
+providers:
+  - id: anthropic
+    thinking_type: adaptive
+
+# Fixed budget: always reserve 10K tokens for thinking
+providers:
+  - id: anthropic
+    thinking_type: enabled
+    thinking_budget: 10000
+```
+
+When `thinking_type` is `adaptive`, the `thinking_budget` is ignored for OAuth requests (the model decides). When `thinking_type` is `enabled`, the `thinking_budget` sets the token budget (defaults to 10,000 if not specified).
+
+### Per-model thinking budget
+
+The `thinking_budget` field controls reasoning tokens. Models without this field do not use extended thinking. Priority order:
+
+1. **Agent frontmatter** `reasoning_budget` (highest)
+2. **Variant toggle** (`/variant` cycling low/high/max)
+3. **Per-model config** `thinking_budget`
+4. **Provider-level** `thinking_budget`
+
+## Models
+
+```yaml
+utility_model: anthropic/claude-haiku-4-5-20251001  # for background tasks (titles, compaction)
+default_agent: builder                              # agent for new sessions
+
+fallback_models:                                    # tried in order when primary fails
+  - anthropic/claude-sonnet-4-6
+  - openai/gpt-4o
+```
+
+The model for each session is selected via the `/models` command or the model picker on the home screen. The `utility_model` is used for lightweight background tasks (title generation, context compaction) and by agents configured with `model: utility`.
+
+## Session
+
+```yaml
+session:
+  compaction_threshold: 0.8     # compact at 80% of context window
+  compaction_keep_turns: 10     # preserve last 10 turns after compaction
+  prune_protect_tokens: 40000   # protect last 40K tokens from pruning
+  prune_min_savings: 20000      # only prune if saves 20K+ tokens
+  context_limit: 0.9            # stop tool loop at 90% of context
+  max_retries: 5                # retry failed API calls
+  max_subagents: 10             # max concurrent subagent sessions
+  subagent_timeout: 5           # minutes before a subagent is cancelled (default: 5)
+  background_auto_react: false  # auto-prompt model when background task completes
+  snapshot: false               # enable per-turn git snapshots (/replay to navigate)
+  budget: 0.0                   # max dollars per session (0 = unlimited)
+  budget_warn: 0.8              # warn at this fraction of budget
+
+  # Per-model overrides
+  models:
+    openai/gpt-4o:
+      compaction_threshold: 0.9
+      prune_protect_tokens: 80000
+      context_limit: 0.95
+    gpt-4.1:
+      max_input_tokens: 64000   # override when provider caps below context
+```
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `compaction_threshold` | `0.8` | Trigger compaction at this fraction of context window |
+| `compaction_keep_turns` | `10` | Number of recent turns to preserve after compaction |
+| `prune_protect_tokens` | `40000` | Tokens protected from pruning |
+| `prune_min_savings` | `20000` | Minimum token savings to trigger pruning |
+| `context_limit` | `0.9` | Stop tool loop at this fraction of context |
+| `max_retries` | `5` | Max retries for transient API errors |
+| `max_subagents` | `10` | Max concurrent subagent sessions |
+| `subagent_timeout` | `5` | Minutes before a subagent is cancelled |
+| `background_auto_react` | `false` | Auto-send background task results to model |
+| `snapshot` | `false` | Enable per-turn git snapshots |
+| `budget` | `0` | Max session cost in dollars (0 = unlimited) |
+| `budget_warn` | `0.8` | Fraction of budget that triggers a warning |
+
+## Server
+
+```yaml
+server:
+  port: 0    # 0 = random available port (recommended)
+```
+
+## TUI
+
+```yaml
+tui:
+  input_max_height: 8       # max rows for input textarea
+  theme: default             # theme name from ~/.config/koda/themes/
+  display_turns: 4           # recent turns to keep rendered (0 = unlimited)
+  error_display_time: 0      # seconds before error toast dismisses (0 = persist)
+  auto_resume: false         # resume last session on startup instead of home screen
+```
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `input_max_height` | `8` | Maximum height of the input textarea in rows |
+| `theme` | `""` | Theme name from `~/.config/koda/themes/` |
+| `display_turns` | `4` | Number of recent turns to render (0 = all) |
+| `error_display_time` | `0` | Seconds before error toasts auto-dismiss (0 = persist until next action) |
+| `auto_resume` | `false` | Skip home screen and resume last session |
+
+### Themes and Syntax Highlighting
+
+Each theme file in `~/.config/koda/themes/` can specify a `syntax_style` to control code block highlighting. This maps to a [chroma](https://github.com/alecthomas/chroma) style name:
+
+```yaml
+# ~/.config/koda/themes/my-theme.yaml
+name: my-theme
+syntax_style: dracula        # any valid chroma style name
+
+palette:
+  primary: "#bd93f9"
+  surface: "#282a36"
+  text: "#f8f8f2"
+  # ...
+```
+
+If `syntax_style` is omitted, koda picks one automatically based on the theme name or palette brightness.
+
+| Theme | `syntax_style` |
+|-------|---------------|
+| Catppuccin Mocha | `catppuccin-mocha` |
+| Dracula | `dracula` |
+| Gruvbox Dark | `gruvbox` |
+| Nord | `nord` |
+| One Dark | `onedark` |
+| Rosé Pine Moon | `rose-pine-moon` |
+| Solarized Dark | `solarized-dark` |
+| Tokyo Night | `tokyonight-night` |
+| Any light theme | `github` |
+
+Browse the [chroma style gallery](https://xyproto.github.io/splash/docs/) to preview available styles.
+
+## Permissions
+
+```yaml
+permission:
+  bash:
+    "*": ask
+    "ls *": allow
+    "go test *": allow
+    "rm *": deny
+  read:
+    "*": allow
+    "*.env": deny
+    "*.env.example": allow
+  write: ask
+  edit: allow
+  glob: allow
+  grep: allow
+```
+
+See [Permissions](/kodacode/features/permissions/) for full documentation.
+
+## Sandbox
+
+```yaml
+allowed_paths:               # directories allowed without prompting
+  - /tmp/shared-data
+  - ~/shared-libs
+
+ignore_patterns:             # appended to built-in defaults
+  - "*.generated.go"
+  - "vendor/**"
+```
+
+See [Sandbox](/kodacode/features/sandbox/) for built-in defaults and details.
+
+## Memory
+
+```yaml
+memory_budget: 4000          # max characters for auto-memories in system prompt
+```
+
+## LSP Servers
+
+Three servers are configured by default (gopls, vtsls, pyright). Additional servers are auto-discovered from your project. Servers start on demand — the first query to a matching file extension starts the server.
+
+```yaml
+lsp:
+  servers:
+    - name: gopls
+      command: gopls
+      extensions: [".go"]
+      env:
+        GOFLAGS: "-mod=mod"
+    - name: vtsls
+      command: vtsls
+      args: ["--stdio"]
+      extensions: [".ts", ".tsx", ".js", ".jsx"]
+    - name: pyright
+      command: pyright-langserver
+      args: ["--stdio"]
+      extensions: [".py", ".pyi"]
+    - name: rust-analyzer
+      command: rust-analyzer
+      extensions: [".rs"]
+      enabled: true              # set false to disable
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `name` | Yes | Unique server identifier |
+| `command` | Yes | Executable command |
+| `args` | No | Command-line arguments |
+| `env` | No | Additional environment variables |
+| `extensions` | Yes | File extensions this server handles |
+| `enabled` | No | Set `false` to disable (default: `true`) |
+
+## MCP Servers
+
+```yaml
+mcp:
+  servers:
+    - name: filesystem
+      type: stdio
+      command: npx
+      args: ["-y", "@modelcontextprotocol/server-filesystem", "/path"]
+      env:
+        NODE_ENV: production
+    - name: github
+      type: stdio
+      command: npx
+      args: ["-y", "@modelcontextprotocol/server-github"]
+      env:
+        GITHUB_PERSONAL_ACCESS_TOKEN: ${GITHUB_TOKEN}
+    - name: custom-sse
+      type: sse
+      url: https://example.com/mcp
+      headers:
+        Authorization: Bearer ${MCP_TOKEN}
+      enabled: true              # set false to disable
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `name` | Yes | Unique server name |
+| `type` | Yes | `stdio` or `sse` |
+| `command` | stdio | Command to run |
+| `args` | No | Command arguments |
+| `url` | sse | SSE endpoint URL |
+| `headers` | No | HTTP headers (SSE only) |
+| `env` | No | Environment variables (stdio only) |
+| `enabled` | No | Set `false` to disable (default: `true`) |
+
+See [MCP Integration](/kodacode/features/mcp/) for setup details.
+
+## Instruction Files
+
+```yaml
+instruction_files:          # additional files loaded into system prompt
+  - AGENTS.md
+  - CLAUDE.md
+  - CONTEXT.md
+max_instruction_size: 32768  # max bytes per instruction file (0 = unlimited)
+```
+
+KodaCode also auto-detects `KODA.md`, `KODA.local.md`, `AGENTS.md`, `CLAUDE.md`, and `CONTEXT.md` in your project root. See [Project Memory](/kodacode/features/memory/) for details.
+
+## Skills
+
+```yaml
+skills:
+  models:
+    "openai/gpt-4o":
+      allow_all: true         # allow all skills for this model
+      deny: ["dangerous-skill"]  # except these
+```
+
+## Debug
+
+```yaml
+debug: false                # enable debug logging to koda.log
+log_prompts: false          # log full prompts sent to providers
+model_refresh_interval: 7   # days between model metadata refresh (0 = every startup)
+```
+
+## Complete Example
+
+```yaml
+providers:
+  - id: anthropic
+    api_key: ${ANTHROPIC_API_KEY}
+  - id: openai
+    api_key: ${OPENAI_API_KEY}
+  - id: ollama
+    base_url: http://localhost:11434/v1
+
+utility_model: anthropic/claude-haiku-4-5-20251001
+default_agent: builder
+fallback_models:
+  - openai/gpt-4o
+
+session:
+  compaction_threshold: 0.8
+  compaction_keep_turns: 10
+  context_limit: 0.9
+  max_retries: 5
+  max_subagents: 10
+  subagent_timeout: 5
+  background_auto_react: true
+  snapshot: false
+  budget: 5.00
+  budget_warn: 0.8
+
+tui:
+  input_max_height: 8
+  display_turns: 4
+  auto_resume: false
+
+permission:
+  bash:
+    "*": ask
+    "go test *": allow
+    "go build *": allow
+    "rm *": deny
+  read: allow
+  write: ask
+  edit: allow
+
+memory_budget: 4000
+model_refresh_interval: 7
+```

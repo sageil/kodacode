@@ -1,0 +1,96 @@
+---
+title: Quick Start
+description: Run your first KodaCode session in minutes
+---
+
+## Start KodaCode
+
+```bash
+koda
+```
+
+The home view shows your current agent, model, project directory, git branch, and recent sessions.
+
+### Resume Last Session
+
+```bash
+koda --resume
+# or
+koda -r
+```
+
+If you prefer to always resume your last session, set `auto_resume` in your config:
+
+```yaml
+tui:
+  auto_resume: true
+```
+
+## Your First Conversation
+
+Type a message and press **Enter** to send. Use **Shift+Enter** for multi-line input.
+
+```
+> Explain the architecture of this project
+```
+
+KodaCode will read your codebase, search for relevant files, and respond with a detailed explanation — all visible in real-time as tools execute.
+
+## Command Palette
+
+Press `Ctrl+P` to open the command palette — a fuzzy finder across files, symbols, sessions, and commands. Type to filter, arrow keys to navigate, Enter to select.
+
+- Select a **file** to attach it as context to your next message
+- Type `@` to search **symbols** across your workspace via LSP
+- Type `#` to search **sessions** by name
+- Type `/` to search **commands**
+
+## Slash Commands
+
+Type `/` in the input to open the fuzzy command menu. Key commands:
+
+| Command | Description |
+|---------|-------------|
+| `/agents` | Switch between agents |
+| `/models` | Switch AI model |
+| `/new` | Start a new session |
+| `/sessions` | Browse session history |
+| `/attach` | Attach a file to your message |
+| `/cost` | Show token usage and costs |
+| `/remember` | Save a project memory |
+| `/pin` | Pin instruction that survives compaction |
+| `/variant` | Cycle thinking budget (low/high/max) |
+| `/diff` | Show current branch diff |
+| `/undo` | Revert last file change |
+| `/export` | Export session as markdown |
+
+## Agent Delegation
+
+The model automatically delegates to specialized agents when the task fits:
+
+- **explorer** — fast, read-only codebase research
+- **planner** — structured implementation plans
+- **polish** — detects and removes AI-generated code artifacts
+- **refactor** — restructures code with automated validation
+- **insight** — extracts learnings and persists them
+
+You can also invoke them directly: `/explorer how does authentication work?`
+
+## Key Shortcuts
+
+| Key | Action |
+|-----|--------|
+| `Ctrl+P` | Open command palette |
+| `Enter` | Send message |
+| `Shift+Enter` | New line |
+| `Esc` | Cancel stream / close dialog / deselect |
+| `Tab` | Cycle agents |
+| `Ctrl+Y` | Paste from clipboard |
+| `Page Up/Down` | Scroll |
+| `Click` | Expand/collapse tool blocks |
+
+## What's Next?
+
+- Learn about [providers and models](/kodacode/features/providers/)
+- Explore the [agent system](/kodacode/features/agents/)
+- See all [built-in tools](/kodacode/features/tools/)

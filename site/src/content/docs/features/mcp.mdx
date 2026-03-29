@@ -1,0 +1,175 @@
+---
+title: MCP Integration
+description: Extend KodaCode with Model Context Protocol servers
+---
+
+KodaCode supports the [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) for extending its capabilities with external tool servers. MCP tools merge seamlessly with built-in tools — the model uses them like any other tool.
+
+## Quick Setup
+
+Add MCP servers to your `config.yaml`:
+
+```yaml
+mcp:
+  servers:
+    - name: filesystem
+      type: stdio
+      command: npx
+      args: ["-y", "@modelcontextprotocol/server-filesystem", "/allowed/path"]
+
+    - name: github
+      type: stdio
+      command: npx
+      args: ["-y", "@modelcontextprotocol/server-github"]
+      env:
+        GITHUB_PERSONAL_ACCESS_TOKEN: ${GITHUB_TOKEN}
+```
+
+Restart KodaCode after changing MCP configuration. Servers start concurrently on launch — failed servers are logged but don't block startup.
+
+## Supported Transports
+
+### stdio (recommended)
+
+KodaCode launches the MCP server as a subprocess and communicates over stdin/stdout JSON-RPC.
+
+```yaml
+mcp:
+  servers:
+    - name: filesystem
+      type: stdio
+      command: npx
+      args: ["-y", "@modelcontextprotocol/server-filesystem", "/path"]
+      env:
+        NODE_ENV: production
+```
+
+### SSE (Server-Sent Events)
+
+Connect to an MCP server already running over HTTP. Useful for shared or remote servers.
+
+```yaml
+mcp:
+  servers:
+    - name: custom-api
+      type: sse
+      url: https://example.com/mcp
+      headers:
+        Authorization: Bearer ${MCP_TOKEN}
+```
+
+Environment variables in `env` and `headers` values are expanded at startup (e.g., `${GITHUB_TOKEN}` resolves from your shell environment).
+
+## How It Works
+
+1. On startup, KodaCode performs the MCP handshake with each configured server (5-second timeout per server)
+2. Discovered tools are merged with built-in tools and made available to the model
+3. MCP tool names are prefixed with the server name to avoid conflicts (e.g., `mcp_filesystem_read`)
+4. Tool calls are routed to the appropriate MCP server transparently
+5. Results are returned to the model like any other tool
+
+## Permissions
+
+MCP tools respect the same permission system as built-in tools. You can allow, ask, or deny individual MCP tools:
+
+```yaml
+permission:
+  mcp_filesystem_write:
+    "*": ask
+  mcp_github_create_issue:
+    "*": allow
+```
+
+## Disabling a Server
+
+Add `enabled: false` to temporarily disable a server without removing its configuration:
+
+```yaml
+mcp:
+  servers:
+    - name: filesystem
+      type: stdio
+      command: npx
+      args: ["-y", "@modelcontextprotocol/server-filesystem", "/path"]
+      enabled: false
+```
+
+## Example: Full MCP Setup
+
+```yaml
+mcp:
+  servers:
+    # File system access for shared directories
+    - name: filesystem
+      type: stdio
+      command: npx
+      args: ["-y", "@modelcontextprotocol/server-filesystem", "/shared/data"]
+
+    # GitHub integration
+    - name: github
+      type: stdio
+      command: npx
+      args: ["-y", "@modelcontextprotocol/server-github"]
+      env:
+        GITHUB_PERSONAL_ACCESS_TOKEN: ${GITHUB_TOKEN}
+
+    # PostgreSQL queries
+    - name: postgres
+      type: stdio
+      command: npx
+      args: ["-y", "@modelcontextprotocol/server-postgres"]
+      env:
+        DATABASE_URL: ${DATABASE_URL}
+
+    # Remote API (SSE)
+    - name: company-api
+      type: sse
+      url: https://mcp.company.com/v1
+      headers:
+        Authorization: Bearer ${COMPANY_MCP_TOKEN}
+
+    # Disabled server (kept for reference)
+    - name: slack
+      type: stdio
+      command: npx
+      args: ["-y", "@modelcontextprotocol/server-slack"]
+      enabled: false
+```
+
+## Popular MCP Servers
+
+| Server | Install | Purpose |
+|--------|---------|---------|
+| `@modelcontextprotocol/server-filesystem` | `npx -y @modelcontextprotocol/server-filesystem /path` | File system read/write |
+| `@modelcontextprotocol/server-github` | `npx -y @modelcontextprotocol/server-github` | GitHub issues, PRs, repos |
+| `@modelcontextprotocol/server-postgres` | `npx -y @modelcontextprotocol/server-postgres` | PostgreSQL queries |
+| `@modelcontextprotocol/server-slack` | `npx -y @modelcontextprotocol/server-slack` | Slack messaging |
+| `@modelcontextprotocol/server-brave-search` | `npx -y @modelcontextprotocol/server-brave-search` | Web search via Brave |
+| `@modelcontextprotocol/server-memory` | `npx -y @modelcontextprotocol/server-memory` | Persistent key-value store |
+
+Any MCP-compliant server works with KodaCode. See the [MCP server directory](https://modelcontextprotocol.io/servers) for more options.
+
+## Troubleshooting
+
+**Server fails to start** — check that the command is installed and accessible in your PATH. Run the command manually to verify: `npx -y @modelcontextprotocol/server-filesystem /tmp`
+
+**Tools not appearing** — verify the server name in `config.yaml` matches what you expect. MCP tools are prefixed: a server named `filesystem` with a tool `read` appears as `mcp_filesystem_read`.
+
+**Permission denied** — MCP tools default to "ask" permission. Add explicit `allow` rules in your permission config for tools you trust.
+
+**Environment variables not expanding** — ensure the variable is exported in your shell (`export GITHUB_TOKEN=...`). KodaCode reads the process environment at startup.
+
+## Best Practices
+
+### Server Selection
+- Use **stdio** transport for local tools — simpler setup, no network overhead
+- Use **SSE** transport for remote services (API integrations, cloud tools)
+
+### Debugging
+- Enable `debug: true` in config and check `~/.local/share/koda/koda.log` for MCP connection status
+- MCP servers initialize in the background — koda is usable immediately while servers connect
+- If a server fails to connect, koda continues without it — check the log for error details
+
+### Performance
+- MCP startup is non-blocking — koda is usable immediately while servers connect
+- Disable unused servers with `enabled: false` rather than removing them from config

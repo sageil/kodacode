@@ -1,0 +1,179 @@
+---
+title: Installation
+description: How to install KodaCode on macOS, Linux, and Windows
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+## Install
+
+### Quick Install (macOS / Linux)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/sageil/koda/main/install.sh | sh
+```
+
+Downloads the latest release binary.
+
+### Homebrew
+
+```bash
+brew tap sageil/tap
+brew install koda
+```
+
+### Scoop (Windows)
+
+```bash
+scoop bucket add sageil https://github.com/sageil/scoop-bucket
+scoop install koda
+```
+
+### Go Install
+
+```bash
+go install github.com/sageil/kodacode/v1/cmd/koda@latest
+```
+
+Requires Go 1.24+.
+
+### From Source
+
+```bash
+git clone https://github.com/sageil/kodacode.git
+cd koda
+task build
+mv bin/koda /usr/local/bin/
+```
+
+Requires Go 1.24+ and [Task](https://taskfile.dev).
+
+## Configuration
+
+Create a config file at `~/.config/koda/config.yaml`. Environment variables (`${VAR}`) are expanded automatically.
+
+```yaml
+# ─── Providers ───────────────────────────────────────────────
+providers:
+  - id: anthropic
+    api_key: ${ANTHROPIC_API_KEY}
+  - id: openai
+    api_key: ${OPENAI_API_KEY}
+  - id: google
+    api_key: ${GOOGLE_API_KEY}
+  - id: groq
+    api_key: ${GROQ_API_KEY}
+    base_url: https://api.groq.com/openai/v1
+
+# ─── Model Selection ────────────────────────────────────────
+utility_model: anthropic/claude-haiku-4-5-20251001   # cheap model for background tasks
+default_agent: builder
+
+fallback_models:
+  - openai/gpt-4o
+  - google/gemini-2.5-flash
+
+# ─── Session ────────────────────────────────────────────────
+session:
+  compaction_threshold: 0.8
+  compaction_keep_turns: 10
+  prune_protect_tokens: 40000
+  prune_min_savings: 20000
+  context_limit: 0.9
+  max_retries: 5
+  max_subagents: 10
+  subagent_timeout: 5
+  background_auto_react: true
+  snapshot: false
+  budget: 5.00
+  budget_warn: 0.8
+
+  # Per-model overrides
+  models:
+    openai/gpt-4o:
+      compaction_threshold: 0.9
+      prune_protect_tokens: 80000
+
+# ─── Permissions ─────────────────────────────────────────────
+permission:
+  bash:
+    "*": ask
+    "go test *": allow
+    "go build *": allow
+    "ls *": allow
+    "rm *": deny
+  read:
+    "*": allow
+    "*.env": deny
+    "*.env.example": allow
+  write: ask
+  edit: allow
+
+# ─── TUI ─────────────────────────────────────────────────────
+tui:
+  input_max_height: 8
+  theme: default
+  display_turns: 4
+  error_display_time: 3
+  auto_resume: false
+
+# ─── Server ──────────────────────────────────────────────────
+server:
+  port: 0
+
+# ─── Sandbox ─────────────────────────────────────────────────
+allowed_paths:
+  - /tmp/shared-data
+
+ignore_patterns:
+  - "*.generated.go"
+
+# ─── MCP Servers ─────────────────────────────────────────────
+mcp:
+  servers:
+    - name: filesystem
+      type: stdio
+      command: npx
+      args: ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/files"]
+      env:
+        NODE_ENV: production
+    - name: custom-api
+      type: sse
+      url: https://example.com/mcp
+      headers:
+        Authorization: Bearer ${MCP_TOKEN}
+
+# ─── LSP Servers ─────────────────────────────────────────────
+lsp:
+  servers:
+    - name: gopls
+      command: gopls
+      extensions: [".go"]
+    - name: vtsls
+      command: vtsls
+      args: ["--stdio"]
+      extensions: [".ts", ".tsx", ".js", ".jsx"]
+
+# ─── Memory ─────────────────────────────────────────────────
+memory_budget: 4000
+
+# ─── Model Metadata ─────────────────────────────────────────
+model_refresh_interval: 7
+```
+
+### OAuth Authentication
+
+For Anthropic (Claude Pro/Max) and Google (Gemini Code Assist), use OAuth instead of API keys:
+
+```bash
+koda login anthropic
+koda login google
+```
+
+Leave `api_key` empty for OAuth-authenticated providers.
+
+### Project-Local Overrides
+
+Create `./koda.yaml` in your project root to override global settings. Scalar fields replace the global value; providers merge by ID; allowed paths and ignore patterns are appended.
+
+See the full [Configuration Reference](/kodacode/reference/configuration/) for all options.

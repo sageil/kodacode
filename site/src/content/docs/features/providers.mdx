@@ -1,0 +1,223 @@
+---
+title: Multi-Provider AI
+description: Connect to OpenAI, Anthropic, Google, and more
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+KodaCode supports multiple AI providers simultaneously. Switch models mid-session, configure fallback chains, and route cheap tasks to utility models.
+
+## Supported Providers
+
+| Provider | Auth Methods | Notable Models |
+|----------|-------------|----------------|
+| **Anthropic** | API key, OAuth | Claude Opus 4.6, Sonnet 4.6, Haiku 4.5 |
+| **OpenAI** | API key | GPT-4o, GPT-4.1, o1 |
+| **Google Gemini** | API key, OAuth | Gemini 2.5 Flash, Gemini 2.5 Pro |
+| **GitHub Copilot** | Token import | GPT-4.1, Claude via Copilot |
+| **OpenAI-compatible** | API key | Groq, LM Studio, Ollama, any custom endpoint |
+
+## Configuration
+
+```yaml
+providers:
+  - id: anthropic
+    api_key: ${ANTHROPIC_API_KEY}
+
+  - id: openai
+    api_key: ${OPENAI_API_KEY}
+
+  - id: google
+    api_key: ${GOOGLE_API_KEY}
+
+  - id: groq
+    api_key: ${GROQ_API_KEY}
+    base_url: https://api.groq.com/openai/v1
+
+  - id: ollama
+    base_url: http://localhost:11434/v1
+
+  - id: lmstudio
+    base_url: http://localhost:8000/v1
+```
+
+Select your model via the `/models` command or the home screen model picker.
+
+### Example: Local + Cloud Setup
+
+```yaml
+providers:
+  - id: anthropic
+    api_key: ${ANTHROPIC_API_KEY}
+  - id: ollama
+    base_url: http://localhost:11434/v1
+
+utility_model: ollama/llama3               # use local model for background tasks
+fallback_models:
+  - ollama/llama3                           # fall back to local if cloud fails
+```
+
+## OAuth Authentication
+
+For Anthropic (Claude Pro/Max) and Google (Cloud Code Assist), use OAuth instead of API keys:
+
+```bash
+koda login anthropic
+koda login google
+```
+
+Leave `api_key` empty in your config for OAuth-authenticated providers. To log out:
+
+```bash
+koda logout
+```
+
+## GitHub Copilot
+
+KodaCode can use your existing GitHub Copilot subscription to access models like GPT-4.1 and Claude through the Copilot API.
+
+### Setup
+
+Use `/connect` and select **GitHub Copilot**. You'll be prompted to import your token from one of these sources:
+
+- **Neovim/Vim** — reads from `~/.config/github-copilot/hosts.json`
+- **opencode** — reads from `~/.local/share/opencode/auth.json`
+- **Manual** — paste a `gho_` token directly
+
+KodaCode stores the token in its auth store and automatically exchanges it for short-lived Copilot session tokens (~30 min), refreshing as needed. No manual token rotation required.
+
+### Limitations
+
+KodaCode cannot perform its own GitHub OAuth device code flow for Copilot. GitHub's Copilot API requires a registered OAuth App `client_id` that determines which models the user can access. The `client_id` is obtained through GitHub's Copilot partner program, which is designed for enterprise and business integrations — KodaCode is not enrolled in this program.
+
+Without a partner-enrolled `client_id`, a custom OAuth flow would only provide access to basic models, not the full catalog available to Copilot subscribers.
+
+This is why KodaCode imports tokens from tools that have already completed the Copilot OAuth flow (Neovim plugin, Copilot CLI, opencode) rather than implementing its own.
+
+### Getting a token
+
+If you don't have any of the supported tools installed, the easiest path is to install the Neovim Copilot plugin — it stores its token as a plain JSON file that koda can import directly.
+
+If you already have the Copilot CLI authenticated, the token is in your system keychain. You can extract it for manual paste:
+
+```bash
+# macOS
+security find-generic-password -s "copilot-cli" -w
+
+# Linux (libsecret — install: apt install libsecret-tools / dnf install libsecret / pacman -S libsecret)
+secret-tool lookup service copilot-cli
+
+# Windows (PowerShell — reads from Windows Credential Manager)
+(Get-StoredCredential -Target "copilot-cli").Password
+```
+
+## Utility Model
+
+Configure a cheap, fast model for background tasks like title generation and context compaction:
+
+```yaml
+utility_model: anthropic/claude-haiku-4-5-20251001
+```
+
+Agents can opt into the utility model by setting `model: utility` in their frontmatter. The built-in `explorer` and `insight` agents use this by default, significantly reducing cost for read-only research tasks.
+
+## Fallback Chain
+
+When the primary model fails, KodaCode automatically tries fallback models in order:
+
+```yaml
+fallback_models:
+  - anthropic/claude-sonnet-4-6
+  - openai/gpt-4o
+```
+
+Fallbacks only trigger after the primary model has **fully exhausted its retry budget**. The retry sequence for each model is:
+
+1. **Silent retries** — up to 10 attempts with exponential backoff (2s, 4s, 8s... capped at 30s). These are invisible to the user.
+2. **Visible retries** — up to `max_retries` (default 5) additional attempts. The TUI shows a notification with the error and countdown.
+3. **Non-retryable errors** (401 auth, context overflow) skip retries entirely and fail immediately.
+
+Only after all retries are exhausted does KodaCode move to the next fallback model. Each fallback gets its own full retry budget. The first fallback that succeeds takes over and the response flows normally. If all fallbacks also fail, the original error is returned.
+
+The TUI shows "Primary model unavailable, trying X..." when switching to a fallback.
+
+## Adaptive Reasoning Budget
+
+Thinking is configured **per-model** in the provider config:
+
+```yaml
+providers:
+  - id: google
+    models:
+      - id: gemini-3-pro-preview
+        thinking_budget: 10000   # only this model gets thinking
+```
+
+KodaCode then adjusts the budget dynamically across a tool loop:
+
+1. **Per-model config** — sets the base budget for models that support reasoning
+2. **Agent frontmatter** `reasoning_budget` — overrides the per-model config
+3. **Variant (user-set ceiling)** — `/variant` cycles through `low` (3K), `high` (10K), and `max` (32K) thinking tokens
+4. **Auto-reduce on tool turns** — After the initial response, the budget drops to 3K since the model is just routing tool results
+5. **Context-aware scaling** — Above 70% context usage, the budget scales down to prevent output token exhaustion
+
+Models without `thinking_budget` in their config do not use extended thinking, even if the model supports it. This prevents unnecessary latency and cost.
+
+### Example: Extended Thinking Setup
+
+```yaml
+providers:
+  - id: anthropic
+    api_key: ${ANTHROPIC_API_KEY}
+    thinking_type: adaptive          # "adaptive" (default) or "enabled"
+    thinking_budget: 10000           # used when thinking_type is "enabled"
+    models:
+      - id: claude-opus-4-6
+        thinking_budget: 32000       # more thinking for Opus (when enabled)
+
+  - id: google
+    api_key: ${GOOGLE_API_KEY}
+    models:
+      - id: gemini-2.5-pro
+        thinking_budget: 10000
+```
+
+**Anthropic OAuth thinking types:**
+- **`adaptive`** (default) — the model decides how much to think based on query complexity. Simple questions get minimal thinking; complex tasks get deep reasoning. More token-efficient and less likely to hit subscription rate limits.
+- **`enabled`** — reserves a fixed token budget for thinking on every request. Uses the `thinking_budget` value (defaults to 10,000). Predictable but consumes more tokens.
+
+Then in a session, use `/variant` to cycle thinking effort:
+
+```
+/variant    # cycles: low (3K) → high (10K) → max (32K) → off
+```
+
+## Model Discovery
+
+Models are discovered automatically:
+- **Cloud providers**: metadata fetched from models.dev and provider APIs
+- **Local providers** (Ollama, LM Studio): discovered via their `/v1/models` endpoint
+
+Use `/models` in the TUI to browse and switch models mid-session.
+
+<Aside type="tip">
+Model metadata (context sizes, capabilities, pricing) is cached locally and refreshed every 7 days. Force a refresh with `model_refresh_interval: 0` in config.
+</Aside>
+
+## Best Practices
+
+### Model Selection
+- Use a capable model (Claude Sonnet/Opus, GPT-4o) for complex coding tasks
+- Set a fast, cheap model as `utility_model` for titles, summaries, and compaction
+- Configure `fallback_models` as a safety net for provider outages
+
+### Local Models
+- Ollama and LM Studio models are auto-discovered from their `/v1/models` endpoint
+- Set `context_size` in config for local models — the default may not match the actual model capacity
+- Local model title generation can be slow — koda retries up to 3 times with a 30s timeout
+
+### Cost Optimization
+- The utility model handles titles, compaction, and summaries — use a cheap model here
+- Use `/cost` to monitor spending during a session
+- Set `budget` and `budget_warn` to prevent runaway costs
+- Subagent agents like `explorer` and `insight` use the utility model by default
