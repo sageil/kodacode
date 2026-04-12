@@ -116,6 +116,10 @@ pnpm run dev
 
 Content files are in `site/src/content/docs/`. Edit existing pages or add new `.mdx` files. Update `astro.config.mjs` to add new pages to the sidebar.
 
+## Acknowledgments
+
+KodaCode is built on many excellent open source projects. See [CREDITS.md](CREDITS.md) for the full list.
+
 ## License
 
 By contributing, you agree that your contributions will be licensed under the [AGPL-3.0](LICENSE) license.
