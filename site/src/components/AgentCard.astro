@@ -1,0 +1,13 @@
+---
+// Agent card with pre-formatted visual — avoids MDX parsing
+---
+
+<div class="bento-card wide">
+  <h3><span class="card-accent" style="background:#cba6f7;"></span>Agent system</h3>
+  <p>Engineer researches, plans, and waits for approval. Coder acts directly. Custom agents via markdown. Switch with Tab.</p>
+  <pre class="card-visual" set:html={`<span style="color:#cba6f7">Agents:</span>
+  <span style="color:#a6e3a1">▸</span> engineer   explore → plan → execute
+  <span style="color:#555566">▹</span> coder      direct implementation
+  <span style="color:#555566">▹</span> adviser    read-only research
+  <span style="color:#555566">▹</span> refactor   structural changes`} />
+</div>

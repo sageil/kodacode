@@ -20,6 +20,9 @@ export default defineConfig({
 				'@fontsource/inter/600.css',
 				'@fontsource/inter/700.css',
 				'@fontsource/inter/800.css',
+				'@fontsource/jetbrains-mono/400.css',
+				'@fontsource/jetbrains-mono/500.css',
+				'@fontsource/jetbrains-mono/700.css',
 				'./src/styles/custom.css',
 			],
 			sidebar: [

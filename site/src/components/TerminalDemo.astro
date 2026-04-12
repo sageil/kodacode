@@ -1,0 +1,27 @@
+---
+// Terminal demo component — renders raw HTML to avoid MDX parsing of special characters
+---
+
+<div class="bento-card terminal-hero full">
+  <div class="terminal-bar">
+    <span class="terminal-dot r"></span>
+    <span class="terminal-dot y"></span>
+    <span class="terminal-dot g"></span>
+    <span class="terminal-title">kodacode — ~/project</span>
+  </div>
+  <pre class="terminal-body" set:html={`<span style="color:#cba6f7">  _  __         _          ____          _</span>
+<span style="color:#cba6f7"> | |/ /___   __| | __ _   / ___|___   __| | ___</span>
+<span style="color:#cba6f7"> | ' // _ \\ / _\` |/ _\` | | |   / _ \\ / _\` |/ _ \\</span>
+<span style="color:#cba6f7"> | . \\ (_) | (_| | (_| | | |__| (_) | (_| |  __/</span>
+<span style="color:#cba6f7"> |_|\\_\\___/ \\__,_|\\__,_|  \\____\\___/ \\__,_|\\___|</span>
+
+  <span style="color:#89b4fa">engineer</span> · <span style="color:#f9e2af">claude-sonnet-4-20250514</span> · <span style="color:#555566">main</span>
+
+<span style="color:#a6e3a1">▸</span> refactor the auth middleware to use JWT validation
+
+  <span style="color:#555566">Planning...</span>
+  <span style="color:#a6e3a1">✓</span> Read internal/middleware/auth.go
+  <span style="color:#a6e3a1">✓</span> Read internal/auth/jwt.go
+  <span style="color:#a6e3a1">✓</span> Created plan (4 steps)
+  <span style="color:#89b4fa">→ Waiting for approval</span>`} />
+</div>
