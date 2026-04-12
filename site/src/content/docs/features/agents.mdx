@@ -9,7 +9,7 @@ KodaCode's agent system lets you define specialized AI personas with custom prom
 
 ## Built-in Agents
 
-### Engineer (default)
+### Engineer
 Full-lifecycle development agent. Best for broad or multi-step work where you want a controller-managed workflow before code is changed. The engineer can use all tools — including `code_action`, `rename_symbol`, and subagent delegation — but broad requests go through a structured workflow instead of jumping straight into edits.
 
 When `plan_approval` is enabled (default), the engineer cannot execute the approved plan until you answer the approval question.
@@ -93,17 +93,17 @@ The engineer workflow can ask these controller-owned questions:
 - Narrow implementation tasks may stay model-driven.
 - The full controller-managed workflow is mainly for broad requests that need exploration, planning, approval, and tracked execution.
 
-### Coder
+### Builder (default)
 Direct implementation agent. Reads code, understands it, and makes changes immediately — no subagents, no planning phases, no approval gates. Best for quick fixes, one-file edits, and tasks where you know exactly what you want. Same tools as engineer except no subagent delegation.
 
-Use the coder agent when:
+Use the builder agent when:
 - The task is straightforward and doesn't need a plan
 - You want fast iteration without the explore → plan overhead
 - You're making targeted fixes across a few files
 
 ```
-# Switch to coder via Tab cycling, /agents picker, or:
-default_agent: coder
+# Switch to builder via Tab cycling, /agents picker, or:
+default_agent: builder
 ```
 
 ### Adviser
@@ -192,7 +192,7 @@ Extracts non-obvious learnings (hidden dependencies, gotchas, implicit conventio
 - **`primary`** — shown in the agent picker (`/agents`) and `Tab` cycling
 - **`subagent`** — hidden from the picker, invoked via delegation or slash commands
 
-The engineer, coder, and adviser agents are `primary` — shown in the picker and Tab cycling. The explorer, planner, polish, refactor, reviewer, and insight agents are `subagent` mode — they're invoked via `/<agent-name>` commands or by the model's subagent tool.
+The engineer, builder, and adviser agents are `primary` — shown in the picker and Tab cycling. The explorer, planner, polish, refactor, reviewer, and insight agents are `subagent` mode — they're invoked via `/<agent-name>` commands or by the model's subagent tool.
 
 ## Custom Agents
 

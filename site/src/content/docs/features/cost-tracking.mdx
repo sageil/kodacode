@@ -46,6 +46,8 @@ These are routed to the `utility_model` — a fast, cheap model you configure on
 utility_model: anthropic/claude-haiku-4-5-20251001
 ```
 
+When `utility_model` is not set, KodaCode auto-discovers the cheapest text-capable model across all configured providers. If a utility model fails permanently (401, 403, 404), the next ranked candidate is tried automatically — failed models are marked unavailable for 15 minutes.
+
 Any agent can opt into the utility model by setting `model: utility` in its frontmatter. The built-in `explorer` and `insight` agents do this by default.
 
 **Impact**: Title generation and compaction summaries typically use 500–2,000 tokens each. Routing these to Haiku instead of Opus/Sonnet can reduce their cost by 10–30x per call.

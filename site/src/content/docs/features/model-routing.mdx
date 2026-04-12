@@ -43,10 +43,10 @@ The format is `provider/model`. The provider must be configured in your `provide
 When KodaCode needs the utility model, it resolves in this order:
 
 1. **Explicit config** — uses `utility_model` if set
-2. **Auto-discover** — if not set, finds the cheapest text-capable model from the current provider (by input+output cost per million tokens)
+2. **Auto-discover** — if not set, searches across **all configured providers** for the cheapest text-capable model (by input+output cost per million tokens), filtering out special-purpose models (embedding, TTS, image generation, etc.)
 3. **Fall back** — if discovery fails, uses the session's primary model
 
-Auto-discovery uses pricing data from the model registry and provider-specific heuristics (e.g., preferring "haiku" for Anthropic, "mini" for OpenAI, "flash" for Google).
+Auto-discovery ranks candidates using multiple criteria: known cost (cheapest first), provider-specific hints (e.g., preferring "haiku" for Anthropic, "mini" for OpenAI, "flash" for Google), context size, and tool support. When the selected utility model fails with a permanent error (401, 403, 404, or "model not found"), KodaCode automatically tries the next candidate from the ranked list. Failed models are marked unavailable for 15 minutes to avoid repeated failures.
 
 ### Recommended utility models
 
@@ -261,7 +261,7 @@ Built-in agent model assignments:
 | Agent | Model | Reason |
 |-------|-------|--------|
 | engineer | *(session model)* | Needs full capability for implementation |
-| coder | *(session model)* | Needs full capability for implementation |
+| builder | *(session model)* | Needs full capability for implementation |
 | adviser | *(session model)* | Research benefits from strong reasoning |
 | planner | *(session model)* | Planning benefits from strong reasoning |
 | explorer | `utility` | Read-only research, doesn't need top-tier model |

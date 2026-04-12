@@ -99,14 +99,14 @@ The `thinking_budget` field controls reasoning tokens. Models without this field
 ```yaml
 utility_model: anthropic/claude-haiku-4-5-20251001  # for background tasks (titles, compaction)
 reviewer_model: anthropic/claude-sonnet-4-6         # for the reviewer subagent (defaults to utility_model)
-default_agent: engineer                             # agent for new sessions
+default_agent: builder                              # agent for new sessions
 
 fallback_models:                                    # tried in order when primary fails
   - anthropic/claude-sonnet-4-6
   - openai/gpt-4o
 ```
 
-The model for each session is selected via the `/models` command or the model picker on the home screen. The `utility_model` is used for lightweight background tasks (title generation, context compaction) and by agents configured with `model: utility`. The `reviewer_model` (format: `provider/model-id`) is used by the reviewer subagent; if not set, it defaults to `utility_model`.
+The model for each session is selected via the `/models` command or the model picker on the home screen. The `utility_model` is used for lightweight background tasks (title generation, context compaction) and by agents configured with `model: utility`. When not explicitly set, KodaCode auto-discovers the cheapest text-capable model across all configured providers. If the selected utility model fails permanently, the next ranked candidate is tried automatically. The `reviewer_model` (format: `provider/model-id`) is used by the reviewer subagent; if not set, it defaults to `utility_model`.
 
 ## Session
 
@@ -427,7 +427,7 @@ providers:
 
 utility_model: anthropic/claude-haiku-4-5-20251001
 reviewer_model: anthropic/claude-sonnet-4-6
-default_agent: engineer
+default_agent: builder
 fallback_models:
   - openai/gpt-4o
 

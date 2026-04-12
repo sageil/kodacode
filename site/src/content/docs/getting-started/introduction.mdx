@@ -11,7 +11,7 @@ KodaCode ships with two primary agents that represent different development work
 
 ### Engineer — Explore, Plan, Execute
 
-The default agent. For complex tasks, the engineer follows a structured cycle:
+For complex tasks, the engineer follows a structured cycle:
 
 1. **Explore** — spawns read-only explorer subagents to research your codebase in parallel
 2. **Plan** — delegates to the planner agent, which creates numbered tasks with What/Where/How/Risk for each step
@@ -25,16 +25,16 @@ This is the right mode when a task touches multiple files, requires understandin
 # Engineer explores → finds 14 endpoints → planner creates 5-step plan → you approve → engineer executes
 ```
 
-### Coder — Direct Implementation
+### Builder — Direct Implementation (default)
 
-For straightforward tasks, the coder agent skips the planning overhead. It reads code, understands it, and makes changes immediately — no subagents, no approval gates. Same tools as the engineer minus subagent delegation.
+The default agent. For straightforward tasks, the builder agent skips the planning overhead. It reads code, understands it, and makes changes immediately — no subagents, no approval gates. Same tools as the engineer minus subagent delegation.
 
 ```
 > Fix the nil pointer in handler.go line 42
-# Coder reads the file, edits the line, runs tests. Done.
+# Builder reads the file, edits the line, runs tests. Done.
 ```
 
-Use the coder when the task is clear and you don't need a plan: quick fixes, one-file edits, targeted changes across a few files.
+Use the builder when the task is clear and you don't need a plan: quick fixes, one-file edits, targeted changes across a few files.
 
 ### Adviser — Read-Only Research
 

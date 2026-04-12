@@ -149,6 +149,10 @@ Configure a cheap, fast model for background tasks like title generation and con
 utility_model: anthropic/claude-haiku-4-5-20251001
 ```
 
+When `utility_model` is not set, KodaCode auto-discovers the cheapest text-capable model across **all configured providers**, filtering out special-purpose models (embedding, TTS, image generation, etc.). If auto-discovery fails, it falls back to the session's primary model.
+
+If a utility model call fails with a permanent error (401, 403, 404, or "model not found"), KodaCode automatically tries the next ranked candidate. Failed models are marked unavailable for 15 minutes.
+
 Agents can opt into the utility model by setting `model: utility` in their frontmatter. The built-in `explorer` and `insight` agents use this by default, significantly reducing cost for read-only research tasks.
 
 ## Fallback Chain
