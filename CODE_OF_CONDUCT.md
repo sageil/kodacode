@@ -23,7 +23,7 @@ Examples of unacceptable behavior:
 
 ## Enforcement
 
-Instances of unacceptable behavior may be reported by emailing **sammy.ageil@outlook.com**. All complaints will be reviewed and investigated. The project team reserves the right to remove, edit, or reject comments, commits, code, issues, and other contributions that violate this Code of Conduct.
+Instances of unacceptable behavior may be reported via [GitHub issues](https://github.com/sageil/kodacode/issues) or through [private vulnerability reporting](https://github.com/sageil/kodacode/security/advisories/new). All complaints will be reviewed and investigated. The project team reserves the right to remove, edit, or reject comments, commits, code, issues, and other contributions that violate this Code of Conduct.
 
 ## Attribution
 

@@ -4,7 +4,11 @@
 
 If you discover a security vulnerability in KodaCode, please report it responsibly.
 
-**Do not open a public issue.** Instead, email **sammy.ageil@outlook.com** with:
+**Do not open a public issue.** Instead, use GitHub's private vulnerability reporting:
+
+**[Report a vulnerability](https://github.com/sageil/kodacode/security/advisories/new)**
+
+Include:
 
 - A description of the vulnerability
 - Steps to reproduce
