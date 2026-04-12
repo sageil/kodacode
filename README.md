@@ -1,6 +1,18 @@
-# KodaCode
+<div align="center">
 
-An AI-powered CLI assistant with a modern terminal UI. KodaCode runs in your terminal, understands your codebase, executes tools, and works autonomously to complete software engineering tasks — from bug fixes to multi-file refactors.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/logo-banner.svg">
+  <source media="(prefers-color-scheme: light)" srcset="assets/logo-banner.svg">
+  <img alt="KodaCode" src="assets/logo-banner.svg" width="800">
+</picture>
+
+[![Go](https://img.shields.io/badge/Go-1.25-00ADD8?logo=go&logoColor=white)](https://go.dev)
+[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/sageil/kodacode)](https://github.com/sageil/kodacode/releases)
+[![Homebrew](https://img.shields.io/badge/Homebrew-tap-FBB040?logo=homebrew&logoColor=white)](https://github.com/sageil/homebrew-tap)
+[![Docs](https://img.shields.io/badge/Docs-kodacode.dev-8B5CF6)](https://kodacode.dev)
+
+</div>
 
 ## How It Works
 
