@@ -1,0 +1,20 @@
+Fetches a URL and returns its content. Use this tool to retrieve web pages, API responses, or other HTTP resources.
+
+Only http and https URLs are supported. The tool will request permission before making any network request.
+
+HTTP method: defaults to GET. Use POST, PUT, PATCH, DELETE, or HEAD for API interactions. Provide a body for POST/PUT/PATCH (defaults to application/json content-type if not specified).
+
+Custom headers: pass headers like Authorization, Cookie, or Accept as a key-value object.
+
+CSS selector: use the selector parameter to extract specific page sections (e.g. "main", "article", "#content", ".post-body"). This is applied before format conversion and dramatically reduces output size for large pages.
+
+Output format options:
+- "auto" (default): detects from Content-Type. HTML is converted to markdown (preserving headings, links, lists, code, tables), JSON is pretty-printed, everything else is returned raw.
+- "markdown": converts HTML to readable markdown with structure preserved.
+- "text": extracts plain text from HTML, stripping all tags and structure.
+- "json": pretty-prints JSON responses with indentation.
+- "raw": returns the response body as-is without any processing.
+
+Response metadata (status code, content-type, final URL after redirects) is always included.
+
+The output is truncated if it exceeds the maximum size. Large binary responses (>5MB) are rejected.

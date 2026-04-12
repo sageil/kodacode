@@ -1,0 +1,35 @@
+# Catppuccin Mocha — https://catppuccin.com/palette
+# Warm dark theme with pastel accents. The most popular theme in modern dev tools.
+name: catppuccin-mocha
+syntax_style: catppuccin-mocha
+
+palette:
+  # Mauve (#cba6f7) — soft purple, primary interactive elements.
+  primary: "#cba6f7"
+  # Blue (#89b4fa) — secondary accents, links, badges.
+  secondary: "#89b4fa"
+  # Surface0 (#313244) — raised background for panels and dialogs.
+  surface: "#313244"
+  # Surface1 (#45475a) — input areas, selection highlights.
+  overlay: "#45475a"
+  # Text (#cdd6f4) — primary readable text.
+  text: "#cdd6f4"
+  # Subtext0 (#a6adc8) — de-emphasised labels, hints.
+  subtext: "#a6adc8"
+  # Red (#f38ba8) — errors and destructive actions.
+  error: "#f38ba8"
+  # Yellow (#f9e2af) — warnings and caution states.
+  warning: "#f9e2af"
+  # Green (#a6e3a1) — success states and completion ticks.
+  success: "#a6e3a1"
+  thinking: "#b4befe"
+
+components:
+  user-message:
+    fg: "#cdd6f4"
+    bg: "#45475a"
+    border: left
+    border-color: "#cba6f7"
+
+  assistant-message:
+    fg: "#cdd6f4"

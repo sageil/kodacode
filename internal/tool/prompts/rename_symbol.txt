@@ -1,0 +1,12 @@
+Rename a symbol using the language server's refactoring support.
+
+Use this instead of text-based rename edits when:
+- you are renaming a function, method, type, variable, interface, field, import alias, or exported symbol
+- the language server can track references more reliably than string replacement
+
+Usage:
+- Provide the source file path plus the exact symbol position (`line` is 1-based, `character` is 0-based).
+- `newName` must be the final symbol name only.
+- Prefer `lsp` definition/references/inspect first if you need to confirm the symbol position.
+- This tool applies all workspace edits returned by the language server across the project.
+- If the language server cannot rename that symbol, fall back to `edit` or `patch`.

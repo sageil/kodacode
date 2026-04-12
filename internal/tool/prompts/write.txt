@@ -1,0 +1,17 @@
+Creates a new file or completely rewrites an existing file.
+
+IMPORTANT: This tool sends the ENTIRE file content in one call. For modifying existing files, use the edit or patch tool instead — they only send the changed lines, which is dramatically faster and cheaper.
+
+When to use write:
+- Creating a new file that doesn't exist yet
+- Completely rewriting a file where most lines change
+
+When NOT to use write (use edit/patch instead):
+- Changing a few lines in an existing file
+- Adding imports, fixing bugs, or updating functions
+- Any modification where less than half the file changes
+
+Rules:
+- NEVER proactively create documentation files (*.md) or README files unless explicitly requested.
+- Only use emojis if the user explicitly requests it.
+- If you previously read the file, pass the latest `<version>` token back as `expectedVersion` so the write fails cleanly if the file changed since you read it.

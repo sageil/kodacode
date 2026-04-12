@@ -1,0 +1,508 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/sageil/kodacode/main/schema/config.schema.json",
+  "title": "KodaCode Configuration",
+  "description": "Configuration schema for the KodaCode CLI assistant (https://github.com/sageil/kodacode)",
+  "type": "object",
+  "properties": {
+    "providers": {
+      "type": "array",
+      "description": "AI provider configurations",
+      "items": {
+        "type": "object",
+        "required": ["id"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique provider identifier (e.g. 'openai', 'anthropic', 'google', 'lmstudio')"
+          },
+          "api_key": {
+            "type": "string",
+            "description": "API key or bearer token. Supports environment variable expansion (e.g. ${OPENAI_API_KEY}). May be empty for local providers."
+          },
+          "base_url": {
+            "type": "string",
+            "description": "Base URL for OpenAI-compatible endpoints (e.g. 'https://api.openai.com/v1'). Required for non-standard providers.",
+            "format": "uri"
+          },
+          "models": {
+            "type": "array",
+            "description": "Static model definitions. Usually not needed — models are discovered automatically from the registry.",
+            "items": {
+              "type": "object",
+              "required": ["id"],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "Model identifier"
+                },
+                "name": {
+                  "type": "string",
+                  "description": "Human-readable display name"
+                },
+                "context_size": {
+                  "type": "integer",
+                  "description": "Context window size in tokens",
+                  "minimum": 1
+                },
+                "thinking_budget": {
+                  "type": ["integer", "null"],
+                  "description": "Per-model reasoning token budget. Set to enable thinking/reasoning for this model. null (default) means no thinking support — reasoning_effort will not be sent to the provider.",
+                  "minimum": -1
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "thinking_budget": {
+            "type": "integer",
+            "description": "Default thinking token budget for OAuth subscription requests (Anthropic only). Higher values give more reasoning time but increase latency. 0 uses provider default (10000). -1 disables thinking."
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "default_model": {
+      "type": "string",
+      "description": "Default model in 'providerID/modelID' format (e.g. 'openai/gpt-4o')",
+      "pattern": "^[a-zA-Z0-9_-]+/.+$"
+    },
+    "utility_model": {
+      "type": "string",
+      "description": "Model for background tasks (title generation, compaction). Should be fast and cheap. Falls back to default_model if empty.",
+      "pattern": "^[a-zA-Z0-9_-]+/.+$"
+    },
+    "reviewer_model": {
+      "type": "string",
+      "description": "Model for the reviewer subagent. Use a different capable model than the engineer for cross-model review. Falls back to the engineer's model if empty.",
+      "pattern": "^[a-zA-Z0-9_-]+/.+$"
+    },
+    "default_agent": {
+      "type": "string",
+      "description": "Default agent ID for new sessions (e.g. 'engineer', 'default')"
+    },
+    "fallback_models": {
+      "type": "array",
+      "description": "Ordered list of 'providerID/modelID' strings to try when the primary model fails all retries",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-zA-Z0-9_-]+/.+$"
+      }
+    },
+    "session": {
+      "type": "object",
+      "description": "Session and context management settings",
+      "properties": {
+        "compaction_threshold": {
+          "type": "number",
+          "description": "Trigger compaction when token usage exceeds this fraction of the context window",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.8
+        },
+        "compaction_keep_turns": {
+          "type": "integer",
+          "description": "Number of recent turns to preserve after compaction",
+          "minimum": 1,
+          "default": 10
+        },
+        "prune_protect_tokens": {
+          "type": "integer",
+          "description": "Number of tokens at the end of history protected from pruning",
+          "minimum": 0,
+          "default": 40000
+        },
+        "prune_min_savings": {
+          "type": "integer",
+          "description": "Minimum token savings required for pruning to proceed",
+          "minimum": 0,
+          "default": 20000
+        },
+        "context_limit": {
+          "type": "number",
+          "description": "Stop the tool loop when tokens exceed this fraction of the context window. Should be higher than compaction_threshold.",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.9
+        },
+        "max_retries": {
+          "type": "integer",
+          "description": "Maximum retry attempts for retryable API errors (429, 500, 502, 503)",
+          "minimum": 0,
+          "default": 5
+        },
+        "tool_call_argument_timeout": {
+          "type": "integer",
+          "description": "Maximum seconds to wait for the model to finish emitting one tool call's JSON arguments before aborting the stream. This does not limit the tool execution itself.",
+          "minimum": 0,
+          "default": 300
+        },
+        "engineer_review_limit": {
+          "type": "integer",
+          "description": "Maximum automatic engineer workflow retries before asking how to proceed. Applies to reviewer reruns and repeated stalled-task execution nudges.",
+          "minimum": 0,
+          "default": 3
+        },
+        "max_subagents": {
+          "type": "integer",
+          "description": "Maximum concurrent subagent sessions",
+          "minimum": 1,
+          "default": 10
+        },
+        "background_auto_react": {
+          "type": "boolean",
+          "description": "When true, the LLM is automatically re-prompted with results when a background bash task completes",
+          "default": true
+        },
+        "snapshot": {
+          "type": "boolean",
+          "description": "Enable per-turn git snapshots on a shadow branch. Creates lightweight commits after each turn that modifies files, enabling /replay time travel. Requires a git repository.",
+          "default": false
+        },
+        "trace": {
+          "type": "boolean",
+          "description": "Enable per-turn LLM step tracing and persistence for /trace. Disabled by default to avoid extra storage and UI overhead.",
+          "default": false
+        },
+        "budget": {
+          "type": "number",
+          "description": "Optional per-session spend cap in USD. 0 disables the limit.",
+          "minimum": 0,
+          "default": 0
+        },
+        "budget_warn": {
+          "type": "number",
+          "description": "Warn when session spend reaches this fraction of budget.",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0
+        },
+        "total_budget": {
+          "type": "number",
+          "description": "Optional spend cap across all non-ephemeral sessions in the local database.",
+          "minimum": 0,
+          "default": 0
+        },
+        "total_budget_warn": {
+          "type": "number",
+          "description": "Warn when aggregate spend reaches this fraction of total_budget.",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0
+        },
+        "models": {
+          "type": "object",
+          "description": "Per-model session configuration overrides. Keys are 'providerID/modelID'.",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "compaction_threshold": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "compaction_keep_turns": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "prune_protect_tokens": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "prune_min_savings": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "context_limit": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "max_input_tokens": {
+                "type": "integer",
+                "description": "Override input token limit when the provider caps below the model's context window",
+                "minimum": 1
+              },
+              "tool_call_argument_timeout": {
+                "type": "integer",
+                "description": "Override the maximum seconds to wait for the model to finish emitting one tool call's JSON arguments before aborting the stream",
+                "minimum": 0
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "server": {
+      "type": "object",
+      "description": "Embedded HTTP API server settings",
+      "properties": {
+        "port": {
+          "type": "integer",
+          "description": "TCP port to listen on. 0 means pick a random available port.",
+          "minimum": 0,
+          "maximum": 65535,
+          "default": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "tui": {
+      "type": "object",
+      "description": "Terminal UI settings",
+      "properties": {
+        "input_max_height": {
+          "type": "integer",
+          "description": "Maximum number of rows for the input textarea",
+          "minimum": 1,
+          "default": 8
+        },
+        "theme": {
+          "type": "string",
+          "description": "Theme name from ~/.config/kodacode/themes/ (without .yaml extension)"
+        },
+        "display_turns": {
+          "type": "integer",
+          "description": "Number of recent turns to keep rendered in the TUI. 0 means unlimited.",
+          "minimum": 0,
+          "default": 4
+        },
+        "error_display_time": {
+          "type": "integer",
+          "description": "Seconds before error toasts auto-dismiss",
+          "minimum": 1,
+          "default": 3
+        },
+        "auto_resume": {
+          "type": "boolean",
+          "description": "Automatically load the most recent session on startup instead of showing the home screen",
+          "default": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "permission": {
+      "type": "object",
+      "description": "Tool permission rules. Keys are tool names, values are permission rules.",
+      "additionalProperties": {
+        "oneOf": [
+          {
+            "type": "string",
+            "enum": ["allow", "ask", "deny"],
+            "description": "Apply this permission to all patterns for the tool"
+          },
+          {
+            "type": "object",
+            "description": "Pattern-specific permissions. Keys are glob patterns, values are 'allow', 'ask', or 'deny'.",
+            "additionalProperties": {
+              "type": "string",
+              "enum": ["allow", "ask", "deny"]
+            }
+          }
+        ]
+      }
+    },
+    "debug": {
+      "type": "boolean",
+      "description": "Enable debug logging",
+      "default": false
+    },
+    "log_prompts": {
+      "type": "boolean",
+      "description": "Log full prompts sent to providers",
+      "default": false
+    },
+    "instruction_files": {
+      "type": "array",
+      "description": "Additional instruction files to include in the system prompt",
+      "items": {
+        "type": "string"
+      }
+    },
+    "max_instruction_size": {
+      "type": "integer",
+      "description": "Maximum size in bytes for instruction files. 0 means no limit.",
+      "minimum": 0
+    },
+    "mcp": {
+      "type": "object",
+      "description": "Model Context Protocol server configurations",
+      "properties": {
+        "servers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "type"],
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Unique server name"
+              },
+              "type": {
+                "type": "string",
+                "enum": ["stdio", "sse"],
+                "description": "Transport type"
+              },
+              "command": {
+                "type": "string",
+                "description": "Command to run (stdio only)"
+              },
+              "args": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Command arguments (stdio only)"
+              },
+              "url": {
+                "type": "string",
+                "description": "SSE endpoint URL (sse only)",
+                "format": "uri"
+              },
+              "headers": {
+                "type": "object",
+                "description": "HTTP headers (sse only)",
+                "additionalProperties": { "type": "string" }
+              },
+              "env": {
+                "type": "object",
+                "description": "Environment variables (stdio only)",
+                "additionalProperties": { "type": "string" }
+              },
+              "tool_hints": {
+                "type": "object",
+                "description": "Optional prompt-shaping hints for tools exposed by this MCP server. Keys are raw MCP tool names; use '*' for server-wide defaults.",
+                "additionalProperties": {
+                  "type": "object",
+                  "properties": {
+                    "summary": {
+                      "type": "string",
+                      "description": "Short summary used in compact tool descriptions and the relevant-tools overlay."
+                    },
+                    "guidance": {
+                      "type": "string",
+                      "description": "Operator guidance for when this tool should be used."
+                    },
+                    "triggers": {
+                      "type": "array",
+                      "description": "Trigger phrases that should boost this tool for matching requests.",
+                      "items": { "type": "string" }
+                    },
+                    "file_exts": {
+                      "type": "array",
+                      "description": "Optional file extensions that make this tool more relevant (for example '.sql').",
+                      "items": { "type": "string" }
+                    },
+                    "preserve_parameter_docs": {
+                      "type": "boolean",
+                      "description": "Keep parameter descriptions in compact mode for this tool."
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "enabled": {
+                "type": "boolean",
+                "description": "Whether the server is enabled. Default: true."
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "lsp": {
+      "type": "object",
+      "description": "Language Server Protocol server configurations for code intelligence",
+      "properties": {
+        "servers": {
+          "type": "array",
+          "description": "List of LSP servers. The correct server is selected based on file extension.",
+          "items": {
+            "type": "object",
+            "required": ["name", "command", "extensions"],
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Unique server name (e.g. 'gopls', 'pyright')"
+              },
+              "command": {
+                "type": "string",
+                "description": "Executable command to run"
+              },
+              "args": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Command-line arguments"
+              },
+              "env": {
+                "type": "object",
+                "description": "Extra environment variables",
+                "additionalProperties": { "type": "string" }
+              },
+              "extensions": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "File extensions this server handles (e.g. '.go', '.ts', '.py')"
+              },
+              "enabled": {
+                "type": "boolean",
+                "description": "Whether the server is enabled. Default: true."
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "skills": {
+      "type": "object",
+      "description": "Model-level skill filtering",
+      "properties": {
+        "models": {
+          "type": "object",
+          "description": "Per-model skill configuration. Keys are model IDs.",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "allow_all": {
+                "type": "boolean",
+                "description": "Allow all skills for this model"
+              },
+              "deny": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Skills to deny for this model"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "model_refresh_interval": {
+      "type": "integer",
+      "description": "How often (in days) to re-fetch model metadata from the upstream registry. 0 disables automatic refresh.",
+      "minimum": 0,
+      "default": 7
+    },
+    "allowed_paths": {
+      "type": "array",
+      "description": "Directories the sandbox allows read access to without prompting, even outside the project directory. ~/.config/kodacode/ is always included.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "ignore_patterns": {
+      "type": "array",
+      "description": "Glob patterns for directories/files tools should skip when scanning. Uses doublestar syntax. Merged with built-in defaults (node_modules, .git, __pycache__, etc.).",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": false
+}

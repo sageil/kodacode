@@ -1,0 +1,15 @@
+Performs a single exact string replacement in a file.
+
+IMPORTANT: If you need to make 2 or more replacements in the same file, use `patch` instead. Do NOT call `edit` multiple times on the same file — each call is a separate round-trip. The `patch` tool batches all edits into one call.
+
+Usage:
+- You must use your `read` or `read_files` tool at least once in the conversation before editing to ensure accurate oldString matching.
+- When editing text from read tool output, ensure you preserve the exact indentation (tabs/spaces) as it appears AFTER the line number prefix. The line number prefix format is: line number + colon + space (e.g., `1: `). Everything after that space is the actual file content to match. Never include any part of the line number prefix in the oldString or newString.
+- ALWAYS prefer editing existing files in the codebase. NEVER write new files unless explicitly required.
+- Only use emojis if the user explicitly requests it. Avoid adding emojis to files unless asked.
+- The edit will FAIL if `oldString` is not found in the file with an error "oldString not found in content".
+- The edit will FAIL if `oldString` is found multiple times in the file with an error "Found multiple matches for oldString. Provide more surrounding lines in oldString to identify the correct match." Either provide a larger string with more surrounding context to make it unique or use `replaceAll` to change every instance of `oldString`.
+- If the exact replacement target is already known, prefer the `range` field for direct replacement. `range` uses 1-based lines and 0-based characters and replaces that exact region after validating it still matches `oldString`.
+- If you only need to narrow the search area, use `startLine` and `endLine` instead of `range`.
+- If you previously read the file, pass the latest `<version>` token back as `expectedVersion` so the edit fails cleanly if the file changed since you read it.
+- Use `replaceAll` for replacing and renaming strings across the file. This parameter is useful if you want to rename a variable for instance.

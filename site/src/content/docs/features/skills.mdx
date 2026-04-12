@@ -1,0 +1,182 @@
+---
+title: Skills
+description: Project-specific conventions and patterns loaded on demand
+---
+
+Skills are curated reference documents — conventions, patterns, checklists — that the model loads when relevant. They reduce hallucination by giving the model authoritative guidance instead of relying on training data.
+
+## How Skills Work
+
+Skills are stored as `SKILL.md` files in skill directories:
+
+```
+~/.config/kodacode/skills/         # global (available in all projects)
+  go-testing/SKILL.md
+  code-review/SKILL.md
+
+<project>/.kodacode/skills/        # project-local (overrides global)
+  design/SKILL.md
+```
+
+Project skills shadow global skills with the same name.
+
+## Discovery
+
+The model discovers skills through two mechanisms:
+
+**System prompt surfacing** — on each turn, the system prompt includes a short list of available skills (up to 8 when search_skills is available, all when it isn't). This gives the model awareness of what's available without consuming excessive context.
+
+**search_skills tool** — the model can search skills by topic, description, trigger phrases, and section titles:
+
+```
+search_skills query="error handling"
+```
+
+Returns ranked matches with relevance reasons, section lists, and suggested related skills.
+
+### Context savings
+
+With 23 skills, the system previously listed all skill names and descriptions in every turn's system prompt — ~1,500 tokens per turn. The new system surfaces only the top 8 plus a search hint, reducing this to ~350 tokens per turn. Over a 20-turn session, this saves ~23,000 tokens.
+
+## Loading
+
+The `skill` tool loads skill content:
+
+```
+skill name="go-testing"
+```
+
+### Sectioned loading
+
+Large skills (>1,600 bytes or >60 lines) return a table of contents instead of the full content:
+
+```
+Skill: go-testing
+Description: Go testing patterns...
+Sections:
+- table-driven-tests: Table-Driven Tests
+- subtests: Subtests
+- parallel-tests: Parallel Tests
+- test-helpers: Test Helpers
+...
+Load a section with skill({"name":"go-testing","section":"SECTION_ID"}).
+```
+
+The model then loads only the section it needs:
+
+```
+skill name="go-testing" section="table-driven-tests"
+```
+
+The average skill is ~1,700 tokens. Sectioned loading replaces this with a ~60-token TOC plus a ~200-token section — an 85% reduction per skill load.
+
+## Frontmatter
+
+Skills use YAML frontmatter for metadata:
+
+```yaml
+---
+name: go-testing
+description: Go testing patterns from Google and Uber style guides
+triggers: ["write tests", "test failing", "table-driven"]
+conditions:
+  files: ["*_test.go"]
+  languages: ["go"]
+suggests:
+  before: [brainstorm]
+  after: [code-review]
+---
+```
+
+| Field | Purpose |
+|-------|---------|
+| `name` | Display name (defaults to directory name) |
+| `description` | One-line summary shown in skill listings |
+| `triggers` | Example phrases that should activate this skill (used by search and auto-surfacing) |
+| `conditions.files` | File glob patterns — skill is boosted when matching files are in context |
+| `conditions.languages` | Language names — skill is boosted when matching language is detected |
+| `suggests.before` | Skills to consider loading before this one |
+| `suggests.after` | Skills to consider loading after this one |
+
+All frontmatter fields are optional. A skill with just `name` and `description` works — the additional fields improve discovery relevance.
+
+## Auto-Surfacing
+
+On each turn, the system evaluates skill relevance based on the user's message and files in context:
+
+1. **Trigger matching** — keyword overlap between the user's message and skill trigger phrases
+2. **File condition matching** — glob patterns checked against files touched in the conversation
+3. **Language detection** — file extensions mapped to language names, matched against skill conditions
+
+The top 5 most relevant skills are surfaced in the volatile (per-turn) part of the system prompt with a hint to load them. This means the model sees relevant skills without having to search first.
+
+## Access Policy
+
+Skills can be restricted per model or per agent:
+
+```yaml
+# Global config — restrict by model
+skills:
+  models:
+    openai/gpt-4o-mini:
+      deny: ["code-review"]  # skip expensive review skill for cheap model
+
+# Agent frontmatter — restrict by agent
+---
+name: explorer
+skills:
+  deny: ["frontend-design"]  # explorer doesn't need design skills
+---
+```
+
+## Writing Skills
+
+A skill is effective when it:
+
+- Gives the model information it can't reliably derive from training data (project conventions, team decisions, non-obvious patterns)
+- Uses imperative, direct instructions ("Do X", "Never Y") rather than explanations
+- Structures content with headings that work as section IDs for sectioned loading
+- Includes trigger phrases that match how developers naturally describe the task
+- Specifies `suggests` relationships for skills that are commonly used together
+
+### Example
+
+```markdown
+---
+name: brainstorm
+description: Explore a problem from multiple perspectives before committing
+triggers: ["brainstorm", "explore options", "not sure how", "what are the options"]
+suggests:
+  after: [design]
+---
+
+# Brainstorm
+
+When this skill is loaded, explore the problem from multiple
+perspectives before converging. Do not jump to implementation.
+
+## Problem
+
+Restate the problem in one sentence. If unclear, ask.
+
+## End User
+
+What would make this delightful? What would be frustrating?
+
+## Maintainer
+
+What will be painful to change in 2 years?
+
+## Minimalist
+
+What is the smallest change that solves this?
+
+## Synthesis
+
+List the most interesting ideas across all perspectives.
+
+## Next
+
+Ask the user which ideas to explore further or whether to
+load the design skill for structured evaluation.
+```

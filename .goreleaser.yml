@@ -1,0 +1,62 @@
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+    - go test ./...
+
+builds:
+  - main: ./cmd/kodacode
+    binary: kodacode
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.ShortCommit}}
+      - -X main.date={{.Date}}
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - formats:
+      - tar.gz
+    name_template: "kodacode_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - "Merge pull request"
+
+homebrew_casks:
+  - repository:
+      owner: sageil
+      name: homebrew-tap
+      token: "{{ .Env.TAP_GITHUB_TOKEN }}"
+    homepage: https://github.com/sageil/kodacode
+    description: AI-powered CLI assistant with multi-provider support
+    license: AGPL-3.0
+    custom_block: |
+      postflight do
+        system_command "/usr/bin/xattr",
+          args: ["-dr", "com.apple.quarantine", "#{staged_path}/kodacode"]
+      end
+
+release:
+  github:
+    owner: sageil
+    name: kodacode
+  draft: false
+  prerelease: auto
+  name_template: "v{{.Version}}"

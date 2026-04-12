@@ -1,0 +1,37 @@
+# Rose Pine Moon — https://rosepinetheme.com/palette/ingredients/
+# A soft dark theme with muted purples, warm neutrals, and gentle accent colours.
+name: rose-pine-moon
+syntax_style: rose-pine-moon
+
+palette:
+  # Iris (#c4a7e7) — soft violet, used for labels, headings, and interactive elements.
+  primary: "#c4a7e7"
+  # Pine (#3e8fb0) — muted teal, secondary accents (model/agent badges).
+  secondary: "#3e8fb0"
+  # Surface (#2a273f) — slightly lighter than base; used as dialog/panel backgrounds.
+  surface: "#2a273f"
+  # Overlay (#393552) — raised surfaces such as input areas and selection highlights.
+  overlay: "#393552"
+  # Text (#e0def4) — primary readable text.
+  text: "#e0def4"
+  # Subtle (#908caa) — de-emphasised labels, timestamps, hints.
+  subtext: "#908caa"
+  # Love (#eb6f92) — errors and destructive actions.
+  error: "#eb6f92"
+  # Gold (#f6c177) — warnings and token usage bar when nearing limit.
+  warning: "#f6c177"
+  # Foam (#9ccfd8) — success states and tool completion ticks.
+  success: "#9ccfd8"
+  thinking: "#c4a7e7"
+
+# Optional component overrides — omit any key to use palette-derived defaults.
+# Supported border values: rounded, single, double, thick, left, none
+components:
+  user-message:
+    fg: "#e0def4"
+    bg: "#393552"
+    border: left
+    border-color: "#c4a7e7"
+
+  assistant-message:
+    fg: "#e0def4"

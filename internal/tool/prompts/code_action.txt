@@ -1,0 +1,13 @@
+Apply an LSP-provided code action to a specific source range.
+
+Use this when the language server can make a structured change more safely than text editing, such as:
+- organize imports
+- quick fixes from diagnostics
+- server-provided refactors
+
+Usage:
+- Provide an exact source range using 1-based lines and 0-based characters.
+- Prefer setting `kind` when you know the action family (for example `source.organizeImports` or `quickfix`).
+- Use `title` when multiple actions of the same kind are available and you want one specific action.
+- If there are multiple matching actions and you do not specify `title` or `kind`, the tool will ask you to narrow the selection.
+- If the selected action only provides a server-side command and no workspace edits, this tool will reject it. Fall back to another action or to `edit`/`patch`.

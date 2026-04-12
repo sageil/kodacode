@@ -1,0 +1,105 @@
+---
+title: KodaCode
+description: AI-powered CLI assistant — truly yours.
+template: splash
+hero:
+  tagline: |
+    <em>truly yours.</em>
+    <br/><br/>
+    <span class="hero-sub">An AI coding assistant that lives in your terminal.</span>
+  actions:
+    - text: Get Started
+      link: /getting-started/introduction/
+      icon: right-arrow
+      variant: primary
+    - text: View on GitHub
+      link: https://github.com/sageil/kodacode
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+<div class="splash-section">
+<div class="splash-section__header">
+<h2>What makes KodaCode <span class="accent">truly yours</span></h2>
+<p><span class="accent">Your AI, your rules.</span> Prompts, agents, themes, models, and permissions are all files you control.</p>
+</div>
+
+<CardGrid>
+	<Card title="Engineer: Explore → Plan → Execute" icon="rocket">
+		The default agent researches your codebase, creates a structured plan, and waits for your approval before making changes. You review the approach before any code is touched.
+	</Card>
+	<Card title="Coder: Direct Implementation" icon="pencil">
+		For straightforward tasks, the coder agent skips planning and makes changes immediately. Switch with `Tab` — use the right workflow for the task at hand.
+	</Card>
+	<Card title="Sandboxed by Default" icon="warning">
+		Every tool call is confined to your project directory. Path escapes, delete commands, and external access require explicit permission. Glob-based allow/ask/deny rules per tool and file pattern.
+	</Card>
+	<Card title="Multi-Provider, Your Choice" icon="random">
+		Anthropic, OpenAI, Google, Groq, Ollama, LM Studio, or any OpenAI-compatible endpoint. Switch mid-session. Mix cloud and local models.
+	</Card>
+	<Card title="Configurable at Every Layer" icon="setting">
+		Utility models, budget caps, reasoning effort, permissions, LSP servers, diagnostics, agents, system prompts, themes — all controlled via YAML config and markdown files.
+	</Card>
+	<Card title="Project Memory" icon="document">
+		Layer global, project, and personal instructions via `KODACODE.md` files. Use `/remember` to save learnings on the fly. Conventions carry across sessions.
+	</Card>
+</CardGrid>
+</div>
+
+<div class="splash-section">
+<div class="splash-section__header">
+<h2>Built In</h2>
+<p>No plugins required for the core workflow.</p>
+</div>
+
+<CardGrid>
+	<Card title="Cost Control" icon="warning">
+		Utility model routing sends titles, compaction, and research tasks to a cheap model. Adaptive reasoning budgets scale down during tool loops. Per-session budget caps stop runaway spending.
+	</Card>
+	<Card title="Context Management" icon="document">
+		Pruning, compaction, and safety limits keep long sessions coherent. Old tool outputs are replaced with summaries. The model doesn't lose track of what you're doing.
+	</Card>
+	<Card title="LSP Code Intelligence" icon="setting">
+		Go-to-definition, find references, hover info, and diagnostics via language servers. Auto-discovers servers from your project's tooling. Auto-lints after every edit.
+	</Card>
+	<Card title="Live Diff Preview" icon="open-book">
+		See file changes as the model writes them — before they hit disk. Cancel mid-write if something looks wrong.
+	</Card>
+	<Card title="Background Tasks & Subagents" icon="list-format">
+		Long-running commands execute in the background while the model keeps working. Subagents handle parallel research. Results feed back automatically.
+	</Card>
+	<Card title="MCP Integration" icon="add-document">
+		Extend with any Model Context Protocol server — stdio or SSE. Tools merge with built-ins and respect the same permission system.
+	</Card>
+	<Card title="Sessions & Snapshots" icon="list-format">
+		Persistent sessions with branching and per-turn git snapshots. Resume where you left off or replay the workspace state at any turn.
+	</Card>
+	<Card title="Loop Detection" icon="approve-check-circle">
+		Detects when the model gets stuck repeating tool calls. Progressive intervention: warn, nudge, then stop. Prevents wasted tokens on infinite loops.
+	</Card>
+	<Card title="Auto-Diagnostics" icon="setting">
+		After every file edit, linters and LSP diagnostics run automatically. The model sees errors immediately and fixes them in the same turn — no manual re-run needed.
+	</Card>
+</CardGrid>
+</div>
+
+<div class="splash-section">
+<div class="splash-section__header">
+<h2>Quick Install</h2>
+</div>
+
+```bash
+# macOS / Linux
+curl -fsSL https://raw.githubusercontent.com/sageil/kodacode/main/install.sh | sh
+
+# Homebrew
+brew tap sageil/tap && brew install kodacode
+
+# Go
+go install github.com/sageil/kodacode/v1/cmd/kodacode@latest
+```
+
+Then run `kodacode` to start.
+</div>

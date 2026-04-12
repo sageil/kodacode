@@ -1,0 +1,35 @@
+# Gruvbox Dark — https://github.com/morhetz/gruvbox
+# Warm retro theme with earthy browns, oranges, and greens.
+name: gruvbox-dark
+syntax_style: gruvbox
+
+palette:
+  # Yellow (#d79921) — warm gold, primary interactive elements.
+  primary: "#d79921"
+  # Aqua (#689d6a) — secondary accents, links, badges.
+  secondary: "#689d6a"
+  # Bg1 (#3c3836) — raised surfaces, panels, dialogs.
+  surface: "#3c3836"
+  # Bg2 (#504945) — input areas, selection highlights.
+  overlay: "#504945"
+  # Fg (#ebdbb2) — primary readable text.
+  text: "#ebdbb2"
+  # Gray (#928374) — de-emphasised labels, hints.
+  subtext: "#928374"
+  # Red (#cc241d) — errors and destructive actions.
+  error: "#cc241d"
+  # Orange (#d65d0e) — warnings and caution states.
+  warning: "#d65d0e"
+  # Green (#98971a) — success states and completion ticks.
+  success: "#98971a"
+  thinking: "#d3869b"
+
+components:
+  user-message:
+    fg: "#ebdbb2"
+    bg: "#504945"
+    border: left
+    border-color: "#d79921"
+
+  assistant-message:
+    fg: "#ebdbb2"

@@ -1,0 +1,35 @@
+# Dracula — https://draculatheme.com/contribute
+# High-contrast dark theme with vivid purples, greens, and pinks.
+name: dracula
+syntax_style: dracula
+
+palette:
+  # Purple (#bd93f9) — primary interactive elements and headings.
+  primary: "#bd93f9"
+  # Cyan (#8be9fd) — secondary accents, links, badges.
+  secondary: "#8be9fd"
+  # Current Line (#44475a) — raised surfaces, panels, dialogs.
+  surface: "#44475a"
+  # Comment (#6272a4) — used for overlay/selection areas.
+  overlay: "#6272a4"
+  # Foreground (#f8f8f2) — primary readable text.
+  text: "#f8f8f2"
+  # Comment (#6272a4) — de-emphasised labels, hints.
+  subtext: "#6272a4"
+  # Red (#ff5555) — errors and destructive actions.
+  error: "#ff5555"
+  # Orange (#ffb86c) — warnings and caution states.
+  warning: "#ffb86c"
+  # Green (#50fa7b) — success states and completion ticks.
+  success: "#50fa7b"
+  thinking: "#caa9fa"
+
+components:
+  user-message:
+    fg: "#f8f8f2"
+    bg: "#44475a"
+    border: left
+    border-color: "#bd93f9"
+
+  assistant-message:
+    fg: "#f8f8f2"

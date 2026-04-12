@@ -1,0 +1,20 @@
+Executes structured git operations in the current working directory.
+
+Use this tool for git operations instead of the bash tool. It provides a safer, structured interface for common git workflows.
+
+Supported actions:
+  - status: Show working tree status (short format)
+  - diff: Show changes between commits, working tree, etc. Pass file paths or refs in args.
+  - log: Show commit history (oneline format). Use limit to control how many entries (default 20).
+  - branch: List all branches (local and remote)
+  - add: Stage files for commit. Pass file paths in args (e.g. "src/main.go lib/utils.go"). Requires user permission.
+  - commit: Create a commit with the message provided in args. Requires user permission.
+  - stash: Stash changes. Pass "list", "pop", "drop", etc. in args. Bare stash requires user permission.
+  - show: Show a commit or object. Pass a commit hash or ref in args.
+  - blame: Show line-by-line authorship. Pass a file path in args.
+
+Notes:
+  - The action parameter is required.
+  - The args parameter provides additional arguments specific to each action (file paths, commit messages, refs, etc.).
+  - The limit parameter only applies to the log action.
+  - Destructive actions (commit, stash push) require user confirmation before execution.

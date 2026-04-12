@@ -1,0 +1,5 @@
+- Opens a file in the user's preferred editor, optionally at a specific line number
+- Use this tool when the user asks to open, view, or edit a file in their editor
+- Detects the user's editor from $EDITOR or falls back to common editors (code, vim, nano)
+- GUI editors (VS Code, Sublime) are launched directly; terminal editors return the command to run
+- This is a non-destructive operation that simply opens the file for viewing/editing

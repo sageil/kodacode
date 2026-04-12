@@ -1,0 +1,159 @@
+---
+title: Cost Tracking & Optimization
+description: Per-session cost tracking, budget caps, and built-in cost reduction
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+KodaCode tracks token usage and dollar cost for every LLM call. It also includes several mechanisms that reduce cost without requiring manual intervention.
+
+## Live Cost Display
+
+The current session cost is shown in the TUI footer, next to the context utilization indicator. Cost updates in real-time as each LLM call completes.
+
+Use `/cost` to see a detailed breakdown of input tokens, output tokens, reasoning tokens, cache read/write tokens, and estimated dollar cost for the current session.
+
+## Budget Caps
+
+Set a maximum dollar cost per session:
+
+```yaml
+session:
+  budget: 5.00
+  budget_warn: 0.8
+```
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `budget` | `0` | Maximum dollars per session. 0 = unlimited |
+| `budget_warn` | `0.8` | Fraction of budget at which a warning is shown |
+
+When the budget is exceeded, the tool loop stops — tools are removed and the model is forced to respond with what it has.
+
+## How KodaCode Reduces Cost
+
+### Utility Model Routing
+
+Most of the work in a session is done by the primary model (the one you selected). But several background operations don't need an expensive model:
+
+- **Title generation** — summarizing your first message into a session title
+- **Context compaction** — generating structured summaries when the context window fills up
+- **Explorer/insight subagents** — read-only research tasks that only need comprehension, not generation
+
+These are routed to the `utility_model` — a fast, cheap model you configure once:
+
+```yaml
+utility_model: anthropic/claude-haiku-4-5-20251001
+```
+
+Any agent can opt into the utility model by setting `model: utility` in its frontmatter. The built-in `explorer` and `insight` agents do this by default.
+
+**Impact**: Title generation and compaction summaries typically use 500–2,000 tokens each. Routing these to Haiku instead of Opus/Sonnet can reduce their cost by 10–30x per call.
+
+### Adaptive Reasoning Budget
+
+Extended thinking (reasoning tokens) is one of the largest cost drivers. KodaCode manages this automatically:
+
+1. **Per-model config** — only models with `thinking_budget` set use extended thinking at all. Models without it skip thinking entirely, avoiding unnecessary latency and cost.
+2. **Auto-reduce on tool turns** — after the model's initial response, reasoning drops to 3K tokens for subsequent tool-routing turns (the model is just deciding which tool to call next, not solving a problem).
+3. **Context-aware scaling** — above 70% context usage, the reasoning budget scales down proportionally to prevent output token exhaustion.
+4. **User-set ceiling** — `/variant` cycles through `low` (3K), `high` (10K), `max` (32K), and `off`. Use `low` for straightforward tasks.
+
+```yaml
+providers:
+  - id: anthropic
+    thinking_type: adaptive    # model decides depth per-query (recommended)
+    models:
+      - id: claude-opus-4-6
+        thinking_budget: 32000
+      - id: claude-sonnet-4-6
+        thinking_budget: 10000
+```
+
+**Impact**: Auto-reduce alone prevents the model from spending 10K+ reasoning tokens on every tool-routing step. In a 20-tool-call session, this can save 150K+ reasoning tokens.
+
+### Context Pruning
+
+Old tool outputs (file contents, bash results, search results) are automatically replaced with compact summaries like `[pruned: 584 lines of file content]`. This happens before compaction, silently reclaiming context space.
+
+- Protects the most recent 40K tokens (configurable)
+- Only prunes if savings exceed 20K tokens
+- Edit/patch outputs are never pruned (needed for correctness)
+
+**Impact**: A session that reads 50 files doesn't carry all 50 file contents forward. Only the most recent reads stay verbatim. This delays compaction (which costs a utility model call) and keeps the primary model's input tokens lower.
+
+### Context Compaction
+
+When context usage exceeds the threshold (default 80%), KodaCode uses the utility model to generate a structured summary of the older conversation. The most recent turns (default 10) are preserved verbatim; everything older is replaced by the summary.
+
+This means the primary model receives a shorter input on subsequent turns, reducing input token cost for the rest of the session.
+
+See [Context Management](/features/context/) for the full three-stage system.
+
+### Tool Output Scaling
+
+Several tools automatically reduce their output when context is under pressure:
+
+- `read_files` scales down lines-per-file and total output budget above 50% context usage
+- `read` reduces max output bytes as context fills
+- `grep` and `glob` limit result counts
+
+This prevents tools from dumping large outputs into an already-full context window, which would trigger expensive compaction sooner.
+
+### Subagent Cost Isolation
+
+Subagents (explorer, planner, etc.) run in ephemeral sessions that skip compaction, title generation, and persistence. Their cost is tracked separately and rolled up into the parent session's total, so you see the full picture in `/cost`.
+
+Explorer and insight agents use the utility model by default. This means research tasks that might involve reading 20+ files are handled by a cheap model, not your primary one.
+
+## Blended Pricing
+
+Each LLM call in a session may use a different model. Cost is accumulated per-call using the actual model's pricing rates, not a fixed session-wide rate. This gives accurate blended cost across all models used.
+
+Pricing comes from the models.dev registry, cached locally and refreshed every 7 days. If your provider has zero pricing in the registry (subscription plans, local models), cost shows as $0.
+
+## Persistence
+
+Session costs are persisted to SQLite. When resuming a session, the accumulated cost is restored. Budget applies per session — starting a new session resets the counter.
+
+## Configuration Example
+
+A cost-conscious setup:
+
+```yaml
+providers:
+  - id: anthropic
+    api_key: ${ANTHROPIC_API_KEY}
+    thinking_type: adaptive
+    models:
+      - id: claude-sonnet-4-6
+        thinking_budget: 10000
+
+utility_model: anthropic/claude-haiku-4-5-20251001
+
+session:
+  budget: 3.00
+  budget_warn: 0.8
+  compaction_threshold: 0.75    # compact earlier to keep input tokens lower
+  prune_protect_tokens: 30000   # prune more aggressively
+```
+
+With this config:
+- Sonnet handles the main conversation with up to 10K reasoning tokens
+- Haiku handles titles, compaction, explorer, and insight tasks
+- Context is pruned and compacted earlier, keeping input costs down
+- Session stops at $3.00
+
+## Typical Costs
+
+Costs vary by provider and model. As a rough guide:
+
+| Task | Estimated Cost |
+|------|---------------|
+| Simple bug fix | $0.05–0.20 |
+| Feature implementation with tests | $0.50–2.00 |
+| Large refactoring across many files | $2.00–10.00 |
+
+<Aside type="tip">
+Use `/cost` during a session to see what's driving spend. Large file reads and extended reasoning are usually the biggest contributors.
+</Aside>

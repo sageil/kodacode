@@ -1,0 +1,166 @@
+---
+title: Sessions
+description: Conversation history, branching, and time travel
+---
+
+Every conversation in KodaCode is a session, persisted in SQLite with full message history.
+
+## Session Management
+
+| Command | Description |
+|---------|-------------|
+| `/new` | Start a fresh session |
+| `/sessions` | Browse and resume previous sessions |
+| `/export [path]` | Save session as markdown (instant, no LLM call) |
+
+Titles are auto-generated from the first message using the utility model.
+
+### Examples
+
+```
+/new
+/sessions
+/export
+/export ~/notes/auth-refactor.md
+```
+
+## Session Branching
+
+Branch from any point in a conversation to explore alternative approaches. The original session is preserved — branches are independent copies from that point forward.
+
+This is useful when you want to try a different approach without losing your current progress. The original session stays intact, and you can switch between branches at any time.
+
+## Time Travel with Snapshots
+
+Enable per-turn git snapshots to replay your session:
+
+```yaml
+session:
+  snapshot: true
+```
+
+After each turn that modifies files, KodaCode creates a git snapshot on a shadow branch. Use `/replay` to navigate forward and backward through workspace states.
+
+- Shadow branches never touch HEAD or your working branch
+- Cleaned up automatically when the session is deleted
+- Uses low-level git plumbing so it doesn't interfere with your working tree
+- A safety snapshot is created before restoring a previous state
+
+### Example Workflow
+
+```
+# Enable snapshots in config.yaml
+session:
+  snapshot: true
+
+# During a session, navigate snapshots:
+/replay
+```
+
+## Streaming Responses
+
+All AI responses stream in real-time over Server-Sent Events (SSE):
+- Text appears word-by-word
+- Tool calls show a pulsing indicator while running
+- Tool output streams as it's produced
+- Diffs render live as the model writes them
+
+## Task Persistence
+
+When a model stops mid-task — returning an empty response or hedging with phrases like "let me know if you'd like me to continue" — KodaCode detects it and automatically nudges the model to keep going.
+
+**What triggers a nudge:**
+- The model returns an empty response after tool calls
+- The model responds with give-up language instead of using tools (e.g. "here's what you could do", "I'll stop here", "would you like me to continue")
+
+**What happens:**
+- A follow-up message is injected: *"Continue — the task is not complete. Use tools to make the required changes."*
+- The model resumes its tool loop as if it never stopped
+- Limited to 2 nudges per turn to prevent infinite loops
+
+This is especially useful with smaller or local models that tend to give up under context pressure or after encountering tool errors.
+
+## Loop Detection
+
+KodaCode detects when the model gets stuck in repetitive tool call patterns and intervenes progressively:
+
+1. **Warn** (3 identical calls) — a hint is injected telling the model it's repeating itself
+2. **Nudge** (4 identical calls, or a multi-step cycle repeated 3x) — a stronger message asking the model to try a different approach
+3. **Stop** (5 identical calls) — the tool loop is terminated and the model is forced to respond
+
+The detector tracks the last 12 tool calls using a sliding window. It hashes both the tool arguments and output, so calling `grep` with the same pattern that returns the same results counts as a repeat, but calling `grep` with the same pattern that returns *different* results (because you edited a file) does not.
+
+Some tools are exempt from loop detection: `test`, `question`, `task`, and `skill` — these are legitimately called repeatedly with the same arguments.
+
+## Background Auto-React
+
+When a background task completes, its results can be automatically delivered back to the model:
+
+```yaml
+session:
+  background_auto_react: true
+```
+
+This enables autonomous workflows: "run the tests in the background and fix any failures" — the model kicks off `go test`, continues working, and when tests finish, sees the results and starts fixing failures without you intervening.
+
+### Example
+
+```
+> Run the full test suite in the background and fix any failures
+
+# Model runs: bash command="go test ./..." run_in_background=true
+# Model continues working on other tasks
+# When tests complete, results are automatically sent back
+# Model reads failures and starts fixing them
+```
+
+## Example: Autonomous Test-Fix Loop
+
+With background auto-react enabled, KodaCode can run tests, detect failures, and fix them without you typing anything between steps:
+
+```
+User: Run the full test suite and fix any failures
+
+1. Model runs: bash command="go test ./..." run_in_background=true
+   → Tests start running in background
+
+2. Model continues: "Running the full test suite. I'll fix any failures when results come in."
+
+3. (Tests complete — 3 failures automatically delivered to the model)
+
+4. Model reads failing test files, traces the errors:
+   - read filePath="internal/auth/handler_test.go" offset=142 limit=30
+   - read filePath="internal/auth/handler.go" offset=88 limit=20
+
+5. Model fixes the root cause:
+   - edit filePath="internal/auth/handler.go" oldString="..." newString="..."
+
+6. Model re-runs the failing tests:
+   - test filter="TestAuth"
+   → All pass
+
+7. Model runs the full suite again to check for regressions:
+   - bash command="go test ./..."
+   → All pass. Reports the fix.
+```
+
+This works because `background_auto_react: true` feeds completed task results back to the model as a synthetic system turn, and the task persistence nudge prevents the model from stopping after step 2.
+
+## Best Practices
+
+### When to Branch vs Start Fresh
+- **Branch** when you want to try an alternative approach without losing progress — the original session stays intact
+- **Start fresh** (`/new`) when the conversation has drifted off-topic or the context is cluttered
+
+### Snapshots
+Enable snapshots for projects where you want the ability to undo:
+```yaml
+session:
+  snapshot: true
+```
+Use `/replay` to navigate through workspace states. Each snapshot captures the full working tree after tool calls modify files.
+
+### Session Hygiene
+- Use `/export` to save important sessions as markdown before they grow large
+- Long sessions benefit from `/pin` to keep critical instructions visible through compaction
+- If the model seems confused, check context usage with `/cost` — compaction may have removed important context

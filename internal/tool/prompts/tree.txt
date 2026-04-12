@@ -1,0 +1,6 @@
+- Displays the directory tree structure of a project
+- Respects .gitignore rules when inside a git repository
+- Use this tool to understand project layout, explore unfamiliar codebases, or verify directory organization
+- Supports depth limiting, file pattern filtering, and hidden file inclusion
+- Returns a visual tree with directory/file counts
+- Limited to 500 entries to keep output manageable; narrow the path or reduce depth if truncated

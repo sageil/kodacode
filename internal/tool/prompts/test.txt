@@ -1,0 +1,14 @@
+Run project tests and report structured pass/fail results.
+
+Use this tool to execute test suites for the current project. It auto-detects the test framework from project files (Taskfile, Makefile, go.mod, package.json, pyproject.toml, Cargo.toml, pom.xml, build.gradle, *.csproj, Gemfile, Package.swift, composer.json, mix.exs, build.zig) or accepts an explicit command.
+
+It also detects the correct package manager for Node.js projects (pnpm, yarn, bun, npm) from lock files.
+
+The tool streams test output in real time and appends a summary of passed, failed, and skipped tests.
+
+Guidelines:
+- Always run the full test suite first. Only use filters to isolate a specific failure after a full run shows which tests broke.
+- Do NOT run individual test files separately — one suite run replaces many per-file invocations.
+- Use the filter parameter to target specific test names or patterns when re-running a failing test.
+- If the project uses a non-standard test command, provide it explicitly via the command parameter.
+- Review the summary line at the end of output to quickly assess results without reading full output.

@@ -1,0 +1,89 @@
+---
+title: Introduction
+description: What is KodaCode and why you should use it
+---
+
+KodaCode is an AI-powered CLI assistant with a terminal UI and HTTP API. Built in Go, it connects to multiple AI providers and gives the model direct access to your codebase through 22 built-in tools — file operations, shell commands, code search, LSP queries, git integration, and more.
+
+## Two Ways to Work
+
+KodaCode ships with two primary agents that represent different development workflows. Switch between them with `Tab` or the `/agents` picker.
+
+### Engineer — Explore, Plan, Execute
+
+The default agent. For complex tasks, the engineer follows a structured cycle:
+
+1. **Explore** — spawns read-only explorer subagents to research your codebase in parallel
+2. **Plan** — delegates to the planner agent, which creates numbered tasks with What/Where/How/Risk for each step
+3. **Approve** — presents the plan for your review. The engineer cannot edit files until you approve
+4. **Execute** — works through the plan step by step, running tests to verify each change
+
+This is the right mode when a task touches multiple files, requires understanding existing architecture, or when you want to review the approach before any code changes.
+
+```
+> Add rate limiting to all API endpoints
+# Engineer explores → finds 14 endpoints → planner creates 5-step plan → you approve → engineer executes
+```
+
+### Coder — Direct Implementation
+
+For straightforward tasks, the coder agent skips the planning overhead. It reads code, understands it, and makes changes immediately — no subagents, no approval gates. Same tools as the engineer minus subagent delegation.
+
+```
+> Fix the nil pointer in handler.go line 42
+# Coder reads the file, edits the line, runs tests. Done.
+```
+
+Use the coder when the task is clear and you don't need a plan: quick fixes, one-file edits, targeted changes across a few files.
+
+### Adviser — Read-Only Research
+
+A third primary agent for when you want analysis without modification. Explores your codebase, compares approaches, and gives recommendations — without touching any files.
+
+```
+> How should I structure the caching layer?
+> Compare REST vs GraphQL for this use case
+```
+
+All three are available via `Tab` cycling. See [Agent System](/features/agents/) for subagents (explorer, planner, polish, refactor, insight) and custom agent definitions.
+
+## Configurable at Every Layer
+
+KodaCode is designed to be configured, not locked down. Key things you control:
+
+| What | How | Why it matters |
+|------|-----|----------------|
+| **AI provider & model** | `providers` + `/models` picker | Use any provider. Switch mid-session. Mix cloud and local models |
+| **Utility model** | `utility_model` in config | Route cheap tasks (titles, compaction, research) to a fast model to cut cost |
+| **Budget caps** | `session.budget` | Hard dollar limit per session. Stops the tool loop when exceeded |
+| **Reasoning effort** | `/variant` or `thinking_budget` per model | Control how much the model "thinks" — low for simple tasks, max for hard ones |
+| **Sandbox boundaries** | `allowed_paths` + `ignore_patterns` | Every tool is confined to your project directory by default. Expand as needed |
+| **Permissions** | `permission` with glob patterns | allow/ask/deny per tool, per file pattern, per agent. `rm *: deny` blocks deletes |
+| **LSP servers** | Auto-discovered + `lsp.servers` | Code intelligence for any language. Zero config for Go, TypeScript, Python. Add more manually |
+| **Diagnostics** | Auto-detected linters + `diagnostics.linters` | Linters run after every edit. Auto-detected from your project or configured explicitly |
+| **Context management** | `compaction_threshold`, `prune_protect_tokens` | Tune when and how aggressively context is pruned and compacted |
+| **Agents** | Markdown files in `.kodacode/agents/` | Define custom agents with specific tools, permissions, models, and system prompts |
+| **System prompts** | Markdown files in `~/.config/kodacode/prompts/` | Override per agent, per provider, or per model |
+| **MCP servers** | `mcp.servers` in config | Extend with any MCP-compatible tool server |
+| **Themes** | YAML files in `~/.config/kodacode/themes/` | Every color in the TUI is configurable |
+
+See [Configuration Reference](/reference/configuration/) for the complete config.yaml spec.
+
+## How It Works
+
+When you send a message, KodaCode:
+
+1. Builds a system prompt from agent instructions, project context (`KODACODE.md`), memories, and pinned instructions
+2. Sends your message to the configured AI model
+3. The model responds with text and/or tool calls
+4. Tool calls execute in parallel — reading files, running commands, searching code
+5. Diagnostics run automatically on any edited files
+6. Results feed back to the model for the next iteration
+7. The cycle continues until the model has a final response
+
+All of this streams in real-time. You see tool calls executing, diffs rendering, and the response building as it happens. The sandbox checks every file path and command before execution — escaping the project directory requires your permission.
+
+## Next Steps
+
+- [Install KodaCode](/getting-started/installation/) on your machine
+- [Quick Start](/getting-started/quick-start/) to run your first session

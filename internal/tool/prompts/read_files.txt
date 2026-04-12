@@ -1,0 +1,26 @@
+Reads multiple files in a single call. Accepts either a glob pattern or an explicit list of file paths. Returns concatenated file contents with headers showing file paths and line counts.
+
+Usage:
+- Use this when you need to read several files at once — especially after search or grep returns multiple relevant files
+- Accepts `files` (explicit path list) or `pattern` (glob); use `files` when you already know the paths
+- Reduces round-trips compared to calling `read` multiple times
+- Files are sorted by modification time (newest first) when using pattern
+- Each file is shown with line numbers, truncated to `limit` lines (default 100)
+- Binary files, images, and PDFs are automatically skipped
+- Use `read` instead when you need precise offset/limit control on a single file
+- Respects ignore patterns (.gitignore, etc.) when using pattern
+
+Parameters:
+- pattern: Glob pattern like "**/*.go", "internal/service/*.go", "*.yaml"
+- files: Explicit list of file paths to read (e.g. ["src/foo.ts", "src/bar.ts"])
+- path (optional): Directory to search in (defaults to project root)
+- limit (optional): Max lines per file (default 100)
+- maxFiles (optional): Max number of files to read (default 20)
+
+One of `pattern` or `files` is required.
+
+Examples:
+- Read specific files: read_files(files=["src/models/user.ts", "src/routes/userRoutes.ts"])
+- Read all Go files in a package: read_files(pattern="internal/tool/*.go")
+- Read all test files: read_files(pattern="**/*_test.go", maxFiles=10)
+- Read config files: read_files(pattern="*.{yaml,yml,json}", path="config/")

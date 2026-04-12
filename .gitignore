@@ -1,0 +1,15 @@
+bin/
+.grepai/
+
+# Build artifacts at repo root
+
+# Go vendor directory
+vendor/
+trials/*
+
+# Internal docs
+docs/
+
+# Agent tool config dirs that leak into the workspace
+.claude/
+.zed/

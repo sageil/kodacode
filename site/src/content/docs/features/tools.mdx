@@ -1,0 +1,587 @@
+---
+title: Built-in Tools
+description: Built-in tools for file operations, search, execution, and more
+---
+
+KodaCode includes built-in tools that the AI model uses to interact with your codebase and environment. Additional tools can be added via [MCP servers](/features/mcp/).
+
+## File Operations
+
+### read
+
+Read file contents with offset/limit pagination. Supports text files, images (PNG, JPG, GIF, WebP, SVG), PDFs, and directories.
+
+```
+read filePath="/src/main.go"
+read filePath="/src/main.go" offset=50 limit=100
+read filePath="./screenshot.png"
+read filePath="./report.pdf"
+```
+
+- Default: first 2000 lines from the start
+- Use `offset` and `limit` for specific ranges
+- Directories return a file listing with name, size, and modification time
+- Returns a `version` token in metadata — pass this to `edit`, `write`, or `patch` via `expectedVersion` for concurrency control
+
+### write
+
+Create or overwrite files. Shows a diff preview of old vs new content before writing.
+
+```
+write filePath="/src/utils.go" content="package utils\n..."
+```
+
+- Must read an existing file first before overwriting it
+- Prefer `edit` or `patch` for modifying existing files
+
+### edit
+
+Replace text in files using intelligent multi-strategy matching. Supports 8 fuzzy-matching strategies for reliable replacements even when indentation or whitespace varies.
+
+```
+edit filePath="/src/handler.go" oldString="return nil" newString="return fmt.Errorf(\"not found\")"
+```
+
+- Must read the file first
+- Fails if `oldString` matches multiple locations — add surrounding context to make it unique
+- Use `replace_all: true` to replace every occurrence
+- `expectedVersion`: version token from `read` — rejects the edit if the file changed since it was read
+- `range`: precise text range replacement using `startLine`, `startCharacter`, `endLine`, `endCharacter` — replaces the exact range with `newString`, ignoring `oldString`
+
+### patch
+
+Apply multiple sequential edits to a single file in one call. More efficient than multiple separate `edit` calls.
+
+```
+patch filePath="/src/handler.go" edits=[
+  {"oldString": "v1", "newString": "v2"},
+  {"oldString": "old func", "newString": "new func"}
+]
+```
+
+- Must read the file first
+- Atomic: all edits succeed or none are applied
+- Edits are applied in order
+- `expectedVersion`: version token from `read` — rejects the patch if the file changed since it was read
+- Each edit supports a `range` field for precise text range replacement (same semantics as `edit`)
+
+### glob
+
+Find files by glob pattern using doublestar syntax. Returns paths sorted by modification time.
+
+```
+glob pattern="**/*.go"
+glob pattern="src/components/**/*.tsx" path="/project"
+```
+
+- Returns up to 100 matching files
+- Supports patterns like `**/*.go`, `src/{a,b}/*.ts`, `**/test_*.py`
+
+### tree
+
+Display directory structure with `.gitignore` awareness and depth limiting.
+
+```
+tree path="." depth=3
+tree path="./src" pattern="*.go" showHidden=true
+```
+
+- Respects `.gitignore` in git repos
+- Limited to 500 entries
+- Supports file pattern filtering
+
+### read_files
+
+Read multiple files in a single tool call — by glob pattern or explicit file list. Returns the first 100 lines of each file, up to 20 files and 96 KB total.
+
+```
+read_files pattern="internal/tool/*.go"
+read_files files=["go.mod", "go.sum", "Taskfile.yml"]
+read_files pattern="**/*_test.go" maxFiles=10 limit=50
+```
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `pattern` | — | Glob pattern to match files |
+| `files` | — | Explicit list of file paths (alternative to pattern) |
+| `path` | working dir | Directory to search in |
+| `limit` | `100` | Max lines per file |
+| `maxFiles` | `20` | Max number of files to read |
+
+- Output scales down automatically under context pressure (above 50% usage)
+- Binary files, images, and PDFs are skipped
+- Files sorted by modification time (newest first)
+
+## Search and Navigation
+
+### grep
+
+Search file contents with regex via ripgrep.
+
+```
+grep pattern="func.*Handler" path="./internal"
+grep pattern="TODO|FIXME" filePattern="*.go"
+```
+
+- Full regex syntax supported
+- Filter by file pattern or type
+- Returns up to 100 results with file paths and line numbers
+
+### search
+
+Combined file name and content search with relevance ranking. File name matches are ranked above content matches.
+
+```
+search query="authentication" path="./src"
+```
+
+- Up to 50 results, sorted by relevance
+- Includes line numbers for content matches
+- Useful when you're not sure if the term appears in filenames or code
+
+### lsp
+
+Language server queries for code intelligence — go-to-definition, find-references, hover, diagnostics, and workspace symbol search.
+
+```
+lsp action="symbols" query="HandleRequest"
+lsp action="diagnostics" file="/src/main.go"
+lsp action="definition" file="/src/main.go" line=42 character=10
+lsp action="references" file="/src/main.go" line=42 character=10
+lsp action="hover" file="/src/main.go" line=42 character=10
+```
+
+| Action | Description |
+|--------|-------------|
+| `symbols` | Search workspace symbols by name (up to 100 results) |
+| `diagnostics` | Get compiler errors/warnings for a file |
+| `definition` | Jump to a symbol's definition |
+| `references` | Find all references to a symbol (up to 50 results) |
+| `hover` | Get type info and documentation for a symbol |
+
+Servers start on demand — the first query to a `.go` file starts gopls, the first `.ts` file starts vtsls. Timeout: 15 seconds per query.
+
+### code_action
+
+Apply LSP code actions — organize imports, quick fixes, refactors.
+
+```
+code_action filePath="/src/main.go" startLine=10 startCharacter=0 endLine=10 endCharacter=20
+code_action filePath="/src/main.go" startLine=5 startCharacter=0 endLine=5 endCharacter=30 title="Organize Imports"
+code_action filePath="/src/main.go" startLine=10 startCharacter=0 endLine=15 endCharacter=0 kind="refactor" onlyPreferred=true
+```
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `filePath` | yes | File to apply the action on |
+| `startLine` | yes | Start line of the target range |
+| `startCharacter` | yes | Start character offset |
+| `endLine` | yes | End line of the target range |
+| `endCharacter` | yes | End character offset |
+| `title` | no | Filter actions by exact title match |
+| `kind` | no | Filter by action kind (e.g. `refactor`, `quickfix`, `source.organizeImports`) |
+| `onlyPreferred` | no | Only return actions marked as preferred by the language server |
+
+If multiple actions match, returns the list of available actions so the model can pick one.
+
+### rename_symbol
+
+Rename symbols using the language server — compiler-accurate, project-wide.
+
+```
+rename_symbol filePath="/src/handler.go" line=42 character=6 newName="HandleHTTPRequest"
+```
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `filePath` | yes | File containing the symbol |
+| `line` | yes | Line number of the symbol |
+| `character` | yes | Character offset of the symbol |
+| `newName` | yes | New name for the symbol |
+
+Unlike regex-based find-and-replace, this uses the language server's semantic understanding — it renames the symbol across the entire project, handling aliases, imports, and shadowed names correctly.
+
+#### Auto-Discovery
+
+KodaCode automatically discovers LSP servers based on your project's tooling:
+
+| Project config file | Discovered server |
+|---|---|
+| `biome.json` | biome (linting, formatting) |
+| `.eslintrc*`, `eslint.config.*` | eslint language server |
+| `Cargo.toml` | rust-analyzer |
+| `Dockerfile`, `compose.yaml` | docker language server |
+| `tailwind.config.*` | tailwindcss language server |
+
+Servers are found in Neovim Mason (`~/.local/share/nvim/mason/bin/`), PATH, npm/pnpm global bin, and Homebrew. These merge with the built-in defaults (gopls, vtsls, pyright) and any servers you configure manually.
+
+#### Manual Configuration
+
+Add custom LSP servers for languages not auto-detected:
+
+```yaml
+lsp:
+  servers:
+    - name: clangd
+      command: clangd
+      extensions: [".c", ".cpp", ".h", ".hpp"]
+    - name: zls
+      command: zls
+      extensions: [".zig"]
+    - name: rust-analyzer
+      command: rust-analyzer
+      extensions: [".rs"]
+```
+
+## Execution and Testing
+
+### bash
+
+Execute shell commands with streaming output, configurable timeout, and background execution.
+
+```
+bash command="go build ./..."
+bash command="npm test" timeout=300000
+bash command="docker compose up -d" run_in_background=true
+```
+
+- Default timeout: 120 seconds (max 600 seconds)
+- Background mode returns a task ID immediately — use `task_output` to retrieve results
+- Supports working directory override via `workingDir`
+
+### test
+
+Run project tests with auto-detection of test framework.
+
+```
+test
+test filter="TestAuth" timeout=120000
+```
+
+Detected frameworks: Go (`go test`), npm (`npm test`), pytest, Cargo (`cargo test`), Make (`make test`), Task (`task test`).
+
+- Streams output in real-time
+- Supports filter parameter for specific test functions
+- Shows summary of passed/failed/skipped tests
+
+### git
+
+Structured git operations — safer than raw bash for git workflows.
+
+```
+git action="status"
+git action="diff"
+git action="log" limit=10
+git action="blame" file="src/main.go"
+git action="add" args="src/main.go src/utils.go"
+git action="commit" message="fix: resolve auth bug"
+git action="branch"
+git action="stash" subAction="list"
+git action="show" ref="HEAD~1"
+```
+
+| Action | Description |
+|--------|-------------|
+| `status` | Working tree status |
+| `diff` | Show staged and unstaged changes |
+| `log` | Commit history (default: 20 entries) |
+| `branch` | List branches |
+| `add` | Stage files for commit |
+| `commit` | Create a commit |
+| `stash` | Stash operations (list, apply, pop, drop) |
+| `show` | Show commit details |
+| `blame` | Line-by-line authorship |
+
+Mutating actions (`add`, `commit`, `stash`) require permission by default.
+
+## Workflow and Interaction
+
+### task
+
+Session-scoped task tracker with status management.
+
+```
+task action="create" title="Implement auth middleware" status="in_progress"
+task action="list"
+task action="update" id="1" status="completed" notes="Done with tests"
+task action="delete" id="1"
+```
+
+| Status | Meaning |
+|--------|---------|
+| `pending` | Not started |
+| `in_progress` | Currently being worked on |
+| `completed` | Finished |
+| `blocked` | Waiting on something |
+
+Tasks are deduplicated by title (case-insensitive). Use tasks to track multi-step work and show progress.
+
+Task kinds control how the task is displayed and processed:
+
+| Kind | Purpose |
+|------|---------|
+| `implementation` | Code changes, builds, fixes |
+| `analysis` | Research, investigation, reading |
+| `report` | Summary output, documentation |
+
+The `notes` field is the durable task definition — it persists and describes what the task is. The `progress` field is a transient status summary that gets overwritten on each update.
+
+### task_output
+
+Retrieve results from background bash commands by task ID.
+
+```
+task_output taskId="abc123"
+```
+
+Returns stdout, stderr, and exit status from a background task started with `bash run_in_background=true`.
+
+### question
+
+Present interactive dialogs with selectable options to the user.
+
+```
+question text="Which approach?" options=["Option A", "Option B", "Option C"] type="single"
+question text="Select files to modify" options=["file1.go", "file2.go"] type="multi"
+```
+
+### open
+
+Open a file in your preferred editor at a specific line.
+
+```
+open filePath="/src/handler.go" line=42
+```
+
+Uses `$EDITOR` or falls back to `code`, `vim`, or `nano`.
+
+### web_fetch
+
+Fetch URL content with format conversion. Supports HTTP methods, custom headers, and CSS selector extraction.
+
+```
+web_fetch url="https://api.example.com/data" format="json"
+web_fetch url="https://docs.example.com/guide" format="markdown"
+web_fetch url="https://example.com" format="markdown" selector="article.main"
+web_fetch url="https://api.example.com/webhook" method="POST" body="{\"key\":\"value\"}"
+```
+
+| Parameter | Description |
+|-----------|-------------|
+| `url` | URL to fetch |
+| `method` | HTTP method: GET (default), POST, PUT, PATCH, DELETE, HEAD |
+| `format` | Output format: `auto`, `markdown`, `text`, `json`, `raw` |
+| `selector` | CSS selector to extract specific HTML elements |
+| `headers` | Custom HTTP headers |
+| `body` | Request body for POST/PUT/PATCH |
+
+- Default timeout: 30 seconds
+- Max response body: 5MB
+- HTML is converted to readable markdown by default
+
+### subagent
+
+Delegate tasks to specialized agents. The subagent runs in its own ephemeral session with its own tools and permissions.
+
+```
+subagent agentId="explorer" task="Find all API endpoints and document them"
+subagent agentId="planner" task="Plan the implementation of rate limiting"
+```
+
+- Multiple subagents can run concurrently (up to `max_subagents`, default 10)
+- Progress streams back to the parent session in real-time
+- Each subagent has its own tool set based on its agent definition
+
+### memory
+
+Save, list, or delete project memories that persist across sessions. Memories are stored as markdown files in `.kodacode/memories/` and automatically injected into future session prompts.
+
+```
+memory action="save" content="The auth middleware validates JWT from the Authorization header"
+memory action="list"
+memory action="delete" id="20260405-143022"
+```
+
+Equivalent to the `/remember`, `/memories`, and `/forget` slash commands, but available to the model programmatically.
+
+### skill
+
+Load skill instructions by name. Skills are curated reference documents (conventions, patterns, checklists) stored in skill directories.
+
+```
+skill name="go-testing"
+skill name="go-testing" section="table-driven-tests"
+```
+
+- For large skills (>1600 bytes or >60 lines), returns a table of contents with section IDs instead of the full content
+- Use the `section` parameter to load a specific section, keeping context usage low
+- Shows `suggests.before` and `suggests.after` hints from frontmatter when applicable
+- Lists available skills if the requested name isn't found
+
+### search_skills
+
+Search available skills by topic, task, description, trigger phrases, and section titles. Returns ranked matches with relevance reasons.
+
+```
+search_skills query="testing patterns"
+search_skills query="error handling" limit=3
+```
+
+- Searches skill names, descriptions, trigger phrases (from frontmatter), and section titles
+- Returns top 5 matches by default (configurable via `limit`)
+- Each result shows the skill name, description, match reasons, sections, and suggested related skills
+- Use this when unsure which skill is relevant — more efficient than loading skills to check their content
+
+## Parallel Execution
+
+When the model returns multiple tool calls in a single response, KodaCode executes them **in parallel**:
+
+- Reading multiple files simultaneously
+- Running several search queries at once
+- Launching multiple subagent research tasks
+- Combining git status + test run + file reads in one batch
+
+No configuration needed — concurrency is automatic.
+
+## Background Tasks
+
+The bash tool supports background execution for long-running commands:
+
+```yaml
+session:
+  background_auto_react: true
+```
+
+When `run_in_background` is set, the command returns a task ID immediately. When it completes, results are automatically delivered back to the model for follow-up action. Use `task_output` to manually retrieve results by task ID.
+
+## Live Diff Preview
+
+For `write`, `edit`, and `patch` tools, the TUI shows a live diff preview as the model streams the tool input — before the tool executes. You can cancel the stream (`Esc`) if the change looks wrong.
+
+## Auto-Diagnostics After Edits
+
+After file modifications (`write`, `edit`, `patch`), KodaCode automatically runs diagnostics on the changed files and feeds results back to the model. This catches errors immediately — the model sees compiler warnings and lint issues as part of the same tool loop, without you intervening.
+
+Diagnostics come from two sources:
+
+**Linters** — auto-detected from your project:
+
+| Project indicator | Linter |
+|---|---|
+| `biome.json` | biome |
+| `.eslintrc*`, `eslint.config.*` | eslint |
+| `tsconfig.json` | tsc --noEmit |
+| `.golangci.yml` | golangci-lint |
+| `go.mod` (fallback) | go vet |
+| `ruff.toml`, `pyproject.toml [tool.ruff]` | ruff |
+| `.flake8` | flake8 |
+| `Cargo.toml` | cargo clippy |
+
+**LSP diagnostics** — from running language servers (compiler errors, type mismatches).
+
+Both run concurrently with a 30-second timeout. You can also configure custom linters:
+
+```yaml
+diagnostics:
+  linters:
+    - command: "mypy --strict"
+      extensions: [".py"]
+```
+
+## TUI Behavior
+
+- **Read-only tools** (read, grep, glob, search, tree, lsp) auto-hide from the TUI after completion. Errors remain visible.
+- **Write tools** (write, edit, patch, bash) stay visible with expandable output.
+- **Click** any tool block to expand/collapse its output.
+
+## Example: Multi-File Refactoring Workflow
+
+A typical session where the model renames a function across a codebase:
+
+```
+User: Rename HandleRequest to HandleHTTPRequest everywhere
+
+Model's tool sequence:
+1. lsp action="references" file="handler.go" line=45 character=6
+   → finds 12 references across 8 files
+
+2. Parallel batch:
+   - read filePath="handler.go" offset=40 limit=20
+   - read filePath="router.go" offset=10 limit=20
+   - read filePath="handler_test.go" offset=30 limit=30
+   (reads only the relevant sections, not entire files)
+
+3. Parallel batch:
+   - edit filePath="handler.go" oldString="func HandleRequest" newString="func HandleHTTPRequest"
+   - edit filePath="router.go" oldString="HandleRequest" newString="HandleHTTPRequest"
+   - edit filePath="handler_test.go" oldString="HandleRequest" newString="HandleHTTPRequest" replace_all=true
+   (auto-diagnostics run on each edited file)
+
+4. bash command="go build ./..." timeout=60000
+   → catches any remaining references the LSP missed
+
+5. test filter="TestHandle" timeout=120000
+   → runs relevant tests to verify the rename didn't break anything
+```
+
+## Example: Background Build + Parallel Research
+
+```
+User: The API is returning 500 errors on /users/:id. Fix it.
+
+Model's tool sequence:
+1. bash command="go test ./internal/api/..." run_in_background=true
+   → kicks off tests in background
+
+2. Parallel research (while tests run):
+   - grep pattern="users/:id|UserByID" path="internal/api"
+   - lsp action="diagnostics" file="internal/api/handler.go"
+   - git action="log" limit=5
+
+3. (background test results arrive automatically)
+   → 2 failures in TestGetUser
+
+4. read filePath="internal/api/handler.go" offset=120 limit=40
+   → reads the failing function
+
+5. edit filePath="internal/api/handler.go" oldString="..." newString="..."
+   → fixes the nil pointer dereference
+
+6. test filter="TestGetUser"
+   → confirms the fix
+```
+
+## Example: Bulk Codebase Survey
+
+```
+User: What error handling patterns does this project use?
+
+Model's tool sequence:
+1. read_files pattern="**/*.go" maxFiles=15 limit=50
+   → reads first 50 lines of 15 most-recently-modified Go files
+
+2. grep pattern="errors\\.New|fmt\\.Errorf|%w" filePattern="*.go"
+   → finds all error creation patterns
+
+3. lsp action="symbols" query="Err"
+   → finds all exported error types and variables
+
+4. (responds with analysis — no files modified)
+```
+
+## Best Practices
+
+### Choosing the Right Tool
+- Use **read** with offset/limit when you know the relevant section — don't read entire files unnecessarily
+- Use **read_files** when you need a broad survey across many files (e.g. understanding patterns, checking conventions)
+- Use **grep** to find content, then **read** the specific lines — avoid reading whole files to search
+- Use **search** when you're not sure if a term is a filename or code content
+- Use **lsp** for code navigation: `symbols` to find definitions by name, `diagnostics` after editing files, `references` before renaming. Compiler-accurate, unlike regex
+- Use **edit** for surgical changes (replace one string), **patch** for multiple changes to the same file, **write** for new files or complete rewrites
+- Use **bash** with `run_in_background: true` for long-running commands (tests, builds) so the model can keep working
+- Use **notebook** for quick code experiments that shouldn't touch your project files
+
+### Error Recovery
+- If **edit** fails with "oldString not found", the file may have changed since it was last read. The model should re-read the file and retry.
+- If **bash** times out, consider using `run_in_background: true` or increasing the timeout parameter.
+- If **lsp** returns no results, check that the language server binary is installed and the file extension is configured.

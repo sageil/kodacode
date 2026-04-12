@@ -1,0 +1,9 @@
+- Unified code search that combines file name matching and content matching
+- Searches both file names and file contents for the given query
+- File name matches are ranked above content matches
+- Content matches include line numbers and matching line text (up to 3 lines per file)
+- Supports file pattern filtering with the include parameter (eg. "*.go", "*.{ts,tsx}")
+- Use this tool when you want to find something but aren't sure if it's a file name or inside a file
+- For pure content search use the grep tool instead; for pure file name search use the glob tool instead
+- Results are limited to 50 entries and sorted by relevance: exact name match > name contains query > content match
+- After search returns results, use read_files with the files parameter to read all relevant files in a single call

@@ -1,0 +1,184 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/sageil/kodacode/main/schema/config.schema.json
+# Koda Configuration
+# https://github.com/sageil/kodacode
+#
+# This file was created on first run with default values.
+# Edit it to add your AI providers and customize behavior.
+
+# --- Providers ---
+# Add your AI providers here. Each needs an id, api_key, and optionally
+# a base_url for OpenAI-compatible endpoints.
+#
+# Environment variables are supported: ${OPENAI_API_KEY}
+#
+# providers:
+#   - id: openai
+#     api_key: ${OPENAI_API_KEY}
+#   - id: anthropic
+#     api_key: ${ANTHROPIC_API_KEY}
+#     # thinking_budget controls the default token budget injected for OAuth
+#     # subscription requests. Per-model thinking_budget overrides this.
+#     # Set to -1 to disable. Default: 10000.
+#     # thinking_budget: 10000
+#     # models:
+#     #   - id: claude-sonnet-4-6
+#     #     thinking_budget: 5000   # per-model override
+#   - id: google
+#     api_key: ${GOOGLE_API_KEY}
+#     # models:
+#     #   - id: gemini-3-pro-preview
+#     #     thinking_budget: 10000  # enable thinking for this model
+#   - id: groq
+#     api_key: ${GROQ_API_KEY}
+#     base_url: https://api.groq.com/openai/v1
+#   - id: lmstudio
+#     api_key: ""
+#     base_url: http://127.0.0.1:1234/v1
+#     models:
+#       - id: deepseek-r1
+#         thinking_budget: 8000  # enables reasoning for this model
+providers: []
+
+# Utility model for background tasks (title generation, compaction summaries).
+# Should be fast and cheap. Falls back to default_model if empty.
+# utility_model: anthropic/claude-haiku-4-5-20251001
+
+# Reviewer model for cross-model code review. Use a different capable model
+# than the engineer for independent verification. Falls back to the engineer's
+# model if empty.
+# reviewer_model: openai/o3
+
+# Default agent to use for new sessions.
+default_agent: engineer
+
+# --- Session ---
+session:
+  # Trigger compaction when token usage exceeds this fraction of context window.
+  compaction_threshold: 0.8
+
+  # Number of recent turns to preserve after compaction.
+  compaction_keep_turns: 10
+
+  # Tokens at the end of history protected from pruning.
+  prune_protect_tokens: 40000
+
+  # Minimum token savings required for pruning to proceed.
+  prune_min_savings: 20000
+
+  # Stop the tool loop when tokens exceed this fraction of context window.
+  context_limit: 0.9
+
+  # Maximum retry attempts for retryable API errors (429, 500, 502, 503).
+  max_retries: 5
+
+  # Maximum seconds to wait for the model to finish emitting one tool call's
+  # JSON arguments before aborting the stream. This does not limit the tool
+  # execution itself.
+  tool_call_argument_timeout: 300
+
+  # Maximum automatic Engineer workflow retries before asking how to proceed.
+  # Applies to reviewer reruns and repeated stalled-task execution nudges.
+  engineer_review_limit: 3
+
+  # Maximum concurrent subagent sessions. Limits resource usage on
+  # constrained machines.
+  max_subagents: 10
+
+  # Auto-prompt the model when a background task completes. The task result
+  # is persisted as a synthetic system turn and fed back to the model.
+  background_auto_react: true
+
+  # Optional hard cap across all non-ephemeral sessions in the local database.
+  # total_budget: 25.0
+
+  # Warn when the aggregate spend reaches this fraction of total_budget.
+  # total_budget_warn: 0.9
+
+  # Per-model overrides (uncomment and adjust as needed):
+  # models:
+  #   openai/gpt-4o:
+  #     compaction_threshold: 0.9
+  #     prune_protect_tokens: 80000
+
+# --- Server ---
+server:
+  # TCP port for the embedded API server. 0 = random available port.
+  port: 0
+
+# --- TUI ---
+tui:
+  # Maximum number of rows for the input textarea.
+  input_max_height: 8
+
+  # Theme name (from ~/.config/kodacode/themes/ without .yaml extension).
+  # theme: default
+
+  # Number of recent turns to keep rendered in the TUI.
+  display_turns: 4
+
+  # Seconds before error toasts auto-dismiss.
+  error_display_time: 3
+
+# --- Permissions ---
+# Control what tools can do. Rules: allow, ask, deny.
+# permission:
+#   bash:
+#     "*": ask
+#     "ls *": allow
+#   read:
+#     "*": allow
+#   write: ask
+
+# --- LSP Servers ---
+# Language servers for code intelligence (go-to-definition, references, hover, diagnostics).
+# The correct server is selected automatically based on file extension.
+lsp:
+  servers:
+    - name: gopls
+      command: gopls
+      extensions: [".go"]
+      env:
+        GOFLAGS: "-mod=mod"
+    - name: vtsls
+      command: vtsls
+      args: ["--stdio"]
+      extensions: [".ts", ".tsx", ".js", ".jsx"]
+    - name: pyright
+      command: pyright-langserver
+      args: ["--stdio"]
+      extensions: [".py", ".pyi"]
+
+# --- MCP Servers ---
+# Extend Koda with Model Context Protocol servers.
+# mcp:
+#   servers:
+#     - name: filesystem
+#       type: stdio
+#       command: npx
+#       args: ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/files"]
+
+# --- Search Index ---
+# Enables FTS5 symbol indexing for semantic code search (via the search tool).
+# Requires universal-ctags on PATH.
+search_index:
+  enabled: false
+  # ctags_binary: universal-ctags
+  # exclude_patterns: ["*_test.go", "*.min.js"]
+  # max_file_size: 1048576  # 1 MB
+
+  # Vector embeddings for hybrid search (FTS + cosine similarity).
+  # Requires a provider that supports embeddings (OpenAI, Google, or
+  # an OpenAI-compatible local server like LM Studio / Ollama).
+  # embedding:
+  #   enabled: false
+  #   model: "openai/text-embedding-3-small"  # format: provider/model
+  #   dimensions: 0    # 0 = model default
+  #   batch_size: 100  # symbols per API call
+
+# --- Debug ---
+debug: false
+log_prompts: false
+
+# How often (in days) to refresh model metadata from the upstream registry.
+# 0 disables automatic refresh.
+model_refresh_interval: 7

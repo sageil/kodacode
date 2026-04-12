@@ -1,0 +1,8 @@
+Retrieves output from a background bash task started with `run_in_background: true`.
+
+- Takes a `task_id` parameter identifying the background task
+- Returns the task's stdout/stderr output along with status (running/completed) and exit code
+- Use `block: true` (default) to wait for the task to complete before returning
+- Use `block: false` for a non-blocking check of the current output and status
+- Set `timeout` in milliseconds to limit how long to wait when blocking (default 30000ms)
+- Task IDs are returned by the bash tool when `run_in_background` is set to true

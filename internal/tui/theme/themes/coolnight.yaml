@@ -1,0 +1,38 @@
+# Coolnight — https://github.com/kpatdev/coolnight
+# A deep-navy dark theme with vivid cyan/green neons and soft blue foreground.
+name: coolnight
+syntax_style: dracula
+
+palette:
+  # Mint green (#47ff9c) — primary interactive elements, headings, and labels.
+  primary:   "#47ff9c"
+  # Electric cyan (#24eaf7) — secondary accents (model/agent badges).
+  secondary: "#24eaf7"
+  # Deep navy panel (#0d2137) — slightly lighter than the base background;
+  # used as dialog/panel backgrounds.
+  surface:   "#0d2137"
+  # Raised navy (#214969) — input areas and selection highlights.
+  overlay:   "#214969"
+  # Soft blue-white (#cbe0f0) — primary readable text.
+  text:      "#cbe0f0"
+  # Muted steel (#5a7a96) — de-emphasised labels, timestamps, hints.
+  subtext:   "#5a7a96"
+  # Vivid red (#e52e2e) — errors and destructive actions.
+  error:     "#e52e2e"
+  # Amber yellow (#ffe073) — warnings and token usage bar.
+  warning:   "#ffe073"
+  # Bright green (#44ffb1) — success states and tool completion ticks.
+  success:   "#44ffb1"
+  thinking: "#a78bfa"
+
+# Optional component overrides — omit any key to use palette-derived defaults.
+# Supported border values: rounded, single, double, thick, left, none
+components:
+  user-message:
+    fg: "#cbe0f0"
+    bg: "#214969"
+    border: left
+    border-color: "#47ff9c"
+
+  assistant-message:
+    fg: "#cbe0f0"
