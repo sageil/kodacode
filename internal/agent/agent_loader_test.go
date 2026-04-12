@@ -13,7 +13,7 @@ import (
 
 func TestParseMarkdown_WithFrontmatter(t *testing.T) {
 	content := `---
-name: coder
+name: builder
 description: Expert Go engineer
 model: openai/gpt-4o
 temperature: 0.3
@@ -30,7 +30,7 @@ permission:
 You are an expert Go engineer.`
 
 	dir := t.TempDir()
-	path := filepath.Join(dir, "coder.md")
+	path := filepath.Join(dir, "builder.md")
 	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 		t.Fatalf("setup: write file: %v", err)
 	}
@@ -45,8 +45,8 @@ You are an expert Go engineer.`
 
 	temp := 0.3
 	want := agent.Agent{
-		ID:          "coder",
-		Name:        "coder",
+		ID:          "builder",
+		Name:        "builder",
 		Description: "Expert Go engineer",
 		Model:       "openai/gpt-4o",
 		Temperature: &temp,

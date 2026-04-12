@@ -185,7 +185,7 @@ func (tl *turnLoop) applyMidTurnPressure(msgCountBeforeIteration, systemTokensBe
 		if tl.sndbx != nil {
 			isReadOnly = tl.sndbx.IsReadOnly
 		}
-		if err := maybeCompact(tl.ctx, tl.cfg, tl.msgs, isReadOnly, tl.utility, tl.publish, tl.req, estimatedTotal, tl.sc); err != nil {
+		if err := maybeCompact(tl.ctx, tl.cfg, tl.msgs, isReadOnly, tl.utility, tl.publish, tl.req, estimatedTotal, tl.sc, tl.utilityHealth); err != nil {
 			log.Printf("compaction: mid-turn compaction failed: %v", err)
 		}
 		estimatedTotal = estimateProviderMessages(tl.req.Messages)

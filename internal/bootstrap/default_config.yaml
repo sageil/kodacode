@@ -49,7 +49,7 @@ providers: []
 # reviewer_model: openai/o3
 
 # Default agent to use for new sessions.
-default_agent: engineer
+default_agent: builder
 
 # --- Session ---
 session:

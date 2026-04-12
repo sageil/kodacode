@@ -24,10 +24,11 @@ func NewTitleMiddleware(
 	cfg *config.Config,
 	updateTitle func(ctx context.Context, sessionID, title string),
 	getCost func(ctx context.Context, sessionID string) *SessionCost,
+	utilityHealth *utilityHealthTracker,
 ) pipeline.TurnMiddleware {
 	return func(ctx context.Context, req *pipeline.TurnRequest, next pipeline.TurnHandler) error {
 		if req.Step == 0 && !req.Ephemeral && !req.HasTitle {
-			utility := resolveUtility(registry, cfg, req)
+			utility := resolveUtility(registry, cfg, req, utilityHealth)
 			if utility.prov != nil {
 				sessionID := req.SessionID
 				firstUserMsg := extractFirstUserMessage(req.Messages)
@@ -35,7 +36,7 @@ func NewTitleMiddleware(
 				if getCost != nil {
 					sc = getCost(ctx, sessionID)
 				}
-				go generateTitle(ctx, utility, sessionID, firstUserMsg, updateTitle, sc)
+				go generateTitle(context.WithoutCancel(ctx), utility, sessionID, firstUserMsg, updateTitle, sc, utilityHealth)
 			}
 		}
 		return next(ctx, req)
@@ -55,11 +56,10 @@ func extractFirstUserMessage(msgs []provider.Message) string {
 	return ""
 }
 
-func generateTitle(parent context.Context, utility utilityProvider, sessionID string, userMsg string, updateTitle func(context.Context, string, string), sc *SessionCost) {
+func generateTitle(parent context.Context, utility utilityProvider, sessionID string, userMsg string, updateTitle func(context.Context, string, string), sc *SessionCost, utilityHealth *utilityHealthTracker) {
 	if userMsg == "" {
 		return
 	}
-	log.Printf("title: using provider=%s model=%s for session %s", utility.prov.ID(), utility.modelID, sessionID)
 
 	msgs := []provider.Message{
 		{
@@ -71,39 +71,47 @@ func generateTitle(parent context.Context, utility utilityProvider, sessionID st
 		SystemParts: []string{titlePrompt, ""},
 	}
 
-	for attempt := range titleMaxRetries {
-		if attempt > 0 {
-			select {
-			case <-parent.Done():
-				log.Printf("title: cancelled for session %s", sessionID)
-				return
-			case <-time.After(titleRetryDelay):
+	for _, candidate := range utilityCandidates(utility) {
+		log.Printf("title: using provider=%s model=%s for session %s", candidate.prov.ID(), candidate.modelID, sessionID)
+		for attempt := range titleMaxRetries {
+			if attempt > 0 {
+				select {
+				case <-parent.Done():
+					log.Printf("title: cancelled for session %s", sessionID)
+					return
+				case <-time.After(titleRetryDelay):
+				}
 			}
-		}
 
-		title, usage, err := tryGenerateTitle(parent, utility.prov, utility.modelID, msgs, opts)
-		if err != nil {
-			if parent.Err() != nil {
-				log.Printf("title: cancelled for session %s", sessionID)
-				return
+			title, usage, err := tryGenerateTitle(parent, candidate.prov, candidate.modelID, msgs, opts)
+			if err != nil {
+				if parent.Err() != nil {
+					log.Printf("title: cancelled for session %s", sessionID)
+					return
+				}
+				log.Printf("title: attempt %d/%d for session %s with %s/%s: %v", attempt+1, titleMaxRetries, sessionID, candidate.prov.ID(), candidate.modelID, err)
+				if isUtilityPermanentUnavailable(err) {
+					utilityHealth.markUnavailable(candidate)
+					break
+				}
+				continue
 			}
-			log.Printf("title: attempt %d/%d for session %s: %v", attempt+1, titleMaxRetries, sessionID, err)
-			continue
-		}
-		if title == "" {
-			log.Printf("title: attempt %d/%d for session %s: empty response", attempt+1, titleMaxRetries, sessionID)
-			continue
-		}
+			if title == "" {
+				log.Printf("title: attempt %d/%d for session %s with %s/%s: empty response", attempt+1, titleMaxRetries, sessionID, candidate.prov.ID(), candidate.modelID)
+				continue
+			}
 
-		if sc != nil && usage != nil {
-			sc.Add(usage, provider.Model{CostInput: utility.costIn, CostOutput: utility.costOut})
-		}
+			utilityHealth.markAvailable(candidate)
+			if sc != nil && usage != nil {
+				sc.Add(usage, provider.Model{CostInput: candidate.costIn, CostOutput: candidate.costOut})
+			}
 
-		log.Printf("title: generated %q for session %s", title, sessionID)
-		ctx, cancel := context.WithTimeout(parent, 5*time.Second)
-		updateTitle(ctx, sessionID, title)
-		cancel()
-		return
+			log.Printf("title: generated %q for session %s via %s/%s", title, sessionID, candidate.prov.ID(), candidate.modelID)
+			ctx, cancel := context.WithTimeout(parent, 5*time.Second)
+			updateTitle(ctx, sessionID, title)
+			cancel()
+			return
+		}
 	}
 	log.Printf("title: giving up after %d attempts for session %s", titleMaxRetries, sessionID)
 }

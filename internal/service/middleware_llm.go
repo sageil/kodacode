@@ -39,10 +39,11 @@ func NewLLMMiddleware(cc *ChainConfig) pipeline.TurnMiddleware {
 			ctx: ctx, req: req, prov: prov, modelID: modelID,
 			publish: cc.Publish, sndbx: cc.Sandbox, msgs: cc.Messages,
 			askPerm: cc.AskPerm, askUser: cc.AskUser, spawnSubagent: cc.SpawnSubagent,
-			globalCfg:   cc.Config,
-			cfg:         &cc.Config.Session,
-			utility:     resolveUtility(cc.Registry, cc.Config, req),
-			snapshotSvc: cc.SnapshotSvc, sc: sc,
+			globalCfg:     cc.Config,
+			cfg:           &cc.Config.Session,
+			utility:       resolveUtility(cc.Registry, cc.Config, req, cc.UtilityHealth),
+			utilityHealth: cc.UtilityHealth,
+			snapshotSvc:   cc.SnapshotSvc, sc: sc,
 			budgetStatus: func(ctx context.Context, sessionID string, cfg *config.SessionConfig) BudgetStatus {
 				if cc.GetBudget == nil {
 					return BudgetStatus{}
@@ -78,7 +79,7 @@ func tryFallbacks(
 	if len(req.FallbackModels) == 0 {
 		return primaryErr
 	}
-	utility := resolveUtility(cc.Registry, cc.Config, req)
+	utility := resolveUtility(cc.Registry, cc.Config, req, cc.UtilityHealth)
 	for _, fb := range req.FallbackModels {
 		idx := strings.IndexByte(fb, '/')
 		if idx <= 0 {
@@ -97,10 +98,11 @@ func tryFallbacks(
 			ctx: ctx, req: req, prov: fbProv, modelID: fb[idx+1:],
 			publish: cc.Publish, sndbx: cc.Sandbox, msgs: cc.Messages,
 			askPerm: cc.AskPerm, askUser: cc.AskUser, spawnSubagent: cc.SpawnSubagent,
-			globalCfg:   cc.Config,
-			cfg:         &cc.Config.Session,
-			utility:     utility,
-			snapshotSvc: cc.SnapshotSvc, sc: sc,
+			globalCfg:     cc.Config,
+			cfg:           &cc.Config.Session,
+			utility:       utility,
+			utilityHealth: cc.UtilityHealth,
+			snapshotSvc:   cc.SnapshotSvc, sc: sc,
 			budgetStatus: func(ctx context.Context, sessionID string, cfg *config.SessionConfig) BudgetStatus {
 				if cc.GetBudget == nil {
 					return BudgetStatus{}

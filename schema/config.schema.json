@@ -79,7 +79,7 @@
     },
     "default_agent": {
       "type": "string",
-      "description": "Default agent ID for new sessions (e.g. 'engineer', 'default')"
+      "description": "Default agent ID for new sessions (e.g. 'builder', 'engineer')"
     },
     "fallback_models": {
       "type": "array",

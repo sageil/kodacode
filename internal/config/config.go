@@ -15,7 +15,7 @@ import (
 func defaults() Config {
 	return Config{
 		Version:      CurrentConfigVersion,
-		DefaultAgent: "engineer",
+		DefaultAgent: "builder",
 		Session: SessionConfig{
 			CompactionThreshold:     float64Ptr(0.8),
 			CompactionKeepTurns:     intPtr(10),

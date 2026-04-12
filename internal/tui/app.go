@@ -85,6 +85,8 @@ type App struct {
 	maxAttachmentSize  int64
 	displayTurns       int
 	cfg                ConfigState // model, agent, variant selection
+	agentPersistDirty  bool
+	agentPersistSeq    int
 	pins               []string
 	memoryStore        *service.MemoryStore
 	errorBanner        string // global error banner, shown at top of screen

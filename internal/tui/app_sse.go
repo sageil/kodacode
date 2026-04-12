@@ -188,6 +188,9 @@ func (a App) handleSSEEvent(msg SSEEventMsg) (tea.Model, tea.Cmd) {
 		if a.cfg.PlannerPending {
 			return a.completePlannerApprovalAfterDone()
 		}
+		if a.session.header.title == "" {
+			return a, a.refreshSessionTitleTick(msg.SessionID, 0)
+		}
 
 	case "tool_start":
 		var p struct {

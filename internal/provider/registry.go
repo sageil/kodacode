@@ -77,6 +77,12 @@ type ProviderModels struct {
 	Models       []Model `json:"models"`
 }
 
+// ProviderModelRef identifies a model on a specific provider.
+type ProviderModelRef struct {
+	ProviderID string
+	Model      Model
+}
+
 // RefreshModels refreshes the model cache from all sources.
 func (r *Registry) RefreshModels(ctx context.Context) {
 	if r.ModelCache != nil {
@@ -102,13 +108,21 @@ var utilityModelHints = map[string][]string{
 //
 // Returns empty string if no suitable model is found.
 func (r *Registry) CheapestModel(providerID string) string {
-	return r.cheapestModel(providerID, true)
+	candidates := r.utilityCandidatesForProvider(providerID, providerID, true)
+	if len(candidates) == 0 {
+		return ""
+	}
+	return candidates[0].Model.ID
 }
 
 // CheapestTextModel returns the cheapest model regardless of tool support.
 // Use for text-only tasks like title generation or compaction summarization.
 func (r *Registry) CheapestTextModel(providerID string) string {
-	return r.cheapestModel(providerID, false)
+	candidates := r.utilityCandidatesForProvider(providerID, providerID, false)
+	if len(candidates) == 0 {
+		return ""
+	}
+	return candidates[0].Model.ID
 }
 
 // minUtilityContextSize is the minimum context window for a model to be
@@ -116,49 +130,146 @@ func (r *Registry) CheapestTextModel(providerID string) string {
 // out embedding models, image models, and other special-purpose models.
 const minUtilityContextSize = 8000
 
-func (r *Registry) cheapestModel(providerID string, requireTools bool) string {
+// UtilityCandidates returns ranked utility-chat candidates across all
+// registered providers. preferredProviderID is used only as a tiebreaker.
+func (r *Registry) UtilityCandidates(preferredProviderID string, requireTools bool) []ProviderModelRef {
+	providers := r.List()
+	sort.Slice(providers, func(i, j int) bool {
+		return providers[i].ID() < providers[j].ID()
+	})
+
+	var candidates []ProviderModelRef
+	for _, p := range providers {
+		candidates = append(candidates, r.utilityCandidatesForProvider(p.ID(), preferredProviderID, requireTools)...)
+	}
+	sortUtilityCandidates(candidates, preferredProviderID)
+	return candidates
+}
+
+func (r *Registry) utilityCandidatesForProvider(providerID, preferredProviderID string, requireTools bool) []ProviderModelRef {
 	models := r.modelsForProvider(providerID)
 	if len(models) == 0 {
-		return ""
+		return nil
 	}
-
-	// Strategy 1: cost-based selection.
-	var bestCostModel string
-	bestCost := -1.0
+	candidates := make([]ProviderModelRef, 0, len(models))
 	for _, m := range models {
-		if requireTools && m.ToolCallKnown && !m.ToolCall {
+		if !isUtilityModelCandidate(m, requireTools) {
 			continue
 		}
-		if m.CostInput <= 0 && m.CostOutput <= 0 {
-			continue
-		}
-		if !requireTools && m.ContextSize > 0 && m.ContextSize < minUtilityContextSize {
-			continue
-		}
-		cost := m.CostInput + m.CostOutput
-		if bestCost < 0 || cost < bestCost {
-			bestCost = cost
-			bestCostModel = m.ID
-		}
+		candidates = append(candidates, ProviderModelRef{ProviderID: providerID, Model: m})
 	}
-	if bestCostModel != "" {
-		return bestCostModel
-	}
+	sortUtilityCandidates(candidates, preferredProviderID)
+	return candidates
+}
 
-	// Strategy 2: name-based heuristic.
+func sortUtilityCandidates(candidates []ProviderModelRef, preferredProviderID string) {
+	sort.SliceStable(candidates, func(i, j int) bool {
+		a := candidates[i]
+		b := candidates[j]
+
+		aKnownCost := modelHasKnownCost(a.Model)
+		bKnownCost := modelHasKnownCost(b.Model)
+		if aKnownCost != bKnownCost {
+			return aKnownCost
+		}
+		if aKnownCost {
+			aCost := a.Model.CostInput + a.Model.CostOutput
+			bCost := b.Model.CostInput + b.Model.CostOutput
+			if aCost != bCost {
+				return aCost < bCost
+			}
+		}
+
+		aHint := utilityHintRank(a.ProviderID, a.Model.ID)
+		bHint := utilityHintRank(b.ProviderID, b.Model.ID)
+		if aHint != bHint {
+			return aHint < bHint
+		}
+
+		aPreferred := a.ProviderID == preferredProviderID
+		bPreferred := b.ProviderID == preferredProviderID
+		if aPreferred != bPreferred {
+			return aPreferred
+		}
+
+		aCtx := a.Model.EffectiveContextSize()
+		bCtx := b.Model.EffectiveContextSize()
+		if aCtx != bCtx {
+			return aCtx < bCtx
+		}
+
+		if a.ProviderID != b.ProviderID {
+			return a.ProviderID < b.ProviderID
+		}
+		return a.Model.ID < b.Model.ID
+	})
+}
+
+func modelHasKnownCost(m Model) bool {
+	return m.CostInput > 0 || m.CostOutput > 0
+}
+
+func utilityHintRank(providerID, modelID string) int {
 	hints := utilityModelHints[providerID]
-	for _, hint := range hints {
-		for _, m := range models {
-			if requireTools && m.ToolCallKnown && !m.ToolCall {
-				continue
-			}
-			if strings.Contains(strings.ToLower(m.ID), hint) {
-				return m.ID
+	if len(hints) == 0 {
+		return 1_000_000
+	}
+	lowerID := strings.ToLower(modelID)
+	for i, hint := range hints {
+		if strings.Contains(lowerID, hint) {
+			return i
+		}
+	}
+	return len(hints) + 1_000
+}
+
+func isUtilityModelCandidate(m Model, requireTools bool) bool {
+	if requireTools && m.ToolCallKnown && !m.ToolCall {
+		return false
+	}
+	if m.EffectiveContextSize() > 0 && m.EffectiveContextSize() < minUtilityContextSize {
+		return false
+	}
+	if !modelHasTextOutput(m) {
+		return false
+	}
+	if modelLooksSpecialPurpose(m) {
+		return false
+	}
+	return true
+}
+
+func modelHasTextOutput(m Model) bool {
+	if len(m.OutputModalities) == 0 {
+		return true
+	}
+	for _, modality := range m.OutputModalities {
+		if strings.EqualFold(modality, "text") {
+			return true
+		}
+	}
+	return false
+}
+
+func modelLooksSpecialPurpose(m Model) bool {
+	for _, field := range []string{m.ID, m.Name, m.Family} {
+		lower := strings.ToLower(field)
+		if lower == "" {
+			continue
+		}
+		for _, token := range []string{
+			"embedding", "embed", "rerank", "reranker",
+			"tts", "speech", "transcribe", "transcription", "whisper",
+			"moderation", "omni-moderation",
+			"image-generation", "gpt-image", "realtime", "-live", "live-",
+			"computer-use", "robotics",
+		} {
+			if strings.Contains(lower, token) {
+				return true
 			}
 		}
 	}
-
-	return ""
+	return false
 }
 
 // ModelContextSize returns the effective context size for a model.
@@ -329,6 +440,15 @@ func mergeVisibleModels(primary, fallback Model) Model {
 	}
 	if merged.CostReasoning == 0 {
 		merged.CostReasoning = fallback.CostReasoning
+	}
+	if merged.Family == "" {
+		merged.Family = fallback.Family
+	}
+	if len(merged.InputModalities) == 0 {
+		merged.InputModalities = cloneStrings(fallback.InputModalities)
+	}
+	if len(merged.OutputModalities) == 0 {
+		merged.OutputModalities = cloneStrings(fallback.OutputModalities)
 	}
 	return merged
 }

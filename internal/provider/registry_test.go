@@ -250,6 +250,63 @@ func TestRegistryResolveModelFallsBackToLiveProviderModels(t *testing.T) {
 	}
 }
 
+func TestRegistryUtilityCandidatesExcludeEmbeddingsAndRankAcrossProviders(t *testing.T) {
+	r := provider.NewRegistry()
+	if err := r.Register(&fakeProvider{
+		id:   "openai",
+		name: "OpenAI",
+		models: []provider.Model{
+			{
+				ID:               "text-embedding-3-small",
+				Name:             "text-embedding-3-small",
+				ContextSize:      8192,
+				CostInput:        0.02,
+				CostOutput:       0.00,
+				OutputModalities: []string{"embedding"},
+			},
+			{
+				ID:               "gpt-4.1-mini",
+				Name:             "gpt-4.1-mini",
+				ContextSize:      128000,
+				CostInput:        0.20,
+				CostOutput:       0.40,
+				OutputModalities: []string{"text"},
+			},
+		},
+	}); err != nil {
+		t.Fatalf("Register(openai) error = %v", err)
+	}
+	if err := r.Register(&fakeProvider{
+		id:   "anthropic",
+		name: "Anthropic",
+		models: []provider.Model{
+			{
+				ID:               "claude-haiku-4-5",
+				Name:             "claude-haiku-4-5",
+				ContextSize:      200000,
+				CostInput:        0.15,
+				CostOutput:       0.30,
+				OutputModalities: []string{"text"},
+			},
+		},
+	}); err != nil {
+		t.Fatalf("Register(anthropic) error = %v", err)
+	}
+
+	got := r.UtilityCandidates("openai", false)
+	if len(got) != 2 {
+		t.Fatalf("UtilityCandidates() len = %d, want 2", len(got))
+	}
+	if got[0].ProviderID != "anthropic" || got[0].Model.ID != "claude-haiku-4-5" {
+		t.Fatalf("first utility candidate = %s/%s, want anthropic/claude-haiku-4-5", got[0].ProviderID, got[0].Model.ID)
+	}
+	for _, candidate := range got {
+		if candidate.Model.ID == "text-embedding-3-small" {
+			t.Fatal("embedding model should not be returned as a utility candidate")
+		}
+	}
+}
+
 // sortedStrings returns a sorted copy of ss.
 func sortedStrings(ss []string) []string {
 	out := make([]string, len(ss))

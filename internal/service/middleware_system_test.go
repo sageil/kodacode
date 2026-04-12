@@ -19,7 +19,7 @@ func TestSystemPromptMiddleware_SetsThreeParts(t *testing.T) {
 	mw := service.NewSystemPromptMiddleware(builder, tool.NewTaskStore(nil))
 	req := &pipeline.TurnRequest{
 		SessionID: "s1",
-		Agent:     config.AgentConfig{SystemPrompt: "You are a coder."},
+		Agent:     config.AgentConfig{SystemPrompt: "You are a builder."},
 	}
 	err := mw(context.Background(), req, func(_ context.Context, r *pipeline.TurnRequest) error {
 		if len(r.SystemParts) != 3 {

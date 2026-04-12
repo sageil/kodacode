@@ -47,7 +47,7 @@ func TestSessionRepo_Create(t *testing.T) {
 
 	got, err := sessions.Create(ctx, repository.Session{
 		Title:   "first session",
-		AgentID: "coder",
+		AgentID: "builder",
 		ModelID: "openai/gpt-4o",
 	})
 	if err != nil {

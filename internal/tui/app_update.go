@@ -36,6 +36,15 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case sessionCreatedMsg:
 		return a.handleSessionCreated(msg)
 
+	case sessionTitleRefreshMsg:
+		return a.handleSessionTitleRefresh(msg)
+
+	case agentPersistTickMsg:
+		return a.handleAgentPersistTick(msg)
+
+	case agentPersistResultMsg:
+		return a.handleAgentPersistResult(msg)
+
 	case messageSentMsg:
 		return a.handleMessageSent(msg)
 
@@ -403,6 +412,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch {
 		case key.Matches(kp, a.keys.Quit):
 			a.sse.Stop()
+			a.flushPendingAgentSelection()
 			if a.cancel != nil {
 				a.cancel()
 			}
@@ -431,7 +441,9 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case key.Matches(kp, a.keys.CycleAgent):
 			if len(a.cfg.PrimaryAgentIDs) > 1 {
-				a.cycleAgent()
+				if cmd := a.cycleAgent(); cmd != nil {
+					cmds = append(cmds, cmd)
+				}
 			}
 
 		case key.Matches(kp, a.keys.PasteClipboard):

@@ -93,7 +93,7 @@ func (tl *turnLoop) streamWithRetry(params streamParams) (*streamResult, error) 
 				if emergencyTokens <= 0 {
 					emergencyTokens = 128000
 				}
-				if err := maybeCompact(ctx, tl.cfg, tl.msgs, isReadOnly, tl.utility, publish, req, emergencyTokens, tl.sc); err != nil {
+				if err := maybeCompact(ctx, tl.cfg, tl.msgs, isReadOnly, tl.utility, publish, req, emergencyTokens, tl.sc, tl.utilityHealth); err != nil {
 					log.Printf("llm: emergency compaction failed: %v", err)
 					return nil, fmt.Errorf("context overflow and emergency compaction failed: %w", err)
 				}

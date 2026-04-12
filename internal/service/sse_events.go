@@ -74,6 +74,7 @@ type SSETitleData struct {
 
 type SSECompactionData struct {
 	Summary string `json:"summary"`
+	ModelID string `json:"model_id,omitempty"`
 }
 
 type SSEUserQuestionData struct {

@@ -31,6 +31,7 @@ type turnLoop struct {
 	globalCfg        *config.Config
 	cfg              *config.SessionConfig
 	utility          utilityProvider
+	utilityHealth    *utilityHealthTracker
 	snapshotSvc      *snapshot.Service
 	sc               *SessionCost
 	budgetStatus     func(context.Context, string, *config.SessionConfig) BudgetStatus

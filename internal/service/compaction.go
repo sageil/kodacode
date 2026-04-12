@@ -130,6 +130,7 @@ func NewCompactionMiddleware(
 	appCfg *config.Config,
 	publish func(sessionID string, ev SSEEvent),
 	getCost func(ctx context.Context, sessionID string) *SessionCost,
+	utilityHealth *utilityHealthTracker,
 ) pipeline.TurnMiddleware {
 	// Track recently-seen sessions for one-time crash-orphan cleanup without
 	// retaining unbounded process-lifetime state.
@@ -159,12 +160,12 @@ func NewCompactionMiddleware(
 			}
 		}
 
-		utility := resolveUtility(registry, appCfg, req)
+		utility := resolveUtility(registry, appCfg, req, utilityHealth)
 		var sc *SessionCost
 		if getCost != nil {
 			sc = getCost(ctx, req.SessionID)
 		}
-		if err := maybeCompact(ctx, sessionCfg, msgs, isReadOnly, utility, publish, req, lastInputTokens, sc); err != nil {
+		if err := maybeCompact(ctx, sessionCfg, msgs, isReadOnly, utility, publish, req, lastInputTokens, sc, utilityHealth); err != nil {
 			log.Printf("compaction: pre-turn compaction failed: %v", err)
 		}
 		if err := next(ctx, req); err != nil {
@@ -199,6 +200,7 @@ func maybeCompact(
 	req *pipeline.TurnRequest,
 	lastInputTokens int,
 	sc *SessionCost,
+	utilityHealth *utilityHealthTracker,
 ) error {
 	contextSize := req.Model.EffectiveContextSize()
 	if contextSize <= 0 {
@@ -293,28 +295,41 @@ func maybeCompact(
 		}
 	}
 
-	modelID := utility.modelID
-	if modelID == "" {
-		modelID = req.Model.ID
-	}
-	log.Printf("compaction: generating summary with model=%s via provider=%s (contextSize=%d)", modelID, utility.prov.ID(), utility.contextSize)
-	summaryText, summaryUsage, err := generateSummary(ctx, utility.prov, modelID, utility.contextSize, req)
-	if err != nil {
-		log.Printf("compaction: summary generation failed: %v", err)
-	} else if summaryText == "" {
-		log.Printf("compaction: summary generation returned empty text")
-	} else {
-		log.Printf("compaction: summary generated (%d chars)", len(summaryText))
-		if sc != nil && summaryUsage != nil {
-			sc.Add(summaryUsage, provider.Model{CostInput: utility.costIn, CostOutput: utility.costOut})
+	var (
+		summaryText  string
+		summaryUsage *provider.Usage
+		summaryErr   error
+		usedUtility  utilityProvider
+	)
+	for _, candidate := range utilityCandidates(utility) {
+		log.Printf("compaction: generating summary with model=%s via provider=%s (contextSize=%d)", candidate.modelID, candidate.prov.ID(), candidate.contextSize)
+		summaryText, summaryUsage, summaryErr = generateSummary(ctx, candidate.prov, candidate.modelID, candidate.contextSize, req)
+		if summaryErr != nil {
+			log.Printf("compaction: summary generation failed via %s/%s: %v", candidate.prov.ID(), candidate.modelID, summaryErr)
+			if isUtilityPermanentUnavailable(summaryErr) {
+				utilityHealth.markUnavailable(candidate)
+			}
+			continue
 		}
-	}
-	// A good summary should be at least 200 chars — shorter means the
-	// utility model didn't follow the structured format. Treat as failure.
-	const minSummaryLen = 200
-	if summaryText != "" && len(summaryText) < minSummaryLen {
-		log.Printf("compaction: summary too short (%d chars < %d min), discarding", len(summaryText), minSummaryLen)
-		summaryText = ""
+		if summaryText == "" {
+			log.Printf("compaction: summary generation returned empty text via %s/%s", candidate.prov.ID(), candidate.modelID)
+			continue
+		}
+		// A good summary should be at least 200 chars — shorter means the
+		// utility model didn't follow the structured format. Treat as failure.
+		const minSummaryLen = 200
+		if len(summaryText) < minSummaryLen {
+			log.Printf("compaction: summary too short (%d chars < %d min) via %s/%s, trying next candidate", len(summaryText), minSummaryLen, candidate.prov.ID(), candidate.modelID)
+			summaryText = ""
+			continue
+		}
+		utilityHealth.markAvailable(candidate)
+		usedUtility = candidate
+		log.Printf("compaction: summary generated (%d chars) via %s/%s", len(summaryText), candidate.prov.ID(), candidate.modelID)
+		if sc != nil && summaryUsage != nil {
+			sc.Add(summaryUsage, provider.Model{CostInput: candidate.costIn, CostOutput: candidate.costOut})
+		}
+		break
 	}
 	// Both the success and fallback paths need durable truncation:
 	// truncate in-memory, compute the DB cutoff, and persist a summary
@@ -325,7 +340,7 @@ func maybeCompact(
 	cutoffID := compactionCutoff(allMsgs, len(truncated))
 	req.Messages = sanitizeToolPairs(truncated)
 
-	if err != nil || summaryText == "" {
+	if summaryText == "" {
 		// Summary generation failed — persist a cutoff-only summary so the
 		// truncation is durable across reloads (prevents emergency retry
 		// from rebuilding the same bloated message set).
@@ -347,7 +362,7 @@ func maybeCompact(
 	if publish != nil {
 		publish(req.SessionID, SSEEvent{
 			Type: "compaction",
-			Data: SSECompactionData{Summary: summaryText},
+			Data: SSECompactionData{Summary: summaryText, ModelID: usedUtility.modelID},
 		})
 	}
 

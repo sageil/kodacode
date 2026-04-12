@@ -309,23 +309,31 @@ func (mc *ModelCache) ModelsForProvider(providerID string) []Model {
 		name = strings.TrimSpace(name)
 
 		vision := cachedModelVision(m)
+		var inputModalities, outputModalities []string
+		if m.Modalities != nil {
+			inputModalities = cloneStrings(m.Modalities.Input)
+			outputModalities = cloneStrings(m.Modalities.Output)
+		}
 		models = append(models, Model{
-			ID:              m.ID,
-			Name:            name,
-			ContextSize:     m.Limit.Context,
-			MaxInputTokens:  m.Limit.Input,
-			Reasoning:       m.Reasoning,
-			ToolCall:        m.ToolCall,
-			ToolCallKnown:   m.ToolCallKnown,
-			Attachment:      m.Attachment,
-			AttachmentKnown: m.AttachmentKnown,
-			Vision:          vision,
-			VisionKnown:     m.VisionKnown,
-			CostInput:       m.Cost.Input,
-			CostOutput:      m.Cost.Output,
-			CostCacheRead:   m.Cost.CacheRead,
-			CostCacheWrite:  m.Cost.CacheWrite,
-			CostReasoning:   m.Cost.Output, // reasoning billed at output rate
+			ID:               m.ID,
+			Name:             name,
+			ContextSize:      m.Limit.Context,
+			MaxInputTokens:   m.Limit.Input,
+			Reasoning:        m.Reasoning,
+			ToolCall:         m.ToolCall,
+			ToolCallKnown:    m.ToolCallKnown,
+			Attachment:       m.Attachment,
+			AttachmentKnown:  m.AttachmentKnown,
+			Vision:           vision,
+			VisionKnown:      m.VisionKnown,
+			CostInput:        m.Cost.Input,
+			CostOutput:       m.Cost.Output,
+			CostCacheRead:    m.Cost.CacheRead,
+			CostCacheWrite:   m.Cost.CacheWrite,
+			CostReasoning:    m.Cost.Output, // reasoning billed at output rate
+			Family:           m.Family,
+			InputModalities:  inputModalities,
+			OutputModalities: outputModalities,
 		})
 	}
 	sort.Slice(models, func(i, j int) bool {
@@ -514,6 +522,19 @@ func (mc *ModelCache) EnrichModel(providerID string, m *Model) {
 	if m.Name == "" || m.Name == m.ID {
 		if cached.Name != "" {
 			m.Name = cached.Name
+		}
+	}
+	if m.Family == "" {
+		m.Family = cached.Family
+	}
+	if len(m.InputModalities) == 0 {
+		if cached.Modalities != nil {
+			m.InputModalities = cloneStrings(cached.Modalities.Input)
+		}
+	}
+	if len(m.OutputModalities) == 0 {
+		if cached.Modalities != nil {
+			m.OutputModalities = cloneStrings(cached.Modalities.Output)
 		}
 	}
 	m.Reasoning = m.Reasoning || cached.Reasoning

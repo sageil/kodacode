@@ -33,8 +33,8 @@ func TestDefaults(t *testing.T) {
 		t.Fatalf("Load() error = %v, want nil", err)
 	}
 
-	if cfg.DefaultAgent != "engineer" {
-		t.Errorf("DefaultAgent = %q, want %q", cfg.DefaultAgent, "engineer")
+	if cfg.DefaultAgent != "builder" {
+		t.Errorf("DefaultAgent = %q, want %q", cfg.DefaultAgent, "builder")
 	}
 	if cfg.Session.CompactionThreshold == nil || *cfg.Session.CompactionThreshold != 0.8 {
 		t.Errorf("Session.CompactionThreshold = %v, want 0.8", cfg.Session.CompactionThreshold)
@@ -63,7 +63,7 @@ func TestLoadGlobalConfig(t *testing.T) {
 	}
 
 	writeYAML(t, kodacodeDir, "config.yaml", `
-default_agent: coder
+default_agent: builder
 providers:
   - id: groq
     api_key: test-key
@@ -84,8 +84,8 @@ tui:
 		t.Fatalf("Load() error = %v, want nil", err)
 	}
 
-	if cfg.DefaultAgent != "coder" {
-		t.Errorf("DefaultAgent = %q, want %q", cfg.DefaultAgent, "coder")
+	if cfg.DefaultAgent != "builder" {
+		t.Errorf("DefaultAgent = %q, want %q", cfg.DefaultAgent, "builder")
 	}
 	if cfg.Session.CompactionThreshold == nil || *cfg.Session.CompactionThreshold != 0.9 {
 		t.Errorf("Session.CompactionThreshold = %v, want 0.9", cfg.Session.CompactionThreshold)

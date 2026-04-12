@@ -35,7 +35,10 @@ func (a App) completePlannerApprovalAfterDone() (tea.Model, tea.Cmd) {
 		return a, nil
 	}
 
-	a.switchAgent(restoreID)
+	persistCmd := tea.Cmd(nil)
+	if a.switchAgent(restoreID) {
+		persistCmd = a.scheduleAgentPersistence(restoreID)
+	}
 	api := a.api
 	ctx := a.ctx
 	sessionID := a.sessionID
@@ -48,22 +51,24 @@ func (a App) completePlannerApprovalAfterDone() (tea.Model, tea.Cmd) {
 		if choice == planApprovalSaveLabel {
 			execMsg = "The plan above has been approved. Save the plan chunks to docs/kodacode/plans/{YYYY-MM-DD}-{plan-name}-part{N}.md, one chunk per file, then execute the approved task list. Complete one task at a time, but continue through the remaining tasks without asking the user for confirmation between tasks unless blocked. Report progress as you go."
 		}
-		return a, func() tea.Msg {
+		execCmd := func() tea.Msg {
 			if err := api.SendMessage(ctx, sessionID, execMsg, nil, restoreID); err != nil {
 				return SSEErrorMsg{SessionID: sessionID, Err: fmt.Errorf("send plan execution: %w", err)}
 			}
 			return messageSentMsg{sessionID: sessionID, text: ""}
 		}
+		return a, tea.Batch(execCmd, persistCmd)
 	case planApprovalRejectLabel:
 		a.session.AppendSystemMessage("Plan rejected.")
 	default:
 		a.session.AppendSystemMessage("Planning cancelled.")
 	}
 	a.session.FlushMessagesRender()
-	return a, func() tea.Msg {
+	updateCmd := func() tea.Msg {
 		_ = api.UpdateSessionAgent(ctx, sessionID, restoreID)
 		return nil
 	}
+	return a, tea.Batch(updateCmd, persistCmd)
 }
 
 // modelInfoString builds a compact metadata string for the header.

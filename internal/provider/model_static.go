@@ -50,5 +50,23 @@ func applyConfiguredModel(base, configured Model) Model {
 	if configured.ThinkingBudget != nil {
 		out.ThinkingBudget = configured.ThinkingBudget
 	}
+	if configured.Family != "" {
+		out.Family = configured.Family
+	}
+	if len(configured.InputModalities) > 0 {
+		out.InputModalities = cloneStrings(configured.InputModalities)
+	}
+	if len(configured.OutputModalities) > 0 {
+		out.OutputModalities = cloneStrings(configured.OutputModalities)
+	}
+	return out
+}
+
+func cloneStrings(in []string) []string {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]string, len(in))
+	copy(out, in)
 	return out
 }

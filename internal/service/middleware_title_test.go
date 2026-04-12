@@ -2,6 +2,7 @@ package service_test
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -13,18 +14,47 @@ import (
 )
 
 type titleFakeProvider struct {
+	id     string
+	name   string
+	models []provider.Model
 	chunks []provider.StreamChunk
-	chatFn func(ctx context.Context) (<-chan provider.StreamChunk, error)
+	chatFn func(ctx context.Context, model string) (<-chan provider.StreamChunk, error)
+	calls  int
+	mu     sync.Mutex
 }
 
-func (f *titleFakeProvider) ID() string   { return "titlefake" }
-func (f *titleFakeProvider) Name() string { return "TitleFake" }
+func (f *titleFakeProvider) ID() string {
+	if f.id != "" {
+		return f.id
+	}
+	return "titlefake"
+}
+func (f *titleFakeProvider) Name() string {
+	if f.name != "" {
+		return f.name
+	}
+	return "TitleFake"
+}
 func (f *titleFakeProvider) Models(_ context.Context) ([]provider.Model, error) {
+	if len(f.models) > 0 {
+		out := make([]provider.Model, len(f.models))
+		copy(out, f.models)
+		return out, nil
+	}
 	return []provider.Model{{ID: "fake-model", ContextSize: 8192}}, nil
 }
-func (f *titleFakeProvider) Chat(ctx context.Context, _ string, _ []provider.Message, _ provider.ChatOptions) (<-chan provider.StreamChunk, error) {
+
+func (f *titleFakeProvider) StaticModels() []provider.Model {
+	models, _ := f.Models(context.Background())
+	return models
+}
+
+func (f *titleFakeProvider) Chat(ctx context.Context, model string, _ []provider.Message, _ provider.ChatOptions) (<-chan provider.StreamChunk, error) {
+	f.mu.Lock()
+	f.calls++
+	f.mu.Unlock()
 	if f.chatFn != nil {
-		return f.chatFn(ctx)
+		return f.chatFn(ctx, model)
 	}
 	ch := make(chan provider.StreamChunk, len(f.chunks))
 	for _, c := range f.chunks {
@@ -33,11 +63,19 @@ func (f *titleFakeProvider) Chat(ctx context.Context, _ string, _ []provider.Mes
 	close(ch)
 	return ch, nil
 }
-func newTitleTestRegistry(t *testing.T, fp *titleFakeProvider) *provider.Registry {
+func (f *titleFakeProvider) callCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.calls
+}
+
+func newTitleTestRegistry(t *testing.T, fps ...*titleFakeProvider) *provider.Registry {
 	t.Helper()
 	reg := provider.NewRegistry()
-	if err := reg.Register(fp); err != nil {
-		t.Fatal(err)
+	for _, fp := range fps {
+		if err := reg.Register(fp); err != nil {
+			t.Fatal(err)
+		}
 	}
 	return reg
 }
@@ -55,7 +93,7 @@ func TestTitleMiddleware_FiresOnFirstTurn(t *testing.T) {
 		mu.Unlock()
 	}
 	reg := newTitleTestRegistry(t, fp)
-	mw := service.NewTitleMiddleware(reg, &config.Config{}, updateTitle, nil)
+	mw := service.NewTitleMiddleware(reg, &config.Config{}, updateTitle, nil, nil)
 	req := &pipeline.TurnRequest{
 		SessionID:  "s1",
 		ProviderID: "titlefake",
@@ -95,7 +133,7 @@ func TestTitleMiddleware_FiresOnFirstTurnWithToolCalls(t *testing.T) {
 		mu.Lock()
 		titleGenerated = title
 		mu.Unlock()
-	}, nil)
+	}, nil, nil)
 	req := &pipeline.TurnRequest{
 		SessionID:  "s1",
 		ProviderID: "titlefake",
@@ -127,7 +165,7 @@ func TestTitleMiddleware_SkipsSubsequentTurns(t *testing.T) {
 	called := false
 	fp := &titleFakeProvider{}
 	reg := newTitleTestRegistry(t, fp)
-	mw := service.NewTitleMiddleware(reg, &config.Config{}, func(_ context.Context, _, _ string) { called = true }, nil)
+	mw := service.NewTitleMiddleware(reg, &config.Config{}, func(_ context.Context, _, _ string) { called = true }, nil, nil)
 	req := &pipeline.TurnRequest{
 		SessionID:  "s1",
 		ProviderID: "titlefake",
@@ -144,14 +182,20 @@ func TestTitleMiddleware_SkipsSubsequentTurns(t *testing.T) {
 	}
 }
 
-func TestTitleMiddleware_CancelledContextStopsGeneration(t *testing.T) {
-	blocked := make(chan struct{})
+func TestTitleMiddleware_DetachesFromTurnContext(t *testing.T) {
 	fp := &titleFakeProvider{chunks: []provider.StreamChunk{}}
-	fp.chatFn = func(ctx context.Context) (<-chan provider.StreamChunk, error) {
-		// Block until context is cancelled.
-		<-ctx.Done()
-		close(blocked)
-		return nil, ctx.Err()
+	fp.chatFn = func(ctx context.Context, _ string) (<-chan provider.StreamChunk, error) {
+		ch := make(chan provider.StreamChunk, 2)
+		go func() {
+			defer close(ch)
+			select {
+			case <-time.After(50 * time.Millisecond):
+				ch <- provider.StreamChunk{Delta: "Detached Title"}
+				ch <- provider.StreamChunk{FinishReason: "stop"}
+			case <-ctx.Done():
+			}
+		}()
+		return ch, nil
 	}
 	var mu sync.Mutex
 	var titleGenerated string
@@ -160,7 +204,7 @@ func TestTitleMiddleware_CancelledContextStopsGeneration(t *testing.T) {
 		mu.Lock()
 		titleGenerated = title
 		mu.Unlock()
-	}, nil)
+	}, nil, nil)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	req := &pipeline.TurnRequest{
@@ -184,16 +228,104 @@ func TestTitleMiddleware_CancelledContextStopsGeneration(t *testing.T) {
 
 	cancel()
 
-	select {
-	case <-blocked:
-	case <-time.After(2 * time.Second):
-		t.Fatal("title generation did not stop after context cancellation")
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		mu.Lock()
+		got := titleGenerated
+		mu.Unlock()
+		if got != "" {
+			if got != "Detached Title" {
+				t.Fatalf("title = %q, want %q", got, "Detached Title")
+			}
+			return
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+	t.Fatal("expected title generation to continue after turn context cancellation")
+}
+
+func TestTitleMiddleware_FallsBackToNextUtilityCandidate(t *testing.T) {
+	bad := &titleFakeProvider{
+		id: "cheap",
+		models: []provider.Model{{
+			ID:               "cheap-text",
+			ContextSize:      32000,
+			CostInput:        0.01,
+			CostOutput:       0.01,
+			OutputModalities: []string{"text"},
+		}},
+		chatFn: func(context.Context, string) (<-chan provider.StreamChunk, error) {
+			return nil, errors.New("404 model not found")
+		},
+	}
+	good := &titleFakeProvider{
+		id: "good",
+		models: []provider.Model{{
+			ID:               "good-text",
+			ContextSize:      32000,
+			CostInput:        0.02,
+			CostOutput:       0.02,
+			OutputModalities: []string{"text"},
+		}},
+		chunks: []provider.StreamChunk{{Delta: "Recovered Title"}, {FinishReason: "stop"}},
+	}
+	primary := &titleFakeProvider{
+		id: "primary",
+		models: []provider.Model{{
+			ID:               "primary-model",
+			ContextSize:      32000,
+			CostInput:        2,
+			CostOutput:       4,
+			OutputModalities: []string{"text"},
+		}},
 	}
 
-	mu.Lock()
-	got := titleGenerated
-	mu.Unlock()
-	if got != "" {
-		t.Errorf("title should not be generated after cancellation, got %q", got)
+	var mu sync.Mutex
+	var titleGenerated string
+	reg := newTitleTestRegistry(t, bad, good, primary)
+	mw := service.NewTitleMiddleware(reg, &config.Config{}, func(_ context.Context, _, title string) {
+		mu.Lock()
+		titleGenerated = title
+		mu.Unlock()
+	}, nil, nil)
+
+	req := &pipeline.TurnRequest{
+		SessionID:  "s1",
+		ProviderID: "primary",
+		Model:      provider.Model{ID: "primary-model", ContextSize: 32000},
+		Step:       0,
+		Messages: []provider.Message{
+			{Role: "user", Parts: []provider.MessagePart{
+				provider.TextPart{Text: "Summarize this thread"},
+			}},
+		},
 	}
+
+	if err := mw(context.Background(), req, func(_ context.Context, r *pipeline.TurnRequest) error {
+		r.Step = 1
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		mu.Lock()
+		got := titleGenerated
+		mu.Unlock()
+		if got != "" {
+			if got != "Recovered Title" {
+				t.Fatalf("generated title = %q, want %q", got, "Recovered Title")
+			}
+			if bad.callCount() == 0 {
+				t.Fatal("expected the cheapest failing utility candidate to be tried first")
+			}
+			if good.callCount() == 0 {
+				t.Fatal("expected the next utility candidate to be used after failure")
+			}
+			return
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+	t.Fatal("expected title generation to fall back to a working utility candidate")
 }

@@ -132,6 +132,8 @@ func (a *App) handleAgentsLoaded(msg agentsLoadedMsg) (App, tea.Cmd) {
 	if msg.lastAgentID != "" {
 		a.cfg.Agent = msg.lastAgentID
 	}
+	a.agentPersistDirty = false
+	a.agentPersistSeq = 0
 	if name, ok := a.cfg.AgentNames[a.cfg.Agent]; ok {
 		a.cfg.AgentName = name
 	} else if a.cfg.Agent != "" {

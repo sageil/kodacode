@@ -80,7 +80,7 @@ func (a *App) setVariant(name string) {
 	a.home.SetVariant(display)
 }
 
-func (a *App) cycleAgent() {
+func (a *App) cycleAgent() tea.Cmd {
 	current := a.cfg.Agent
 	idx := 0
 	for i, id := range a.cfg.PrimaryAgentIDs {
@@ -89,10 +89,16 @@ func (a *App) cycleAgent() {
 			break
 		}
 	}
-	a.switchAgent(a.cfg.PrimaryAgentIDs[idx])
+	if !a.switchAgent(a.cfg.PrimaryAgentIDs[idx]) {
+		return nil
+	}
+	return a.scheduleAgentPersistence(a.cfg.Agent)
 }
 
-func (a *App) switchAgent(agentID string) {
+func (a *App) switchAgent(agentID string) bool {
+	if agentID == "" || agentID == a.cfg.Agent {
+		return false
+	}
 	name := a.cfg.AgentNames[agentID]
 
 	// Remember the previous agent when entering a direct planner session.
@@ -106,6 +112,7 @@ func (a *App) switchAgent(agentID string) {
 	a.cfg.AgentName = name
 	a.session.SetAgent(agentID, name)
 	a.home.SetAgent(agentID, name)
+	return true
 }
 
 func (a *App) resetSession(agentID, modelID string) {

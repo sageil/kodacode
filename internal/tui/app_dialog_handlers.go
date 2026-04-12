@@ -42,18 +42,21 @@ func (a App) handleAgentDialogResult(result any) (tea.Model, tea.Cmd) {
 	if !ok {
 		return a, nil
 	}
-	a.switchAgent(item.ID)
+	persistCmd := tea.Cmd(nil)
+	if a.switchAgent(item.ID) {
+		persistCmd = a.scheduleAgentPersistence(item.ID)
+	}
 	api := a.api
 	ctx := a.ctx
 	agentID := item.ID
 	sessionID := a.sessionID
-	return a, func() tea.Msg {
+	updateCmd := func() tea.Msg {
 		if sessionID != "" {
 			_ = api.UpdateSessionAgent(ctx, sessionID, agentID)
 		}
-		_ = api.SetSetting(ctx, "last_agent", agentID)
 		return nil
 	}
+	return a, tea.Batch(updateCmd, persistCmd)
 }
 
 func (a App) handleSessionDialogResult(result any) (tea.Model, tea.Cmd) {

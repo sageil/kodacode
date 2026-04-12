@@ -33,9 +33,13 @@ type ChainConfig struct {
 	LSPDiag       tool.LSPDiagnoser
 	TaskStore     *tool.TaskStore
 	GetTraces     func(sessionID string) *SessionTraces
+	UtilityHealth *utilityHealthTracker
 }
 
 func BuildSessionChain(c ChainConfig) *pipeline.Chain {
+	utilityHealth := newUtilityHealthTracker()
+	c.UtilityHealth = utilityHealth
+
 	updateTitle := func(ctx context.Context, sessionID, title string) {
 		sess, err := c.Sessions.Get(ctx, sessionID)
 		if err != nil {
@@ -56,8 +60,8 @@ func BuildSessionChain(c ChainConfig) *pipeline.Chain {
 		NewToolResolverMiddleware(c.ToolRegistry, c.MCPRegistry, toolResolverProjectDir(c.PromptBuilder)),
 		NewPhaseFilterMiddleware(&c.Config.Session),
 		NewSystemPromptMiddleware(c.PromptBuilder, c.TaskStore),
-		NewCompactionMiddleware(&c.Config.Session, c.Messages, c.Registry, c.ToolRegistry, c.Config, c.Publish, c.GetCost),
-		NewTitleMiddleware(c.Registry, c.Config, updateTitle, c.GetCost),
+		NewCompactionMiddleware(&c.Config.Session, c.Messages, c.Registry, c.ToolRegistry, c.Config, c.Publish, c.GetCost, utilityHealth),
+		NewTitleMiddleware(c.Registry, c.Config, updateTitle, c.GetCost, utilityHealth),
 		NewLLMMiddleware(&c),
 	)
 }

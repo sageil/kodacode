@@ -242,7 +242,7 @@ func TestHandler_ListSessions(t *testing.T) {
 	handler.RegisterRoutes(e, svc, fakeAgentSvc{}, nil, nil, nil)
 
 	_, _ = svc.Create(context.Background(), "default", "openai/gpt-4o")
-	_, _ = svc.Create(context.Background(), "coder", "openai/gpt-4o")
+	_, _ = svc.Create(context.Background(), "builder", "openai/gpt-4o")
 
 	rec := doRequest(t, e, http.MethodGet, "/sessions", nil)
 	if rec.Code != http.StatusOK {

@@ -1,5 +1,5 @@
 ---
-name: coder
+name: builder
 description: Direct implementation agent — no planning overhead, just writes code
 temperature: 0.3
 max_tokens: 8192

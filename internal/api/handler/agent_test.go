@@ -74,7 +74,7 @@ func TestAgentHandler_List(t *testing.T) {
 	e := newEcho()
 	agents := newControlAgentSvc(
 		agent.Agent{ID: "default", Name: "Default"},
-		agent.Agent{ID: "coder", Name: "Coder"},
+		agent.Agent{ID: "builder", Name: "builder"},
 	)
 	handler.RegisterRoutes(e, newFakeSvc(), agents, nil, nil, nil)
 

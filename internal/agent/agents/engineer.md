@@ -1,5 +1,5 @@
 ---
-name: Engineer
+name: engineer
 description: General-purpose development agent that researches, plans, builds, and validates
 temperature: 0.3
 max_tokens: 8192

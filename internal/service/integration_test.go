@@ -210,7 +210,7 @@ func TestTitle_Integration_Anthropic(t *testing.T) {
 	_ = reg.Register(prov)
 	mw := service.NewTitleMiddleware(reg, &config.Config{}, func(_ context.Context, _, title string) {
 		titleGenerated = title
-	}, nil)
+	}, nil, nil)
 
 	req := &pipeline.TurnRequest{
 		SessionID: "integration-title-test",
@@ -255,7 +255,7 @@ func TestTitle_Integration_ZAI(t *testing.T) {
 	_ = zaiReg.Register(prov)
 	mw := service.NewTitleMiddleware(zaiReg, &config.Config{}, func(_ context.Context, _, title string) {
 		titleGenerated = title
-	}, nil)
+	}, nil, nil)
 
 	req := &pipeline.TurnRequest{
 		SessionID: "integration-title-zai",

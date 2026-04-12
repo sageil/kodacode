@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/sageil/kodacode/v1/internal/agent"
 	"github.com/sageil/kodacode/v1/internal/config"
@@ -606,7 +607,7 @@ func TestMaybeCompact_PruneOnlyReloadsRequestMessages(t *testing.T) {
 		PruneMinSavings:     intp(1),
 	}
 
-	if err := maybeCompact(context.Background(), cfg, repo, func(name string) bool { return name == "read" }, utilityProvider{prov: testProvider{id: "test-provider"}, modelID: "test-utility"}, nil, req, 100, nil); err != nil {
+	if err := maybeCompact(context.Background(), cfg, repo, func(name string) bool { return name == "read" }, utilityProvider{prov: testProvider{id: "test-provider"}, modelID: "test-utility"}, nil, req, 100, nil, nil); err != nil {
 		t.Fatalf("maybeCompact() error = %v", err)
 	}
 
@@ -649,7 +650,7 @@ func TestMaybeCompact_FallbackPreservesExistingSummary(t *testing.T) {
 		PruneMinSavings:     intp(1000),
 	}
 
-	if err := maybeCompact(context.Background(), cfg, repo, nil, utilityProvider{prov: testProvider{id: "test-provider", chatErr: errors.New("summary failed")}, modelID: "test-utility"}, nil, req, 100, nil); err != nil {
+	if err := maybeCompact(context.Background(), cfg, repo, nil, utilityProvider{prov: testProvider{id: "test-provider", chatErr: errors.New("summary failed")}, modelID: "test-utility"}, nil, req, 100, nil, nil); err != nil {
 		t.Fatalf("maybeCompact() error = %v", err)
 	}
 
@@ -698,7 +699,7 @@ func TestMaybeCompact_PreservesWorkflowStateAcrossTruncation(t *testing.T) {
 		PruneMinSavings:     intp(1000),
 	}
 
-	if err := maybeCompact(context.Background(), cfg, repo, nil, utilityProvider{prov: testProvider{id: "test-provider", chatErr: errors.New("summary failed")}, modelID: "test-utility"}, nil, req, 100, nil); err != nil {
+	if err := maybeCompact(context.Background(), cfg, repo, nil, utilityProvider{prov: testProvider{id: "test-provider", chatErr: errors.New("summary failed")}, modelID: "test-utility"}, nil, req, 100, nil, nil); err != nil {
 		t.Fatalf("maybeCompact() error = %v", err)
 	}
 
@@ -715,6 +716,58 @@ func TestMaybeCompact_PreservesWorkflowStateAcrossTruncation(t *testing.T) {
 		if strings.Contains(provider.TextFromParts(msg.Parts), planApprovalDecisionMarkerTag) {
 			t.Fatalf("truncated messages should not retain explicit plan approval markers: %#v", req.Messages)
 		}
+	}
+}
+
+func TestMaybeCompact_FallsBackToAlternateUtilityCandidate(t *testing.T) {
+	repo := &compactionRepoStub{
+		messages: []repository.Message{
+			{ID: "m1", SessionID: "s1", Role: "user"},
+			{ID: "m2", SessionID: "s1", Role: "assistant"},
+			{ID: "m3", SessionID: "s1", Role: "user"},
+		},
+		parts: []repository.MessagePart{
+			{ID: "p1", MessageID: "m1", SessionID: "s1", Type: "text", Content: mustMarshalText(t, strings.Repeat("first turn ", 40))},
+			{ID: "p2", MessageID: "m2", SessionID: "s1", Type: "text", Content: mustMarshalText(t, strings.Repeat("assistant turn ", 40))},
+			{ID: "p3", MessageID: "m3", SessionID: "s1", Type: "text", Content: mustMarshalText(t, strings.Repeat("current turn ", 40))},
+		},
+	}
+
+	req := &pipeline.TurnRequest{
+		SessionID:  "s1",
+		ProviderID: "primary",
+		Model:      provider.Model{ID: "primary-model", ContextSize: 100},
+		Messages: []provider.Message{
+			{Role: "user", Parts: []provider.MessagePart{provider.TextPart{Text: strings.Repeat("first turn ", 40)}}},
+			{Role: "assistant", Parts: []provider.MessagePart{provider.TextPart{Text: strings.Repeat("assistant turn ", 40)}}},
+			{Role: "user", Parts: []provider.MessagePart{provider.TextPart{Text: strings.Repeat("current turn ", 40)}}},
+		},
+	}
+	cfg := &config.SessionConfig{
+		CompactionThreshold: f64p(0.5),
+		CompactionKeepTurns: intp(1),
+		PruneProtectTokens:  intp(0),
+		PruneMinSavings:     intp(1000),
+	}
+	tracker := newUtilityHealthTracker()
+	summary := strings.TrimSpace(strings.Repeat("Durable summary content. ", 12))
+	utility := utilityProvider{
+		prov:    testProvider{id: "cheap", chatErr: errors.New("404 model not found")},
+		modelID: "cheap-model",
+		alternates: []utilityProvider{{
+			prov:    testProvider{id: "good", response: summary},
+			modelID: "good-model",
+		}},
+	}
+
+	if err := maybeCompact(context.Background(), cfg, repo, nil, utility, nil, req, 100, nil, tracker); err != nil {
+		t.Fatalf("maybeCompact() error = %v", err)
+	}
+	if !strings.Contains(req.SummaryText, summary) {
+		t.Fatalf("SummaryText = %q, want to contain fallback summary", req.SummaryText)
+	}
+	if !tracker.isUnavailableAt(utility.withoutAlternates(), time.Now()) {
+		t.Fatal("expected permanently failing utility model to be marked unavailable")
 	}
 }
 
@@ -950,8 +1003,9 @@ func (r *compactionRepoStub) part(id string) repository.MessagePart {
 }
 
 type testProvider struct {
-	id      string
-	chatErr error
+	id       string
+	chatErr  error
+	response string
 }
 
 func (p testProvider) ID() string {
@@ -973,7 +1027,10 @@ func (p testProvider) Chat(context.Context, string, []provider.Message, provider
 	if p.chatErr != nil {
 		return nil, p.chatErr
 	}
-	ch := make(chan provider.StreamChunk)
+	ch := make(chan provider.StreamChunk, 1)
+	if p.response != "" {
+		ch <- provider.StreamChunk{Delta: p.response}
+	}
 	close(ch)
 	return ch, nil
 }
@@ -1188,7 +1245,7 @@ func TestPostTurn_SkipsPruneWhenThresholdZero(t *testing.T) {
 		CompactionKeepTurns: intp(5),
 	}
 
-	mw := NewCompactionMiddleware(cfg, repo, provider.NewRegistry(), nil, &config.Config{}, nil, nil)
+	mw := NewCompactionMiddleware(cfg, repo, provider.NewRegistry(), nil, &config.Config{}, nil, nil, nil)
 	req := &pipeline.TurnRequest{
 		SessionID: "s1",
 		Model:     provider.Model{ID: "test-model", ContextSize: 128000},
@@ -1229,7 +1286,7 @@ func TestPostTurn_SkipsPruneWhenFewMessages(t *testing.T) {
 		CompactionKeepTurns: intp(5),
 	}
 
-	mw := NewCompactionMiddleware(cfg, repo, provider.NewRegistry(), nil, &config.Config{}, nil, nil)
+	mw := NewCompactionMiddleware(cfg, repo, provider.NewRegistry(), nil, &config.Config{}, nil, nil, nil)
 	req := &pipeline.TurnRequest{
 		SessionID: "s1",
 		Model:     provider.Model{ID: "test-model", ContextSize: 128000},
@@ -1270,7 +1327,7 @@ func TestPostTurn_OrphanCleanup(t *testing.T) {
 		CompactionKeepTurns: intp(5),
 	}
 
-	mw := NewCompactionMiddleware(cfg, repo, provider.NewRegistry(), nil, &config.Config{}, nil, nil)
+	mw := NewCompactionMiddleware(cfg, repo, provider.NewRegistry(), nil, &config.Config{}, nil, nil, nil)
 	mkReq := func() *pipeline.TurnRequest {
 		return &pipeline.TurnRequest{
 			SessionID: "s1",

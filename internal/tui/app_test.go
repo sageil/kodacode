@@ -15,6 +15,7 @@ import (
 
 type testBackend struct {
 	cancelTurnFn   func(context.Context, string) error
+	getSessionFn   func(context.Context, string) (APISession, error)
 	listModelsFn   func(context.Context) ([]APIProviderModels, error)
 	listSessionsFn func(context.Context) ([]APISession, error)
 	listAgentsFn   func(context.Context) ([]APIAgent, error)
@@ -41,7 +42,10 @@ func (b testBackend) ListSessions(ctx context.Context) ([]APISession, error) {
 	}
 	return nil, nil
 }
-func (b testBackend) GetSession(context.Context, string) (APISession, error) {
+func (b testBackend) GetSession(ctx context.Context, id string) (APISession, error) {
+	if b.getSessionFn != nil {
+		return b.getSessionFn(ctx, id)
+	}
 	return APISession{}, nil
 }
 func (b testBackend) ListMessages(context.Context, string) ([]APIMessage, error) { return nil, nil }
@@ -197,6 +201,68 @@ func TestSwitchSessionResetsStateAndLoadsHistory(t *testing.T) {
 
 	if got := app.session.statusBar.contextSize; got != 0 {
 		t.Errorf("statusBar.contextSize = %d after session switch, want 0", got)
+	}
+}
+
+func TestDoneEventRefreshesTitleAfterCompletion(t *testing.T) {
+	prevDelay := sessionTitleRefreshDelay
+	prevAttempts := sessionTitleRefreshMaxAttempts
+	sessionTitleRefreshDelay = 0
+	sessionTitleRefreshMaxAttempts = 3
+	defer func() {
+		sessionTitleRefreshDelay = prevDelay
+		sessionTitleRefreshMaxAttempts = prevAttempts
+	}()
+
+	var calls int
+	app := NewAppWithBackend(testBackend{
+		getSessionFn: func(_ context.Context, sessionID string) (APISession, error) {
+			calls++
+			if sessionID != "sess-1" {
+				t.Fatalf("GetSession() sessionID = %q, want %q", sessionID, "sess-1")
+			}
+			if calls == 1 {
+				return APISession{ID: sessionID}, nil
+			}
+			return APISession{ID: sessionID, Title: "Hello"}, nil
+		},
+	}, nil)
+	app.width = 80
+	app.height = 24
+	app.ready = true
+	app.route = routeSession
+	app.sessionID = "sess-1"
+
+	data, _ := json.Marshal(SSEDonePayload{})
+	updated, cmd := app.Update(SSEEventMsg{
+		SessionID: "sess-1",
+		Type:      "done",
+		Data:      data,
+	})
+	app = updated.(App)
+
+	if cmd == nil {
+		t.Fatal("done event should schedule a title refresh")
+	}
+
+	msg := cmd()
+	updated, cmd = app.Update(msg)
+	app = updated.(App)
+	if app.session.header.title != "" {
+		t.Fatalf("title after first refresh = %q, want empty before retry", app.session.header.title)
+	}
+	if cmd == nil {
+		t.Fatal("empty title should schedule a retry")
+	}
+
+	msg = cmd()
+	updated, cmd = app.Update(msg)
+	app = updated.(App)
+	if app.session.header.title != "Hello" {
+		t.Fatalf("title after retry = %q, want %q", app.session.header.title, "Hello")
+	}
+	if calls != 2 {
+		t.Fatalf("GetSession() calls = %d, want 2", calls)
 	}
 }
 
@@ -718,7 +784,7 @@ func TestHandleAgentsLoaded_FallsBackToFormattedDefaultAgentName(t *testing.T) {
 
 	result, _ := app.handleAgentsLoaded(agentsLoadedMsg{
 		agents: []APIAgent{
-			{ID: "coder", Name: "Coder"},
+			{ID: "builder", Name: "builder"},
 		},
 	})
 
@@ -727,12 +793,73 @@ func TestHandleAgentsLoaded_FallsBackToFormattedDefaultAgentName(t *testing.T) {
 	}
 }
 
+func TestCycleAgent_DebouncesLastAgentPersistence(t *testing.T) {
+	prevDelay := agentPersistDebounce
+	agentPersistDebounce = 0
+	defer func() {
+		agentPersistDebounce = prevDelay
+	}()
+
+	var writes []string
+	app := NewAppWithBackend(testBackend{
+		setSettingFn: func(_ context.Context, key, value string) error {
+			if key != "last_agent" {
+				t.Fatalf("SetSetting() key = %q, want %q", key, "last_agent")
+			}
+			writes = append(writes, value)
+			return nil
+		},
+	}, nil)
+	app.cfg.Agent = "engineer"
+	app.cfg.AgentNames = map[string]string{
+		"engineer": "Engineer",
+		"reviewer": "Reviewer",
+		"writer":   "Writer",
+	}
+	app.cfg.PrimaryAgentIDs = []string{"engineer", "reviewer", "writer"}
+
+	cmd1 := app.cycleAgent()
+	cmd2 := app.cycleAgent()
+	if app.cfg.Agent != "writer" {
+		t.Fatalf("Agent after two cycles = %q, want %q", app.cfg.Agent, "writer")
+	}
+
+	msg := cmd1()
+	updated, cmd := app.Update(msg)
+	app = updated.(App)
+	if cmd != nil {
+		t.Fatal("stale debounce tick should not trigger persistence")
+	}
+
+	msg = cmd2()
+	updated, cmd = app.Update(msg)
+	app = updated.(App)
+	if cmd == nil {
+		t.Fatal("latest debounce tick should trigger persistence")
+	}
+
+	msg = cmd()
+	updated, _ = app.Update(msg)
+	app = updated.(App)
+
+	if len(writes) != 1 {
+		t.Fatalf("SetSetting() writes = %d, want 1", len(writes))
+	}
+	if writes[0] != "writer" {
+		t.Fatalf("persisted agent = %q, want %q", writes[0], "writer")
+	}
+	if app.agentPersistDirty {
+		t.Fatal("agentPersistDirty should be cleared after successful persist")
+	}
+}
+
 func TestHandleConfigLoaded_DoesNotInferAgentFromPreviousSessions(t *testing.T) {
 	app := NewApp("http://localhost:0", nil)
 	app.api = testBackend{
 		listAgentsFn: func(context.Context) ([]APIAgent, error) {
 			return []APIAgent{
-				{ID: "engineer", Name: "Engineer"},
+				{ID: "builder", Name: "builder"},
+				{ID: "engineer", Name: "engineer"},
 				{ID: "planner", Name: "Planner", Mode: "subagent"},
 			}, nil
 		},
@@ -747,7 +874,7 @@ func TestHandleConfigLoaded_DoesNotInferAgentFromPreviousSessions(t *testing.T) 
 	}
 
 	_, cmd := app.handleConfigLoaded(configLoadedMsg{
-		cfg: APIConfig{DefaultAgent: "engineer"},
+		cfg: APIConfig{DefaultAgent: "builder"},
 	})
 	if cmd == nil {
 		t.Fatal("handleConfigLoaded returned nil cmd")
@@ -768,7 +895,7 @@ func TestOpenSessionDialog_IncludesUntitledSessions(t *testing.T) {
 		listSessionsFn: func(context.Context) ([]APISession, error) {
 			return []APISession{
 				{ID: "sess-1", Title: "", AgentID: "engineer"},
-				{ID: "sess-2", Title: "Named", AgentID: "coder"},
+				{ID: "sess-2", Title: "Named", AgentID: "builder"},
 			}, nil
 		},
 	}

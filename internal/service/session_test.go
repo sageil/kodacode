@@ -621,7 +621,7 @@ func TestSessionService_List(t *testing.T) {
 	)
 
 	_, _ = svc.Create(ctx, "default", "fake/fake-model")
-	_, _ = svc.Create(ctx, "coder", "fake/fake-model")
+	_, _ = svc.Create(ctx, "builder", "fake/fake-model")
 
 	sessions, err := svc.List(ctx)
 	if err != nil {
