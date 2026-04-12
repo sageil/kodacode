@@ -7,9 +7,6 @@ bin/
 vendor/
 trials/*
 
-# Internal docs
-docs/
-
 # Agent tool config dirs that leak into the workspace
 .claude/
 .zed/
