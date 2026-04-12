@@ -1,0 +1,71 @@
+name: Feature Request
+description: Suggest a new feature or improvement
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting an improvement. Please describe what you'd like and why it would be useful.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which part of KodaCode does this relate to?
+      options:
+        - Agents
+        - Tools
+        - TUI / Interface
+        - Providers / Models
+        - Permissions / Sandbox
+        - Sessions / Context
+        - Cost / Budget
+        - Search / Indexing
+        - MCP
+        - Configuration
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What problem does this feature solve? What's frustrating or missing today?
+      placeholder: "When I try to ..., I can't ... because ..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: How would you like this to work? Be as specific as you can.
+    validations:
+      required: true
+
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: Screenshot or mockup
+      description: If applicable, include a screenshot, mockup, or diagram that illustrates the feature. Drag and drop an image here.
+      placeholder: Drag and drop an image here or paste a screenshot.
+    validations:
+      required: false
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Have you tried any workarounds? Are there other approaches that could solve this?
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      options:
+        - label: I have searched existing issues and this is not a duplicate
+          required: true
