@@ -1,0 +1,429 @@
+---
+title: Semantic Code Search
+description: Hybrid symbol search combining full-text and embedding-based vector search
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+KodaCode can index every symbol in your codebase — functions, types, interfaces, constants, variables — and search them using a hybrid engine that combines keyword matching and semantic vector search. When you type `search query="handle authentication"`, the engine finds symbols whose names contain those words **and** symbols whose meaning is related, even if the words don't appear in the name.
+
+This page explains what the feature does, what it depends on, and how to set it up.
+
+## Overview
+
+The search pipeline has three layers that build on each other:
+
+| Layer | What it does | Requires |
+|-------|-------------|----------|
+| **Symbol extraction** | Parses source files and extracts symbols (functions, types, variables, etc.) | Universal Ctags (or built-in Go fallback) |
+| **Full-text search (FTS)** | Indexes symbol names, kinds, signatures, and documentation for keyword search using SQLite FTS5 with BM25 scoring | Symbol extraction |
+| **Vector search** | Converts each symbol into a vector embedding via an AI model, then finds similar symbols using cosine similarity | FTS + an embedding model |
+
+Each layer is optional. You can run FTS without embeddings, or disable the whole thing. When both FTS and vector search are active, they run in parallel and results are merged using Reciprocal Rank Fusion (RRF) — symbols found by both methods get boosted scores.
+
+## Dependencies
+
+### Universal Ctags (strongly recommended)
+
+[Universal Ctags](https://github.com/universal-ctags/ctags) is the primary symbol extractor. It supports 100+ programming languages and produces structured output (name, kind, signature, scope, line number) that KodaCode indexes.
+
+<Aside type="caution">
+KodaCode requires **Universal Ctags**, not the older Exuberant Ctags that ships with some systems. It checks the version string at startup and will reject Exuberant Ctags.
+</Aside>
+
+#### Install Universal Ctags
+
+**macOS:**
+
+```bash
+brew install universal-ctags
+```
+
+**Ubuntu / Debian:**
+
+```bash
+sudo apt install universal-ctags
+```
+
+**Fedora / RHEL:**
+
+```bash
+sudo dnf install ctags
+```
+
+**Arch Linux:**
+
+```bash
+sudo pacman -S ctags
+```
+
+#### Verify the installation
+
+```bash
+ctags --version
+```
+
+You should see output containing `Universal Ctags`. If it says `Exuberant Ctags`, you have the wrong version.
+
+#### Custom binary path
+
+If your ctags binary is not in PATH or has a non-standard name:
+
+```yaml
+search_index:
+  ctags_binary: /opt/homebrew/bin/ctags
+```
+
+#### What happens without ctags
+
+Without Universal Ctags, KodaCode falls back to **built-in extractors**. Currently only **Go** has a built-in extractor — it parses `.go` files directly and extracts functions, types, interfaces, constants, variables, and methods with full signatures and doc comments.
+
+All other languages (JavaScript, TypeScript, Python, Rust, Java, Ruby, C, C++, and 90+ more) **require Universal Ctags** for symbol extraction. Without it, those files are invisible to symbol search.
+
+### Embedding model (optional, for vector search)
+
+To enable semantic vector search, you need access to an embedding model through one of these providers:
+
+| Provider | How it runs | Cost | Latency |
+|----------|------------|------|---------|
+| **LM Studio** | Local on your machine | Free | Fast (depends on hardware) |
+| **Ollama** | Local on your machine | Free | Fast (depends on hardware) |
+| **OpenAI** | Cloud API | Per-token pricing | Low |
+| **Google Gemini** | Cloud API | Per-token pricing | Low |
+| **Any OpenAI-compatible server** | Varies | Varies | Varies |
+
+You do **not** need an embedding model for basic symbol search. FTS works on its own and handles exact name matches, substring matches, and camelCase/snake_case splitting.
+
+## Configuration
+
+All search configuration lives under the `search_index` key in your KodaCode config file (`~/.config/kodacode/config.yaml` or `.kodacode/config.yaml` in your project).
+
+### Level 1: Symbol indexing with FTS only
+
+The simplest setup. Requires Universal Ctags installed, no embedding model needed.
+
+```yaml
+search_index:
+  enabled: true
+```
+
+This gives you:
+- Symbol extraction for 100+ languages via ctags
+- Full-text search with BM25 ranking
+- camelCase and snake_case token splitting (searching `handle` finds `HandleRequest`, `request_handler`, etc.)
+- Automatic incremental re-indexing when files change
+
+### Level 2: Hybrid search with embeddings
+
+Add an embedding model to get semantic search on top of FTS.
+
+```yaml
+search_index:
+  enabled: true
+  embedding:
+    enabled: true
+    model: "provider/model-name"
+```
+
+The `model` field uses `provider/model` format — the provider ID must match one of your configured providers, and that provider must support the embeddings API.
+
+### Full configuration reference
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `search_index.enabled` | bool | `false` | Enable symbol indexing and full-text search |
+| `search_index.ctags_binary` | string | auto-detect | Path to Universal Ctags binary |
+| `search_index.exclude_patterns` | list | `[]` | Glob patterns to exclude from indexing (e.g. `["vendor/**", "*.min.js"]`) |
+| `search_index.max_file_size` | int | `524288` | Skip files larger than this (bytes). Default is 512 KB |
+| `search_index.embedding.enabled` | bool | `false` | Enable embedding-based vector search |
+| `search_index.embedding.model` | string | — | Embedding model in `provider/model` format (required when enabled) |
+| `search_index.embedding.dimensions` | int | `0` | Expected vector dimensions. 0 means accept whatever the model returns |
+| `search_index.embedding.batch_size` | int | `100` | Number of symbols sent per embedding API call |
+
+## Setup Examples
+
+### Example 1: OpenAI embeddings (cloud)
+
+This uses OpenAI's `text-embedding-3-small` model. Fast, high quality, costs ~$0.02 per million tokens.
+
+**Prerequisites:**
+- An OpenAI API key configured in KodaCode
+- Universal Ctags installed
+
+**Config:**
+
+```yaml
+search_index:
+  enabled: true
+  embedding:
+    enabled: true
+    model: "openai/text-embedding-3-small"
+    dimensions: 1536
+```
+
+OpenAI also offers `text-embedding-3-large` (3072 dimensions) for higher quality at higher cost.
+
+| Model | Dimensions | Cost per 1M tokens |
+|-------|-----------|---------------------|
+| `text-embedding-3-small` | 1536 | ~$0.02 |
+| `text-embedding-3-large` | 3072 | ~$0.13 |
+
+<Aside type="tip">
+For most codebases, `text-embedding-3-small` is more than sufficient. The large model gives marginal quality improvements at 6x the cost.
+</Aside>
+
+### Example 2: LM Studio embeddings (local, free)
+
+This runs entirely on your machine. No API keys, no cost, no data leaving your network.
+
+**Prerequisites:**
+- [LM Studio](https://lmstudio.ai/) installed
+- An embedding model loaded (e.g. `nomic-embed-text`)
+- LM Studio's local server running
+- Universal Ctags installed
+
+**Step 1 — Load the embedding model in LM Studio:**
+
+1. Open LM Studio
+2. Search for `nomic-embed-text` in the model browser
+3. Download and load the model
+
+**Step 2 — Start the local server:**
+
+1. Go to the **Developer** tab in LM Studio
+2. Click **Start Server** (default: `http://localhost:1234`)
+3. Verify the server is running — you should see a green status indicator
+
+**Step 3 — Add LM Studio as a provider in KodaCode** (if not already configured):
+
+```yaml
+providers:
+  lmstudio:
+    kind: openai-compatible
+    base_url: "http://localhost:1234/v1"
+```
+
+**Step 4 — Enable search with embeddings:**
+
+```yaml
+search_index:
+  enabled: true
+  embedding:
+    enabled: true
+    model: "lmstudio/nomic-embed-text"
+    dimensions: 768
+```
+
+**Step 5 — Start KodaCode.** The index builds automatically on first launch. You'll see log output like:
+
+```
+search index: indexed 142 files
+embedding index: embedded 1847 symbols
+```
+
+### Example 3: Ollama embeddings (local, free)
+
+Similar to LM Studio but using Ollama's CLI.
+
+**Prerequisites:**
+- [Ollama](https://ollama.com/) installed and running
+- Universal Ctags installed
+
+**Step 1 — Pull the embedding model:**
+
+```bash
+ollama pull nomic-embed-text
+```
+
+**Step 2 — Verify it's available:**
+
+```bash
+ollama list
+```
+
+You should see `nomic-embed-text` in the output.
+
+**Step 3 — Add Ollama as a provider in KodaCode** (if not already configured):
+
+```yaml
+providers:
+  ollama:
+    kind: openai-compatible
+    base_url: "http://localhost:11434/v1"
+```
+
+**Step 4 — Enable search with embeddings:**
+
+```yaml
+search_index:
+  enabled: true
+  embedding:
+    enabled: true
+    model: "ollama/nomic-embed-text"
+    dimensions: 768
+```
+
+**Step 5 — Start KodaCode.** Same as above — the index builds on first launch.
+
+### Example 4: Google Gemini embeddings (cloud)
+
+**Prerequisites:**
+- A Google AI API key configured in KodaCode
+- Universal Ctags installed
+
+```yaml
+search_index:
+  enabled: true
+  embedding:
+    enabled: true
+    model: "google/text-embedding-004"
+```
+
+## Embedding Model Comparison
+
+| Model | Provider | Dimensions | Local/Cloud | Cost |
+|-------|----------|-----------|-------------|------|
+| `nomic-embed-text` | LM Studio / Ollama | 768 | Local | Free |
+| `text-embedding-3-small` | OpenAI | 1536 | Cloud | ~$0.02/1M tokens |
+| `text-embedding-3-large` | OpenAI | 3072 | Cloud | ~$0.13/1M tokens |
+| `text-embedding-004` | Google | 768 | Cloud | Check Google pricing |
+| `mxbai-embed-large` | Ollama | 1024 | Local | Free |
+| `all-minilm` | Ollama | 384 | Local | Free |
+
+For local development, `nomic-embed-text` through LM Studio or Ollama is the recommended choice — good quality, fast, and free.
+
+## Using the Search Tool
+
+Once configured, the `search` tool runs three searches in parallel:
+
+```
+search query="authentication middleware" path="./internal"
+```
+
+Results are grouped:
+
+- **Symbol matches** — from the hybrid FTS + vector engine. Each result includes file path, line number, symbol kind, name, signature, and documentation.
+- **File matches** — files whose names match the query terms.
+- **Content matches** — lines matching the query via ripgrep.
+
+The model uses the `search` tool automatically when it needs to find code. You don't need to invoke it manually.
+
+### What the model sees
+
+For each symbol match, the model receives:
+
+```
+internal/middleware/auth.go:45  function  ValidateJWT
+  func ValidateJWT(token string, secret []byte) (*Claims, error)
+  ValidateJWT checks the signature and expiry of a JWT token.
+```
+
+This gives the model enough context to decide whether to read the file, and exactly where to look.
+
+## How Hybrid Search Works
+
+When both FTS and embeddings are enabled, here's what happens for each query:
+
+1. **Parallel dispatch** — the query is sent to both FTS and vector search simultaneously
+2. **FTS path** — tokenizes the query, splits camelCase/snake_case, and runs BM25 scoring across name, kind, signature, doc, and token columns
+3. **Vector path**:
+   - Embeds the query text using the same model used for indexing
+   - Prefilters candidates using FTS (to avoid comparing against every vector in the database)
+   - Computes cosine similarity between the query vector and each candidate
+   - Returns top-N results sorted by similarity score
+4. **RRF merge** — combines both ranked lists using Reciprocal Rank Fusion: `score = Σ(1 / (k + rank))` where k=60. Symbols appearing in both lists are deduplicated and get combined scores
+5. **Source annotation** — each result is tagged as `fts`, `vector`, or `both`
+
+This means:
+- **Exact name matches** (FTS strength) always surface
+- **Conceptual matches** (vector strength) also surface — searching "authentication" can find `ValidateJWT` even though the word "authentication" doesn't appear in the name
+- **Results in both** get the highest scores
+
+## Supported Languages
+
+### Symbol extraction
+
+With Universal Ctags installed, symbols are extracted from 100+ languages. KodaCode additionally **enriches** ctags output with signatures, documentation, and context for these languages:
+
+| Language | Enrichment details |
+|----------|-------------------|
+| Go | Full function signatures, doc comments, receiver types, interface methods |
+| JavaScript / TypeScript | JSDoc, arrow functions, class methods, React components, exports |
+| Python | Docstrings, decorators, type hints, class inheritance |
+| Rust | Doc comments (`///`), trait implementations, generics, lifetime annotations |
+| Java | Javadoc, annotations, generics, class hierarchy |
+| Ruby | RDoc, class hierarchy, module mixins, method visibility |
+| C | Header comments, preprocessor definitions, function prototypes |
+| C++ | Doxygen, templates, namespaces, class methods |
+| C# | XML doc comments, generics, namespace resolution |
+| Kotlin | KDoc, data classes, extension functions |
+| Swift | Documentation comments, protocol conformance |
+| Zig | Doc comments, comptime annotations |
+| Lua | LuaDoc, module patterns |
+| PHP | PHPDoc, namespace resolution |
+
+Languages not in this list still get basic symbol extraction through ctags (name, kind, line number) — they just don't get enriched signatures or documentation.
+
+### Without Universal Ctags
+
+| Language | What's extracted |
+|----------|-----------------|
+| Go | Functions, types, interfaces, constants, variables, methods (with full signatures and doc comments) |
+| All others | **Nothing** — files are not indexed |
+
+## Incremental Indexing
+
+KodaCode watches your project directory and keeps the index current automatically:
+
+- **File watcher** — uses fsnotify to detect file changes, creations, and deletions in real-time
+- **Debouncing** — changes are batched with a 750ms debounce to avoid re-indexing on every keystroke during saves
+- **Content hashing** — files are SHA-256 hashed. Only files whose content actually changed get re-indexed
+- **Incremental embeddings** — when files change, only the affected symbols get new embeddings. Unchanged symbols keep their existing vectors
+- **Automatic cleanup** — deleted files have their symbols and embeddings removed
+
+The index is stored outside your project directory (in KodaCode's data directory, keyed by a hash of your project path), so it doesn't pollute your repo.
+
+### Skipped paths
+
+These directories are never watched or indexed:
+
+- `.git`
+- `node_modules`
+- `vendor`
+- Paths matching your `ignore_patterns` config
+- Paths matching `search_index.exclude_patterns`
+- Files larger than `max_file_size` (default 512 KB)
+
+## Troubleshooting
+
+### "universal-ctags not found in PATH"
+
+Install Universal Ctags using the instructions above. If it's installed but KodaCode can't find it:
+
+1. Check that `ctags --version` outputs "Universal Ctags" (not "Exuberant Ctags")
+2. If the binary has a non-standard name or location, set `search_index.ctags_binary` explicitly
+
+### Embeddings not generating
+
+Check these in order:
+
+1. **Is the provider configured?** The provider ID in `embedding.model` (the part before `/`) must match a provider in your `providers` config
+2. **Is the provider reachable?** For local providers (LM Studio, Ollama), make sure the server is running
+3. **Does the provider support embeddings?** Not all providers implement the embeddings API. OpenAI, Google, and OpenAI-compatible providers (LM Studio, Ollama) do. Anthropic does not.
+4. **Is the model name correct?** The model name (the part after `/`) must match what the provider expects. Check `ollama list` or LM Studio's loaded models
+5. **Dimension mismatch?** If you set `dimensions` explicitly, it must match the model's output. Set to `0` to accept any size
+
+### Search returns no symbol matches
+
+1. **Is `search_index.enabled` set to `true`?** It's `false` by default
+2. **Is ctags installed?** Without ctags, only Go files are indexed
+3. **Check the logs.** KodaCode logs indexing activity to `$TMPDIR/koda.log`. Look for lines starting with `search index:` or `embedding index:`
+4. **Wait for initial indexing.** On first launch with a large codebase, indexing may take a few seconds
+
+### Index seems stale
+
+KodaCode uses content hashing — unchanged files are skipped. If you suspect the index is corrupted:
+
+1. Find the search database: it's stored in `~/.local/share/kodacode/search/<hash>/search.db` (the hash is derived from your project path)
+2. Delete the `search.db` file
+3. Restart KodaCode — the index will rebuild from scratch

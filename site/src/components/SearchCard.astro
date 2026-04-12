@@ -1,0 +1,14 @@
+---
+// Semantic search card with pre-formatted visual — avoids MDX parsing
+---
+
+<div class="bento-card wide">
+  <h3><span class="card-accent" style="background:#f9e2af;"></span>Semantic code search</h3>
+  <p>Hybrid search combining keyword matching (FTS5) and embedding-based vector search. Index every symbol in your codebase — use OpenAI, LM Studio, or Ollama for embeddings.</p>
+  <pre class="card-visual" set:html={`<span style="color:#a6e3a1">▸</span> search query=<span style="color:#f9e2af">"authentication middleware"</span>
+
+<span style="color:#cba6f7">Symbol matches:</span>  <span style="color:#555566">(fts + vector)</span>
+  internal/middleware/auth.go:45  <span style="color:#89b4fa">function</span>  ValidateJWT
+  internal/auth/session.go:12    <span style="color:#89b4fa">function</span>  NewAuthMiddleware
+  internal/handler/login.go:28   <span style="color:#89b4fa">function</span>  HandleLogin`} />
+</div>

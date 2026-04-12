@@ -1,0 +1,288 @@
+---
+title: Model Routing
+description: Utility models, reviewer models, and fallback chains for cost, quality, and reliability
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+KodaCode doesn't use a single model for everything. Different tasks have different requirements — a session title doesn't need the same model as a complex refactor, and a code review benefits from a second opinion. Model routing lets you assign the right model to each job.
+
+There are three supporting model roles:
+
+| Role | Purpose | Config field |
+|------|---------|-------------|
+| **Utility model** | Fast, cheap model for background tasks | `utility_model` |
+| **Reviewer model** | Independent model for code review | `reviewer_model` |
+| **Fallback models** | Ordered list of models to try when the primary fails | `fallback_models` |
+
+All three are optional. When not configured, KodaCode falls back to the primary session model.
+
+## Utility Model
+
+The utility model handles tasks that need speed and comprehension but not top-tier reasoning. These tasks happen frequently and add up — routing them to a cheap model can reduce session costs dramatically.
+
+### What uses the utility model
+
+| Task | What it does | Why it doesn't need the primary model |
+|------|-------------|--------------------------------------|
+| **Title generation** | Summarizes your first message into a short session title | Simple summarization, 500–1,000 tokens |
+| **Context compaction** | Generates structured summaries when the context window fills up | Compression task, reads existing conversation |
+| **Explorer agent** | Read-only codebase research — reads files, greps, follows references | Comprehension only, no code generation |
+| **Insight agent** | Extracts non-obvious patterns and persists them to memory | Analysis only, no code generation |
+
+### Configuration
+
+```yaml
+utility_model: anthropic/claude-haiku-4-5-20251001
+```
+
+The format is `provider/model`. The provider must be configured in your `providers` list.
+
+### How it resolves
+
+When KodaCode needs the utility model, it resolves in this order:
+
+1. **Explicit config** — uses `utility_model` if set
+2. **Auto-discover** — if not set, finds the cheapest text-capable model from the current provider (by input+output cost per million tokens)
+3. **Fall back** — if discovery fails, uses the session's primary model
+
+Auto-discovery uses pricing data from the model registry and provider-specific heuristics (e.g., preferring "haiku" for Anthropic, "mini" for OpenAI, "flash" for Google).
+
+### Recommended utility models
+
+| Provider | Model | Why |
+|----------|-------|-----|
+| Anthropic | `claude-haiku-4-5-20251001` | Fast, cheap, good at summarization |
+| OpenAI | `gpt-4o-mini` | Low cost, capable enough for background tasks |
+| Google | `gemini-2.5-flash` | Fast, cost-effective |
+| Local (Ollama) | `llama3:8b` | Free, runs locally |
+
+### Cost impact
+
+Title generation and compaction each use roughly 500–2,000 tokens. In a typical session with 2–3 compaction cycles:
+
+| Primary model | Utility model | Cost for background tasks | Savings |
+|--------------|--------------|--------------------------|---------|
+| Claude Sonnet 4.6 | Claude Sonnet 4.6 (no utility) | ~$0.04 | — |
+| Claude Sonnet 4.6 | Claude Haiku 4.5 | ~$0.002 | ~95% |
+| GPT-4.1 | GPT-4o-mini | ~$0.001 | ~97% |
+| Claude Opus 4.6 | Claude Haiku 4.5 | ~$0.002 | ~99% |
+
+These savings compound over many sessions. Explorer and insight agent calls are additional — a single exploration that reads 20+ files can cost $0.10+ on a primary model but under $0.01 on a utility model.
+
+### Agent-level utility routing
+
+Any custom agent can opt into the utility model by setting `model: utility` in its frontmatter:
+
+```markdown
+---
+name: summarizer
+description: Quick session summarizer
+mode: subagent
+model: utility
+tools:
+  - read
+  - grep
+  - glob
+---
+
+Summarize the recent changes concisely.
+```
+
+The built-in `explorer` and `insight` agents do this by default.
+
+## Reviewer Model
+
+The reviewer model is used exclusively by the **reviewer agent**, which verifies completed tasks in the engineer workflow. Using a different model than the engineer provides independent verification — the reviewer catches mistakes the engineer's model might be blind to.
+
+### Why use a separate reviewer model
+
+When the same model that wrote the code also reviews it, it tends to confirm its own choices. A different model brings a fresh perspective:
+
+- **Cross-model verification** — catches bugs and logic errors that the primary model's training biases might miss
+- **Reasoning-focused models** — models like `o3` or `claude-opus-4-6` with strong reasoning are well-suited for review even if they're too slow for primary use
+- **Cost control** — you can use a fast model for implementation and a more capable model only for the review pass
+
+### Configuration
+
+```yaml
+reviewer_model: openai/o3
+```
+
+### How it resolves
+
+1. **Explicit config** — uses `reviewer_model` if set
+2. **Fall back** — uses the engineer's session model
+
+### When it runs
+
+The reviewer runs automatically in the engineer workflow:
+
+1. Engineer completes a task
+2. Controller spawns the reviewer agent with the reviewer model
+3. Reviewer inspects `git diff` and changed files against acceptance criteria
+4. Returns a verdict: `PASS`, `CONCERN`, or `FAIL`
+5. On `FAIL`, the task is re-opened and the engineer gets the failure details
+
+After `engineer_review_limit` (default 3) failed reviews, the controller asks you how to proceed instead of retrying.
+
+### Recommended reviewer models
+
+| Setup | Primary model | Reviewer model | Why |
+|-------|--------------|----------------|-----|
+| Cross-provider | Claude Sonnet 4.6 | `openai/o3` | Different training data catches different bugs |
+| Same provider, different tier | Claude Sonnet 4.6 | `anthropic/claude-opus-4-6` | Stronger reasoning for review |
+| Cost-optimized | GPT-4.1 | `anthropic/claude-haiku-4-5-20251001` | Cheap review, catches obvious issues |
+
+<Aside type="tip">
+The most effective setup is cross-provider: use one vendor's model for implementation and another's for review. This maximizes the chance of catching errors that stem from model-specific training biases.
+</Aside>
+
+## Fallback Models
+
+Fallback models provide resilience when the primary model is unavailable — rate limits, outages, or transient API errors. Instead of failing the entire turn, KodaCode tries each fallback in order until one succeeds.
+
+### Configuration
+
+```yaml
+fallback_models:
+  - openai/gpt-4.1
+  - google/gemini-2.5-pro
+```
+
+The list is ordered — the first model is tried first. Each entry uses `provider/model` format and must reference a configured provider.
+
+### How it works
+
+1. The primary model handles your request
+2. If the primary fails after all retries (`max_retries`, default 5), KodaCode moves to fallbacks
+3. For each fallback model in order:
+   - Resolves the provider and model
+   - Runs the full turn with the same tools, permissions, and sandbox
+   - Returns on the first success
+4. If all fallbacks fail, the original error is returned
+
+You'll see a notification in the TUI: `"Primary model unavailable, trying gpt-4.1…"`
+
+### When to use fallbacks
+
+- **Rate limiting** — if your primary provider throttles you during heavy use, a second provider keeps the session going
+- **Outages** — provider API outages happen. A fallback on a different provider ensures continuity
+- **Hedging** — during critical work, having a fallback prevents wasted context and lost session state
+
+### Configuration example
+
+```yaml
+fallback_models:
+  - anthropic/claude-sonnet-4-6
+  - google/gemini-2.5-pro
+```
+
+This tries Anthropic Sonnet first, then Google Gemini. If the primary is OpenAI and it goes down, you seamlessly fall over to Anthropic, then Google.
+
+<Aside type="caution">
+Fallback models should have similar capabilities to your primary model. Falling back from a 200K-context model to a 4K-context model may cause failures if the conversation is long. Pick fallbacks with comparable context windows and tool support.
+</Aside>
+
+### Cost tracking
+
+Fallback model calls use the fallback model's pricing, not the primary's. The session cost display reflects the actual model used for each call, giving you accurate blended pricing across all models.
+
+## Putting It All Together
+
+A production-ready config that uses all three:
+
+```yaml
+providers:
+  - id: anthropic
+    api_key: ${ANTHROPIC_API_KEY}
+    thinking_type: adaptive
+    models:
+      - id: claude-sonnet-4-6
+        thinking_budget: 10000
+
+  - id: openai
+    api_key: ${OPENAI_API_KEY}
+
+  - id: google
+    api_key: ${GOOGLE_API_KEY}
+
+# Fast, cheap model for background tasks
+utility_model: anthropic/claude-haiku-4-5-20251001
+
+# Cross-provider review for independent verification
+reviewer_model: openai/o3
+
+# Fallback chain for resilience
+fallback_models:
+  - openai/gpt-4.1
+  - google/gemini-2.5-pro
+
+session:
+  budget: 5.00
+```
+
+With this setup:
+
+- **Claude Sonnet 4.6** handles the main conversation (implementation, planning, editing)
+- **Claude Haiku 4.5** handles titles, compaction, exploration, and insight (fast and cheap)
+- **OpenAI o3** reviews completed tasks (independent verification with strong reasoning)
+- **GPT-4.1 → Gemini 2.5 Pro** take over if Anthropic goes down (resilience)
+- **$5 budget cap** prevents runaway spending
+
+### Cost breakdown for a typical session
+
+| Operation | Model | Estimated cost |
+|-----------|-------|---------------|
+| 15 primary LLM calls | Claude Sonnet 4.6 | $1.20 |
+| 2 compaction summaries | Claude Haiku 4.5 | $0.002 |
+| 1 title generation | Claude Haiku 4.5 | $0.001 |
+| 3 explorer research calls | Claude Haiku 4.5 | $0.02 |
+| 2 reviewer passes | OpenAI o3 | $0.40 |
+| **Total** | | **~$1.62** |
+
+Without model routing (everything on Sonnet): ~$2.10. With routing: ~$1.62 — a **23% savings** while getting better review quality from a dedicated reviewer model.
+
+On more expensive primary models (Opus), the savings are even larger — 40–60% in typical sessions.
+
+## Agent-Level Model Overrides
+
+Every agent can specify its own model, overriding the session default. The `model` field in agent frontmatter supports:
+
+| Value | Behavior |
+|-------|----------|
+| *(empty)* | Inherits the session's primary model |
+| `utility` | Uses the configured `utility_model` |
+| `reviewer` | Uses the configured `reviewer_model` |
+| `provider/model` | Uses a specific model regardless of session |
+
+Built-in agent model assignments:
+
+| Agent | Model | Reason |
+|-------|-------|--------|
+| engineer | *(session model)* | Needs full capability for implementation |
+| coder | *(session model)* | Needs full capability for implementation |
+| adviser | *(session model)* | Research benefits from strong reasoning |
+| planner | *(session model)* | Planning benefits from strong reasoning |
+| explorer | `utility` | Read-only research, doesn't need top-tier model |
+| insight | `utility` | Analysis only, cost-efficient |
+| reviewer | `reviewer` | Independent verification, cross-model |
+| polish | *(session model)* | Needs to understand style nuances |
+| refactor | *(session model)* | Structural changes need strong reasoning |
+
+## Per-Model Session Overrides
+
+Different models have different context windows and cost profiles. You can tune session parameters per model:
+
+```yaml
+session:
+  models:
+    anthropic/claude-opus-4-6:
+      compaction_threshold: 0.7    # compact earlier (Opus is expensive)
+      prune_protect_tokens: 30000
+    openai/gpt-4o:
+      compaction_threshold: 0.9    # compact later (cheaper model)
+      prune_protect_tokens: 80000
+```
+
+This lets you be more aggressive with compaction on expensive models (saving input tokens) while letting cheaper models use more of their context window.

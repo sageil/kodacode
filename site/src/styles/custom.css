@@ -534,6 +534,13 @@ td {
 
 th, td {
 	padding: 0.6rem 0.85rem !important;
+	white-space: nowrap !important;
+}
+
+.sl-markdown-content table {
+	display: block !important;
+	overflow-x: auto !important;
+	-webkit-overflow-scrolling: touch;
 }
 
 /* Asides / callouts */

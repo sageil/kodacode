@@ -21,6 +21,7 @@ hero:
 import TerminalDemo from '../../components/TerminalDemo.astro';
 import AgentCard from '../../components/AgentCard.astro';
 import ToolsCard from '../../components/ToolsCard.astro';
+import SearchCard from '../../components/SearchCard.astro';
 
 <div class="splash-section">
 <div class="bento-grid">
@@ -40,6 +41,8 @@ import ToolsCard from '../../components/ToolsCard.astro';
 </div>
 
 <ToolsCard />
+
+<SearchCard />
 
 <div class="bento-card">
 <h3><span class="card-accent" style="background:#f9e2af;"></span>Cost control</h3>
@@ -69,6 +72,11 @@ import ToolsCard from '../../components/ToolsCard.astro';
 <div class="bento-card">
 <h3><span class="card-accent" style="background:#f38ba8;"></span>Context management</h3>
 <p>Pruning, compaction, and safety limits keep long sessions coherent. Never loses track.</p>
+</div>
+
+<div class="bento-card">
+<h3><span class="card-accent" style="background:#89b4fa;"></span>Model routing</h3>
+<p>Route background tasks to cheap utility models, reviews to a separate model, and configure fallback chains for resilience.</p>
 </div>
 
 </div>
