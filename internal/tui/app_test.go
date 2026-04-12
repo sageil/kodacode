@@ -256,7 +256,7 @@ func TestDoneEventRefreshesTitleAfterCompletion(t *testing.T) {
 	}
 
 	msg = cmd()
-	updated, cmd = app.Update(msg)
+	updated, _ = app.Update(msg)
 	app = updated.(App)
 	if app.session.header.title != "Hello" {
 		t.Fatalf("title after retry = %q, want %q", app.session.header.title, "Hello")
