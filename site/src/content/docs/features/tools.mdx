@@ -201,23 +201,68 @@ rename_symbol filePath="/src/handler.go" line=42 character=6 newName="HandleHTTP
 
 Unlike regex-based find-and-replace, this uses the language server's semantic understanding — it renames the symbol across the entire project, handling aliases, imports, and shadowed names correctly.
 
-#### Auto-Discovery
+#### Server Discovery
 
-KodaCode automatically discovers LSP servers based on your project's tooling:
+KodaCode finds LSP servers without manual configuration in most cases. It searches multiple locations and auto-detects servers based on your project's tooling.
 
-| Project config file | Discovered server |
-|---|---|
-| `biome.json` | biome (linting, formatting) |
-| `.eslintrc*`, `eslint.config.*` | eslint language server |
-| `Cargo.toml` | rust-analyzer |
-| `Dockerfile`, `compose.yaml` | docker language server |
-| `tailwind.config.*` | tailwindcss language server |
+##### Search paths
 
-Servers are found in Neovim Mason (`~/.local/share/nvim/mason/bin/`), PATH, npm/pnpm global bin, and Homebrew. These merge with the built-in defaults (gopls, vtsls, pyright) and any servers you configure manually.
+When KodaCode needs to launch an LSP server, it looks for the binary in these locations (in order):
+
+| Location | Source |
+|----------|--------|
+| `$PATH` | Standard system PATH |
+| `~/.local/share/nvim/mason/bin/` | Neovim Mason package manager |
+| `~/.local/bin/` | User-local binaries |
+| `/usr/local/bin/` | Homebrew (macOS) / system-wide |
+| `~/.npm-global/bin/` | npm global installs |
+| `$PNPM_HOME` or `~/.local/share/pnpm/` | pnpm global installs |
+
+<Aside type="tip">
+If you use Neovim with Mason, any LSP server you've installed through Mason is automatically available to KodaCode — no additional configuration needed. This is the easiest way to add language server support.
+</Aside>
+
+##### Built-in defaults
+
+These servers are configured out of the box:
+
+| Server | Command | Extensions |
+|--------|---------|------------|
+| gopls | `gopls` | `.go` |
+| vtsls | `vtsls --stdio` | `.ts`, `.tsx`, `.js`, `.jsx` |
+| pyright | `pyright-langserver --stdio` | `.py`, `.pyi` |
+
+##### Project-based auto-discovery
+
+KodaCode scans your project root for config files and automatically starts the corresponding LSP server if the binary is installed:
+
+| Config file | Server | Extensions |
+|-------------|--------|------------|
+| `biome.json`, `biome.jsonc` | biome | `.ts`, `.tsx`, `.js`, `.jsx`, `.json`, `.css` |
+| `.eslintrc*`, `eslint.config.*` | vscode-eslint-language-server | `.ts`, `.tsx`, `.js`, `.jsx` |
+| `Cargo.toml` | rust-analyzer | `.rs` |
+| `Dockerfile`, `compose.yaml` | docker-langserver | — |
+| `tailwind.config.*` | tailwindcss-language-server | `.css`, `.html`, `.tsx`, `.jsx` |
+
+Auto-discovered servers merge with the built-in defaults and any servers you configure manually. If a server binary isn't installed, the discovery silently skips it.
+
+##### Install hints
+
+When a configured server isn't found, KodaCode shows an install hint:
+
+| Server | Install command |
+|--------|----------------|
+| gopls | `go install golang.org/x/tools/gopls@latest` |
+| vtsls | `npm install -g @vtsls/language-server` |
+| pyright | `pip install pyright` |
+| rust-analyzer | `rustup component add rust-analyzer` |
+| clangd | `brew install llvm` (macOS) or `apt install clangd` (Linux) |
+
+For servers without a built-in hint, KodaCode suggests checking PATH or `~/.local/share/nvim/mason/bin/`.
 
 #### Manual Configuration
 
-Add custom LSP servers for languages not auto-detected:
+Add custom LSP servers for languages not covered by auto-discovery:
 
 ```yaml
 lsp:
@@ -232,6 +277,8 @@ lsp:
       command: rust-analyzer
       extensions: [".rs"]
 ```
+
+Manual entries merge with built-in defaults and auto-discovered servers. If you define a server with the same name as a built-in, your config takes precedence.
 
 ## Execution and Testing
 
