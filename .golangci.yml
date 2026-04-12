@@ -13,3 +13,9 @@ linters:
     - ineffassign
     - staticcheck
     - unused
+  exclusions:
+    rules:
+      - linters:
+          - unused
+        path: internal/provider/google_oauth.go
+        text: "ensureOAuth|oauthState|field init is unused"

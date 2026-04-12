@@ -9,13 +9,45 @@ KodaCode supports multiple AI providers simultaneously. Switch models mid-sessio
 
 ## Supported Providers
 
+### Native Providers
+
 | Provider | Auth Methods | Notable Models |
 |----------|-------------|----------------|
 | **Anthropic** | API key, OAuth | Claude Opus 4.6, Sonnet 4.6, Haiku 4.5 |
 | **OpenAI** | API key, OAuth | GPT-4o, GPT-4.1, o1 |
 | **Google Gemini** | API key, OAuth | Gemini 2.5 Flash, Gemini 2.5 Pro |
 | **GitHub Copilot** | Token import | GPT-4.1, Claude via Copilot |
-| **OpenAI-compatible** | API key | Groq, LM Studio, Ollama, any custom endpoint |
+
+### OpenAI-Compatible
+
+These providers are available as predefined entries in the `/connect` dialog — select one and enter your API key.
+
+| Provider | ID | Base URL |
+|----------|----|----------|
+| **OpenRouter** | `openrouter` | `https://openrouter.ai/api/v1` |
+| **Together AI** | `together` | `https://api.together.xyz/v1` |
+| **Groq** | `groq` | `https://api.groq.com/openai/v1` |
+| **Fireworks AI** | `fireworks` | `https://api.fireworks.ai/inference/v1` |
+| **Mistral** | `mistral` | `https://api.mistral.ai/v1` |
+| **DeepSeek** | `deepseek` | `https://api.deepseek.com` |
+| **Deep Infra** | `deepinfra` | `https://api.deepinfra.com/v1/openai` |
+| **Cerebras** | `cerebras` | `https://api.cerebras.ai/v1` |
+| **Venice AI** | `venice` | `https://api.venice.ai/api/v1` |
+| **Moonshot AI (Kimi)** | `moonshot` | `https://api.moonshot.ai/v1` |
+| **Z.AI** | `zai-coding-plan` | `https://api.z.ai/api/coding/paas/v4` |
+| **Ollama Cloud** | `ollama-cloud` | `https://ollama.com/v1` |
+
+### Local Providers
+
+Local providers don't require an API key. The base URL defaults to the standard local address but can be changed during setup.
+
+| Provider | ID | Default Base URL |
+|----------|----|-----------------|
+| **Ollama** | `ollama` | `http://localhost:11434/v1` |
+| **LM Studio** | `lmstudio` | `http://localhost:1234/v1` |
+| **llama.cpp** | `llamacpp` | `http://localhost:8080/v1` |
+
+Any other OpenAI-compatible endpoint can be added via the **Custom** option in `/connect`.
 
 ## Configuration
 
@@ -32,14 +64,15 @@ providers:
 
   - id: groq
     api_key: ${GROQ_API_KEY}
-    base_url: https://api.groq.com/openai/v1
+
+  - id: deepseek
+    api_key: ${DEEPSEEK_API_KEY}
 
   - id: ollama
     base_url: http://localhost:11434/v1
-
-  - id: lmstudio
-    base_url: http://localhost:8000/v1
 ```
+
+Predefined providers (like Groq, DeepSeek, etc.) don't need a `base_url` in config — it's filled automatically. You only need `base_url` if overriding the default.
 
 Select your model via the `/models` command or the home screen model picker.
 
@@ -193,13 +226,13 @@ Then in a session, use `/variant` to cycle thinking effort:
 
 Models are discovered automatically:
 - **Cloud providers**: metadata fetched from models.dev and provider APIs
-- **Local providers** (Ollama, LM Studio): discovered via their `/v1/models` endpoint
+- **Local providers** (Ollama, LM Studio, llama.cpp): discovered via their `/v1/models` endpoint
 
 Use `/models` in the TUI to browse and switch models mid-session.
 
 ### Refresh behavior
 
-- **Local models** (Ollama, LM Studio) are refreshed on every startup regardless of `model_refresh_interval`. Capability probing (`/api/show` for Ollama, `/api/v1/models` for LM Studio) runs in parallel with bounded concurrency so startup stays fast even with many local models.
+- **Local models** (Ollama, LM Studio, llama.cpp) are refreshed on every startup regardless of `model_refresh_interval`. Capability probing (`/api/show` for Ollama, `/api/v1/models` for LM Studio) runs in parallel with bounded concurrency so startup stays fast even with many local models.
 - **Cloud model metadata** (from models.dev) is cached locally and refreshed based on `model_refresh_interval` (default: 7 days). Set `model_refresh_interval: 0` to force a refresh on every startup.
 
 <Aside type="tip">
@@ -214,7 +247,7 @@ Model metadata (context sizes, capabilities, pricing) is cached locally and refr
 - Configure `fallback_models` as a safety net for provider outages
 
 ### Local Models
-- Ollama and LM Studio models are auto-discovered from their `/v1/models` endpoint
+- Ollama, LM Studio, and llama.cpp models are auto-discovered from their `/v1/models` endpoint
 - Set `context_size` in config for local models — the default may not match the actual model capacity
 - If a slow local model takes a long time to finish emitting tool-call JSON, raise `session.tool_call_argument_timeout` or set a per-model override
 - Local model title generation can be slow — kodacode retries up to 3 times with a 30s timeout

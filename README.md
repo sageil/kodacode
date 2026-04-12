@@ -8,7 +8,7 @@ You describe what you want. KodaCode reads your code, runs commands, edits files
 
 ## Key Features
 
-- **Multi-provider**: OpenAI, Anthropic, Google, and any OpenAI-compatible endpoint — switch mid-session
+- **Multi-provider**: OpenAI, Anthropic, Google, and 15+ OpenAI-compatible providers (Groq, DeepSeek, Mistral, Ollama, and more) — switch mid-session
 - **20+ built-in tools**: File ops, shell, code search, LSP actions, symbol rename, git, and more
 - **Agent system**: Specialized agents (explorer, planner, reviewer, refactor) that the model delegates to automatically
 - **Sandboxed execution**: Every tool call is confined to your project — path escapes and external access require explicit permission

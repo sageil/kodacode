@@ -82,8 +82,52 @@ func newProvider(ctx context.Context, pc config.ProviderConfig, authStore *provi
 	default:
 		baseURL := pc.BaseURL
 		if baseURL == "" {
-			baseURL = "https://api.openai.com/v1"
+			if known, ok := knownBaseURLs[pc.ID]; ok {
+				baseURL = known
+			} else {
+				baseURL = "https://api.openai.com/v1"
+			}
 		}
-		return openai.New(pc.ID, pc.ID, pc.APIKey, baseURL, configModels(pc.Models)), false, nil
+		name := pc.ID
+		if known, ok := knownNames[pc.ID]; ok {
+			name = known
+		}
+		return openai.New(pc.ID, name, pc.APIKey, baseURL, configModels(pc.Models)), false, nil
 	}
+}
+
+var knownBaseURLs = map[string]string{
+	"openrouter":   "https://openrouter.ai/api/v1",
+	"together":     "https://api.together.xyz/v1",
+	"groq":         "https://api.groq.com/openai/v1",
+	"fireworks":    "https://api.fireworks.ai/inference/v1",
+	"mistral":      "https://api.mistral.ai/v1",
+	"deepseek":     "https://api.deepseek.com",
+	"deepinfra":    "https://api.deepinfra.com/v1/openai",
+	"cerebras":     "https://api.cerebras.ai/v1",
+	"venice":       "https://api.venice.ai/api/v1",
+	"moonshot":     "https://api.moonshot.ai/v1",
+	"zai-coding-plan": "https://api.z.ai/api/coding/paas/v4",
+	"ollama":           "http://localhost:11434/v1",
+	"ollama-cloud": "https://ollama.com/v1",
+	"lmstudio":     "http://localhost:1234/v1",
+	"llamacpp":     "http://localhost:8080/v1",
+}
+
+var knownNames = map[string]string{
+	"openrouter":   "OpenRouter",
+	"together":     "Together AI",
+	"groq":         "Groq",
+	"fireworks":    "Fireworks AI",
+	"mistral":      "Mistral",
+	"deepseek":     "DeepSeek",
+	"deepinfra":    "Deep Infra",
+	"cerebras":     "Cerebras",
+	"venice":       "Venice AI",
+	"moonshot":     "Moonshot AI (Kimi)",
+	"zai-coding-plan": "Z.AI",
+	"ollama":           "Ollama",
+	"ollama-cloud": "Ollama Cloud",
+	"lmstudio":     "LM Studio",
+	"llamacpp":     "llama.cpp",
 }

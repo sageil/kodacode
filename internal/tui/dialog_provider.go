@@ -39,27 +39,78 @@ type authMethod struct {
 type providerDef struct {
 	ID        string
 	Name      string
+	Category  string
+	BaseURL   string
+	Local     bool
 	Auths     []authMethod
 	Connected bool
 }
 
 var knownProviders = []providerDef{
-	{ID: "anthropic", Name: "Anthropic", Auths: []authMethod{
+	{ID: "anthropic", Name: "Anthropic", Category: "native", Auths: []authMethod{
 		{Type: "api", Label: "API Key"},
 	}},
-	{ID: "openai", Name: "OpenAI", Auths: []authMethod{
+	{ID: "openai", Name: "OpenAI", Category: "native", Auths: []authMethod{
 		{Type: "oauth", Label: "OpenAI (ChatGPT Plus/Pro)"},
 		{Type: "api", Label: "API Key"},
 	}},
-	{ID: "google", Name: "Google", Auths: []authMethod{
+	{ID: "google", Name: "Google", Category: "native", Auths: []authMethod{
 		{Type: "api", Label: "API Key"},
 	}},
-	{ID: "github-copilot", Name: "GitHub Copilot", Auths: []authMethod{
+	{ID: "github-copilot", Name: "GitHub Copilot", Category: "native", Auths: []authMethod{
 		{Type: "copilot-neovim", Label: "Import from Neovim/Vim"},
 		{Type: "copilot-opencode", Label: "Import from opencode"},
 		{Type: "copilot-manual", Label: "Paste token manually (gho_…)"},
 	}},
-	{ID: "custom", Name: "Custom (OpenAI-compatible)", Auths: []authMethod{
+
+	{ID: "openrouter", Name: "OpenRouter", Category: "compatible",
+		BaseURL: "https://openrouter.ai/api/v1",
+		Auths:   []authMethod{{Type: "api", Label: "API Key"}}},
+	{ID: "together", Name: "Together AI", Category: "compatible",
+		BaseURL: "https://api.together.xyz/v1",
+		Auths:   []authMethod{{Type: "api", Label: "API Key"}}},
+	{ID: "groq", Name: "Groq", Category: "compatible",
+		BaseURL: "https://api.groq.com/openai/v1",
+		Auths:   []authMethod{{Type: "api", Label: "API Key"}}},
+	{ID: "fireworks", Name: "Fireworks AI", Category: "compatible",
+		BaseURL: "https://api.fireworks.ai/inference/v1",
+		Auths:   []authMethod{{Type: "api", Label: "API Key"}}},
+	{ID: "mistral", Name: "Mistral", Category: "compatible",
+		BaseURL: "https://api.mistral.ai/v1",
+		Auths:   []authMethod{{Type: "api", Label: "API Key"}}},
+	{ID: "deepseek", Name: "DeepSeek", Category: "compatible",
+		BaseURL: "https://api.deepseek.com",
+		Auths:   []authMethod{{Type: "api", Label: "API Key"}}},
+	{ID: "deepinfra", Name: "Deep Infra", Category: "compatible",
+		BaseURL: "https://api.deepinfra.com/v1/openai",
+		Auths:   []authMethod{{Type: "api", Label: "API Key"}}},
+	{ID: "cerebras", Name: "Cerebras", Category: "compatible",
+		BaseURL: "https://api.cerebras.ai/v1",
+		Auths:   []authMethod{{Type: "api", Label: "API Key"}}},
+	{ID: "venice", Name: "Venice AI", Category: "compatible",
+		BaseURL: "https://api.venice.ai/api/v1",
+		Auths:   []authMethod{{Type: "api", Label: "API Key"}}},
+	{ID: "moonshot", Name: "Moonshot AI (Kimi)", Category: "compatible",
+		BaseURL: "https://api.moonshot.ai/v1",
+		Auths:   []authMethod{{Type: "api", Label: "API Key"}}},
+	{ID: "zai-coding-plan", Name: "Z.AI", Category: "compatible",
+		BaseURL: "https://api.z.ai/api/coding/paas/v4",
+		Auths:   []authMethod{{Type: "api", Label: "API Key"}}},
+	{ID: "ollama-cloud", Name: "Ollama Cloud", Category: "compatible",
+		BaseURL: "https://ollama.com/v1",
+		Auths:   []authMethod{{Type: "api", Label: "API Key"}}},
+
+	{ID: "ollama", Name: "Ollama", Category: "local",
+		BaseURL: "http://localhost:11434/v1", Local: true,
+		Auths: []authMethod{{Type: "api", Label: "No key required"}}},
+	{ID: "lmstudio", Name: "LM Studio", Category: "local",
+		BaseURL: "http://localhost:1234/v1", Local: true,
+		Auths: []authMethod{{Type: "api", Label: "No key required"}}},
+	{ID: "llamacpp", Name: "llama.cpp", Category: "local",
+		BaseURL: "http://localhost:8080/v1", Local: true,
+		Auths: []authMethod{{Type: "api", Label: "No key required"}}},
+
+	{ID: "custom", Name: "Custom (OpenAI-compatible)", Category: "custom", Auths: []authMethod{
 		{Type: "api", Label: "API Key + Base URL"},
 	}},
 }
@@ -68,18 +119,20 @@ var knownProviders = []providerDef{
 // connecting or removing LLM providers. The first screen shows two sections:
 // connected providers (removable) and available providers (connectable).
 type ProviderConnectDialog struct {
-	id        string
-	step      providerStep
-	cursor    int
-	items     []providerListItem // flat list: headers + providers
-	selected  providerDef
-	selAuth   authMethod
-	input     textinput.Model
-	customID  string
-	apiKey    string
-	width     int
-	theme     *theme.Theme
-	keys      dialogKeys
+	id          string
+	step        providerStep
+	cursor      int
+	allItems    []providerListItem
+	items       []providerListItem
+	selected    providerDef
+	selAuth     authMethod
+	input       textinput.Model
+	filterInput textinput.Model
+	customID    string
+	apiKey      string
+	width       int
+	theme       *theme.Theme
+	keys        dialogKeys
 
 	customFields [3]textinput.Model // ID, API Key, Base URL
 	customFocus  int                // 0=ID, 1=Key, 2=URL
@@ -104,7 +157,8 @@ func NewProviderConnectDialog(id string, configuredProviders []string, th *theme
 		configured[pid] = true
 	}
 
-	var connected, available []providerDef
+	var connected []providerDef
+	buckets := map[string][]providerDef{}
 	knownIDs := make(map[string]bool, len(knownProviders))
 	for _, p := range knownProviders {
 		knownIDs[p.ID] = true
@@ -112,15 +166,8 @@ func NewProviderConnectDialog(id string, configuredProviders []string, th *theme
 		if configured[p.ID] {
 			cp.Connected = true
 			connected = append(connected, cp)
-		} else if p.ID != "custom" {
-			available = append(available, cp)
-		}
-	}
-	// Custom entry is always in available.
-	for _, p := range knownProviders {
-		if p.ID == "custom" {
-			available = append(available, p)
-			break
+		} else {
+			buckets[p.Category] = append(buckets[p.Category], cp)
 		}
 	}
 	// Add configured providers not in the known list.
@@ -135,6 +182,13 @@ func NewProviderConnectDialog(id string, configuredProviders []string, th *theme
 		}
 	}
 
+	categoryOrder := []struct{ key, label string }{
+		{"native", "Native Providers"},
+		{"compatible", "OpenAI-Compatible"},
+		{"local", "Local"},
+		{"custom", "Other"},
+	}
+
 	var items []providerListItem
 	if len(connected) > 0 {
 		items = append(items, providerListItem{header: "Connected"})
@@ -142,10 +196,12 @@ func NewProviderConnectDialog(id string, configuredProviders []string, th *theme
 			items = append(items, providerListItem{provider: &connected[i]})
 		}
 	}
-	if len(available) > 0 {
-		items = append(items, providerListItem{header: "Available"})
-		for i := range available {
-			items = append(items, providerListItem{provider: &available[i]})
+	for _, cat := range categoryOrder {
+		if ps := buckets[cat.key]; len(ps) > 0 {
+			items = append(items, providerListItem{header: cat.label})
+			for i := range ps {
+				items = append(items, providerListItem{provider: &ps[i]})
+			}
 		}
 	}
 
@@ -157,8 +213,14 @@ func NewProviderConnectDialog(id string, configuredProviders []string, th *theme
 		}
 	}
 
+	fi := textinput.New()
+	fi.Placeholder = "filter…"
+	fi.CharLimit = 64
+	fi.Focus()
+
 	w := computeProviderDialogWidth(items)
 	ti.SetWidth(w - 10) // padding + border
+	fi.SetWidth(w - 10)
 
 	fieldWidth := w - 10
 	idField := textinput.New()
@@ -179,14 +241,60 @@ func NewProviderConnectDialog(id string, configuredProviders []string, th *theme
 	return ProviderConnectDialog{
 		id:           id,
 		step:         stepSelectProvider,
+		allItems:     items,
 		items:        items,
 		input:        ti,
-		keys:         defaultDialogKeys(),
+		filterInput:  fi,
+		keys:         filterDialogKeys(),
 		width:        w,
 		theme:        th,
 		cursor:       cursor,
 		customFields: [3]textinput.Model{idField, keyField, urlField},
 	}
+}
+
+func (d *ProviderConnectDialog) resetToProviderList() {
+	d.step = stepSelectProvider
+	d.filterInput.SetValue("")
+	d.items = d.allItems
+	d.cursor = 0
+	for i, item := range d.items {
+		if item.provider != nil {
+			d.cursor = i
+			break
+		}
+	}
+	d.filterInput.Focus()
+}
+
+func (d *ProviderConnectDialog) refilterProviders() {
+	q := d.filterInput.Value()
+	if q == "" {
+		d.items = d.allItems
+		return
+	}
+	var items []providerListItem
+	var lastHeader providerListItem
+	for _, item := range d.allItems {
+		if item.header != "" {
+			lastHeader = item
+			continue
+		}
+		if item.provider != nil {
+			ok, _ := fuzzyScore(q, item.provider.Name)
+			if !ok {
+				ok, _ = fuzzyScore(q, item.provider.ID)
+			}
+			if ok {
+				if lastHeader.header != "" {
+					items = append(items, lastHeader)
+					lastHeader = providerListItem{}
+				}
+				items = append(items, item)
+			}
+		}
+	}
+	d.items = items
 }
 
 func computeProviderDialogWidth(items []providerListItem) int {
@@ -232,37 +340,59 @@ func (d ProviderConnectDialog) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (d ProviderConnectDialog) updateSelectProvider(msg tea.Msg) (tea.Model, tea.Cmd) {
-	kp, ok := msg.(tea.KeyPressMsg)
-	if !ok {
-		return d, nil
-	}
-	switch {
-	case key.Matches(kp, d.keys.Up):
-		d.cursor = d.prevSelectable(d.cursor)
-	case key.Matches(kp, d.keys.Down):
-		d.cursor = d.nextSelectable(d.cursor)
-	case key.Matches(kp, d.keys.Select):
-		item := d.items[d.cursor]
-		if item.provider == nil {
+	kp, isKey := msg.(tea.KeyPressMsg)
+	if isKey {
+		switch {
+		case key.Matches(kp, d.keys.Up):
+			d.cursor = d.prevSelectable(d.cursor)
 			return d, nil
-		}
-		d.selected = *item.provider
-		if len(d.selected.Auths) == 1 {
-			d.selAuth = d.selected.Auths[0]
-			return d.advanceFromAuth()
-		}
-		d.step = stepSelectAuth
-		d.cursor = 0
-	case kp.String() == "ctrl+d":
-		item := d.items[d.cursor]
-		if item.provider != nil && item.provider.Connected {
+		case key.Matches(kp, d.keys.Down):
+			d.cursor = d.nextSelectable(d.cursor)
+			return d, nil
+		case key.Matches(kp, d.keys.Select):
+			if d.cursor >= len(d.items) {
+				return d, nil
+			}
+			item := d.items[d.cursor]
+			if item.provider == nil {
+				return d, nil
+			}
 			d.selected = *item.provider
-			d.step = stepConfirmRemove
+			if len(d.selected.Auths) == 1 {
+				d.selAuth = d.selected.Auths[0]
+				return d.advanceFromAuth()
+			}
+			d.step = stepSelectAuth
+			d.cursor = 0
+			return d, nil
+		case kp.String() == "ctrl+d":
+			if d.cursor < len(d.items) {
+				item := d.items[d.cursor]
+				if item.provider != nil && item.provider.Connected {
+					d.selected = *item.provider
+					d.step = stepConfirmRemove
+				}
+			}
+			return d, nil
+		case key.Matches(kp, d.keys.Cancel):
+			return d, closeDialog(d.id, nil)
 		}
-	case key.Matches(kp, d.keys.Cancel):
-		return d, closeDialog(d.id, nil)
 	}
-	return d, nil
+
+	prev := d.filterInput.Value()
+	var cmd tea.Cmd
+	d.filterInput, cmd = d.filterInput.Update(msg)
+	if d.filterInput.Value() != prev {
+		d.refilterProviders()
+		d.cursor = 0
+		for i, item := range d.items {
+			if item.provider != nil {
+				d.cursor = i
+				break
+			}
+		}
+	}
+	return d, cmd
 }
 
 func (d ProviderConnectDialog) nextSelectable(from int) int {
@@ -301,8 +431,7 @@ func (d ProviderConnectDialog) updateSelectAuth(msg tea.Msg) (tea.Model, tea.Cmd
 		d.selAuth = d.selected.Auths[d.cursor]
 		return d.advanceFromAuth()
 	case key.Matches(kp, d.keys.Cancel):
-		d.step = stepSelectProvider
-		d.cursor = 0
+		d.resetToProviderList()
 	}
 	return d, nil
 }
@@ -340,7 +469,11 @@ func (d ProviderConnectDialog) advanceFromAuth() (tea.Model, tea.Cmd) {
 	}
 	d.step = stepAPIKeyInput
 	d.cursor = 0
-	d.input.Placeholder = "paste key here..."
+	if d.selected.Local {
+		d.input.Placeholder = "paste key or press enter to skip"
+	} else {
+		d.input.Placeholder = "paste key here..."
+	}
 	d.input.SetValue("")
 	return d, d.input.Focus()
 }
@@ -351,11 +484,11 @@ func (d ProviderConnectDialog) updateProviderIDInput(msg tea.Msg) (tea.Model, te
 		case key.Matches(kp, d.keys.Cancel):
 			d.input.Blur()
 			if len(d.selected.Auths) == 1 {
-				d.step = stepSelectProvider
+				d.resetToProviderList()
 			} else {
 				d.step = stepSelectAuth
+				d.cursor = 0
 			}
-			d.cursor = 0
 			return d, nil
 		case key.Matches(kp, d.keys.Confirm):
 			val := strings.TrimSpace(d.input.Value())
@@ -380,15 +513,15 @@ func (d ProviderConnectDialog) updateAPIKeyInput(msg tea.Msg) (tea.Model, tea.Cm
 		case key.Matches(kp, d.keys.Cancel):
 			d.input.Blur()
 			if len(d.selected.Auths) == 1 {
-				d.step = stepSelectProvider
+				d.resetToProviderList()
 			} else {
 				d.step = stepSelectAuth
+				d.cursor = 0
 			}
-			d.cursor = 0
 			return d, nil
 		case key.Matches(kp, d.keys.Confirm):
 			val := strings.TrimSpace(d.input.Value())
-			if val == "" {
+			if val == "" && !d.selected.Local {
 				return d, nil
 			}
 			d.apiKey = val
@@ -398,10 +531,17 @@ func (d ProviderConnectDialog) updateAPIKeyInput(msg tea.Msg) (tea.Model, tea.Cm
 				d.input.SetValue("")
 				return d, d.input.Focus()
 			}
+			if d.selected.Local {
+				d.step = stepBaseURLInput
+				d.input.Placeholder = d.selected.BaseURL
+				d.input.SetValue(d.selected.BaseURL)
+				return d, d.input.Focus()
+			}
 			return d, closeDialog(d.id, ProviderConnectResult{
 				ProviderID: d.selected.ID,
 				AuthType:   "api",
 				APIKey:     d.apiKey,
+				BaseURL:    d.selected.BaseURL,
 			})
 		}
 	}
@@ -415,8 +555,12 @@ func (d ProviderConnectDialog) updateBaseURLInput(msg tea.Msg) (tea.Model, tea.C
 		switch {
 		case key.Matches(kp, d.keys.Cancel):
 			d.step = stepAPIKeyInput
-			d.input.Placeholder = "paste key here..."
-			d.input.SetValue("")
+			if d.selected.Local {
+				d.input.Placeholder = "paste key or press enter to skip"
+			} else {
+				d.input.Placeholder = "paste key here..."
+			}
+			d.input.SetValue(d.apiKey)
 			return d, d.input.Focus()
 		case key.Matches(kp, d.keys.Confirm):
 			val := strings.TrimSpace(d.input.Value())
@@ -446,11 +590,11 @@ func (d ProviderConnectDialog) updateCustomInput(msg tea.Msg) (tea.Model, tea.Cm
 		case key.Matches(kp, d.keys.Cancel):
 			d.customFields[d.customFocus].Blur()
 			if len(d.selected.Auths) == 1 {
-				d.step = stepSelectProvider
+				d.resetToProviderList()
 			} else {
 				d.step = stepSelectAuth
+				d.cursor = 0
 			}
-			d.cursor = 0
 			return d, nil
 		case kp.String() == "tab", kp.String() == "down":
 			if d.customFocus < 2 {
@@ -511,8 +655,7 @@ func (d ProviderConnectDialog) updateConfirmRemove(msg tea.Msg) (tea.Model, tea.
 			Remove:     true,
 		})
 	case "n", "esc":
-		d.step = stepSelectProvider
-		d.cursor = 0
+		d.resetToProviderList()
 	}
 	return d, nil
 }
@@ -523,7 +666,7 @@ func (d ProviderConnectDialog) View() tea.View {
 	switch d.step {
 	case stepSelectProvider:
 		title = titleStyle(d.theme).Render("Providers")
-		body = d.viewProviderList()
+		body = d.filterInput.View() + "\n\n" + d.viewProviderList()
 		hint = hintStyle(d.theme).Render("enter connect • ^D remove • esc cancel")
 
 	case stepSelectAuth:
@@ -546,7 +689,11 @@ func (d ProviderConnectDialog) View() tea.View {
 		hint = hintStyle(d.theme).Render("enter confirm • esc back")
 
 	case stepBaseURLInput:
-		title = titleStyle(d.theme).Render("Enter base URL for " + d.customID)
+		name := d.customID
+		if name == "" {
+			name = d.selected.Name
+		}
+		title = titleStyle(d.theme).Render("Enter base URL for " + name)
 		body = d.input.View()
 		hint = hintStyle(d.theme).Render("enter confirm • esc back")
 
