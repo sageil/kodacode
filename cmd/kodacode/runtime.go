@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"log"
 	"os"
@@ -199,13 +200,19 @@ func run(resume bool) error {
 	memStore := service.NewMemoryStore(projectDir)
 	toolRegistry.Register(tool.NewMemoryTool(memoryAdapter{store: memStore}))
 
+	var searchDB *sql.DB
+	defer func() {
+		if searchDB != nil {
+			_ = searchDB.Close()
+		}
+	}()
+
 	var searchSearcher *search.Searcher
 	if cfg.SearchIndex.IsEnabled() {
-		searchDB, err := search.Open(config.DataDir(), projectDir)
+		searchDB, err = search.Open(config.DataDir(), projectDir)
 		if err != nil {
 			log.Printf("search index: %v", err)
 		} else {
-			defer searchDB.Close() //nolint:errcheck
 			indexer := search.NewIndexer(searchDB, projectDir, search.IndexerConfig{
 				CtagsBinary:     cfg.SearchIndex.CtagsBinary,
 				ExcludePatterns: cfg.SearchIndex.ExcludePatterns,

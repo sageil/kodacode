@@ -239,7 +239,7 @@ func executeSingleLSP(ctx context.Context, workDir string, mgr *lsp.Manager, cac
 		if r, err, ok := cache.get(key); ok {
 			return r, err
 		}
-		r, err := lspWorkspaceSymbols(ctx, mgr, op.Query)
+		r, err := lspWorkspaceSymbols(ctx, mgr, rootURI, op.Query)
 		cache.set(key, r, err)
 		return r, err
 
@@ -534,7 +534,8 @@ func batchDiagnostics(ctx context.Context, mgr *lsp.Manager, rootURI, workDir st
 	}, nil
 }
 
-func lspWorkspaceSymbols(ctx context.Context, mgr *lsp.Manager, query string) (*Result, error) {
+func lspWorkspaceSymbols(ctx context.Context, mgr *lsp.Manager, rootURI, query string) (*Result, error) {
+	mgr.EnsureWorkspaceServers(ctx, rootURI)
 	symbols, err := mgr.WorkspaceSymbol(ctx, query)
 	if err != nil {
 		return nil, err
@@ -581,6 +582,7 @@ func lspWorkspaceSymbols(ctx context.Context, mgr *lsp.Manager, query string) (*
 }
 
 func lspFindReferences(ctx context.Context, mgr *lsp.Manager, rootURI, workDir, query string) (*Result, error) {
+	mgr.EnsureWorkspaceServers(ctx, rootURI)
 	symbols, err := mgr.WorkspaceSymbol(ctx, query)
 	if err != nil || len(symbols) == 0 {
 		return &Result{

@@ -162,6 +162,25 @@ func (m *Manager) WorkspaceSymbol(ctx context.Context, query string) ([]SymbolIn
 	return all, nil
 }
 
+// EnsureWorkspaceServers starts configured LSP servers so workspace-level
+// symbol queries are not limited to servers that happened to be started by
+// earlier file-scoped operations.
+func (m *Manager) EnsureWorkspaceServers(ctx context.Context, rootURI string) {
+	seen := make(map[string]bool)
+	for _, cfg := range m.configs {
+		if seen[cfg.Name] {
+			continue
+		}
+		seen[cfg.Name] = true
+		if len(cfg.Extensions) == 0 {
+			continue
+		}
+		if _, err := m.ServerFor(ctx, cfg.Extensions[0], rootURI); err != nil {
+			log.Printf("lsp: workspace symbol startup skipped %s: %v", cfg.Name, err)
+		}
+	}
+}
+
 // SymbolResult is a simplified workspace symbol with human-readable fields.
 // Used by the TUI palette to avoid depending on raw LSP protocol types.
 type SymbolResult struct {

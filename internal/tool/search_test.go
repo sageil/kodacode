@@ -119,3 +119,37 @@ func TestSearchTool_deduplication(t *testing.T) {
 		t.Fatalf("expected search.go to appear exactly once, appeared %d times in: %s", count, res.Output)
 	}
 }
+
+func TestSearchTool_invalidPath(t *testing.T) {
+	tl := tool.NewSearchTool(nil)
+	args := []byte(`{"query":"handler","path":"/definitely/missing/kodacode-search-root"}`)
+	res, err := tl.Execute(t.Context(), tool.ExecutionContext{}, args)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.ErrorCode != tool.ErrCodeNotFound {
+		t.Fatalf("error_code = %q, want %q (output=%q)", res.ErrorCode, tool.ErrCodeNotFound, res.Output)
+	}
+	if !strings.Contains(res.Output, "not found") {
+		t.Fatalf("expected not found output, got: %s", res.Output)
+	}
+}
+
+func TestSearchTool_invalidRegexSurfacesError(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "main.go"), []byte("package main\nfunc run() {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	tl := tool.NewSearchTool(nil)
+	args := []byte(`{"query":"[","path":"` + dir + `"}`)
+	res, err := tl.Execute(t.Context(), tool.ExecutionContext{}, args)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.ErrorCode == "" {
+		t.Fatalf("expected structured error result, got output: %s", res.Output)
+	}
+	if !strings.Contains(res.Output, "scan failed") {
+		t.Fatalf("expected scan failure output, got: %s", res.Output)
+	}
+}

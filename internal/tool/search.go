@@ -76,12 +76,29 @@ func executeSearch(ctx context.Context, ectx ExecutionContext, args []byte, sear
 	} else {
 		root = resolvePath(root, ectx.WorkDir)
 	}
+	info, err := os.Stat(root)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return ErrorResult(ErrCodeNotFound, fmt.Sprintf("search: path %q not found", root), false), nil
+		}
+		return ErrorResult(ErrCodeUnavailable, fmt.Sprintf("search: cannot access %q: %v", root, err), true), nil
+	}
+	if !info.IsDir() {
+		return ErrorResult(ErrCodeInvalidArgs, fmt.Sprintf("search: path %q is not a directory", root), false), nil
+	}
+	if params.Include != "" {
+		if _, err := filepath.Match(params.Include, "sample"); err != nil {
+			return ErrorResult(ErrCodeInvalidArgs, fmt.Sprintf("search: invalid include pattern %q: %v", params.Include, err), false), nil
+		}
+	}
 
 	queryLower := strings.ToLower(params.Query)
 
 	var (
 		fileMatches    []searchMatch
 		contentMatches []searchMatch
+		fileErr        error
+		grepErr        error
 		mu             sync.Mutex
 		wg             sync.WaitGroup
 	)
@@ -95,7 +112,7 @@ func executeSearch(ctx context.Context, ectx ExecutionContext, args []byte, sear
 		fsys := os.DirFS(root)
 		scanned := 0
 		lastProgress := 0
-		_ = fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, err error) error {
+		walkErr := fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
 				return nil
 			}
@@ -150,6 +167,7 @@ func executeSearch(ctx context.Context, ectx ExecutionContext, args []byte, sear
 		})
 		mu.Lock()
 		fileMatches = results
+		fileErr = walkErr
 		mu.Unlock()
 	}()
 
@@ -158,7 +176,13 @@ func executeSearch(ctx context.Context, ectx ExecutionContext, args []byte, sear
 		defer wg.Done()
 		fixedString := !looksLikeRegex(params.Query)
 		grepMatches, err := runGrep(ctx, params.Query, params.Include, root, fixedString)
-		if err != nil || len(grepMatches) == 0 {
+		if err != nil {
+			mu.Lock()
+			grepErr = err
+			mu.Unlock()
+			return
+		}
+		if len(grepMatches) == 0 {
 			return
 		}
 
@@ -223,6 +247,18 @@ func executeSearch(ctx context.Context, ectx ExecutionContext, args []byte, sear
 
 	totalCount := len(merged) + len(symbolResults)
 	if totalCount == 0 {
+		if fileErr != nil || grepErr != nil {
+			msg := "search: scan failed"
+			switch {
+			case fileErr != nil && grepErr != nil:
+				msg = fmt.Sprintf("search: file scan failed: %v; content scan failed: %v", fileErr, grepErr)
+			case fileErr != nil:
+				msg = fmt.Sprintf("search: file scan failed: %v", fileErr)
+			case grepErr != nil:
+				msg = fmt.Sprintf("search: content scan failed: %v", grepErr)
+			}
+			return ErrorResult(ErrCodeUnavailable, msg, true), nil
+		}
 		return &Result{
 			Title:  fmt.Sprintf("search: %s", params.Query),
 			Output: fmt.Sprintf("No results found for %q.", params.Query),
