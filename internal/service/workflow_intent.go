@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strconv"
 	"strings"
 	"time"
 
@@ -231,16 +232,105 @@ func classifyWorkflowIntent(ctx context.Context, prov provider.Provider, modelID
 }
 
 func parseWorkflowIntentResult(raw string) (workflowIntentResult, error) {
-	start := strings.Index(raw, "{")
-	end := strings.LastIndex(raw, "}")
+	payload := strings.TrimSpace(raw)
+	if strings.HasPrefix(payload, "```") {
+		payload = strings.TrimPrefix(payload, "```json")
+		payload = strings.TrimPrefix(payload, "```")
+		payload = strings.TrimSpace(strings.TrimSuffix(payload, "```"))
+	}
+
+	intent, err := parseWorkflowIntentJSON(payload)
+	if err == nil {
+		return intent, nil
+	}
+	fallback, ferr := parseWorkflowIntentJSONLike(payload)
+	if ferr == nil {
+		return fallback, nil
+	}
+	prose, perr := parseWorkflowIntentText(payload)
+	if perr == nil {
+		return prose, nil
+	}
+	return workflowIntentResult{}, fmt.Errorf("%v; %v; %v", err, ferr, perr)
+}
+
+func parseWorkflowIntentJSON(payload string) (workflowIntentResult, error) {
+	start := strings.Index(payload, "{")
+	end := strings.LastIndex(payload, "}")
 	if start < 0 || end < start {
 		return workflowIntentResult{}, fmt.Errorf("no json object found in classifier output")
 	}
 
 	var intent workflowIntentResult
-	if err := json.Unmarshal([]byte(raw[start:end+1]), &intent); err != nil {
+	if err := json.Unmarshal([]byte(payload[start:end+1]), &intent); err != nil {
 		return workflowIntentResult{}, fmt.Errorf("invalid classifier json: %w", err)
 	}
+	return cleanWorkflowIntentResult(intent)
+}
+
+func parseWorkflowIntentJSONLike(payload string) (workflowIntentResult, error) {
+	intent := workflowIntentResult{}
+	if kinds := extractStructuredPlanKeyValues(payload, "kind"); len(kinds) > 0 {
+		intent.Kind = workflowIntentKind(strings.TrimSpace(kinds[0]))
+	}
+	if reasons := extractStructuredPlanKeyValues(payload, "reason"); len(reasons) > 0 {
+		intent.Reason = strings.TrimSpace(reasons[0])
+	}
+	if confidences := extractStructuredPlanKeyValues(payload, "confidence"); len(confidences) > 0 {
+		value, err := strconv.ParseFloat(strings.TrimSpace(confidences[0]), 64)
+		if err != nil {
+			return workflowIntentResult{}, fmt.Errorf("invalid classifier confidence %q", confidences[0])
+		}
+		intent.Confidence = value
+	}
+	if intent.Kind == "" {
+		return workflowIntentResult{}, fmt.Errorf("no classifier kind found in json-like output")
+	}
+	return cleanWorkflowIntentResult(intent)
+}
+
+func parseWorkflowIntentText(payload string) (workflowIntentResult, error) {
+	lines := strings.Split(strings.ReplaceAll(payload, "\r\n", "\n"), "\n")
+	intent := workflowIntentResult{}
+	for _, line := range lines {
+		trimmed := normalizeWorkflowIntentTextToken(line)
+		if trimmed == "" {
+			continue
+		}
+		if kind := parseWorkflowIntentLabeledKind(trimmed); kind != "" {
+			intent.Kind = kind
+			continue
+		}
+		if value, ok := parseWorkflowIntentLabeledFloat(trimmed, "confidence"); ok {
+			intent.Confidence = value
+			continue
+		}
+		if reason, ok := parseWorkflowIntentLabeledText(trimmed, "reason"); ok {
+			intent.Reason = reason
+			continue
+		}
+		if kind := normalizeWorkflowIntentKind(trimmed); kind != "" {
+			intent.Kind = kind
+		}
+	}
+	if intent.Kind == "" {
+		if kind := findWorkflowIntentKindInText(payload); kind != "" {
+			intent.Kind = kind
+		}
+	}
+	if intent.Kind == "" {
+		return workflowIntentResult{}, fmt.Errorf("no classifier kind found in text output")
+	}
+	if intent.Reason == "" {
+		intent.Reason = strings.TrimSpace(payload)
+		if normalizeWorkflowIntentTextToken(intent.Reason) == strings.TrimSpace(string(intent.Kind)) {
+			intent.Reason = ""
+		}
+	}
+	return cleanWorkflowIntentResult(intent)
+}
+
+func cleanWorkflowIntentResult(intent workflowIntentResult) (workflowIntentResult, error) {
 	intent.Kind = workflowIntentKind(strings.TrimSpace(string(intent.Kind)))
 	intent.Reason = strings.TrimSpace(intent.Reason)
 	if intent.Confidence < 0 {
@@ -256,4 +346,80 @@ func parseWorkflowIntentResult(raw string) (workflowIntentResult, error) {
 	default:
 		return workflowIntentResult{}, fmt.Errorf("unknown classifier kind %q", intent.Kind)
 	}
+}
+
+func normalizeWorkflowIntentKind(raw string) workflowIntentKind {
+	switch strings.TrimSpace(strings.ToLower(raw)) {
+	case string(workflowIntentCasual):
+		return workflowIntentCasual
+	case string(workflowIntentExplain):
+		return workflowIntentExplain
+	case string(workflowIntentDirectExecute):
+		return workflowIntentDirectExecute
+	case string(workflowIntentPlanOnly):
+		return workflowIntentPlanOnly
+	case string(workflowIntentBroadReviewExecute):
+		return workflowIntentBroadReviewExecute
+	default:
+		return ""
+	}
+}
+
+func normalizeWorkflowIntentTextToken(raw string) string {
+	trimmed := strings.TrimSpace(raw)
+	trimmed = strings.Trim(trimmed, "`\"'")
+	trimmed = strings.TrimLeft(trimmed, "-*• \t")
+	return strings.TrimSpace(trimmed)
+}
+
+func parseWorkflowIntentLabeledKind(line string) workflowIntentKind {
+	for _, prefix := range []string{"kind:", "kind=", "intent:", "intent=", "workflow:", "workflow=", "classification:", "classification="} {
+		if strings.HasPrefix(strings.ToLower(line), prefix) {
+			return normalizeWorkflowIntentKind(strings.TrimSpace(line[len(prefix):]))
+		}
+	}
+	return ""
+}
+
+func parseWorkflowIntentLabeledFloat(line, key string) (float64, bool) {
+	for _, prefix := range []string{key + ":", key + "="} {
+		if strings.HasPrefix(strings.ToLower(line), prefix) {
+			value, err := strconv.ParseFloat(strings.TrimSpace(line[len(prefix):]), 64)
+			if err != nil {
+				return 0, false
+			}
+			return value, true
+		}
+	}
+	return 0, false
+}
+
+func parseWorkflowIntentLabeledText(line, key string) (string, bool) {
+	for _, prefix := range []string{key + ":", key + "="} {
+		if strings.HasPrefix(strings.ToLower(line), prefix) {
+			return strings.TrimSpace(line[len(prefix):]), true
+		}
+	}
+	return "", false
+}
+
+func findWorkflowIntentKindInText(payload string) workflowIntentKind {
+	lower := strings.ToLower(payload)
+	var matched workflowIntentKind
+	for _, kind := range []workflowIntentKind{
+		workflowIntentCasual,
+		workflowIntentExplain,
+		workflowIntentDirectExecute,
+		workflowIntentPlanOnly,
+		workflowIntentBroadReviewExecute,
+	} {
+		if !strings.Contains(lower, string(kind)) {
+			continue
+		}
+		if matched != "" {
+			return ""
+		}
+		matched = kind
+	}
+	return matched
 }
