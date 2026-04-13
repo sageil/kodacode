@@ -2,6 +2,7 @@ package service
 
 import (
 	"encoding/json"
+	"strings"
 
 	"github.com/sageil/kodacode/v1/internal/pipeline"
 	"github.com/sageil/kodacode/v1/internal/provider"
@@ -17,21 +18,86 @@ func ensureWorkflowState(req *pipeline.TurnRequest) *pipeline.WorkflowState {
 }
 
 func hydrateWorkflowState(msgs []provider.Message, step int) *pipeline.WorkflowState {
+	latestDecision, latestAnswer := latestPlanApprovalState(msgs)
+	pendingQuestionID, _ := latestPlanApprovalQuestionState(msgs)
 	ws := &pipeline.WorkflowState{
 		HasCalledTest:    hasSatisfiedPrebuildCheck(msgs),
-		HasCalledPlanner: hasCalledAgent(msgs, "planner"),
+		HasCalledPlanner: hasHydratedPlannerState(msgs, latestDecision, pendingQuestionID),
 	}
 
-	latestDecision, latestAnswer := latestPlanApprovalState(msgs)
 	ws.Plan.LatestStatus = workflowApprovalStatus(latestDecision)
 	ws.Plan.LatestAnswer = normalizePlanApprovalAnswer(latestAnswer)
 	ws.Plan.PriorApprovedInEffect = priorApprovalInEffect(msgs)
-	ws.Plan.PendingQuestionID, _ = latestPlanApprovalQuestionState(msgs)
+	ws.Plan.PendingQuestionID = pendingQuestionID
 	recomputePlanEffective(ws)
 
 	req := &pipeline.TurnRequest{Step: step, Workflow: ws}
 	updateWorkflowPhase(req)
 	return ws
+}
+
+func hasHydratedPlannerState(msgs []provider.Message, latestDecision planApprovalDecision, pendingQuestionID string) bool {
+	plannerIdx := latestPlannerMessageIndex(msgs)
+	if plannerIdx < 0 {
+		return false
+	}
+	if pendingQuestionID != "" {
+		return true
+	}
+	switch latestDecision {
+	case planApprovalApproved, planApprovalRejected:
+		return true
+	default:
+		return hasPlannerPresentation(msgs, plannerIdx)
+	}
+}
+
+func hasPlannerPresentation(msgs []provider.Message, plannerIdx int) bool {
+	if plannerIdx < 0 || plannerIdx >= len(msgs) {
+		return false
+	}
+
+	callIDs := make(map[string]bool)
+	for _, p := range msgs[plannerIdx].Parts {
+		tc, ok := p.(provider.ToolCallPart)
+		if !ok || tc.Name != "subagent" || plannerAgentIDFromArgs(tc.Arguments) != "planner" {
+			continue
+		}
+		callIDs[tc.ID] = true
+	}
+	if len(callIDs) == 0 {
+		return false
+	}
+
+	seenSuccessfulPlannerResult := false
+	for i := plannerIdx + 1; i < len(msgs); i++ {
+		m := msgs[i]
+		switch m.Role {
+		case "user":
+			for _, p := range m.Parts {
+				tr, ok := p.(provider.ToolResultPart)
+				if !ok || tr.Error != nil || !callIDs[tr.ToolCallID] {
+					continue
+				}
+				seenSuccessfulPlannerResult = true
+			}
+		case "assistant":
+			if !seenSuccessfulPlannerResult {
+				continue
+			}
+			if strings.TrimSpace(provider.TextFromParts(m.Parts)) != "" {
+				return true
+			}
+			for _, p := range m.Parts {
+				tc, ok := p.(provider.ToolCallPart)
+				if ok && tc.Name == "question" && isPlanApprovalQuestion(tc.Arguments) {
+					return true
+				}
+			}
+		}
+	}
+
+	return false
 }
 
 func latestPlanApprovalQuestionState(msgs []provider.Message) (string, string) {

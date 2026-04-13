@@ -431,13 +431,29 @@ func TestNewPhaseFilterMiddleware_EngineerPrebuildAndPreplanTools(t *testing.T) 
 			[]string{"read", "read_files", "glob", "grep", "search", "lsp", "tree", "bash", "test", "subagent", "question", "task", "write", "edit", "skill", "memory", "task_output"},
 			nil,
 		},
-		{"postplan phase (after planner)", planReviewMessagesWithPurpose(
-			`{"question":"Ready?","purpose":"plan_approval","options":[{"label":"Go","role":"approve"}]}`,
-			"", // no answer yet — pending
-		)[:1], 4,
+		{"postplan phase (after planner)", []provider.Message{
+			{
+				Role: "assistant",
+				Parts: []provider.MessagePart{
+					provider.ToolCallPart{ID: "planner-call", Name: "subagent", Arguments: `{"agent_id":"planner"}`},
+				},
+			},
+			{
+				Role: "user",
+				Parts: []provider.MessagePart{
+					provider.ToolResultPart{ToolCallID: "planner-call", Output: "Plan: 1. Audit the codebase. 2. Propose improvements."},
+				},
+			},
+			{
+				Role: "assistant",
+				Parts: []provider.MessagePart{
+					provider.ToolCallPart{ID: "plan-q", Name: "question", Arguments: `{"question":"Ready?","purpose":"plan_approval","options":[{"label":"Go","role":"approve"}]}`},
+				},
+			},
+		}, 4,
 			[]string{"read", "read_files", "glob", "grep", "search", "lsp", "tree", "bash", "test", "subagent", "question", "task", "memory"},
 			[]string{"write", "edit"},
-		}, // only the planner call message, no answer
+		},
 	}
 
 	for _, tt := range tests {

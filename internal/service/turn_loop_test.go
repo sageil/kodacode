@@ -2698,6 +2698,73 @@ func TestMaybeBootstrapWorkflowController_BootstrapsPlanOnlyIntent(t *testing.T)
 	}
 }
 
+func TestMaybeBootstrapWorkflowController_RetriesAfterFailedPlannerHistory(t *testing.T) {
+	taskStore := tool.NewTaskStore(nil)
+	intentProv := &workflowIntentTestProvider{
+		response: `{"kind":"broad_review_execute","confidence":0.95,"reason":"broad review and improvements"}`,
+	}
+	req := &pipeline.TurnRequest{
+		SessionID: "workflow-bootstrap-retry-after-failed-planner",
+		AgentID:   "engineer",
+		Messages: append(
+			builderBootstrapVerifiedMessages("Please review the full project and suggest improvements."),
+			provider.Message{
+				Role: "assistant",
+				Parts: []provider.MessagePart{
+					provider.ToolCallPart{ID: "planner-1", Name: "subagent", Arguments: `{"agent_id":"planner","task":"make a plan"}`},
+				},
+			},
+			provider.Message{
+				Role: "user",
+				Parts: []provider.MessagePart{
+					provider.ToolResultPart{ToolCallID: "planner-1", Output: "tool error [subagent]: model failed", Error: ptr("model failed")},
+				},
+			},
+		),
+		Tools:             []provider.Tool{{Name: "subagent"}, {Name: "question"}, {Name: "task"}},
+		FullTools:         []provider.Tool{{Name: "subagent"}, {Name: "question"}, {Name: "task"}},
+		PhaseFilterActive: true,
+	}
+
+	spawned := 0
+	tl := &turnLoop{
+		ctx:       context.Background(),
+		req:       req,
+		prov:      intentProv,
+		modelID:   "fake-model",
+		msgs:      &turnLoopMessageRepo{},
+		taskStore: taskStore,
+		spawnSubagent: func(_ context.Context, _ string, agentID, _ string, _ ProgressFunc) (string, error) {
+			spawned++
+			switch agentID {
+			case "explorer":
+				return "Relevant findings\n[SCOPE: broad]", nil
+			case "planner":
+				return `{"summary":"Plan ready.","tasks":[{"title":"Task 1","kind":"analysis","notes":"First step. Acceptance criteria: 1. Audit scope is documented. 2. Findings are actionable."}]}`, nil
+			default:
+				t.Fatalf("unexpected agent %q", agentID)
+				return "", nil
+			}
+		},
+		askUser: func(_ context.Context, _ string) func(string, []string, bool, string) (string, error) {
+			return func(_ string, _ []string, _ bool, _ string) (string, error) {
+				return planApprovalProceedOption, nil
+			}
+		},
+	}
+
+	bootstrapped, err := tl.maybeBootstrapWorkflowController()
+	if err != nil {
+		t.Fatalf("maybeBootstrapWorkflowController() error = %v", err)
+	}
+	if !bootstrapped {
+		t.Fatal("bootstrapped = false, want true")
+	}
+	if spawned != 2 {
+		t.Fatalf("spawned = %d, want 2", spawned)
+	}
+}
+
 func TestMaybeBootstrapWorkflowController_UsesUtilityModelForIntentPreflight(t *testing.T) {
 	taskStore := tool.NewTaskStore(nil)
 	primaryProv := &workflowIntentTestProvider{

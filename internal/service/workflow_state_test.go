@@ -8,6 +8,8 @@ import (
 	"github.com/sageil/kodacode/v1/internal/tool"
 )
 
+func strPtr(s string) *string { return &s }
+
 func TestHydrateWorkflowState_FromApprovedHistory(t *testing.T) {
 	msgs := []provider.Message{
 		{
@@ -51,6 +53,80 @@ func TestHydrateWorkflowState_FromApprovedHistory(t *testing.T) {
 	}
 	if ws.Phase != pipeline.WorkflowPhaseApproved {
 		t.Fatalf("Phase = %q, want approved", ws.Phase)
+	}
+}
+
+func TestHydrateWorkflowState_FailedPlannerDoesNotStickPostplanPending(t *testing.T) {
+	msgs := []provider.Message{
+		{
+			Role: "assistant",
+			Parts: []provider.MessagePart{
+				provider.ToolCallPart{ID: "test-1", Name: "test", Arguments: `{"command":"go test ./..."}`},
+			},
+		},
+		{
+			Role: "user",
+			Parts: []provider.MessagePart{
+				provider.ToolResultPart{ToolCallID: "test-1", Output: "PASS", Metadata: map[string]any{"exit_code": 0}},
+			},
+		},
+		{
+			Role: "assistant",
+			Parts: []provider.MessagePart{
+				provider.ToolCallPart{ID: "planner-1", Name: "subagent", Arguments: `{"agent_id":"planner"}`},
+			},
+		},
+		{
+			Role: "user",
+			Parts: []provider.MessagePart{
+				provider.ToolResultPart{ToolCallID: "planner-1", Output: "tool error [subagent]: model failed", Error: strPtr("model failed")},
+			},
+		},
+	}
+
+	ws := hydrateWorkflowState(msgs, 2)
+	if ws.HasCalledPlanner {
+		t.Fatal("HasCalledPlanner = true, want false after failed planner")
+	}
+	if ws.Phase != pipeline.WorkflowPhasePreplan {
+		t.Fatalf("Phase = %q, want preplan", ws.Phase)
+	}
+}
+
+func TestHydrateWorkflowState_PlannerWithoutAdoptedPlanDoesNotStickPostplanPending(t *testing.T) {
+	msgs := []provider.Message{
+		{
+			Role: "assistant",
+			Parts: []provider.MessagePart{
+				provider.ToolCallPart{ID: "test-1", Name: "test", Arguments: `{"command":"go test ./..."}`},
+			},
+		},
+		{
+			Role: "user",
+			Parts: []provider.MessagePart{
+				provider.ToolResultPart{ToolCallID: "test-1", Output: "PASS", Metadata: map[string]any{"exit_code": 0}},
+			},
+		},
+		{
+			Role: "assistant",
+			Parts: []provider.MessagePart{
+				provider.ToolCallPart{ID: "planner-1", Name: "subagent", Arguments: `{"agent_id":"planner"}`},
+			},
+		},
+		{
+			Role: "user",
+			Parts: []provider.MessagePart{
+				provider.ToolResultPart{ToolCallID: "planner-1", Output: "Here is a plan in prose, but no tasks were created."},
+			},
+		},
+	}
+
+	ws := hydrateWorkflowState(msgs, 2)
+	if ws.HasCalledPlanner {
+		t.Fatal("HasCalledPlanner = true, want false when planner output was not adopted")
+	}
+	if ws.Phase != pipeline.WorkflowPhasePreplan {
+		t.Fatalf("Phase = %q, want preplan", ws.Phase)
 	}
 }
 
