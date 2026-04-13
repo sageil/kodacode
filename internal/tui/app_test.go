@@ -411,8 +411,11 @@ func TestHandleSlashCommand_ConnectBlockedWhenTurnsActive(t *testing.T) {
 		_ = cmd()
 	}
 	result := updated
-	if result.errorBanner != providerConnectBusyMessage {
-		t.Fatalf("errorBanner = %q, want %q", result.errorBanner, providerConnectBusyMessage)
+	if result.errorBanner != "" {
+		t.Fatalf("errorBanner = %q, want empty", result.errorBanner)
+	}
+	if result.infoBanner != providerConnectBusyMessage {
+		t.Fatalf("infoBanner = %q, want %q", result.infoBanner, providerConnectBusyMessage)
 	}
 }
 

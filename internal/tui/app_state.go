@@ -101,6 +101,13 @@ func (a App) innerHeight() int { return a.height }
 
 func (a *App) showErrorToast(err string) tea.Cmd {
 	a.errorBanner = err
+	a.infoBanner = ""
+	return nil
+}
+
+func (a *App) showInfoToast(text string) tea.Cmd {
+	a.infoBanner = text
+	a.errorBanner = ""
 	return nil
 }
 
