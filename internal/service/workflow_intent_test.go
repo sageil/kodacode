@@ -1,6 +1,11 @@
 package service
 
-import "testing"
+import (
+	"context"
+	"testing"
+
+	"github.com/sageil/kodacode/v1/internal/provider"
+)
 
 func TestParseWorkflowIntentResult_JSONLikeOutput(t *testing.T) {
 	intent, err := parseWorkflowIntentResult("kind: broad_review_execute\nconfidence: 0.96\nreason: broad review with implementation")
@@ -31,6 +36,36 @@ func TestParseWorkflowIntentResult_BareKindOutput(t *testing.T) {
 	}
 }
 
+func TestParseWorkflowIntentResult_QuotedKindOutput(t *testing.T) {
+	intent, err := parseWorkflowIntentResult(`"plan_only"`)
+	if err != nil {
+		t.Fatalf("parseWorkflowIntentResult() error = %v", err)
+	}
+	if intent.Kind != workflowIntentPlanOnly {
+		t.Fatalf("Kind = %q, want %q", intent.Kind, workflowIntentPlanOnly)
+	}
+}
+
+func TestParseWorkflowIntentResult_EscapedQuotedKindOutput(t *testing.T) {
+	intent, err := parseWorkflowIntentResult(`\"plan_only\"`)
+	if err != nil {
+		t.Fatalf("parseWorkflowIntentResult() error = %v", err)
+	}
+	if intent.Kind != workflowIntentPlanOnly {
+		t.Fatalf("Kind = %q, want %q", intent.Kind, workflowIntentPlanOnly)
+	}
+}
+
+func TestParseWorkflowIntentResult_TruncatedQuotedKindOutput(t *testing.T) {
+	intent, err := parseWorkflowIntentResult(`\"plan`)
+	if err != nil {
+		t.Fatalf("parseWorkflowIntentResult() error = %v", err)
+	}
+	if intent.Kind != workflowIntentPlanOnly {
+		t.Fatalf("Kind = %q, want %q", intent.Kind, workflowIntentPlanOnly)
+	}
+}
+
 func TestParseWorkflowIntentResult_ProseContainingSingleKind(t *testing.T) {
 	intent, err := parseWorkflowIntentResult("The best classification here is plan_only because the user explicitly asked for a plan.")
 	if err != nil {
@@ -38,5 +73,39 @@ func TestParseWorkflowIntentResult_ProseContainingSingleKind(t *testing.T) {
 	}
 	if intent.Kind != workflowIntentPlanOnly {
 		t.Fatalf("Kind = %q, want %q", intent.Kind, workflowIntentPlanOnly)
+	}
+}
+
+func TestClassifyWorkflowIntent_UsesReasoningOutputWhenTextMissing(t *testing.T) {
+	prov := &workflowIntentTestProvider{
+		reasoning: `broad_review_execute`,
+	}
+
+	intent, _, err := classifyWorkflowIntent(context.Background(), prov, "fake-model", "review the full project and suggest improvements")
+	if err != nil {
+		t.Fatalf("classifyWorkflowIntent() error = %v", err)
+	}
+	if intent.Kind != workflowIntentBroadReviewExecute {
+		t.Fatalf("Kind = %q, want %q", intent.Kind, workflowIntentBroadReviewExecute)
+	}
+}
+
+func TestWorkflowIntentTestProvider_StreamsReasoningDelta(t *testing.T) {
+	prov := &workflowIntentTestProvider{
+		reasoning: "plan_only",
+		response:  "",
+	}
+	stream, err := prov.Chat(context.Background(), "fake-model", []provider.Message{{Role: "user", Parts: []provider.MessagePart{provider.TextPart{Text: "make a plan"}}}}, provider.ChatOptions{})
+	if err != nil {
+		t.Fatalf("Chat() error = %v", err)
+	}
+	foundReasoning := false
+	for chunk := range stream {
+		if chunk.ReasoningDelta != "" {
+			foundReasoning = true
+		}
+	}
+	if !foundReasoning {
+		t.Fatal("foundReasoning = false, want true")
 	}
 }

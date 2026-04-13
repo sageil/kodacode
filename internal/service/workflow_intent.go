@@ -24,13 +24,17 @@ const (
 
 const (
 	workflowIntentTimeout   = 12 * time.Second
-	workflowIntentMaxTokens = 96
+	workflowIntentMaxTokens = 64
 )
 
 const workflowIntentClassifierPrompt = `You classify engineer requests for workflow routing.
 
-Return ONLY JSON with this exact schema:
-{"kind":"casual|explain|direct_execute|plan_only|broad_review_execute","confidence":0.0,"reason":"short reason"}
+Return ONLY one exact token on a single line:
+casual
+explain
+direct_execute
+plan_only
+broad_review_execute
 
 Classification rules:
 - casual: greeting, thanks, chit-chat, or no real work request
@@ -39,7 +43,7 @@ Classification rules:
 - plan_only: request for a plan, breakdown, or task list without execution
 - broad_review_execute: review, audit, or improve a subsystem/project and then execute changes
 
-Do not answer the user request. Do not use markdown fences. Do not call tools.`
+Do not answer the user request. Do not add JSON, markdown fences, labels, or explanation. Do not call tools.`
 
 type workflowIntentResult struct {
 	Kind       workflowIntentKind `json:"kind"`
@@ -211,24 +215,35 @@ func classifyWorkflowIntent(ctx context.Context, prov provider.Provider, modelID
 	}
 
 	var (
-		sb    strings.Builder
-		usage *provider.Usage
+		textBuf      strings.Builder
+		reasoningBuf strings.Builder
+		usage        *provider.Usage
 	)
 	for chunk := range stream {
 		if chunk.Err != nil {
 			return workflowIntentResult{}, usage, chunk.Err
 		}
-		sb.WriteString(chunk.Delta)
+		textBuf.WriteString(chunk.Delta)
+		reasoningBuf.WriteString(chunk.ReasoningDelta)
 		if chunk.Usage != nil {
 			usage = chunk.Usage
 		}
 	}
 
-	intent, err := parseWorkflowIntentResult(sb.String())
-	if err != nil {
-		return workflowIntentResult{}, usage, err
+	textPayload := textBuf.String()
+	intent, err := parseWorkflowIntentResult(textPayload)
+	if err == nil {
+		return intent, usage, nil
 	}
-	return intent, usage, nil
+	reasoningPayload := reasoningBuf.String()
+	if strings.TrimSpace(reasoningPayload) != "" && strings.TrimSpace(reasoningPayload) != strings.TrimSpace(textPayload) {
+		fallback, ferr := parseWorkflowIntentResult(reasoningPayload)
+		if ferr == nil {
+			return fallback, usage, nil
+		}
+		err = fmt.Errorf("%v; reasoning fallback: %v", err, ferr)
+	}
+	return workflowIntentResult{}, usage, err
 }
 
 func parseWorkflowIntentResult(raw string) (workflowIntentResult, error) {
@@ -331,7 +346,7 @@ func parseWorkflowIntentText(payload string) (workflowIntentResult, error) {
 }
 
 func cleanWorkflowIntentResult(intent workflowIntentResult) (workflowIntentResult, error) {
-	intent.Kind = workflowIntentKind(strings.TrimSpace(string(intent.Kind)))
+	intent.Kind = normalizeWorkflowIntentKind(string(intent.Kind))
 	intent.Reason = strings.TrimSpace(intent.Reason)
 	if intent.Confidence < 0 {
 		intent.Confidence = 0
@@ -349,7 +364,8 @@ func cleanWorkflowIntentResult(intent workflowIntentResult) (workflowIntentResul
 }
 
 func normalizeWorkflowIntentKind(raw string) workflowIntentKind {
-	switch strings.TrimSpace(strings.ToLower(raw)) {
+	cleaned := normalizeWorkflowIntentKindToken(raw)
+	switch cleaned {
 	case string(workflowIntentCasual):
 		return workflowIntentCasual
 	case string(workflowIntentExplain):
@@ -361,8 +377,43 @@ func normalizeWorkflowIntentKind(raw string) workflowIntentKind {
 	case string(workflowIntentBroadReviewExecute):
 		return workflowIntentBroadReviewExecute
 	default:
+		if strings.ContainsAny(cleaned, " \t\r\n") || cleaned == "" {
+			return ""
+		}
+		return matchWorkflowIntentKindPrefix(cleaned)
+	}
+}
+
+func normalizeWorkflowIntentKindToken(raw string) string {
+	cleaned := strings.TrimSpace(strings.ToLower(raw))
+	cleaned = strings.ReplaceAll(cleaned, `\"`, `"`)
+	cleaned = strings.ReplaceAll(cleaned, `\'`, `'`)
+	cleaned = strings.Trim(cleaned, " \t\r\n`\"'\\[](){}<>.,;:!?")
+	cleaned = strings.ReplaceAll(cleaned, "-", "_")
+	return cleaned
+}
+
+func matchWorkflowIntentKindPrefix(token string) workflowIntentKind {
+	if len(token) < 4 {
 		return ""
 	}
+	var matched workflowIntentKind
+	for _, kind := range []workflowIntentKind{
+		workflowIntentCasual,
+		workflowIntentExplain,
+		workflowIntentDirectExecute,
+		workflowIntentPlanOnly,
+		workflowIntentBroadReviewExecute,
+	} {
+		if !strings.HasPrefix(string(kind), token) {
+			continue
+		}
+		if matched != "" {
+			return ""
+		}
+		matched = kind
+	}
+	return matched
 }
 
 func normalizeWorkflowIntentTextToken(raw string) string {
