@@ -76,7 +76,7 @@ permission:
 
 ## Permission Merging
 
-Permissions are merged across layers: **defaults → global config → project config → agent**. Rules for the same tool are combined at the pattern level — patterns from each layer are appended in order, and the last matching pattern wins.
+Permissions are merged across layers: **defaults → global config → project config → agent**. Rules for the same tool are combined at the pattern level. Patterns from each layer are appended in order, and the last matching pattern wins.
 
 This means project or agent configs can override specific globs without losing patterns from earlier layers. For example, if defaults define `read: { "*": allow, "*.env": ask, "*.env.example": allow }` and a project config adds `read: { "*.env": deny }`, the merged result preserves the default catch-all and `.env.example` exception while the project's `*.env → deny` overrides the default `*.env → ask`.
 

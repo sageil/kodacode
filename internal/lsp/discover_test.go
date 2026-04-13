@@ -21,7 +21,7 @@ func TestDiscoverServers_BiomeProject(t *testing.T) {
 			}
 		}
 	}
-	// biome binary might not be installed in CI — just check detection logic.
+	// The biome binary might not be installed in CI, so just check the detection logic.
 	if !found {
 		t.Log("biome detected in project but binary not found (expected in CI)")
 	}

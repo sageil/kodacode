@@ -282,7 +282,7 @@ func (c *Client) handleNotification(method string, params json.RawMessage) {
 				c.onDiagnostics(p)
 			}
 		}
-	// window/logMessage, window/showMessage, etc. — ignored.
+	// Ignore window/logMessage, window/showMessage, and similar notifications.
 	}
 }
 

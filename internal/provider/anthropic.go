@@ -58,7 +58,7 @@ func (p *AnthropicProvider) StaticModels() []Model {
 }
 
 // Models implements provider.Provider by querying the Anthropic Models API.
-// Context sizes are not returned by the API — they are enriched downstream
+// Context sizes are not returned by the API. They are enriched downstream
 // by the model cache (models.dev).
 func (p *AnthropicProvider) Models(ctx context.Context) ([]Model, error) {
 	page, err := p.client.Models.List(ctx, anthropicsdk.ModelListParams{

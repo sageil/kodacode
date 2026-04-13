@@ -76,7 +76,7 @@ func TestErrorHandler_AlreadyCommitted(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
 
-	// Mark response as already committed — handler must be a no-op.
+	// Mark the response as already committed. The handler must be a no-op.
 	c.Response().Committed = true
 
 	middleware.ErrorHandler(errors.New("some error"), c)

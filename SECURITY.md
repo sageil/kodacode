@@ -21,11 +21,11 @@ You should receive an acknowledgment within 48 hours. We will work with you to u
 
 Security issues in the following areas are in scope:
 
-- **Sandbox escapes** — any way to read, write, or execute outside the project directory without explicit permission
-- **Permission bypasses** — circumventing allow/ask/deny rules
-- **Injection** — command injection via tool arguments, path traversal, or config parsing
-- **Credential exposure** — API keys or tokens leaked in logs, error messages, or session data
-- **Denial of service** — inputs that crash or hang KodaCode
+- **Sandbox escapes** any way to read, write, or execute outside the project directory without explicit permission
+- **Permission bypasses** circumventing allow/ask/deny rules
+- **Injection** command injection via tool arguments, path traversal, or config parsing
+- **Credential exposure** API keys or tokens leaked in logs, error messages, or session data
+- **Denial of service** inputs that crash or hang KodaCode
 
 ## Out of Scope
 

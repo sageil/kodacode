@@ -33,9 +33,9 @@ type SystemPromptBuilderConfig struct {
 }
 
 // SystemPromptBuilder assembles the three-part system prompt used by every turn.
-// Part 0 (stable):      agent-specific instructions — changes only when agent changes (~100% cache hit).
-// Part 1 (semi-stable): environment, agents, skills, instructions, ignore patterns — changes rarely (~95% cache hit).
-// Part 2 (volatile):    compaction summary — changes only on compaction events.
+// Part 0 (stable): agent-specific instructions. Changes only when the agent changes (~100% cache hit).
+// Part 1 (semi-stable): environment, agents, skills, instructions, and ignore patterns. Changes rarely (~95% cache hit).
+// Part 2 (volatile): compaction summary. Changes only on compaction events.
 type SystemPromptBuilder struct {
 	cfg   SystemPromptBuilderConfig
 	mu    sync.RWMutex
@@ -264,7 +264,7 @@ func (b *SystemPromptBuilder) checkSemiStableCache(key semiStableCacheKey) strin
 }
 
 // buildAgentsBlock returns a prompt section listing available subagents for the
-// subagent tool. Only agents with mode "subagent" are listed — primary agents
+// subagent tool. Only agents with mode "subagent" are listed because primary agents
 // are for direct user interaction, not delegation.
 // Returns "" if no agent lister is configured or no subagents exist.
 func (b *SystemPromptBuilder) buildAgentsBlock() string {

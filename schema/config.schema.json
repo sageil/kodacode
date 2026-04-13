@@ -27,7 +27,7 @@
           },
           "models": {
             "type": "array",
-            "description": "Static model definitions. Usually not needed — models are discovered automatically from the registry.",
+            "description": "Static model definitions. Usually not needed because models are discovered automatically from the registry.",
             "items": {
               "type": "object",
               "required": ["id"],
@@ -47,7 +47,7 @@
                 },
                 "thinking_budget": {
                   "type": ["integer", "null"],
-                  "description": "Per-model reasoning token budget. Set to enable thinking/reasoning for this model. null (default) means no thinking support — reasoning_effort will not be sent to the provider.",
+                  "description": "Per-model reasoning token budget. Set this to enable thinking or reasoning for the model. null (default) means the model does not support thinking, so reasoning_effort will not be sent to the provider.",
                   "minimum": -1
                 }
               },

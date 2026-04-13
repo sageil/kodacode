@@ -29,7 +29,7 @@ func (c *Client) Embed(ctx context.Context, model string, texts []string) ([][]f
 		return nil, fmt.Errorf("openai embed: %w", err)
 	}
 
-	// Sort by Index — the API does not guarantee response ordering,
+	// Sort by Index. The API does not guarantee response ordering,
 	// and compatible servers (Ollama, vLLM) may return out of order.
 	sort.Slice(resp.Data, func(i, j int) bool {
 		return resp.Data[i].Index < resp.Data[j].Index

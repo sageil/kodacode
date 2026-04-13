@@ -61,7 +61,7 @@ func NewSystemPromptMiddleware(builder *SystemPromptBuilder, taskStore *tool.Tas
 		}
 		// Inject active tasks into Part 2 (volatile) so the model sees them
 		// on every turn WITHOUT invalidating the Part 1 cache.
-		// Skip for ephemeral sessions — subagents don't use the parent's tasks.
+		// Skip ephemeral sessions because subagents do not use the parent's tasks.
 		if tasks := taskStore.GetTasks(req.SessionID); !req.Ephemeral && len(tasks) > 0 {
 			const maxTasks = 30
 			if len(tasks) > maxTasks {
@@ -90,7 +90,7 @@ func NewSystemPromptMiddleware(builder *SystemPromptBuilder, taskStore *tool.Tas
 				fmt.Fprintf(&sb, "Completed: %d/%d\n", len(completed), len(tasks))
 			}
 
-			// Show in-progress task — this is what the model should work on NOW.
+			// Show the in-progress task. This is what the model should work on now.
 			if len(inProgress) > 0 {
 				t := inProgress[0]
 				fmt.Fprintf(&sb, "\nCurrent task → %s: %s\n", t.ID, t.Title)
@@ -103,7 +103,7 @@ func NewSystemPromptMiddleware(builder *SystemPromptBuilder, taskStore *tool.Tas
 				fmt.Fprintf(&sb, "Use task id `%s` (or `%s`) when updating status.\n", t.ID, strings.TrimPrefix(t.ID, "task "))
 				sb.WriteString("Set to `completed` when done, then immediately set the next pending task to `in_progress` and continue unless blocked.\n")
 			} else if len(pending) > 0 {
-				// No task in progress — show the NEXT one to start.
+				// If no task is in progress, show the next one to start.
 				t := pending[0]
 				fmt.Fprintf(&sb, "\nNext task → %s: %s\n", t.ID, t.Title)
 				if t.Notes != "" {

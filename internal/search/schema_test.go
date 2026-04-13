@@ -39,7 +39,7 @@ func TestEmbeddingsTableCascadeDelete(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Delete the symbol — embedding should cascade.
+	// Delete the symbol. The embedding should cascade.
 	if _, err := db.Exec("DELETE FROM symbols WHERE id = ?", symID); err != nil {
 		t.Fatal(err)
 	}

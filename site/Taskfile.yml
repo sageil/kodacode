@@ -31,4 +31,4 @@ tasks:
     desc: Push to main to trigger GitHub Actions deploy
     cmds:
       - git push origin main
-      - echo "Pushed — GitHub Actions will build and deploy to Pages"
+      - echo "Pushed. GitHub Actions will build and deploy to Pages"

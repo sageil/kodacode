@@ -479,9 +479,7 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	shutdownCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
-	// shutdown request — server should respond.
 	_ = s.client.Call(shutdownCtx, "shutdown", nil, nil)
-	// exit notification — server should terminate.
 	_ = s.client.Notify("exit", nil)
 
 	return s.client.Close()

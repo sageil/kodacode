@@ -38,7 +38,7 @@ type pendingUserQuestion struct {
 
 // AskPermission returns an AskPermissionFunc that wires tool permission requests
 // through the SSE question/answer flow. Used by chain construction.
-// Denials are recorded by path — subsequent tool calls to the same path (or
+// Denials are recorded by path. Subsequent tool calls to the same path (or
 // children) are auto-denied without prompting.
 func (s *SessionService) AskPermission() AskPermissionFunc {
 	return func(ctx context.Context, sessionID, toolName, input string) func(string, string) error {

@@ -2,4 +2,4 @@ blank_issues_enabled: true
 contact_links:
   - name: Documentation
     url: https://kodacode.dev
-    about: Check the docs before opening an issue — your question may already be answered.
+    about: Check the docs before opening an issue. Your question may already be answered.

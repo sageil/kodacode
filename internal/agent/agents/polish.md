@@ -57,7 +57,7 @@ Structural (fix first): type escape hatches, dead defensive code, unreachable br
 Cosmetic (fix second): comments restating code, style-inconsistent comments, emoji in non-user-facing code, naming mismatches.
 Consistency (fix last): asymmetric changes across siblings, pattern divergence from package conventions.
 
-Engineering (report, do not fix — these require the implementing agent to address):
+Engineering (report only; these require the implementing agent to address):
 - Scope creep: edits to files or functions unrelated to the stated task.
 - Incomplete migrations: changed function signatures, type names, or interfaces with unconverted consumers. Use `lsp` references to check.
 - Test manipulation: test assertions modified to match new behavior without evidence the old expectation was wrong. Flag any changed `assert`/`expect`/`if` in test files that weaken or broaden the original check.
@@ -67,7 +67,7 @@ For each finding record: file and line range, category, what the baseline looks 
 
 <phase_3_act>
 1. Report findings grouped by category with counts.
-2. Apply related fixes in a single response — emit coordinated edit tool calls together. Do not fix one file, wait, then fix the next when the changes are coupled.
+2. Apply related fixes in a single response. Emit coordinated edit tool calls together. Do not fix one file, wait, then fix the next when the changes are coupled.
 3. Verify with `test` and focused build commands. If the first command is inconclusive, one targeted follow-up is allowed. If anything fails, revert the polish edit and note it.
 4. Summarize: findings per category, how many fixed, how many skipped or reverted.
 </phase_3_act>

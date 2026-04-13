@@ -22,9 +22,9 @@ Old tool outputs (bash results, file contents, search results) are replaced with
 
 Before compaction runs, KodaCode cleans the message history to ensure it's valid for all providers:
 
-- **Orphaned tool calls** — if a tool call has no matching result (e.g. from a cancelled stream or crash recovery), the call is stripped. This prevents providers that require strict tool_call/tool_result pairing (Anthropic, OpenAI) from rejecting the request.
-- **File attachments** — images and PDFs are replaced with `[file attachment omitted]` before being sent to the utility model for summarization, since they inflate token counts and the summary model doesn't need them.
-- **Turn boundary alignment** — truncation always cuts at user-message boundaries, keeping tool_call/tool_result pairs together. No broken pairs leak through.
+- **Orphaned tool calls**: if a tool call has no matching result (for example after a cancelled stream or crash recovery), the call is stripped. This prevents providers that require strict `tool_call` / `tool_result` pairing, such as Anthropic and OpenAI, from rejecting the request.
+- **File attachments**: images and PDFs are replaced with `[file attachment omitted]` before they are sent to the utility model for summarization, because they inflate token counts and the summary model does not need them.
+- **Turn boundary alignment**: truncation always cuts at user-message boundaries, keeping `tool_call` / `tool_result` pairs together.
 
 This happens automatically and invisibly. It's relevant when you resume sessions after crashes or when switching between providers that have different message format requirements.
 
@@ -33,11 +33,11 @@ This happens automatically and invisibly. It's relevant when you resume sessions
 When context usage exceeds the threshold (default 80%), KodaCode generates a structured summary using the utility model:
 
 The summary follows a strict format:
-- **Goal** — what the user is trying to accomplish
-- **Key instructions** — constraints and preferences
-- **Discoveries** — what was learned during the session
-- **Accomplished** — what has been done
-- **Relevant files** — files that matter for the current task
+- **Goal**: what the user is trying to accomplish
+- **Key instructions**: constraints and preferences
+- **Discoveries**: what was learned during the session
+- **Accomplished**: what has been done
+- **Relevant files**: files that matter for the current task
 
 The most recent turns (default 10) are preserved verbatim. Everything older is replaced by the summary.
 
@@ -107,16 +107,16 @@ These instructions persist through compaction, so even if the model's conversati
 ### Monitoring Context Usage
 Use `/cost` to see current token usage. Watch for:
 - **60%**: Tool parameter descriptions are stripped to save space
-- **80%**: Compaction triggers — older turns are summarized
+- **80%**: compaction triggers, and older turns are summarized
 - **90%**: Tool loop stops, model forced to respond with available information
 
 ### Tuning for Your Workflow
 - **Long refactoring sessions**: Lower `compaction_threshold` (0.7) and increase `compaction_keep_turns` (15) to preserve more recent context
-- **Quick Q&A sessions**: Defaults work well — compaction rarely triggers
+- **Quick Q&A sessions**: the defaults usually work well because compaction rarely triggers
 - **Large codebases**: Increase `prune_protect_tokens` (60000+) to keep more tool output visible
 
 ### When Context Gets Lost
 If the model forgets something important after compaction:
 - Use `/pin` to make critical instructions survive compaction
 - Use `KODACODE.md` for project conventions that should always be present
-- Re-state key context in your next message — the model will pick it up
+- Re-state key context in your next message. The model will pick it up.

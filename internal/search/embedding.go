@@ -285,7 +285,7 @@ func (ei *EmbeddingIndexer) VectorSearch(ctx context.Context, query string, limi
 	}
 	top := make([]scored, 0, limit)
 
-	// Reusable buffer for decoding vectors — avoids allocating a new
+	// Reusable buffer for decoding vectors. This avoids allocating a new
 	// []float32 per row (9K+ rows × 6KB each = 54 MB of GC pressure).
 	var vecBuf []float32
 

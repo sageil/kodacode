@@ -3,7 +3,7 @@ title: Multi-Provider AI
 description: Connect to OpenAI, Anthropic, Google, and more
 ---
 
-import { Aside } from '@astrojs/starlight/components';
+import { Aside } from "@astrojs/starlight/components";
 
 KodaCode supports multiple AI providers simultaneously. Switch models mid-session, configure fallback chains, and route cheap tasks to utility models.
 
@@ -11,41 +11,41 @@ KodaCode supports multiple AI providers simultaneously. Switch models mid-sessio
 
 ### Native Providers
 
-| Provider | Auth Methods | Notable Models |
-|----------|-------------|----------------|
-| **Anthropic** | API key, OAuth | Claude Opus 4.6, Sonnet 4.6, Haiku 4.5 |
-| **OpenAI** | API key, OAuth | GPT-4o, GPT-4.1, o1 |
-| **Google Gemini** | API key, OAuth | Gemini 2.5 Flash, Gemini 2.5 Pro |
-| **GitHub Copilot** | Token import | GPT-4.1, Claude via Copilot |
+| Provider           | Auth Methods   | Notable Models                         |
+| ------------------ | -------------- | -------------------------------------- |
+| **Anthropic**      | API key        | Claude Opus 4.6, Sonnet 4.6, Haiku 4.5 |
+| **OpenAI**         | API key, OAuth | GPT-4o, GPT-4.1, o1                    |
+| **Google Gemini**  | API key        | Gemini 2.5 Flash, Gemini 2.5 Pro       |
+| **GitHub Copilot** | Token import   | GPT-4.1, Claude via Copilot            |
 
 ### OpenAI-Compatible
 
-These providers are available as predefined entries in the `/connect` dialog — select one and enter your API key.
+These providers are available as predefined entries in the `/connect` dialog. Select one and enter your API key.
 
-| Provider | ID | Base URL |
-|----------|----|----------|
-| **OpenRouter** | `openrouter` | `https://openrouter.ai/api/v1` |
-| **Together AI** | `togetherai` | `https://api.together.xyz/v1` |
-| **Groq** | `groq` | `https://api.groq.com/openai/v1` |
-| **Fireworks AI** | `fireworks-ai` | `https://api.fireworks.ai/inference/v1` |
-| **Mistral** | `mistral` | `https://api.mistral.ai/v1` |
-| **DeepSeek** | `deepseek` | `https://api.deepseek.com` |
-| **Deep Infra** | `deepinfra` | `https://api.deepinfra.com/v1/openai` |
-| **Cerebras** | `cerebras` | `https://api.cerebras.ai/v1` |
-| **Venice AI** | `venice` | `https://api.venice.ai/api/v1` |
-| **Moonshot AI (Kimi)** | `moonshotai` | `https://api.moonshot.ai/v1` |
-| **Z.AI** | `zai-coding-plan` | `https://api.z.ai/api/coding/paas/v4` |
-| **Ollama Cloud** | `ollama-cloud` | `https://ollama.com/v1` |
+| Provider               | ID                | Base URL                                |
+| ---------------------- | ----------------- | --------------------------------------- |
+| **OpenRouter**         | `openrouter`      | `https://openrouter.ai/api/v1`          |
+| **Together AI**        | `togetherai`      | `https://api.together.xyz/v1`           |
+| **Groq**               | `groq`            | `https://api.groq.com/openai/v1`        |
+| **Fireworks AI**       | `fireworks-ai`    | `https://api.fireworks.ai/inference/v1` |
+| **Mistral**            | `mistral`         | `https://api.mistral.ai/v1`             |
+| **DeepSeek**           | `deepseek`        | `https://api.deepseek.com`              |
+| **Deep Infra**         | `deepinfra`       | `https://api.deepinfra.com/v1/openai`   |
+| **Cerebras**           | `cerebras`        | `https://api.cerebras.ai/v1`            |
+| **Venice AI**          | `venice`          | `https://api.venice.ai/api/v1`          |
+| **Moonshot AI (Kimi)** | `moonshotai`      | `https://api.moonshot.ai/v1`            |
+| **Z.AI**               | `zai-coding-plan` | `https://api.z.ai/api/coding/paas/v4`   |
+| **Ollama Cloud**       | `ollama-cloud`    | `https://ollama.com/v1`                 |
 
 ### Local Providers
 
 Local providers don't require an API key. The base URL defaults to the standard local address but can be changed during setup.
 
-| Provider | ID | Default Base URL |
-|----------|----|-----------------|
-| **Ollama** | `ollama` | `http://localhost:11434/v1` |
-| **LM Studio** | `lmstudio` | `http://localhost:1234/v1` |
-| **llama.cpp** | `llamacpp` | `http://localhost:8080/v1` |
+| Provider      | ID         | Default Base URL            |
+| ------------- | ---------- | --------------------------- |
+| **Ollama**    | `ollama`   | `http://localhost:11434/v1` |
+| **LM Studio** | `lmstudio` | `http://localhost:1234/v1`  |
+| **llama.cpp** | `llamacpp` | `http://localhost:8080/v1`  |
 
 Any other OpenAI-compatible endpoint can be added via the **Custom** option in `/connect`.
 
@@ -72,7 +72,7 @@ providers:
     base_url: http://localhost:11434/v1
 ```
 
-Predefined providers (like Groq, DeepSeek, etc.) don't need a `base_url` in config — it's filled automatically. You only need `base_url` if overriding the default.
+Predefined providers such as Groq and DeepSeek do not need a `base_url` in config because it is filled in automatically. You only need `base_url` if you want to override the default.
 
 Select your model via the `/models` command or the home screen model picker.
 
@@ -85,9 +85,9 @@ providers:
   - id: ollama
     base_url: http://localhost:11434/v1
 
-utility_model: ollama/llama3               # use local model for background tasks
+utility_model: ollama/llama3 # use local model for background tasks
 fallback_models:
-  - ollama/llama3                           # fall back to local if cloud fails
+  - ollama/llama3 # fall back to local if cloud fails
 ```
 
 ## OAuth Authentication
@@ -112,15 +112,15 @@ KodaCode can use your existing GitHub Copilot subscription to access models like
 
 Use `/connect` and select **GitHub Copilot**. You'll be prompted to import your token from one of these sources:
 
-- **Neovim/Vim** — reads from `~/.config/github-copilot/hosts.json`
-- **opencode** — reads from `~/.local/share/opencode/auth.json`
-- **Manual** — paste a `gho_` token directly
+- **Neovim/Vim**: reads from `~/.config/github-copilot/hosts.json`
+- **opencode**: reads from `~/.local/share/opencode/auth.json`
+- **Manual**: paste a `gho_` token directly
 
 KodaCode stores the token in its auth store and automatically exchanges it for short-lived Copilot session tokens (~30 min), refreshing as needed. No manual token rotation required.
 
 ### Limitations
 
-KodaCode cannot perform its own GitHub OAuth device code flow for Copilot. GitHub's Copilot API requires a registered OAuth App `client_id` that determines which models the user can access. The `client_id` is obtained through GitHub's Copilot partner program, which is designed for enterprise and business integrations — KodaCode is not enrolled in this program.
+KodaCode cannot perform its own GitHub OAuth device code flow for Copilot. GitHub's Copilot API requires a registered OAuth App `client_id` that determines which models the user can access. That `client_id` is obtained through GitHub's Copilot partner program, which is designed for enterprise and business integrations. KodaCode is not enrolled in that program.
 
 Without a partner-enrolled `client_id`, a custom OAuth flow would only provide access to basic models, not the full catalog available to Copilot subscribers.
 
@@ -128,7 +128,7 @@ This is why KodaCode imports tokens from tools that have already completed the C
 
 ### Getting a token
 
-If you don't have any of the supported tools installed, the easiest path is to install the Neovim Copilot plugin — it stores its token as a plain JSON file that kodacode can import directly.
+If you do not have any of the supported tools installed, the simplest option is to install the Neovim Copilot plugin. It stores its token as a plain JSON file that kodacode can import directly.
 
 If you already have the Copilot CLI authenticated, the token is in your system keychain. You can extract it for manual paste:
 
@@ -167,8 +167,8 @@ fallback_models:
 
 Fallbacks only trigger after the primary model has **fully exhausted its retry budget**. The retry sequence for each model is:
 
-1. **Silent retries** — up to 10 attempts with exponential backoff (2s, 4s, 8s... capped at 30s). These are invisible to the user.
-2. **Visible retries** — up to `max_retries` (default 5) additional attempts. The TUI shows a notification with the error and countdown.
+1. **Silent retries**: up to 10 attempts with exponential backoff (2s, 4s, 8s... capped at 30s). These are invisible to the user.
+2. **Visible retries**: up to `max_retries` (default 5) additional attempts. The TUI shows a notification with the error and countdown.
 3. **Non-retryable errors** (401 auth, context overflow) skip retries entirely and fail immediately.
 
 Only after all retries are exhausted does KodaCode move to the next fallback model. Each fallback gets its own full retry budget. The first fallback that succeeds takes over and the response flows normally. If all fallbacks also fail, the original error is returned.
@@ -184,16 +184,16 @@ providers:
   - id: google
     models:
       - id: gemini-3-pro-preview
-        thinking_budget: 10000   # only this model gets thinking
+        thinking_budget: 10000 # only this model gets thinking
 ```
 
 KodaCode then adjusts the budget dynamically across a tool loop:
 
-1. **Per-model config** — sets the base budget for models that support reasoning
-2. **Agent frontmatter** `reasoning_budget` — overrides the per-model config
-3. **Variant (user-set ceiling)** — `/variant` cycles through `low` (3K), `high` (10K), and `max` (32K) thinking tokens
-4. **Auto-reduce on tool turns** — After the initial response, the budget drops to 3K since the model is just routing tool results
-5. **Context-aware scaling** — Above 70% context usage, the budget scales down to prevent output token exhaustion
+1. **Per-model config**: sets the base budget for models that support reasoning
+2. **Agent frontmatter** `reasoning_budget`: overrides the per-model config
+3. **Variant (user-set ceiling)**: `/variant` cycles through `low` (3K), `high` (10K), and `max` (32K) thinking tokens
+4. **Auto-reduce on tool turns**: after the initial response, the budget drops to 3K because the model is only routing tool results
+5. **Context-aware scaling**: above 70% context usage, the budget scales down to prevent output token exhaustion
 
 Models without `thinking_budget` in their config do not use extended thinking, even if the model supports it. This prevents unnecessary latency and cost.
 
@@ -203,11 +203,11 @@ Models without `thinking_budget` in their config do not use extended thinking, e
 providers:
   - id: anthropic
     api_key: ${ANTHROPIC_API_KEY}
-    thinking_type: adaptive          # "adaptive" (default) or "enabled"
-    thinking_budget: 10000           # used when thinking_type is "enabled"
+    thinking_type: adaptive # "adaptive" (default) or "enabled"
+    thinking_budget: 10000 # used when thinking_type is "enabled"
     models:
       - id: claude-opus-4-6
-        thinking_budget: 32000       # more thinking for Opus (when enabled)
+        thinking_budget: 32000 # more thinking for Opus (when enabled)
 
   - id: google
     api_key: ${GOOGLE_API_KEY}
@@ -217,8 +217,9 @@ providers:
 ```
 
 **Anthropic OAuth thinking types:**
-- **`adaptive`** (default) — the model decides how much to think based on query complexity. Simple questions get minimal thinking; complex tasks get deep reasoning. More token-efficient and less likely to hit subscription rate limits.
-- **`enabled`** — reserves a fixed token budget for thinking on every request. Uses the `thinking_budget` value (defaults to 10,000). Predictable but consumes more tokens.
+
+- **`adaptive`** (default): the model decides how much to think based on query complexity. Simple questions get minimal thinking, while complex tasks get deeper reasoning. This is usually more token-efficient and less likely to hit subscription rate limits.
+- **`enabled`**: reserves a fixed token budget for thinking on every request. It uses the `thinking_budget` value (defaults to 10,000). This is predictable, but it consumes more tokens.
 
 Then in a session, use `/variant` to cycle thinking effort:
 
@@ -229,6 +230,7 @@ Then in a session, use `/variant` to cycle thinking effort:
 ## Model Discovery
 
 Models are discovered automatically:
+
 - **Cloud providers**: metadata fetched from models.dev and provider APIs
 - **Local providers** (Ollama, LM Studio, llama.cpp): discovered via their `/v1/models` endpoint
 
@@ -240,24 +242,29 @@ Use `/models` in the TUI to browse and switch models mid-session.
 - **Cloud model metadata** (from models.dev) is cached locally and refreshed based on `model_refresh_interval` (default: 7 days). Set `model_refresh_interval: 0` to force a refresh on every startup.
 
 <Aside type="tip">
-Model metadata (context sizes, capabilities, pricing) is cached locally and refreshed every 7 days. Force a refresh with `model_refresh_interval: 0` in config.
+  Model metadata (context sizes, capabilities, pricing) is cached locally and
+  refreshed every 7 days. Force a refresh with `model_refresh_interval: 0` in
+  config.
 </Aside>
 
 ## Best Practices
 
 ### Model Selection
+
 - Use a capable model (Claude Sonnet/Opus, GPT-4o) for complex coding tasks
 - Set a fast, cheap model as `utility_model` for titles, summaries, and compaction
 - Configure `fallback_models` as a safety net for provider outages
 
 ### Local Models
+
 - Ollama, LM Studio, and llama.cpp models are auto-discovered from their `/v1/models` endpoint
-- Set `context_size` in config for local models — the default may not match the actual model capacity
+- Set `context_size` in config for local models. The default may not match the model's actual capacity.
 - If a slow local model takes a long time to finish emitting tool-call JSON, raise `session.tool_call_argument_timeout` or set a per-model override
-- Local model title generation can be slow — kodacode retries up to 3 times with a 30s timeout
+- Local model title generation can be slow. Kodacode retries up to 3 times with a 30-second timeout.
 
 ### Cost Optimization
-- The utility model handles titles, compaction, and summaries — use a cheap model here
+
+- The utility model handles titles, compaction, and summaries, so this is a good place to use a cheaper model.
 - Use `/cost` to monitor spending during a session
 - Set `budget` and `budget_warn` to prevent runaway costs
 - Subagent agents like `explorer` and `insight` use the utility model by default

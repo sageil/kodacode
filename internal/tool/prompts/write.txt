@@ -1,6 +1,6 @@
 Creates a new file or completely rewrites an existing file.
 
-IMPORTANT: This tool sends the ENTIRE file content in one call. For modifying existing files, use the edit or patch tool instead — they only send the changed lines, which is dramatically faster and cheaper.
+IMPORTANT: This tool sends the ENTIRE file content in one call. For modifying existing files, use the edit or patch tool instead. They only send the changed lines, which is dramatically faster and cheaper.
 
 When to use write:
 - Creating a new file that doesn't exist yet

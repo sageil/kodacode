@@ -5,7 +5,7 @@ Usage:
 - By default, this tool returns up to 2000 lines from the start of the file.
 - When you already know which part of the file you need, only read that part. This is important for larger files. Use offset and limit to read specific ranges.
 - The offset parameter is the line number to start from (1-indexed).
-- The limit parameter controls how many lines to read. Choose a limit appropriate to the task — don't read 2000 lines when you only need to see a function or a section.
+- The limit parameter controls how many lines to read. Choose a limit appropriate to the task. Do not read 2000 lines when you only need to see a function or a section.
 - To read later sections, call this tool again with a larger offset.
 - Use the grep tool to find specific content in large files or files with long lines.
 - If you are unsure of the correct file path, use the glob tool to look up filenames by glob pattern.

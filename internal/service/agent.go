@@ -23,7 +23,7 @@ import (
 type AgentService struct {
 	// globalDir is ~/.config/kodacode/agents/
 	globalDir string
-	// projectDir is <projectRoot>/.kodacode/agents/ — the directory where
+	// projectDir is <projectRoot>/.kodacode/agents/, the directory where
 	// user-defined agents are written. May be empty when no project root is set.
 	projectDir string
 

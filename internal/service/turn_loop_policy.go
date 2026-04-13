@@ -670,7 +670,7 @@ const (
 
 // extractReviewerFindings extracts FAIL/CONCERN lines from reviewer output.
 // Uses case-insensitive Contains (not HasPrefix) because different models
-// format output differently — bullets, brackets, markdown bold, emoji, etc.
+// format output differently using bullets, brackets, markdown bold, emoji, etc.
 // Skips the "Overall:" summary line to avoid duplication.
 func extractReviewerFindings(output string) string {
 	var findings []string

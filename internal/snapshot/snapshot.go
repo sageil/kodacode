@@ -194,7 +194,7 @@ func (s *Service) Restore(sessionID string, turnIndex int) error {
 		return fmt.Errorf("snapshot for turn %d not found", turnIndex)
 	}
 
-	// Safety snapshot before restoring — fail closed if it can't be created.
+	// Safety snapshot before restoring fail closed if it can't be created.
 	if err := s.Create(sessionID, -1, "pre-restore safety snapshot"); err != nil {
 		return fmt.Errorf("safety snapshot failed (refusing to restore): %w", err)
 	}
@@ -206,7 +206,7 @@ func (s *Service) Restore(sessionID string, turnIndex int) error {
 
 	// Step 2: Remove tracked files that exist now but didn't exist in the
 	// snapshot. This prevents a hybrid state where newer files survive the
-	// restore. Only tracked files are removed — untracked files (build
+	// restore. Only tracked files are removed untracked files (build
 	// artifacts, .env, etc.) are left alone.
 	snapshotFiles, err := s.gitOutput("ls-tree", "-r", "--name-only", target.CommitHash)
 	if err != nil {
@@ -252,7 +252,7 @@ func (s *Service) Restore(sessionID string, turnIndex int) error {
 // Cleanup deletes the shadow branch for a session.
 func (s *Service) Cleanup(sessionID string) error {
 	branch := s.branchName(sessionID)
-	// Ignore error — branch may not exist.
+	// Ignore the error. The branch may not exist.
 	_ = s.git("branch", "-D", branch)
 	log.Printf("snapshot: cleaned up branch %s", branch)
 	return nil

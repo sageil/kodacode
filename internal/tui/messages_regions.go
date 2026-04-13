@@ -33,14 +33,14 @@ func (m *Messages) handleMouseClick(msg tea.MouseClickMsg) bool {
 	m.userScrolled = true
 	m.autoScroll = false
 
-	// Match clicks against existing regions — these correspond to what the
+	// Match clicks against existing regions. These correspond to what the
 	// user actually sees on screen. Do NOT re-render first: a pending render
 	// would shift content positions, making regions disagree with the display.
 	contentLine := msg.Y - m.screenY + m.vp.YOffset()
 	logging.Debugf("click: Y=%d screenY=%d YOffset=%d → contentLine=%d (regions=%d hunks=%d msgs=%d)",
 		msg.Y, m.screenY, m.vp.YOffset(), contentLine, len(m.toolRegions), len(m.hunkRegions), len(m.messages))
 
-	// 1. Tool header clicks (first line of each tool region) — always toggle
+	// 1. Tool header clicks (the first line of each tool region) always toggle
 	//    collapse, regardless of hunks or other overlapping regions.
 	for _, tr := range m.toolRegions {
 		if contentLine == tr.startLine {
@@ -102,7 +102,7 @@ func (m *Messages) handleMouseClick(msg tea.MouseClickMsg) bool {
 		}
 	}
 
-	// 5. Click anywhere else inside a tool body — toggle collapse.
+	// 5. Click anywhere else inside a tool body to toggle collapse.
 	for _, tr := range m.toolRegions {
 		if contentLine > tr.startLine && contentLine < tr.endLine {
 			mi := tr.msgIndex
@@ -115,7 +115,7 @@ func (m *Messages) handleMouseClick(msg tea.MouseClickMsg) bool {
 		}
 	}
 
-	// 6. Click anywhere inside a reasoning block — toggle collapse.
+	// 6. Click anywhere inside a reasoning block to toggle collapse.
 	for _, mr := range m.msgRegions {
 		if contentLine > mr.startLine && contentLine < mr.endLine {
 			mm := &m.messages[mr.msgIndex]

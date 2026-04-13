@@ -29,11 +29,11 @@ type toolExecution struct {
 //
 // Concurrency safety notes (Go memory model):
 //   - dedupMap and callDedup are populated in the sequential loop (lines below)
-//     BEFORE any goroutines are launched — goroutines only read these maps.
+//     BEFORE any goroutines are launched. Goroutines only read these maps.
 //   - Writes to entry.output and entry.errStr happen before close(entry.done).
 //     Per Go's memory model, close(ch) happens-before a receive on ch returns,
 //     so readers after <-entry.done see the final values.
-//   - Each goroutine writes to a unique executions[idx] index — no races.
+//   - Each goroutine writes to a unique executions[idx] entry, so there are no races.
 func (tl *turnLoop) dispatchToolCalls(calls []provider.ToolCall) []toolExecution {
 	toolCtx := tl.ctx
 	if tl.req.Usage != nil {
@@ -249,9 +249,6 @@ func (tl *turnLoop) dispatchToolCalls(calls []provider.ToolCall) []toolExecution
 	return executions
 }
 
-// gitArgsMutate extracts action and args from the JSON tool arguments and
-// delegates to tool.GitActionMutates — the single source of truth for
-// git mutation detection.
 func gitArgsMutate(argsJSON string) bool {
 	var m map[string]any
 	if json.Unmarshal([]byte(argsJSON), &m) != nil {

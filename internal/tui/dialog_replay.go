@@ -146,7 +146,7 @@ func replayRelativeTime(rfc3339 string) string {
 
 // prepareReplayItems filters, deduplicates, and sorts replay items for display.
 func prepareReplayItems(items []ReplayItem) []ReplayItem {
-	// Deduplicate by turn index — keep the entry with the most files.
+	// Deduplicate by turn index. Keep the entry with the most files.
 	best := make(map[int]ReplayItem, len(items))
 	for _, item := range items {
 		if existing, ok := best[item.TurnIndex]; !ok || len(item.Files) > len(existing.Files) {
@@ -166,4 +166,3 @@ func prepareReplayItems(items []ReplayItem) []ReplayItem {
 
 	return out
 }
-

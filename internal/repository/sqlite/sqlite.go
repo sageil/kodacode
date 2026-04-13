@@ -1,5 +1,5 @@
 // Package sqlite provides a SQLite-backed repository implementation for
-// kodacode v2. It uses modernc.org/sqlite — a pure-Go driver with no CGo
+// kodacode v2. It uses modernc.org/sqlite, a pure-Go driver with no CGo
 // dependency.
 package sqlite
 
@@ -18,7 +18,7 @@ import (
 // needed.
 func Open(path string, maxConns ...int) (*sql.DB, error) {
 	// Use _pragma DSN params so every connection in the pool gets them,
-	// not just the first one. This is critical for busy_timeout — without
+	// not just the first one. This is critical for busy_timeout; without
 	// it, concurrent writers get SQLITE_BUSY immediately.
 	dsn := fmt.Sprintf(
 		"file:%s?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=cache_size(-64000)&_pragma=temp_store(MEMORY)&_pragma=mmap_size(30000000000)&_pragma=foreign_keys(ON)",

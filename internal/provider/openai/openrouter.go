@@ -31,7 +31,7 @@ func openRouterMiddleware(req *http.Request, next option.MiddlewareNext) (*http.
 		return next(req)
 	}
 
-	// Only inject when tools are present — no need for simple chat requests.
+	// Inject this only when tools are present. Simple chat requests do not need it.
 	if tools, ok := payload["tools"]; ok && tools != nil {
 		if _, hasProvider := payload["provider"]; !hasProvider {
 			payload["provider"] = map[string]any{

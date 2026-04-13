@@ -146,7 +146,7 @@ type LayeredConfig struct {
 }
 
 // LoadLayered loads each config layer separately for display purposes.
-// It does NOT expand environment variables or validate — the result is
+// It does NOT expand environment variables or validate. The result is
 // intended for UI inspection, not for running the application.
 func LoadLayered(projectDir string) LayeredConfig {
 	result := LayeredConfig{}

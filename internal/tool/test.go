@@ -66,7 +66,7 @@ type testTarget struct {
 // the base command and framework type. Explicit build configs (Taskfile,
 // Makefile) are checked first since they represent intentional project setup.
 func detectFramework(dir string) (string, testFramework, error) {
-	// Explicit build configs take precedence — they represent intentional setup.
+	// Explicit build configs take precedence because they represent intentional setup.
 	if taskfileHasTest(dir) {
 		return "task test", frameworkTask, nil
 	}

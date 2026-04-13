@@ -274,7 +274,7 @@ func reconstructContent(allOps []diffOp, hunks []DiffHunk) string {
 	for i, op := range allOps {
 		hi, inHunk := hunkOf[i]
 		if !inHunk {
-			// Between hunks — keep equal lines from old.
+			// Between hunks, keep equal lines from the old content.
 			if op.kind == diffEqual {
 				result = append(result, op.text)
 			}

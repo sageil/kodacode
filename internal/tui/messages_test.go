@@ -100,7 +100,7 @@ func TestHomeShowsModel(t *testing.T) {
 func TestToolCallRendering(t *testing.T) {
 	m := NewMessages()
 	m.SetSize(80, 20)
-	// Bash with JSON input — renders as a panel with tool name and description.
+	// Bash with JSON input renders as a panel with the tool name and description.
 	m.AppendToolStart("bash", `{"command":"go build ./...","description":"Build the project"}`, "")
 	view := flushView(&m)
 	if !strings.Contains(view, "Bash") {
@@ -246,7 +246,7 @@ func TestAppendToolStart_UpsertOnFullInput(t *testing.T) {
 	// Simulate the two-event pattern from middleware_llm:
 	// 1st tool_start: empty input (early disclosure)
 	// tool_input_delta: streams JSON arguments
-	// 2nd tool_start: full input (at execution time) — must NOT create a second block
+	// The second tool_start carries full input at execution time and must not create a second block.
 	m := NewMessages()
 	m.SetSize(80, 20)
 	m.AppendToolStart("bash", "", "")
@@ -332,7 +332,7 @@ func TestScrollbarNotVisibleWhenContentFits(t *testing.T) {
 	m.SetSize(80, 15) // extra height for rounded border around user messages
 	m.AppendUserMessage("short message")
 	view := flushView(&m)
-	// Check for scrollbar thumb (█) — the │ char is expected from rounded panel borders.
+	// Check for the scrollbar thumb (█). The │ character is expected from rounded panel borders.
 	if strings.Contains(view, "█") {
 		t.Errorf("Scrollbar should not be visible when content fits viewport, got:\n%s", view)
 	}
@@ -794,7 +794,7 @@ func TestReadToolHeaderOnly(t *testing.T) {
 	m.invalidateFrom(0)
 	m.render()
 	view := flushView(&m)
-	// Completed read tools are collapsed — header visible, output hidden.
+	// Completed read tools are collapsed. The header is visible, and the output is hidden.
 	if !strings.Contains(view, "Read") {
 		t.Errorf("Collapsed read tool header should be visible, got:\n%s", view)
 	}
@@ -889,7 +889,7 @@ func TestToolCallLeftBar(t *testing.T) {
 }
 
 func TestToolCallCollapsedShowsHint(t *testing.T) {
-	// Use bash instead of read — completed read tools are hidden from the TUI.
+	// Use bash instead of read because completed read tools are hidden from the TUI.
 	m := NewMessages()
 	m.SetSize(80, 20)
 	m.AppendToolStart("bash", `{"command":"echo hi","description":"Test"}`, "")
@@ -938,11 +938,11 @@ func TestClickToExpandCollapsedTool(t *testing.T) {
 	m.SetSize(80, 30)
 	m.screenY = 2 // simulate header offset (headerHeight)
 
-	// First tool — will be collapsed when second starts.
+	// The first tool will be collapsed when the second one starts.
 	m.AppendToolStart("bash", `{"command":"ls","description":"List"}`, "")
 	m.UpdateToolEnd("bash", "file1.go\nfile2.go\n", "", "")
 
-	// Second tool — collapses the first.
+	// The second tool collapses the first.
 	m.AppendToolStart("bash", `{"command":"pwd","description":"CWD"}`, "")
 	m.UpdateToolEnd("bash", "/home/user\n", "", "")
 
@@ -977,7 +977,7 @@ func TestToolCallFullJourney(t *testing.T) {
 	m := NewMessages()
 	m.SetSize(80, 30)
 
-	// 1. Bash tool: running — starts expanded
+	// 1. The bash tool is running and starts expanded.
 	m.AppendToolStart("bash", `{"command":"go build ./...","description":"Build"}`, "")
 	view := flushView(&m)
 	if !strings.Contains(view, "⠋") {
@@ -997,7 +997,7 @@ func TestToolCallFullJourney(t *testing.T) {
 		t.Errorf("done state: should show checkmark, got:\n%s", view)
 	}
 
-	// 3. Add a read tool — completed read tools are hidden after grace period.
+	// 3. Add a read tool. Completed read tools are hidden after the grace period.
 	m.AppendToolStart("read", `{"filePath":"/Users/sageil/dev/kodacode"}`, "")
 	m.UpdateToolEnd("read", "<path>/Users/sageil/dev/kodacode</path>\n<type>directory</type>\n<content>\ninternal/\ngo.mod\n</content>", "", "")
 	m.expireReadOnlyGrace()
@@ -1192,7 +1192,7 @@ func TestSameTypeGrouping_DifferentTypesNotGrouped(t *testing.T) {
 	if !strings.Contains(view, "Read") {
 		t.Errorf("should show Read, got:\n%s", view)
 	}
-	// The assistant text should NOT be absorbed — it should render normally
+	// The assistant text should not be absorbed. It should render normally.
 	if !strings.Contains(view, "Let me read the file:") {
 		t.Errorf("assistant text between different tool types should render normally, got:\n%s", view)
 	}
@@ -1236,7 +1236,7 @@ func TestSameTypeGrouping_RealisticSSEFlow(t *testing.T) {
 	// Assistant text (still streaming)
 	m.AppendDelta("Let me try with pnpm:")
 
-	// Tool 2 — AppendToolStart should NOT append to the streaming message
+	// Tool 2: AppendToolStart should not append to the streaming message.
 	m.AppendToolStart("bash", `{"command":"pnpm tsc","description":"Run TypeScript compiler with pnpm"}`, "")
 	m.UpdateToolEnd("bash", "error: no tsconfig\n", "", "")
 
@@ -1396,7 +1396,7 @@ func TestScrollUpDuringStreamingSuppressesAutoScroll(t *testing.T) {
 		m.AppendUserMessage("This is a message that creates scrollable content")
 	}
 
-	// Start streaming — autoScroll is true, viewport at bottom.
+	// Start streaming. autoScroll is true, and the viewport is at the bottom.
 	m.AppendDelta("Streaming response starts here...")
 
 	// Simulate user scrolling up.
@@ -1407,7 +1407,7 @@ func TestScrollUpDuringStreamingSuppressesAutoScroll(t *testing.T) {
 	// More streaming content arrives.
 	m.AppendDelta(" more content arrives during streaming...")
 
-	// Viewport should NOT have jumped to bottom — user's scroll position preserved.
+	// The viewport should not jump to the bottom. The user's scroll position must be preserved.
 	if m.vp.YOffset() != savedOffset {
 		t.Errorf("viewport jumped during streaming: offset = %d, want %d (user scrolled up)",
 			m.vp.YOffset(), savedOffset)
@@ -1502,7 +1502,7 @@ func TestClickAfterSecondPromptWithTrimToTurns(t *testing.T) {
 		t.Errorf("Tool was expanded, click should collapse and hide output.\nView:\n%s", view)
 	}
 
-	// Now click AGAIN — should toggle back.
+	// Click again. It should toggle back.
 	m, _ = m.Update(tea.MouseClickMsg{X: 5, Y: clickY, Button: tea.MouseLeft})
 	m.FlushRender()
 	_ = flushView(&m)
@@ -1610,7 +1610,7 @@ func TestClickFailsAfterSecondPrompt(t *testing.T) {
 			m, _ = m.Update(tea.MouseClickMsg{X: 5, Y: clickY, Button: tea.MouseLeft})
 			after = m.messages[tr.msgIndex].Collapsed
 
-			// Edit tools have output "Edited file successfully." — should be toggleable.
+			// Edit tools with output "Edited file successfully." should be toggleable.
 			canToggle := msg.ToolDone && msg.ToolOutput != "" && msg.ToolName != "read" && msg.ToolName != "tree"
 			if canToggle && before == after {
 				t.Errorf("Second prompt: click on edit tool should toggle, but Collapsed stayed %v (ToolOutput=%q)", after, msg.ToolOutput)
@@ -1631,7 +1631,7 @@ func TestClickFailsAfterSecondPrompt(t *testing.T) {
 			m, _ = m.Update(tea.MouseClickMsg{X: 5, Y: clickY, Button: tea.MouseLeft})
 			after = m.messages[tr.msgIndex].Collapsed
 
-			// Empty output — should NOT toggle (guard at line 1528).
+			// Empty output should not toggle. See the guard at line 1528.
 			if before != after {
 				t.Logf("Empty-output bash tool toggled (expected no toggle since ToolOutput is empty)")
 			} else {
@@ -1673,7 +1673,7 @@ func TestClickCoordinateMapping(t *testing.T) {
 			contentLine, tr1.startLine, clickY, m.screenY, m.vp.YOffset())
 	}
 
-	// Second prompt — more content.
+	// Second prompt with more content.
 	m.AppendUserMessage("second prompt")
 	m.AppendToolStart("grep", `{"pattern":"foo","path":"."}`, "")
 	m.UpdateToolEnd("grep", "match1\nmatch2\n", "", "")

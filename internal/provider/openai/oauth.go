@@ -310,7 +310,7 @@ func consumeResponseStream(ctx context.Context, stream *ssestream.Stream[respons
 			}
 
 		case "response.function_call_arguments.delta":
-			// Streamed tool call arguments — handled via output_item.done
+			// Streamed tool call arguments are handled via output_item.done.
 			// when complete.
 			if debugStream {
 				log.Printf("[openai-stream] function_call_arguments delta: %d chars", len(evt.Delta))
@@ -323,7 +323,7 @@ func consumeResponseStream(ctx context.Context, stream *ssestream.Stream[respons
 		case "response.reasoning_summary_part.added",
 			"response.reasoning_summary_part.done",
 			"response.reasoning_summary_text.done":
-			// Summary lifecycle events — text content arrives via .delta events above.
+			// Summary lifecycle events are separate. Text content arrives via the .delta events above.
 		}
 	}
 

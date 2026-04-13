@@ -31,7 +31,7 @@ const (
 	zaiModel     = "glm-4.5"
 	zaiMCPAuth   = "" // set via ZAI_MCP_AUTH env
 
-	// Anthropic model to use for integration tests — Haiku for speed and cost.
+	// Anthropic model to use for integration tests. Haiku keeps them fast and cheap.
 	claudeModel = "claude-haiku-3-5"
 )
 
@@ -59,10 +59,10 @@ type zaiProvider struct {
 	*openai.Client
 }
 
-// ── Criterion 2 — MCP tools discovered and executed end-to-end ──────────────
+// Criterion 2: MCP tools are discovered and executed end-to-end.
 
 func TestMCP_Integration_SSEToolExecution(t *testing.T) {
-	// Uses zread MCP server over HTTP — no local install needed.
+	// Uses the zread MCP server over HTTP, so no local install is needed.
 	transport := mcp.NewSSETransport(
 		"https://api.z.ai/api/mcp/zread/mcp",
 		map[string]string{"Authorization": zaiMCPAuth},
@@ -84,7 +84,7 @@ func TestMCP_Integration_SSEToolExecution(t *testing.T) {
 }
 
 func TestMCP_Integration_StdioToolExecution(t *testing.T) {
-	// Uses sequential-thinking MCP server via npx — skips if npx is unavailable.
+	// Uses the sequential-thinking MCP server via npx. Skip if npx is unavailable.
 	transport, err := mcp.NewStdioTransport(
 		"npx",
 		[]string{"-y", "@modelcontextprotocol/server-sequential-thinking"},
@@ -135,7 +135,7 @@ func TestMCP_Integration_StdioToolExecution(t *testing.T) {
 	}
 }
 
-// ── Criterion 3 — Reasoning tokens stored as reasoning parts ────────────────
+// Criterion 3: Reasoning tokens are stored as reasoning parts.
 
 func TestReasoning_Integration_StreamsReasoningChunks(t *testing.T) {
 	// Verifies that claude-haiku-3-5 with extended thinking emits reasoning deltas.
@@ -182,7 +182,7 @@ func TestReasoning_Integration_StreamsReasoningChunks(t *testing.T) {
 	}
 }
 
-// ── Criterion 8 — Session title generated after first turn ──────────────────
+// Criterion 8: A session title is generated after the first turn.
 
 func TestTitle_Integration_Anthropic(t *testing.T) {
 	// Uses claude-haiku-3-5 via CheapestModel.
@@ -288,13 +288,13 @@ func TestTitle_Integration_ZAI(t *testing.T) {
 	t.Logf("generated title: %q", titleGenerated)
 }
 
-// ── Criterion 13 — Prompt caching (cache_read_input_tokens > 0) ─────────────
+// Criterion 13: Prompt caching sets cache_read_input_tokens above zero.
 
 func TestAnthropic_CacheReadTokens(t *testing.T) {
 	// Sends two requests with the same large stable SystemParts[0].
 	// Anthropic requires ≥1024 tokens in the cached block.
 	// On the second request, cache_read_input_tokens should be > 0.
-	// NOTE: provider.Usage does not yet track CacheReadTokens — this test
+	// NOTE: provider.Usage does not yet track CacheReadTokens, so this test
 	// verifies the stream completes successfully and logs usage for manual
 	// inspection. Add CacheReadTokens to Usage to make the assertion hard.
 	prov := newAnthropicProvider()
@@ -321,7 +321,7 @@ func TestAnthropic_CacheReadTokens(t *testing.T) {
 		MaxTokens:   10,
 	}
 
-	// First request — writes the cache.
+	// The first request writes the cache.
 	stream1, err := prov.Chat(ctx, claudeModel, msgs, opts)
 	if err != nil {
 		t.Fatalf("Chat() first request: %v", err)
@@ -339,7 +339,7 @@ func TestAnthropic_CacheReadTokens(t *testing.T) {
 		}
 	}
 
-	// Second request — should read from cache.
+	// The second request should read from the cache.
 	stream2, err := prov.Chat(ctx, claudeModel, msgs, opts)
 	if err != nil {
 		t.Fatalf("Chat() second request: %v", err)
@@ -419,7 +419,7 @@ func TestZAI_ToolCall_RoundTrip(t *testing.T) {
 	t.Logf("tool call: %s(%s), finish_reason=%s", gotToolCalls[0].Name, gotToolCalls[0].Arguments, finishReason)
 }
 
-// ── Criterion 4 — Compaction idempotent (needs DB helper — deferred) ─────────
+// Criterion 4: Compaction is idempotent. This still needs a DB helper, so it is deferred.
 
 func TestCompaction_Idempotent(t *testing.T) {
 	t.Skip("requires sqlite test DB helper — implement alongside sqlite integration tests")

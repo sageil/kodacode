@@ -65,7 +65,7 @@ func dataDir() string {
 
 // Init loads the cache from disk synchronously. If the refresh interval has
 // lapsed and a network connection is available, a background refresh is
-// kicked off. Otherwise no network calls are made — the next startup will
+// kicked off. Otherwise no network calls are made, and the next startup will
 // check again.
 func (mc *ModelCache) Init(ctx context.Context) {
 	mc.mu.Lock()
@@ -290,7 +290,7 @@ func (mc *ModelCache) ModelsForProvider(providerID string) []Model {
 		if isUndatedAlias(m.ID, allIDs) {
 			continue
 		}
-		// Google: filter to Gemini chat models only — models.dev includes
+		// Google: filter to Gemini chat models only. models.dev includes
 		// embedding, TTS, image, live, dated previews, and other non-chat models.
 		if providerID == "google" && !isGeminiChatModel(m.ID) {
 			continue

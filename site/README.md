@@ -2,7 +2,7 @@
 
 *Truly yours.*
 
-Documentation site for [KodaCode](https://github.com/sageil/kodacode) — an AI-powered coding assistant that lives in your terminal. Built with [Astro Starlight](https://starlight.astro.build).
+Documentation site for [KodaCode](https://github.com/sageil/kodacode), an AI coding assistant that lives in your terminal. Built with [Astro Starlight](https://starlight.astro.build).
 
 ## Development
 

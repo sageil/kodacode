@@ -75,7 +75,7 @@ func (sm *sseManager) IncrementToolStep() int {
 }
 
 // MarkDone clears the connection state after a "done" or "error" event.
-// Does NOT cancel the context — the stream already ended.
+// Does NOT cancel the context because the stream has already ended.
 func (sm *sseManager) MarkDone() {
 	sm.conn = nil
 	sm.toolStep = 0

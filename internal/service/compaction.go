@@ -238,7 +238,7 @@ func maybeCompact(
 		publish(req.SessionID, SSEEvent{Type: "compaction_start"})
 	}
 
-	// Load the session snapshot once (2 queries) — all subsequent operations
+	// Load the session snapshot once (2 queries). All subsequent operations
 	// (pruning, recounting, summary generation, cutoff computation) reuse it.
 	allMsgs, err := msgs.ListBySession(ctx, req.SessionID)
 	if err != nil {
@@ -315,7 +315,7 @@ func maybeCompact(
 			log.Printf("compaction: summary generation returned empty text via %s/%s", candidate.prov.ID(), candidate.modelID)
 			continue
 		}
-		// A good summary should be at least 200 chars — shorter means the
+		// A good summary should be at least 200 chars. Shorter output means the
 		// utility model didn't follow the structured format. Treat as failure.
 		const minSummaryLen = 200
 		if len(summaryText) < minSummaryLen {
@@ -341,7 +341,7 @@ func maybeCompact(
 	req.Messages = sanitizeToolPairs(truncated)
 
 	if summaryText == "" {
-		// Summary generation failed — persist a cutoff-only summary so the
+		// Summary generation failed. Persist a cutoff-only summary so the
 		// truncation is durable across reloads (prevents emergency retry
 		// from rebuilding the same bloated message set).
 		fallbackText := req.SummaryText // preserve previous summary if any

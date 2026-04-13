@@ -59,7 +59,7 @@ type paletteItem struct {
 	hint     string
 	score    int
 
-	// Payload — one field set per category.
+	// Payload. Only one field is set per category.
 	filePath    string
 	symbolItem  lsp.SymbolResult
 	sessionItem SessionItem
@@ -528,7 +528,7 @@ func fuzzyScore(pattern, text string) (bool, int) {
 		return false, 0
 	}
 
-	// Large bonus for contiguous substring match — ensures "free" in "(free)"
+	// Large bonus for contiguous substring matches. This ensures "free" in "(free)"
 	// ranks far above scattered subsequence matches.
 	if strings.Contains(lt, lp) {
 		score += 100
@@ -541,7 +541,7 @@ func sortByScore(items []paletteItem) {
 	if len(items) <= 1 {
 		return
 	}
-	// Simple insertion sort — lists are small after filtering.
+	// Simple insertion sort is fine because the lists are small after filtering.
 	for i := 1; i < len(items); i++ {
 		for j := i; j > 0 && items[j].score > items[j-1].score; j-- {
 			items[j], items[j-1] = items[j-1], items[j]

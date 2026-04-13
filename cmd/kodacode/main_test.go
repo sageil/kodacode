@@ -9,10 +9,10 @@ import (
 
 func TestParseEmbeddingModel(t *testing.T) {
 	tests := []struct {
-		input      string
-		wantProv   string
-		wantModel  string
-		wantOK     bool
+		input     string
+		wantProv  string
+		wantModel string
+		wantOK    bool
 	}{
 		{"ollama/nomic-embed-text", "ollama", "nomic-embed-text", true},
 		{"openai/text-embedding-3-small", "openai", "text-embedding-3-small", true},
@@ -42,15 +42,11 @@ func TestProviderRegistrationCompiles(t *testing.T) {
 		t.Errorf("want anthropic, got %q", p1.ID())
 	}
 
-	// GoogleProvider — call with a dummy key to verify the constructor signature
-	// compiles. The call will fail (invalid key) but we ignore the error; we only
-	// care that the call site matches the actual function signature.
 	p2, _ := provider.NewGoogleProvider(t.Context(), "test-key-compile-check")
 	if p2 != nil && p2.ID() != "google" {
 		t.Errorf("want google, got %q", p2.ID())
 	}
 
-	// OpenAI-compat (default path)
 	p3 := openai.New("zai-coding-plan", "zai-coding-plan", "key", "https://api.z.ai/api/coding/paas/v4", nil)
 	if p3.ID() != "zai-coding-plan" {
 		t.Errorf("want zai-coding-plan, got %q", p3.ID())

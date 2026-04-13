@@ -84,7 +84,7 @@ func runExternalGrep(ctx context.Context, bin string, args []string, sep string)
 				return nil, nil
 			}
 			if code == 2 && len(output) > 0 {
-				// partial errors — proceed with what we have
+				// partial errors proceed with what we have
 			} else {
 				return nil, fmt.Errorf("%s failed (exit %d): %s", bin, code, string(exitErr.Stderr))
 			}

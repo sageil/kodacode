@@ -48,7 +48,7 @@ func TestAnthropicProvider_SkipWithoutKey(t *testing.T) {
 // TestAnthropicProvider_StaticMethods verifies static/non-network methods
 // without requiring an API key.
 func TestAnthropicProvider_StaticMethods(t *testing.T) {
-	// Construct with an empty key — only testing methods that don't call the API.
+	// Construct with an empty key because this test does not call the API.
 	p := provider.NewAnthropicProvider("test-key")
 
 	if got := p.ID(); got != "anthropic" {
@@ -60,5 +60,5 @@ func TestAnthropicProvider_StaticMethods(t *testing.T) {
 	}
 
 	// Models() now calls the Anthropic API, so it requires a valid key.
-	// Skipped here — tested in the integration test above.
+	// Skip this here because the integration test above already covers it.
 }

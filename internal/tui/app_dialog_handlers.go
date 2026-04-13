@@ -209,7 +209,7 @@ func (a App) handleDynamicDialogResult(id string, result any, questionPrompt str
 		default:
 			response = ""
 		}
-		// No AppendQuestionAnswer — the question tool_call message already
+		// No AppendQuestionAnswer is needed because the question tool_call message already
 		// contains the question and answer in its ToolOutput field.
 		if purpose == planApprovalPurpose && a.session.header.agentID == "planner" && a.cfg.PreplanAgent != "" {
 			a.cfg.PlannerPending = true

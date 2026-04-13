@@ -1,4 +1,4 @@
-/* ── Force dark mode, hide theme toggle ── */
+/* Force dark mode and hide the theme toggle. */
 :root {
 	color-scheme: dark;
 }
@@ -7,11 +7,11 @@ starlight-theme-select {
 	display: none !important;
 }
 
-/* ── Color tokens ── */
+/* Color tokens */
 :root,
 :root[data-theme='light'],
 :root[data-theme='dark'] {
-	/* Accent — Catppuccin purple */
+	/* Accent color: Catppuccin purple */
 	--sl-color-accent-low: #1a1028;
 	--sl-color-accent: #cba6f7;
 	--sl-color-accent-high: #e8d5ff;
@@ -57,12 +57,12 @@ starlight-theme-select {
 	--sl-sidebar-width: 260px;
 }
 
-/* ── Global ── */
+/* Global styles */
 body {
 	background: #0a0a0f;
 }
 
-/* ── Navigation bar ── */
+/* Navigation bar */
 header.header {
 	background: rgba(10, 10, 15, 0.88) !important;
 	backdrop-filter: blur(16px);
@@ -70,7 +70,7 @@ header.header {
 	border-bottom: 1px solid var(--koda-border) !important;
 }
 
-/* ── Site title ── */
+/* Site title */
 .site-title {
 	font-family: var(--koda-mono) !important;
 	font-weight: 700 !important;
@@ -78,7 +78,7 @@ header.header {
 	color: var(--koda-primary) !important;
 }
 
-/* ── Sidebar ── */
+/* Sidebar */
 nav.sidebar {
 	background: var(--koda-surface);
 	border-right: 1px solid var(--koda-border);
@@ -97,9 +97,7 @@ nav.sidebar a[aria-current='true'] {
 	border-left: 2px solid var(--koda-primary);
 }
 
-/* ══════════════════════════════════════════
-   HERO / SPLASH PAGE
-   ══════════════════════════════════════════ */
+/* Hero / splash page */
 
 .hero {
 	text-align: center !important;
@@ -133,7 +131,7 @@ nav.sidebar a[aria-current='true'] {
 	text-align: center !important;
 }
 
-/* Giant gradient title */
+/* Large gradient title */
 .hero h1 {
 	font-size: clamp(2.5rem, 10vw, 6.5rem) !important;
 	font-weight: 800 !important;
@@ -466,9 +464,7 @@ pre.card-visual {
 	border-top: 1px solid var(--koda-border);
 }
 
-/* ══════════════════════════════════════════
-   CARDS (legacy — keep for non-splash pages)
-   ══════════════════════════════════════════ */
+/* Cards. Keep these for non-splash pages. */
 
 .card {
 	background: linear-gradient(135deg, #111118 0%, #0e0e16 100%) !important;
@@ -495,9 +491,7 @@ pre.card-visual {
 	color: var(--koda-primary) !important;
 }
 
-/* ══════════════════════════════════════════
-   CONTENT TYPOGRAPHY
-   ══════════════════════════════════════════ */
+/* Content typography */
 
 /* Inline code */
 :not(pre) > code {

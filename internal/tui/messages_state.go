@@ -334,7 +334,7 @@ func matchTool(msg Message, toolName, callID string) bool {
 	if callID != "" && msg.ToolCallID != "" {
 		return msg.ToolCallID == callID
 	}
-	// When callID is provided but the message has no call ID, don't match —
+	// When callID is provided but the message has no call ID, do not match it.
 	// falling back to name-only causes cross-contamination between parallel
 	// tool calls of the same type (e.g. multiple concurrent globs).
 	if callID != "" {

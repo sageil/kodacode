@@ -31,7 +31,7 @@ type Session struct {
 }
 
 // Message represents a single message within a session.
-// Content is stored in MessagePart rows — Message holds identity and metadata only.
+// Content is stored in MessagePart rows. Message holds only identity and metadata.
 type Message struct {
 	ID                 string
 	SessionID          string
@@ -49,7 +49,7 @@ type MessagePart struct {
 	MessageID   string
 	SessionID   string
 	Type        string     // "text" | "tool_call" | "tool_result" | "reasoning" | "file"
-	Content     string     // JSON payload — unmarshal with message.UnmarshalContent
+	Content     string     // JSON payload. Unmarshal with message.UnmarshalContent.
 	Synthetic   bool       // true for system-injected parts (not user-visible in UI)
 	CompactedAt *time.Time // non-nil when this tool_result output has been pruned
 	CreatedAt   time.Time

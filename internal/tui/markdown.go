@@ -549,7 +549,7 @@ func renderMarkdownWithOptions(src string, th *theme.Theme, themeName, codeBgAns
 
 	md := goldmark.New(
 		// Register only the table parser (ParagraphTransformer + ASTTransformer),
-		// NOT the built-in HTML table renderer — our ansiRenderer handles tables.
+		// Do not use the built-in HTML table renderer. ansiRenderer handles tables.
 		// Also register the strikethrough inline parser for ~~text~~ syntax.
 		goldmark.WithParserOptions(
 			parser.WithParagraphTransformers(

@@ -42,7 +42,7 @@ func TestPatchTool_failedEditNoPartialWrite(t *testing.T) {
 		t.Fatal(err)
 	}
 	tl := tool.NewPatchTool()
-	// First edit succeeds, second edit fails — file should remain unchanged.
+
 	args := []byte(`{"filePath":"` + p + `","edits":[` +
 		`{"oldString":"func foo() {}","newString":"func bar() {}"},` +
 		`{"oldString":"NOTPRESENT","newString":"x"}` +

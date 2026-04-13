@@ -182,7 +182,7 @@ func OpenAIOAuthRefresh(refreshToken string) (*AuthEntry, error) {
 }
 
 // extractAccountIDFromJWT decodes the payload of a JWT id_token and extracts
-// the ChatGPT account ID. No signature verification — we trust the token
+// the ChatGPT account ID. There is no signature verification because we trust the token
 // endpoint (received over HTTPS).
 func extractAccountIDFromJWT(idToken string) string {
 	if idToken == "" {

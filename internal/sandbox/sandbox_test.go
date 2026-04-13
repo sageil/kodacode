@@ -406,7 +406,7 @@ func TestBashOutsidePath(t *testing.T) {
 		{"non-path env var", "echo $file", false, false},
 		{"heredoc with paths", "cat <<EOF\n/etc/passwd\nEOF", false, false},
 
-		// echo/printf content — should NOT trigger
+		// echo/printf content should not trigger.
 		{"echo unquoted path", "echo /usr/local/bin", false, false},
 		{"echo quoted path", `echo "export PATH=/usr/local/bin:$PATH"`, false, false},
 		{"echo multiple paths", "echo /etc/hosts /usr/bin/env", false, false},
@@ -414,7 +414,7 @@ func TestBashOutsidePath(t *testing.T) {
 		{"echo pipe to other cmd", "echo /usr/local/bin | grep bin", false, false},
 		{"echo redirect in-project", "echo /usr/local/bin > output.txt", false, false},
 
-		// echo redirect OUTSIDE — should trigger
+		// echo redirect outside should trigger.
 		{"echo redirect outside", "echo hello > /tmp/outside.txt", true, false},
 		{"echo append outside", "echo hello >> /tmp/outside.txt", true, false},
 
@@ -428,18 +428,18 @@ func TestBashOutsidePath(t *testing.T) {
 		// in-project absolute path
 		{"absolute in-project path", fmt.Sprintf("cat %s/file.txt", dir), false, false},
 
-		// quoted patterns containing slashes — should NOT trigger
+		// Quoted patterns containing slashes should not trigger.
 		{"grep regex with slashes", fmt.Sprintf(`cd %s && grep -r "// @ts-ignore\|// @ts-nocheck" src --include="*.ts"`, dir), false, false},
 		{"grep double slash pattern", `grep -r "//TODO" src`, false, false},
 		{"sed substitution", `sed 's/foo/bar/g' file.txt`, false, false},
 		{"single-quoted existing path triggers", `grep '/usr/local/bin' file.txt`, true, false},
 		{"single-quoted nonexistent path skips", `grep '/nonexistent/path' file.txt`, false, false},
 
-		// quoted external file access — must trigger
+		// Quoted external file access must trigger.
 		{"cat single-quoted external", `cat '/etc/passwd'`, true, false},
 		{"cat double-quoted external", `cat "/etc/passwd"`, true, false},
 
-		// quoted redirect targets — should still trigger
+		// Quoted redirect targets should still trigger.
 		{"quoted redirect outside", `echo hello > "/tmp/outside.txt"`, true, false},
 		{"python dash c", `python3 -c 'open("/etc/passwd").read()'`, true, false},
 		{"xargs indirect path", `printf '/etc/passwd\n' | xargs cat`, true, false},

@@ -1,26 +1,26 @@
-# Solarized Dark — https://ethanschoonover.com/solarized/
+# Solarized Dark: https://ethanschoonover.com/solarized/
 # Precision-engineered theme designed for optimal readability.
 name: solarized-dark
 syntax_style: solarized-dark
 
 palette:
-  # Blue (#268bd2) — primary interactive elements and headings.
+  # Blue (#268bd2): primary interactive elements and headings.
   primary: "#268bd2"
-  # Cyan (#2aa198) — secondary accents, links, badges.
+  # Cyan (#2aa198): secondary accents, links, and badges.
   secondary: "#2aa198"
-  # Base02 (#073642) — raised surfaces, panels, dialogs.
+  # Base02 (#073642): raised surfaces, panels, and dialogs.
   surface: "#073642"
-  # Base01 (#586e75) — input areas, selection highlights.
+  # Base01 (#586e75): input areas and selection highlights.
   overlay: "#586e75"
-  # Base0 (#839496) — primary readable text.
+  # Base0 (#839496): primary readable text.
   text: "#839496"
-  # Base01 (#586e75) — de-emphasised labels, hints.
+  # Base01 (#586e75): de-emphasised labels and hints.
   subtext: "#586e75"
-  # Red (#dc322f) — errors and destructive actions.
+  # Red (#dc322f): errors and destructive actions.
   error: "#dc322f"
-  # Yellow (#b58900) — warnings and caution states.
+  # Yellow (#b58900): warnings and caution states.
   warning: "#b58900"
-  # Green (#859900) — success states and completion ticks.
+  # Green (#859900): success states and completion ticks.
   success: "#859900"
   thinking: "#6c71c4"
 

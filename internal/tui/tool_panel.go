@@ -103,7 +103,6 @@ func (m *Messages) renderToolCall(msg Message, _ bool, msgIndex int) (string, *d
 	body.WriteString(header)
 
 	if msg.Collapsed {
-		// Collapsed — skip body.
 	} else if msg.ToolName == "read" || msg.ToolName == "tree" || msg.ToolName == "task_output" || msg.ToolName == "test" || msg.ToolName == "task" {
 		// Header-only for read/tree/task_output/test.
 	} else if msg.ToolName == "subagent" && msg.UserExpanded && msg.ToolDone {
@@ -118,7 +117,6 @@ func (m *Messages) renderToolCall(msg Message, _ bool, msgIndex int) (string, *d
 			body.WriteString("\n")
 		}
 	} else if !msg.ToolDone {
-		// Tools still running — header-only.
 	} else if isMCPTool(msg.ToolName) && msg.ToolInput != "" {
 		body.WriteString("\n" + strings.Repeat(" ", innerWidth))
 		textWidth := max(innerWidth-2, 1)

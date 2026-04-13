@@ -5,7 +5,7 @@ description: Project-scoped confinement for every tool call
 
 import { Aside } from '@astrojs/starlight/components';
 
-Every tool call in KodaCode is sandboxed to your project directory by default. File reads, writes, searches, and shell commands are confined — escaping the project boundary requires explicit user permission.
+Every tool call in KodaCode is sandboxed to your project directory by default. File reads, writes, searches, and shell commands are confined to that boundary. Access outside the project requires explicit user permission.
 
 ## Path Confinement
 
@@ -37,7 +37,7 @@ Bash commands are parsed into an AST using a full shell parser (`mvdan.cc/sh`). 
 
 Quoted arguments (single or double quotes) are only flagged if the path actually exists on disk. This prevents false positives on grep/sed patterns like `grep "// @ts-ignore"` while still catching `cat '/etc/passwd'`.
 
-Content commands (`echo`, `printf`) have their arguments skipped entirely — only redirect targets are checked.
+Content commands such as `echo` and `printf` have their arguments skipped entirely. Only redirect targets are checked.
 
 See [sandbox-limitations.md](https://github.com/sageil/kodacode/blob/main/docs/sandbox-limitations.md) for known limitations and edge cases.
 
@@ -109,10 +109,10 @@ ignore_patterns:
 
 ## MCP Tools
 
-MCP tools (prefixed with their server name) are dispatched directly to their MCP server **without** path confinement — the MCP server itself is responsible for its own access control.
+MCP tools, prefixed with their server name, are dispatched directly to their MCP server **without** path confinement. The MCP server is responsible for its own access control.
 
 <Aside type="tip">
-The sandbox is not process isolation (no containers). It's path-level access control with permission prompts — designed for developer workflows where tools run in the user's environment but shouldn't silently touch files outside the project.
+The sandbox is not process isolation, and it does not use containers. It is path-level access control with permission prompts, designed for developer workflows where tools run in the user's environment but should not silently touch files outside the project.
 </Aside>
 
 ## Best Practices
@@ -137,4 +137,4 @@ ignore_patterns:
 ### Troubleshooting
 - **False permission prompts**: If you're asked about paths inside your project, check that kodacode was started from the correct directory. The project root is determined by the working directory at startup.
 - **Shell variables**: Loop variables (`$file`, `$i`) don't trigger prompts. Only path-bearing env vars like `$HOME` and `$TMPDIR` are checked.
-- **Grep/sed patterns**: Quoted patterns containing `/` characters (e.g. `grep "// @ts-ignore"`) are not flagged unless the path exists on disk. If a grep pattern happens to match an existing external path (e.g. `grep '/usr/local/bin'`), you may see a prompt — approve it and continue.
+- **Grep/sed patterns**: quoted patterns containing `/` characters (for example `grep "// @ts-ignore"`) are not flagged unless the path exists on disk. If a grep pattern happens to match an existing external path (for example `grep '/usr/local/bin'`), you may see a prompt. Approve it and continue.

@@ -1,5 +1,5 @@
 #!/bin/sh
-# KodaCode installer — downloads the latest release binary for your platform.
+# KodaCode installer. Downloads the latest release binary for your platform.
 # Usage: curl -fsSL https://raw.githubusercontent.com/sageil/kodacode/main/install.sh | sh
 set -e
 

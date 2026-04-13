@@ -34,11 +34,11 @@ Type a message and press **Enter** to send. Use **Shift+Enter** for multi-line i
 > Explain the architecture of this project
 ```
 
-KodaCode will read your codebase, search for relevant files, and respond with a detailed explanation — all visible in real-time as tools execute.
+KodaCode will read your codebase, search for relevant files, and respond with a detailed explanation. You can watch the tool calls run in real time.
 
 ## Command Palette
 
-Press `Ctrl+P` to open the command palette — a fuzzy finder across files, symbols, sessions, and commands. Type to filter, arrow keys to navigate, Enter to select.
+Press `Ctrl+P` to open the command palette, a fuzzy finder for files, symbols, sessions, and commands. Type to filter, use the arrow keys to move, and press Enter to select.
 
 - Select a **file** to attach it as context to your next message
 - Type `@` to search **symbols** across your workspace via LSP
@@ -68,11 +68,11 @@ Type `/` in the input to open the fuzzy command menu. Key commands:
 
 The model automatically delegates to specialized agents when the task fits:
 
-- **explorer** — fast, read-only codebase research
-- **planner** — structured implementation plans
-- **polish** — detects and removes AI-generated code artifacts
-- **refactor** — restructures code with automated validation
-- **insight** — extracts learnings and persists them
+- **explorer**: fast, read-only codebase research
+- **planner**: structured implementation plans
+- **polish**: removes code artifacts that do not match the surrounding codebase
+- **refactor**: restructures code with automated validation
+- **insight**: extracts project-specific learnings and persists them
 
 You can also invoke them directly: `/explorer how does authentication work?`
 

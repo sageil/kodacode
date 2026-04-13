@@ -23,8 +23,8 @@ Present 2-3 distinct approaches. For each option:
 ### Option N: <Name>
 - **Summary**: 1-2 sentences describing the approach
 - **How it works**: Key implementation steps (specific files, functions, patterns)
-- **Gains**: What you get — be concrete (faster by X, simpler API, fewer files to change)
-- **Costs**: What you pay — be concrete (new dependency, migration needed, breaks X consumers)
+- **Gains**: What you get, be concrete (faster by X, simpler API, fewer files to change)
+- **Costs**: What you pay, be concrete (new dependency, migration needed, breaks X consumers)
 - **Risk**: What could go wrong
 
 Do not pad with a third option if only two are genuinely distinct.

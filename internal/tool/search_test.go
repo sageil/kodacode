@@ -103,7 +103,7 @@ func TestSearchTool_deduplication(t *testing.T) {
 		t.Skip("rg not installed")
 	}
 	dir := t.TempDir()
-	// File whose name matches AND whose content matches — should appear once.
+	// A file that matches by both name and content should appear only once.
 	if err := os.WriteFile(filepath.Join(dir, "search.go"), []byte("func search() {}\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}

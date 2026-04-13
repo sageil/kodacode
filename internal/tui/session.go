@@ -263,7 +263,7 @@ func (s Session) Init() tea.Cmd {
 func (s Session) Update(msg tea.Msg) (Session, tea.Cmd) {
 	var cmds []tea.Cmd
 
-	// Inline panel blocks keyboard input — user must respond first.
+	// The inline panel blocks keyboard input until the user responds.
 	// Mouse clicks still pass through so users can expand/collapse tool calls.
 	if s.inlinePanel != nil {
 		if _, ok := msg.(tea.KeyPressMsg); ok {
@@ -336,7 +336,7 @@ func (s Session) Update(msg tea.Msg) (Session, tea.Cmd) {
 		cmds = append(cmds, msgsCmd)
 	}
 
-	// Render once per update cycle — all mutations above just set needsRender.
+	// Render once per update cycle. All mutations above only set needsRender.
 	s.msgs.FlushRender()
 
 	return s, tea.Batch(cmds...)

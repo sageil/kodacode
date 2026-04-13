@@ -1,8 +1,8 @@
 package tui
 
 // ConfigState groups model, agent, and variant selection state that was
-// previously scattered across App fields. It does not encapsulate behavior —
-// App reads fields directly — but consolidates related state into one place.
+// previously scattered across App fields. It does not encapsulate behavior.
+// App reads the fields directly, but the struct keeps related state together.
 type ConfigState struct {
 	// Model selection.
 	Model     string              // active model ID, e.g. "anthropic/claude-opus"

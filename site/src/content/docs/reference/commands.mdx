@@ -3,16 +3,16 @@ title: Slash Commands
 description: All available slash commands
 ---
 
-Type `/` in the input to open the fuzzy command menu, or press `Ctrl+P` to open the **command palette** — a unified fuzzy finder across files, symbols, sessions, and commands.
+Type `/` in the input to open the fuzzy command menu, or press `Ctrl+P` to open the **command palette**, a unified fuzzy finder for files, symbols, sessions, and commands.
 
 ## Command Palette
 
 Press `Ctrl+P` to open the command palette. It searches across four categories:
 
-- **Files** — project files (from `git ls-files`). Selecting attaches the file to your next message.
-- **Symbols** — workspace symbols via LSP. Type `@query` to search. Selecting attaches the symbol's file.
-- **Sessions** — existing sessions. Type `#query` to prioritize. Selecting resumes the session.
-- **Commands** — slash commands. Type `/query` to prioritize. Selecting runs the command.
+- **Files**: project files (from `git ls-files`). Selecting one attaches the file to your next message.
+- **Symbols**: workspace symbols via LSP. Type `@query` to search. Selecting one attaches the symbol's file.
+- **Sessions**: existing sessions. Type `#query` to prioritize them. Selecting one resumes the session.
+- **Commands**: slash commands. Type `/query` to prioritize them. Selecting one runs the command.
 
 The palette uses fuzzy matching with scoring for consecutive matches, word boundaries, and camelCase. Results update as you type.
 

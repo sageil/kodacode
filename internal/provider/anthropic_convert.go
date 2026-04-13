@@ -24,7 +24,7 @@ func buildAnthropicParams(model string, messages []Message, opts ChatOptions, sk
 	// Part 0 (stable agent prompt): ~100% cache hit rate.
 	// Part 1 (semi-stable: environment, agents, skills, instructions): ~95% hit rate,
 	//   invalidated only on git repo change.
-	// Part 2 (volatile: compaction summary): NOT cached — changes on each compaction.
+	// Part 2 (volatile: compaction summary) is not cached because it changes on each compaction.
 	if len(opts.SystemParts) > 0 {
 		system := make([]anthropicsdk.TextBlockParam, 0, len(opts.SystemParts))
 		for i, part := range opts.SystemParts {
@@ -51,7 +51,7 @@ func buildAnthropicParams(model string, messages []Message, opts ChatOptions, sk
 			params.MaxTokens = int64(budget) + 4096
 		}
 	} else if opts.ReasoningBudget != nil && *opts.ReasoningBudget == 0 {
-		// Explicitly disabled — set thinking to disabled so the OAuth
+		// Thinking is explicitly disabled here so the OAuth
 		// middleware (ensureThinkingEnabled) doesn't override it.
 		params.Thinking = anthropicsdk.ThinkingConfigParamUnion{
 			OfDisabled: &anthropicsdk.ThinkingConfigDisabledParam{},
@@ -171,7 +171,7 @@ func convertAnthropicAssistantMessage(m Message, thinkingEnabled bool) (anthropi
 		case ReasoningPart:
 			// Only replay thinking blocks when thinking is currently enabled.
 			// Stale signatures (from changed system prompts or restored sessions)
-			// cause 400 errors — skip them rather than send invalid data.
+			// cause 400 errors, so skip them rather than send invalid data.
 			if !thinkingEnabled || p.Signature == "" {
 				continue
 			}

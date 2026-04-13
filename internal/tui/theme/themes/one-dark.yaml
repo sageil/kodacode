@@ -1,26 +1,26 @@
-# One Dark — https://github.com/atom/one-dark-syntax
+# One Dark: https://github.com/atom/one-dark-syntax
 # Atom's signature dark theme with balanced blues and warm accents.
 name: one-dark
 syntax_style: onedark
 
 palette:
-  # Blue (#61afef) — primary interactive elements and headings.
+  # Blue (#61afef): primary interactive elements and headings.
   primary: "#61afef"
-  # Cyan (#56b6c2) — secondary accents, links, badges.
+  # Cyan (#56b6c2): secondary accents, links, and badges.
   secondary: "#56b6c2"
-  # Gutter (#282c34) — raised surfaces, panels, dialogs.
+  # Gutter (#282c34): raised surfaces, panels, and dialogs.
   surface: "#282c34"
-  # Selection (#3e4451) — input areas, selection highlights.
+  # Selection (#3e4451): input areas and selection highlights.
   overlay: "#3e4451"
-  # Foreground (#abb2bf) — primary readable text.
+  # Foreground (#abb2bf): primary readable text.
   text: "#abb2bf"
-  # Comment (#5c6370) — de-emphasised labels, hints.
+  # Comment (#5c6370): de-emphasised labels and hints.
   subtext: "#5c6370"
-  # Red (#e06c75) — errors and destructive actions.
+  # Red (#e06c75): errors and destructive actions.
   error: "#e06c75"
-  # Yellow (#e5c07b) — warnings and caution states.
+  # Yellow (#e5c07b): warnings and caution states.
   warning: "#e5c07b"
-  # Green (#98c379) — success states and completion ticks.
+  # Green (#98c379): success states and completion ticks.
   success: "#98c379"
   thinking: "#c678dd"
 

@@ -33,7 +33,7 @@ type StepTrace struct {
 
 // SegmentBytes holds the exact byte size of each prompt segment.
 // Byte proportions show which segment dominates the prompt without
-// fabricating token counts — the actual token total comes from the API.
+// fabricating token counts, the actual token total comes from the API.
 type SegmentBytes struct {
 	StablePrompt int `json:"stable_prompt"`
 	SemiStable   int `json:"semi_stable"`

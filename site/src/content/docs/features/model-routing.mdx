@@ -5,7 +5,7 @@ description: Utility models, reviewer models, and fallback chains for cost, qual
 
 import { Aside } from '@astrojs/starlight/components';
 
-KodaCode doesn't use a single model for everything. Different tasks have different requirements — a session title doesn't need the same model as a complex refactor, and a code review benefits from a second opinion. Model routing lets you assign the right model to each job.
+KodaCode does not use one model for every task. A session title does not need the same model as a complex refactor, and a code review benefits from a second opinion. Model routing lets you assign the right model to each job.
 
 There are three supporting model roles:
 
@@ -19,7 +19,7 @@ All three are optional. When not configured, KodaCode falls back to the primary 
 
 ## Utility Model
 
-The utility model handles tasks that need speed and comprehension but not top-tier reasoning. These tasks happen frequently and add up — routing them to a cheap model can reduce session costs dramatically.
+The utility model handles tasks that need speed and comprehension but not top-tier reasoning. These tasks happen frequently, so routing them to a cheaper model can reduce session costs substantially.
 
 ### What uses the utility model
 
@@ -27,7 +27,7 @@ The utility model handles tasks that need speed and comprehension but not top-ti
 |------|-------------|--------------------------------------|
 | **Title generation** | Summarizes your first message into a short session title | Simple summarization, 500–1,000 tokens |
 | **Context compaction** | Generates structured summaries when the context window fills up | Compression task, reads existing conversation |
-| **Explorer agent** | Read-only codebase research — reads files, greps, follows references | Comprehension only, no code generation |
+| **Explorer agent** | Read-only codebase research that reads files, greps, and follows references | Comprehension only, no code generation |
 | **Insight agent** | Extracts non-obvious patterns and persists them to memory | Analysis only, no code generation |
 
 ### Configuration
@@ -42,9 +42,9 @@ The format is `provider/model`. The provider must be configured in your `provide
 
 When KodaCode needs the utility model, it resolves in this order:
 
-1. **Explicit config** — uses `utility_model` if set
-2. **Auto-discover** — if not set, searches across **all configured providers** for the cheapest text-capable model (by input+output cost per million tokens), filtering out special-purpose models (embedding, TTS, image generation, etc.)
-3. **Fall back** — if discovery fails, uses the session's primary model
+1. **Explicit config**: uses `utility_model` if it is set
+2. **Auto-discover**: if it is not set, searches across **all configured providers** for the cheapest text-capable model (by input and output cost per million tokens), filtering out special-purpose models such as embedding, TTS, and image-generation models
+3. **Fall back**: if discovery fails, uses the session's primary model
 
 Auto-discovery ranks candidates using multiple criteria: known cost (cheapest first), provider-specific hints (e.g., preferring "haiku" for Anthropic, "mini" for OpenAI, "flash" for Google), context size, and tool support. When the selected utility model fails with a permanent error (401, 403, 404, or "model not found"), KodaCode automatically tries the next candidate from the ranked list. Failed models are marked unavailable for 15 minutes to avoid repeated failures.
 
@@ -68,7 +68,7 @@ Title generation and compaction each use roughly 500–2,000 tokens. In a typica
 | GPT-4.1 | GPT-4o-mini | ~$0.001 | ~97% |
 | Claude Opus 4.6 | Claude Haiku 4.5 | ~$0.002 | ~99% |
 
-These savings compound over many sessions. Explorer and insight agent calls are additional — a single exploration that reads 20+ files can cost $0.10+ on a primary model but under $0.01 on a utility model.
+These savings add up over many sessions. Explorer and insight agent calls are separate, and a single exploration that reads 20+ files can cost $0.10+ on a primary model but under $0.01 on a utility model.
 
 ### Agent-level utility routing
 
@@ -93,15 +93,15 @@ The built-in `explorer` and `insight` agents do this by default.
 
 ## Reviewer Model
 
-The reviewer model is used exclusively by the **reviewer agent**, which verifies completed tasks in the engineer workflow. Using a different model than the engineer provides independent verification — the reviewer catches mistakes the engineer's model might be blind to.
+The reviewer model is used only by the **reviewer agent**, which verifies completed tasks in the engineer workflow. Using a different model from the engineer gives you an independent review pass that can catch issues the implementation model misses.
 
 ### Why use a separate reviewer model
 
 When the same model that wrote the code also reviews it, it tends to confirm its own choices. A different model brings a fresh perspective:
 
-- **Cross-model verification** — catches bugs and logic errors that the primary model's training biases might miss
-- **Reasoning-focused models** — models like `o3` or `claude-opus-4-6` with strong reasoning are well-suited for review even if they're too slow for primary use
-- **Cost control** — you can use a fast model for implementation and a more capable model only for the review pass
+- **Cross-model verification**: catches bugs and logic errors that the primary model's training biases might miss
+- **Reasoning-focused models**: models like `o3` or `claude-opus-4-6` are well suited to review, even if they are too slow for primary use
+- **Cost control**: you can use a fast model for implementation and reserve a more capable model for review
 
 ### Configuration
 
@@ -111,8 +111,8 @@ reviewer_model: openai/o3
 
 ### How it resolves
 
-1. **Explicit config** — uses `reviewer_model` if set
-2. **Fall back** — uses the engineer's session model
+1. **Explicit config**: uses `reviewer_model` if it is set
+2. **Fall back**: uses the engineer's session model
 
 ### When it runs
 
@@ -140,7 +140,7 @@ The most effective setup is cross-provider: use one vendor's model for implement
 
 ## Fallback Models
 
-Fallback models provide resilience when the primary model is unavailable — rate limits, outages, or transient API errors. Instead of failing the entire turn, KodaCode tries each fallback in order until one succeeds.
+Fallback models provide resilience when the primary model is unavailable because of rate limits, outages, or transient API errors. Instead of failing the entire turn, KodaCode tries each fallback in order until one succeeds.
 
 ### Configuration
 
@@ -150,7 +150,7 @@ fallback_models:
   - google/gemini-2.5-pro
 ```
 
-The list is ordered — the first model is tried first. Each entry uses `provider/model` format and must reference a configured provider.
+The list is ordered, and KodaCode tries the first model first. Each entry uses `provider/model` format and must reference a configured provider.
 
 ### How it works
 
@@ -166,9 +166,9 @@ You'll see a notification in the TUI: `"Primary model unavailable, trying gpt-4.
 
 ### When to use fallbacks
 
-- **Rate limiting** — if your primary provider throttles you during heavy use, a second provider keeps the session going
-- **Outages** — provider API outages happen. A fallback on a different provider ensures continuity
-- **Hedging** — during critical work, having a fallback prevents wasted context and lost session state
+- **Rate limiting**: if your primary provider throttles you during heavy use, a second provider keeps the session going
+- **Outages**: a fallback on a different provider keeps the session moving when one provider goes down
+- **Hedging**: during critical work, a fallback helps protect context and session state
 
 ### Configuration example
 
@@ -178,7 +178,7 @@ fallback_models:
   - google/gemini-2.5-pro
 ```
 
-This tries Anthropic Sonnet first, then Google Gemini. If the primary is OpenAI and it goes down, you seamlessly fall over to Anthropic, then Google.
+This tries Anthropic Sonnet first, then Google Gemini. If the primary is OpenAI and it fails, KodaCode falls back to Anthropic and then Google.
 
 <Aside type="caution">
 Fallback models should have similar capabilities to your primary model. Falling back from a 200K-context model to a 4K-context model may cause failures if the conversation is long. Pick fallbacks with comparable context windows and tool support.
@@ -241,9 +241,9 @@ With this setup:
 | 2 reviewer passes | OpenAI o3 | $0.40 |
 | **Total** | | **~$1.62** |
 
-Without model routing (everything on Sonnet): ~$2.10. With routing: ~$1.62 — a **23% savings** while getting better review quality from a dedicated reviewer model.
+Without model routing (everything on Sonnet): about $2.10. With routing: about $1.62, a **23% savings** with better review quality from a dedicated reviewer model.
 
-On more expensive primary models (Opus), the savings are even larger — 40–60% in typical sessions.
+On more expensive primary models such as Opus, the savings can be even larger: 40–60% in typical sessions.
 
 ## Agent-Level Model Overrides
 

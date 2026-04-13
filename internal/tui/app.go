@@ -75,7 +75,7 @@ type App struct {
 	theme     *theme.Theme
 	themeName string // bare name of the active theme ("" = system palette)
 
-	// Cached status bar data from /config — survives session resets.
+	// Cached status bar data from /config. It survives session resets.
 	sbToolCount  int
 	sbMCPServers []MCPServerStatus
 	sbGitBranch  string

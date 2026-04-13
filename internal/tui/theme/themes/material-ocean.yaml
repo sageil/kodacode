@@ -1,32 +1,32 @@
-# Material Ocean — https://github.com/material-ocean/Material-Ocean
+# Material Ocean: https://github.com/material-ocean/Material-Ocean
 # A blueish oceanic dark scheme built on the Nord palette with a deep
 # near-black background (#0f111a) originated from the VSCode Material Theme.
 name: material-ocean
 syntax_style: nord
 
 palette:
-  # Frost blue (#81a1c1) — primary interactive elements, headings, and labels.
+  # Frost blue (#81a1c1): primary interactive elements, headings, and labels.
   primary:   "#81a1c1"
-  # Bright cyan (#88c0d0) — secondary accents (model/agent badges).
+  # Bright cyan (#88c0d0): secondary accents (model and agent badges).
   secondary: "#88c0d0"
-  # Deep panel (#1e2132) — slightly lighter than the base background;
+  # Deep panel (#1e2132): slightly lighter than the base background;
   # used as dialog/panel backgrounds.
   surface:   "#1e2132"
-  # Raised surface (#2e3348) — input areas and selection highlights.
+  # Raised surface (#2e3348): input areas and selection highlights.
   overlay:   "#2e3348"
-  # Snow white (#e5e9f0) — primary readable text.
+  # Snow white (#e5e9f0): primary readable text.
   text:      "#e5e9f0"
-  # Muted polar (#6b7d9c) — de-emphasised labels, timestamps, hints.
+  # Muted polar (#6b7d9c): de-emphasised labels, timestamps, and hints.
   subtext:   "#6b7d9c"
-  # Aurora red (#bf616a) — errors and destructive actions.
+  # Aurora red (#bf616a): errors and destructive actions.
   error:     "#bf616a"
-  # Aurora yellow (#ebcb8b) — warnings and token usage bar.
+  # Aurora yellow (#ebcb8b): warnings and the token usage bar.
   warning:   "#ebcb8b"
-  # Aurora green (#a3be8c) — success states and tool completion ticks.
+  # Aurora green (#a3be8c): success states and tool completion ticks.
   success:    "#a3be8c"
   thinking: "#c792ea"
 
-# Optional component overrides — omit any key to use palette-derived defaults.
+# Optional component overrides. Omit any key to use palette-derived defaults.
 # Supported border values: rounded, single, double, thick, left, none
 components:
   user-message:

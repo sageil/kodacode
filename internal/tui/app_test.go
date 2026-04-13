@@ -120,7 +120,7 @@ func TestStaleDoneEventDoesNotCancelResumedSession(t *testing.T) {
 	app.sse.ctx = oldCtx
 	app.sse.cancel = oldCancel
 
-	// Step 1: "done" event for the old session arrives — normal completion.
+	// Step 1: the "done" event for the old session arrives as a normal completion.
 	donePayload := SSEDonePayload{}
 	donePayload.Usage.InputTokens = 100
 	donePayload.ContextSize = 8000
@@ -279,7 +279,7 @@ func TestSwitchSessionOldMessagesNotVisible(t *testing.T) {
 	// Old session has a message.
 	app.session.AppendUserMessage("old session message")
 
-	// Switch to a new session (no prior history — e.g., freshly created).
+	// Switch to a new session with no prior history, such as a freshly created one.
 	updated, _ := app.Update(sessionCreatedMsg{
 		session:  APISession{ID: "sess-new", AgentID: "agent-1", ModelID: "model-1"},
 		text:     "first message",
@@ -1113,7 +1113,7 @@ func TestReloadCommand_ReturnsDeterministicResult(t *testing.T) {
 	if cmd == nil {
 		t.Fatal("/reload should return a tea.Cmd")
 	}
-	// Execute the command — it should return a reloadResultMsg, not trigger a model call.
+	// Execute the command. It should return a reloadResultMsg and not trigger a model call.
 	msg := cmd()
 	if _, ok := msg.(reloadResultMsg); !ok {
 		t.Fatalf("/reload returned %T, want reloadResultMsg", msg)
@@ -1243,7 +1243,7 @@ func TestEscClearsErrorToast(t *testing.T) {
 	// Show an error banner.
 	app.errorBanner = "all 5 retry attempts failed. Please try again."
 
-	// Press ESC — should clear the error banner.
+	// Press ESC. It should clear the error banner.
 	updated, _ := app.Update(tea.KeyPressMsg{Code: 27, Text: ""})
 	result := updated.(App)
 

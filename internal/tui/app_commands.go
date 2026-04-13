@@ -367,7 +367,7 @@ func (a App) handleSlashCommand(text string) (App, tea.Cmd, bool) {
 					}
 					return a, tea.Batch(cmds...), true
 				}
-				// No active session — create one first, then spawn.
+				// There is no active session, so create one before spawning.
 				return a, a.startSessionThenSubagent(agentID, task), true
 			}
 		}

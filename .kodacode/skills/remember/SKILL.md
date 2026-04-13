@@ -12,7 +12,7 @@ User says: `/remember the auth middleware was rewritten for compliance`
 
 Call `memory` with action `save` and the content to persist. Keep memories concise (under 500 characters), factual, and self-contained. Use a markdown heading as the first line.
 
-For "remember this session" — summarize the key outcomes, decisions, and discoveries from the current conversation and save each distinct topic as a separate memory.
+For "remember this session", summarize the key outcomes, decisions, and discoveries from the current conversation and save each distinct topic as a separate memory.
 
 ## Retrieve
 User says: `/remember what do we know about providers?`
@@ -26,7 +26,7 @@ Call `memory` with action `list`, review for duplicates or stale entries, and pr
 
 ## Guidelines
 - Each memory should have a clear `# Title` as the first line
-- Keep each under 500 characters — memories compete for a shared budget in the system prompt
+- Keep each under 500 characters. Memories compete for a shared budget in the system prompt
 - Separate concerns: prefer 2 focused memories over 1 sprawling one
 - Do not save obvious facts derivable from code, standard patterns, or things already in KODA.md
 - Do not delete memories without presenting what would be removed first

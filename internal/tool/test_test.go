@@ -9,7 +9,7 @@ import (
 
 func TestDetectFramework_TaskfilePrecedence(t *testing.T) {
 	dir := t.TempDir()
-	// Both go.mod and Taskfile.yml exist — Taskfile should win.
+	// Both go.mod and Taskfile.yml exist. Taskfile should win.
 	writeFile(t, dir, "go.mod", "module test")
 	writeFile(t, dir, "Taskfile.yml", "version: '3'\ntasks:\n  test:\n    cmds:\n      - go test ./...\n")
 	cmd, fw, err := detectFramework(dir)

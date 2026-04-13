@@ -76,7 +76,7 @@ func newProvider(ctx context.Context, pc config.ProviderConfig, authStore *provi
 			}
 			return openai.New(pc.ID, "GitHub Copilot", pc.APIKey, baseURL, nil), false, nil
 		}
-		log.Printf("github-copilot: no auth configured — use /connect to set up")
+		log.Printf("github-copilot: no auth configured, use /connect to set up")
 		return nil, false, nil
 
 	default:
@@ -97,37 +97,37 @@ func newProvider(ctx context.Context, pc config.ProviderConfig, authStore *provi
 }
 
 var knownBaseURLs = map[string]string{
-	"openrouter":   "https://openrouter.ai/api/v1",
-	"together":     "https://api.together.xyz/v1",
-	"groq":         "https://api.groq.com/openai/v1",
-	"fireworks":    "https://api.fireworks.ai/inference/v1",
-	"mistral":      "https://api.mistral.ai/v1",
-	"deepseek":     "https://api.deepseek.com",
-	"deepinfra":    "https://api.deepinfra.com/v1/openai",
-	"cerebras":     "https://api.cerebras.ai/v1",
-	"venice":       "https://api.venice.ai/api/v1",
-	"moonshot":     "https://api.moonshot.ai/v1",
+	"openrouter":      "https://openrouter.ai/api/v1",
+	"together":        "https://api.together.xyz/v1",
+	"groq":            "https://api.groq.com/openai/v1",
+	"fireworks":       "https://api.fireworks.ai/inference/v1",
+	"mistral":         "https://api.mistral.ai/v1",
+	"deepseek":        "https://api.deepseek.com",
+	"deepinfra":       "https://api.deepinfra.com/v1/openai",
+	"cerebras":        "https://api.cerebras.ai/v1",
+	"venice":          "https://api.venice.ai/api/v1",
+	"moonshot":        "https://api.moonshot.ai/v1",
 	"zai-coding-plan": "https://api.z.ai/api/coding/paas/v4",
-	"ollama":           "http://localhost:11434/v1",
-	"ollama-cloud": "https://ollama.com/v1",
-	"lmstudio":     "http://localhost:1234/v1",
-	"llamacpp":     "http://localhost:8080/v1",
+	"ollama":          "http://localhost:11434/v1",
+	"ollama-cloud":    "https://ollama.com/v1",
+	"lmstudio":        "http://localhost:1234/v1",
+	"llamacpp":        "http://localhost:8080/v1",
 }
 
 var knownNames = map[string]string{
-	"openrouter":   "OpenRouter",
-	"together":     "Together AI",
-	"groq":         "Groq",
-	"fireworks":    "Fireworks AI",
-	"mistral":      "Mistral",
-	"deepseek":     "DeepSeek",
-	"deepinfra":    "Deep Infra",
-	"cerebras":     "Cerebras",
-	"venice":       "Venice AI",
-	"moonshot":     "Moonshot AI (Kimi)",
+	"openrouter":      "OpenRouter",
+	"together":        "Together AI",
+	"groq":            "Groq",
+	"fireworks":       "Fireworks AI",
+	"mistral":         "Mistral",
+	"deepseek":        "DeepSeek",
+	"deepinfra":       "Deep Infra",
+	"cerebras":        "Cerebras",
+	"venice":          "Venice AI",
+	"moonshot":        "Moonshot AI (Kimi)",
 	"zai-coding-plan": "Z.AI",
-	"ollama":           "Ollama",
-	"ollama-cloud": "Ollama Cloud",
-	"lmstudio":     "LM Studio",
-	"llamacpp":     "llama.cpp",
+	"ollama":          "Ollama",
+	"ollama-cloud":    "Ollama Cloud",
+	"lmstudio":        "LM Studio",
+	"llamacpp":        "llama.cpp",
 }

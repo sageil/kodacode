@@ -22,7 +22,6 @@ func parseMarkdown(content []byte) (frontmatter, string, error) {
 	rest := s[3:]
 	before, after, ok := strings.Cut(rest, "\n---")
 	if !ok {
-		// No closing delimiter — treat everything as body.
 		return fm, strings.TrimSpace(s), nil
 	}
 	yamlPart := before

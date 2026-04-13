@@ -25,7 +25,7 @@ func (f Footer) viewFullWidth() string {
 		return border + "\n" + placeholder
 	}
 
-	// Thin separator line above the input — pulses when streaming.
+	// Thin separator line above the input. It pulses while streaming.
 	var border string
 	if f.errorFlash {
 		errStyle := lipgloss.NewStyle().Foreground(colorFrom(f.theme, "error", lipgloss.Color("196")))

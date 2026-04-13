@@ -3,7 +3,7 @@ title: MCP Integration
 description: Extend KodaCode with Model Context Protocol servers
 ---
 
-KodaCode supports the [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) for extending its capabilities with external tool servers. MCP tools merge seamlessly with built-in tools — the model uses them like any other tool.
+KodaCode supports the [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) for extending its capabilities with external tool servers. MCP tools appear alongside built-in tools, and the model uses them like any other tool.
 
 ## Quick Setup
 
@@ -25,7 +25,7 @@ mcp:
         GITHUB_PERSONAL_ACCESS_TOKEN: ${GITHUB_TOKEN}
 ```
 
-Restart KodaCode after changing MCP configuration. Servers start concurrently on launch — failed servers are logged but don't block startup.
+Restart KodaCode after changing MCP configuration. Servers start concurrently on launch. Failed servers are logged, but they do not block startup.
 
 ## Supported Transports
 
@@ -151,25 +151,25 @@ Any MCP-compliant server works with KodaCode. See the [MCP server directory](htt
 
 ## Troubleshooting
 
-**Server fails to start** — check that the command is installed and accessible in your PATH. Run the command manually to verify: `npx -y @modelcontextprotocol/server-filesystem /tmp`
+**Server fails to start**: check that the command is installed and available in your `PATH`. Run it manually to verify: `npx -y @modelcontextprotocol/server-filesystem /tmp`
 
-**Tools not appearing** — verify the server name in `config.yaml` matches what you expect. MCP tools are prefixed: a server named `filesystem` with a tool `read` appears as `mcp_filesystem_read`.
+**Tools not appearing**: verify that the server name in `config.yaml` matches what you expect. MCP tools are prefixed, so a server named `filesystem` with a tool `read` appears as `mcp_filesystem_read`.
 
-**Permission denied** — MCP tools default to "ask" permission. Add explicit `allow` rules in your permission config for tools you trust.
+**Permission denied**: MCP tools default to `ask`. Add explicit `allow` rules in your permission config for tools you trust.
 
-**Environment variables not expanding** — ensure the variable is exported in your shell (`export GITHUB_TOKEN=...`). KodaCode reads the process environment at startup.
+**Environment variables not expanding**: make sure the variable is exported in your shell (`export GITHUB_TOKEN=...`). KodaCode reads the process environment at startup.
 
 ## Best Practices
 
 ### Server Selection
-- Use **stdio** transport for local tools — simpler setup, no network overhead
+- Use **stdio** transport for local tools. It is simpler to set up and avoids network overhead.
 - Use **SSE** transport for remote services (API integrations, cloud tools)
 
 ### Debugging
 - Enable `debug: true` in config and check `~/.local/share/kodacode/koda.log` for MCP connection status
-- MCP servers initialize in the background — kodacode is usable immediately while servers connect
-- If a server fails to connect, kodacode continues without it — check the log for error details
+- MCP servers initialize in the background, so kodacode is usable immediately while they connect
+- If a server fails to connect, kodacode continues without it. Check the log for details.
 
 ### Performance
-- MCP startup is non-blocking — kodacode is usable immediately while servers connect
+- MCP startup is non-blocking, so kodacode is usable immediately while servers connect
 - Disable unused servers with `enabled: false` rather than removing them from config

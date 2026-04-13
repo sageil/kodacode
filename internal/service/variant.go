@@ -7,7 +7,7 @@ type VariantConfig struct {
 }
 
 // Variants maps effort level names to thinking parameters.
-// "adaptive" is not in the map — it signals the OAuth middleware to use
+// "adaptive" is not in the map it signals the OAuth middleware to use
 // adaptive thinking (model decides depth). Budget 0 + not-found = adaptive.
 var Variants = map[string]VariantConfig{
 	"low":  {Budget: 3000, Effort: "low"},

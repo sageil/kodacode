@@ -91,7 +91,7 @@ func (m *Messages) renderDiffWithHunks(body *strings.Builder, msgIndex int,
 	if !ok {
 		hunks := splitIntoHunks(allOps, 3)
 		if len(hunks) == 0 {
-			// No changes — just render the diff normally.
+			// No changes. Render the diff normally.
 			for _, line := range renderDiffOps(trimDiffContext(allOps, 3), textWidth) {
 				fmt.Fprintf(body, "  %s\n", line)
 			}
@@ -152,7 +152,7 @@ func (m *Messages) renderDiffWithHunks(body *strings.Builder, msgIndex int,
 		fmt.Fprintf(body, "  %s\n", sep)
 		lineOffset++
 
-		// Render hunk diff ops — dim if rejected.
+		// Render hunk diff ops. Dim them if the hunk is rejected.
 		trimmed := trimDiffContext(hunk.Ops, 3)
 		rendered := renderDiffOps(trimmed, textWidth)
 		for _, line := range rendered {
@@ -164,7 +164,7 @@ func (m *Messages) renderDiffWithHunks(body *strings.Builder, msgIndex int,
 		}
 	}
 
-	// Action bar — only shown when at least one hunk was toggled.
+	// Show the action bar only when at least one hunk has been toggled.
 	if dr.dirty {
 		actionLabel := actionStyle.Render("[Apply Changes]")
 		aPrefix := "── "

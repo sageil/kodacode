@@ -155,9 +155,8 @@ func (tl *turnLoop) run() error {
 			if contextSize <= 0 {
 				contextSize = 128000
 			}
-			// Total tokens in context (for limit checks — cache reads are real tokens the model processes).
+
 			actualTokens := req.Usage.InputTokens + req.Usage.CacheReadTokens + req.Usage.CacheWriteTokens
-			// New input tokens (for compaction decisions — cache reads are cheap and don't warrant compaction).
 			newInputTokens := req.Usage.InputTokens + req.Usage.CacheWriteTokens
 			cc := resolveCompactionConfig(cfg, req.ProviderID, req.Model.ID, contextSize)
 			cacheInfo := ""
@@ -364,7 +363,7 @@ func (tl *turnLoop) run() error {
 				setWorkflowRuntimeDirective(req, "[SYSTEM: Repeated identical tool calls detected. Tool use is disabled for the rest of this turn. Do not call more tools. Provide your best answer to the user based on the information you already gathered.]")
 				log.Printf("loop: disabled tools for remainder of turn at step %d", req.Step)
 			} else if loopVerdict >= loopNudge {
-				nudge := "[SYSTEM: Loop detected — you are repeating the same tool calls with identical results. " +
+				nudge := "[SYSTEM: Loop detected. You are repeating the same tool calls with identical results. " +
 					"Stop repeating and either present your findings to the user or try a different approach.]"
 				setWorkflowRuntimeDirective(req, nudge)
 				log.Printf("loop: injected nudge message at step %d", req.Step)

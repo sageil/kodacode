@@ -250,7 +250,7 @@ func (m *Messages) renderQuestionToolCall(sb *strings.Builder, msg Message, boxW
 
 	question, answer := parseQuestionOutput(msg.ToolOutput)
 	if question == "" {
-		// Still running or no output yet — show spinner.
+		// Still running or no output yet. Show the spinner.
 		if !msg.ToolDone {
 			frame := (pulseTick % 10) * 3
 			icon := accent.Render(spinnerFrames[frame : frame+3])
@@ -324,7 +324,7 @@ func shouldAutoCollapse(msg Message) bool {
 		return false
 	}
 	if msg.ToolName == "subagent" {
-		// Don't auto-collapse slash-command subagents — their result is
+		// Do not auto-collapse slash-command subagents because their result is
 		// the only output the user sees (no engineer workflow summary step).
 		if strings.HasPrefix(msg.ToolCallID, "slash-") {
 			return false

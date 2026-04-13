@@ -8,7 +8,7 @@ func TestRejectBashFileOp(t *testing.T) {
 		cmd     string
 		blocked bool
 	}{
-		// Heredoc patterns — should be blocked
+		// Heredoc patterns should be blocked
 		{"cat heredoc", "cat > file.ts << 'EOF'\ncontent\nEOF", true},
 		{"cat heredoc to tmp", "cat > /tmp/file.ts << EOF", true},
 		{"cat to tmp then cp", "cat > /tmp/fix.py << 'PYEOF'\nimport sys\nPYEOF", true},
@@ -16,7 +16,7 @@ func TestRejectBashFileOp(t *testing.T) {
 		{"heredoc no cat", "bash <<'SCRIPT'\necho hi\nSCRIPT", true},
 		{"heredoc typescript", "cat > src/index.ts << 'TYPESCRIPT'\ncontent\nTYPESCRIPT", true},
 
-		// Non-heredoc operations — should pass
+		// Non-heredoc operations should pass
 		{"cat read only", "cat tsconfig.json", false},
 		{"cat -n read", "cat -n src/index.ts", false},
 		{"cat write redirect", "cat > src/index.ts", false},

@@ -67,7 +67,7 @@ func (a App) handleSSEBatch(batch SSEBatchMsg) (tea.Model, tea.Cmd) {
 }
 
 // handleSSEEvent processes one streaming event, updating session state.
-// Does NOT flush render or re-issue the read command — callers are responsible.
+// Does NOT flush render or re-issue the read command. Callers are responsible.
 //
 // Events whose SessionID does not match the current session are silently
 // discarded. This prevents stale events from a cancelled old session from

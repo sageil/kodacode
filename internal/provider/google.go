@@ -188,14 +188,14 @@ func (p *GoogleProvider) Chat(
 	}
 
 	// Try to use or create a context cache for the system instructions + tools.
-	// Skip for OAuth sessions — Cloud Code Assist doesn't support context caching.
+	// Skip OAuth sessions because Cloud Code Assist does not support context caching.
 	var cachedName string
 	if !p.isOAuth {
 		cachedName = p.ensureCache(ctx, model, opts)
 	}
 	if cachedName != "" {
 		config.CachedContent = cachedName
-		// Clear system instruction and tools — they're in the cache.
+		// Clear the system instruction and tools because they are already in the cache.
 		config.SystemInstruction = nil
 		config.Tools = nil
 	}
@@ -301,7 +301,7 @@ func isGeminiChatModel(id string) bool {
 	if len(last) >= 2 && last[0] >= '0' && last[0] <= '9' {
 		return false
 	}
-	// Also skip aliases like "gemini-flash-latest" — they duplicate real model IDs.
+	// Also skip aliases like "gemini-flash-latest" because they duplicate real model IDs.
 	if strings.HasSuffix(id, "-latest") {
 		return false
 	}

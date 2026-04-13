@@ -5,8 +5,8 @@ description: Complete reference for config.yaml
 
 Configuration files are loaded in order, with later sources overriding earlier ones:
 
-1. `~/.config/kodacode/config.yaml` — global defaults
-2. `./kodacode.yaml` — project-specific overrides
+1. `~/.config/kodacode/config.yaml`: global defaults
+2. `./kodacode.yaml`: project-specific overrides
 
 Environment variables (`${VAR_NAME}`) are expanded automatically in `api_key`, `base_url`, `env`, and `headers` fields.
 
@@ -25,7 +25,7 @@ Some keyed collections have additional field rules:
 
 - `lsp.servers`: project entries merge field-by-field with the inherited server of the same `name`.
 - `skills.models`: `allow_all` uses the project value when present; `deny` lists are appended uniquely.
-- `permission`: merged per tool at the pattern level — patterns from all layers are concatenated (defaults first, then global, then project/agent). Last matching pattern wins, so project patterns override inherited ones for the same glob while preserving unmentioned patterns. String shorthand rules (e.g. `bash: allow`) are expanded to `* → allow` before merging.
+- `permission`: merged per tool at the pattern level. Patterns from all layers are concatenated (defaults first, then global, then project or agent). The last matching pattern wins, so project patterns override inherited ones for the same glob while preserving unmentioned patterns. String shorthand rules such as `bash: allow` are expanded to `* → allow` before merging.
 
 ## Providers
 
@@ -281,7 +281,7 @@ permission:
 
 Permission rules are merged across layers (defaults → global → project → agent) at the **pattern level**. Patterns from each layer are appended in order, and the last matching pattern wins. This means a project config can override specific globs without losing patterns from earlier layers.
 
-For example, if defaults define `read: { "*": allow, "*.env": ask }` and a project config adds `read: { "*.env": deny }`, the merged result is `[* → allow, *.env → ask, *.env → deny]` — the project's deny wins for `.env` files while the default catch-all allow is preserved for other files.
+For example, if defaults define `read: { "*": allow, "*.env": ask }` and a project config adds `read: { "*.env": deny }`, the merged result is `[* → allow, *.env → ask, *.env → deny]`. The project's deny wins for `.env` files, while the default catch-all allow remains in place for other files.
 
 String shorthand (e.g. `bash: allow`) is expanded to `* → allow` before merging.
 
@@ -309,7 +309,7 @@ memory_budget: 4000          # max characters for auto-memories in system prompt
 
 ## LSP Servers
 
-Three servers are configured by default (gopls, vtsls, pyright). Additional servers are auto-discovered from your project. Servers start on demand — the first query to a matching file extension starts the server.
+Three servers are configured by default (`gopls`, `vtsls`, `pyright`). Additional servers are auto-discovered from your project. Servers start on demand, so the first query to a matching file extension starts the server.
 
 ```yaml
 lsp:

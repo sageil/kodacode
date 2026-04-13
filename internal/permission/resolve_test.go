@@ -140,7 +140,7 @@ func TestResolve_PatternLastMatchWins(t *testing.T) {
 }
 
 func TestResolve_PatternLastMatchWins_NormalFile(t *testing.T) {
-	// For a normal .go file only "*" matches — so result is allow.
+	// For a normal .go file, only "*" matches, so the result is allow.
 	cfg := permission.Config{
 		"read": &permission.Rule{
 			Patterns: []permission.Pattern{

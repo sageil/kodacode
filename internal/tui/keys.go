@@ -6,7 +6,7 @@ import (
 
 // KeyMap holds the global keybindings for the TUI.
 // Dialog shortcuts (agents, models, sessions, themes, etc.) are accessed via
-// slash commands only — Ctrl keys are reserved for textarea navigation.
+// slash commands only. Ctrl keys are reserved for textarea navigation.
 type KeyMap struct {
 	Quit            key.Binding
 	CancelStream    key.Binding

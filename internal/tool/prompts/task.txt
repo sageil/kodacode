@@ -2,11 +2,11 @@
 - CRITICAL: When tasks exist, you MUST update their status as you work:
   1. Set task to "in_progress" BEFORE you start working on it
   2. Set task to "completed" AFTER you finish the work
-  3. Never skip these status updates — the user tracks your progress through them
+  3. Never skip these status updates. The user tracks your progress through them.
 - Actions: "create" (new task), "update" (change status/title/notes/progress by ID), "list" (show all), "delete" (remove by ID)
 - Existing task IDs are assigned by Koda and look like `task 1`, `task 2`, etc. Use the exact ID shown in the task panel, or just the number (`1`, `2`) if you prefer.
 - Do NOT invent semantic IDs like `task_refactor_backend`. If you are unsure which ID to use, call `task` with `{"action":"list"}` first.
-- Tasks created by the planner agent appear automatically — start executing them in order
+- Tasks created by the planner agent appear automatically. Start executing them in order.
 - Work on one task at a time, but continue through the remaining pending tasks without asking the user between tasks unless blocked: pending → in_progress → completed → next pending task
 - Optional `kind` values:
   - `implementation`: code changes that may later be reviewer-checked against acceptance criteria

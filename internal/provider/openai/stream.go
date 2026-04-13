@@ -146,7 +146,7 @@ func consumeStream(ctx context.Context, stream *ssestream.Stream[openaisdk.ChatC
 		for _, choice := range chunk.Choices {
 			d := choice.Delta
 
-			// Check for reasoning_content in ExtraFields — some providers
+			// Check for reasoning_content in ExtraFields. Some providers
 			// (OpenAI o-series, OpenRouter) send reasoning through this
 			// non-standard field. Emit as ReasoningDelta to prevent it
 			// from appearing as visible text.
@@ -171,7 +171,7 @@ func consumeStream(ctx context.Context, stream *ssestream.Stream[openaisdk.ChatC
 				}
 			}
 
-			// Finish reason — emit completed tool calls then the finish chunk
+			// Emit completed tool calls before the finish chunk.
 			if choice.JSON.FinishReason.Valid() && choice.FinishReason != "" {
 				reason := normalizeFinishReason(string(choice.FinishReason))
 

@@ -36,8 +36,8 @@ func main() {
 	sig := make(chan os.Signal, 2)
 	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
 	go func() {
-		<-sig // first signal — let Bubble Tea handle it
-		<-sig // second signal — force exit
+		<-sig
+		<-sig
 		os.Exit(0)
 	}()
 

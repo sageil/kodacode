@@ -1,14 +1,14 @@
 Executes a bash command in a persistent shell session with optional timeout.
 
-Use the `workdir` parameter to run in a different directory — do not use `cd && command` patterns.
+Use the `workdir` parameter to run in a different directory. Do not use `cd && command` patterns.
 
-IMPORTANT: Only use bash for commands with no dedicated tool equivalent (docker, make, go build, pip, cargo, npm install, etc.). Prefer dedicated tools: Glob/Tree for files, Read for content, Grep for searching, Write/Edit for modifications, Test for testing, Git for version control. Never use `sed` to edit files — it has incompatible syntax between macOS and Linux. Use Edit instead.
+IMPORTANT: Only use bash for commands with no dedicated tool equivalent (docker, make, go build, pip, cargo, npm install, etc.). Prefer dedicated tools: Glob/Tree for files, Read for content, Grep for searching, Write/Edit for modifications, Test for testing, and Git for version control. Never use `sed` to edit files. It has incompatible syntax between macOS and Linux. Use Edit instead.
 
-IMPORTANT: This tool blocks until the command exits. For long-running processes (servers, watchers, test suites, builds) set `run_in_background` to true — it returns a task ID immediately and results are delivered automatically when done. Use background mode to work in parallel instead of waiting.
+IMPORTANT: This tool blocks until the command exits. For long-running processes (servers, watchers, test suites, builds), set `run_in_background` to true. It returns a task ID immediately, and results are delivered automatically when done. Use background mode to work in parallel instead of waiting.
 
 Usage notes:
   - You can specify an optional timeout in milliseconds (default 120000ms / 2 minutes).
-  - Write a clear, concise description of what the command does in 5-10 words.
+  - Write a clear, concise description of what the command does in 5 to 10 words.
   - If output exceeds 2000 lines or 51200 bytes, it will be truncated and saved to a file. Use Read with offset/limit or Grep to access the full content.
   - When issuing multiple independent commands, make multiple Bash tool calls in a single response. Chain dependent commands with '&&'. Do not use newlines to separate commands.
   - Always quote file paths containing spaces with double quotes.

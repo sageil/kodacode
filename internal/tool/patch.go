@@ -175,7 +175,6 @@ func executePatch(ctx context.Context, ectx ExecutionContext, args []byte) (*Res
 		}, nil
 	}
 
-	// All edits succeeded — write once.
 	if err := writeFileWithExistingMode(path, []byte(current)); err != nil {
 		if res := mutationPathErrorResult("patch", err); res != nil {
 			return res, nil

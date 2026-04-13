@@ -28,7 +28,7 @@ session:
 | `budget` | `0` | Maximum dollars per session. 0 = unlimited |
 | `budget_warn` | `0.8` | Fraction of budget at which a warning is shown |
 
-When the budget is exceeded, the tool loop stops — tools are removed and the model is forced to respond with what it has.
+When the budget is exceeded, the tool loop stops. Tools are removed and the model must respond with what it has.
 
 ## How KodaCode Reduces Cost
 
@@ -36,30 +36,30 @@ When the budget is exceeded, the tool loop stops — tools are removed and the m
 
 Most of the work in a session is done by the primary model (the one you selected). But several background operations don't need an expensive model:
 
-- **Title generation** — summarizing your first message into a session title
-- **Context compaction** — generating structured summaries when the context window fills up
-- **Explorer/insight subagents** — read-only research tasks that only need comprehension, not generation
+- **Title generation**: summarizing your first message into a session title
+- **Context compaction**: generating structured summaries when the context window fills up
+- **Explorer/insight subagents**: read-only research tasks that need comprehension, not generation
 
-These are routed to the `utility_model` — a fast, cheap model you configure once:
+These are routed to the `utility_model`, a fast and inexpensive model that you configure once:
 
 ```yaml
 utility_model: anthropic/claude-haiku-4-5-20251001
 ```
 
-When `utility_model` is not set, KodaCode auto-discovers the cheapest text-capable model across all configured providers. If a utility model fails permanently (401, 403, 404), the next ranked candidate is tried automatically — failed models are marked unavailable for 15 minutes.
+When `utility_model` is not set, KodaCode auto-discovers the cheapest text-capable model across all configured providers. If a utility model fails permanently (401, 403, 404), the next ranked candidate is tried automatically. Failed models are marked unavailable for 15 minutes.
 
 Any agent can opt into the utility model by setting `model: utility` in its frontmatter. The built-in `explorer` and `insight` agents do this by default.
 
-**Impact**: Title generation and compaction summaries typically use 500–2,000 tokens each. Routing these to Haiku instead of Opus/Sonnet can reduce their cost by 10–30x per call.
+**Impact**: title generation and compaction summaries typically use 500–2,000 tokens each. Routing them to Haiku instead of Opus or Sonnet can reduce their cost by 10–30x per call.
 
 ### Adaptive Reasoning Budget
 
 Extended thinking (reasoning tokens) is one of the largest cost drivers. KodaCode manages this automatically:
 
-1. **Per-model config** — only models with `thinking_budget` set use extended thinking at all. Models without it skip thinking entirely, avoiding unnecessary latency and cost.
-2. **Auto-reduce on tool turns** — after the model's initial response, reasoning drops to 3K tokens for subsequent tool-routing turns (the model is just deciding which tool to call next, not solving a problem).
-3. **Context-aware scaling** — above 70% context usage, the reasoning budget scales down proportionally to prevent output token exhaustion.
-4. **User-set ceiling** — `/variant` cycles through `low` (3K), `high` (10K), `max` (32K), and `off`. Use `low` for straightforward tasks.
+1. **Per-model config**: only models with `thinking_budget` set use extended thinking at all. Models without it skip thinking entirely, which avoids unnecessary latency and cost.
+2. **Auto-reduce on tool turns**: after the model's initial response, reasoning drops to 3K tokens for later tool-routing turns because the model is deciding which tool to call next, not solving the full problem.
+3. **Context-aware scaling**: above 70% context usage, the reasoning budget scales down proportionally to prevent output token exhaustion.
+4. **User-set ceiling**: `/variant` cycles through `low` (3K), `high` (10K), `max` (32K), and `off`. Use `low` for straightforward tasks.
 
 ```yaml
 providers:
@@ -116,7 +116,7 @@ Pricing comes from the models.dev registry, cached locally and refreshed every 7
 
 ## Persistence
 
-Session costs are persisted to SQLite. When resuming a session, the accumulated cost is restored. Budget applies per session — starting a new session resets the counter.
+Session costs are persisted to SQLite. When you resume a session, the accumulated cost is restored. The budget applies per session, so starting a new session resets the counter.
 
 ## Configuration Example
 

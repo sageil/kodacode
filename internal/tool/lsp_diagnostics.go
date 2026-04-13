@@ -27,7 +27,7 @@ func NewLSPDiagnosticsAdapter(mgr *lsp.Manager, projectDir string) *LSPDiagnosti
 // FileDiagnostics returns cached LSP diagnostics for the file. If none are
 // cached, it opens the file and waits briefly for the server to respond.
 // TypeScript servers often need 10-30s for project analysis on first open,
-// so this method prioritizes returning quickly over completeness — the model
+// so this method prioritizes returning quickly over completeness. The model
 // can always call `lsp diagnostics` explicitly for a thorough check.
 func (a *LSPDiagnosticsAdapter) FileDiagnostics(ctx context.Context, filePath string) string {
 	ext := filepath.Ext(filePath)

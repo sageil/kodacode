@@ -34,7 +34,7 @@ func NewQuestionTool() *Tool {
 			"properties": {
 				"question": {
 					"type": "string",
-					"description": "A short question (1-2 sentences). Do NOT put details here — write them as text output before calling this tool."
+					"description": "A short question (1-2 sentences). Do NOT put details here. Write them as text output before calling this tool."
 				},
 				"options": {
 					"type": "array",

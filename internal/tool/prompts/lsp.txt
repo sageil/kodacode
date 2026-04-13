@@ -1,8 +1,8 @@
-Code intelligence powered by language servers. Provides compiler-accurate results — prefer over grep for code navigation.
+Code intelligence powered by language servers. It provides compiler-accurate results and should be preferred over grep for code navigation.
 
 IMPORTANT: Always batch multiple LSP operations into a single call using the "operations" array. Never make separate lsp calls when you can combine them.
 
-Example — batch inspect + diagnostics in one call:
+Example: batch inspect + diagnostics in one call:
 {"operations": [
   {"action": "inspect", "filePath": "/src/main.ts", "line": 4, "character": 10},
   {"action": "inspect", "filePath": "/src/main.ts", "line": 8, "character": 5},
@@ -11,12 +11,12 @@ Example — batch inspect + diagnostics in one call:
 ]}
 
 Available actions:
-- "symbols" — find functions, types, variables by name across the workspace. Requires query.
-- "diagnostics" — compiler errors, warnings, and lint issues. Requires filePath (or filePaths for multiple files).
-- "definition" — jump to where a symbol is defined. Requires filePath, line (1-indexed), character (0-indexed).
-- "references" — find all usages of a symbol. Same params as definition.
-- "inspect" — get type info and documentation for a symbol. Same params as definition.
-- "find_references" — find references by symbol name. Requires query.
+- "symbols": find functions, types, and variables by name across the workspace. Requires query.
+- "diagnostics": compiler errors, warnings, and lint issues. Requires filePath, or filePaths for multiple files.
+- "definition": jump to where a symbol is defined. Requires filePath, line (1-indexed), and character (0-indexed).
+- "references": find all usages of a symbol. Uses the same parameters as definition.
+- "inspect": get type information and documentation for a symbol. Uses the same parameters as definition.
+- "find_references": find references by symbol name. Requires query.
 
 For actual symbol renames, prefer the dedicated `rename_symbol` tool rather than text edits.
 

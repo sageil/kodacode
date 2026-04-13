@@ -26,10 +26,12 @@ var lspParams = []byte(`{
 	}
 }`)
 
-const lspTimeout = 15 * time.Second
-const lspReferencesLimit = 50
-const lspSymbolsLimit = 100
-const lspCacheTTL = 30 * time.Second
+const (
+	lspTimeout         = 15 * time.Second
+	lspReferencesLimit = 50
+	lspSymbolsLimit    = 100
+	lspCacheTTL        = 30 * time.Second
+)
 
 // lspCache deduplicates repeated LSP calls for the same action+file+position
 // within a short window. The LLM often calls hover or diagnostics on the same
@@ -122,7 +124,7 @@ func ResolveLSPServers(configured []config.LSPServerConfig) []config.LSPServerCo
 }
 
 // NewLSPTool returns a Tool that provides language server queries via
-// the LSP JSON-RPC protocol. The manager handles server lifecycle —
+// the LSP JSON-RPC protocol. The manager handles server lifecycle
 // servers start on demand when a query arrives for a matching file extension.
 func NewLSPTool(mgr *lsp.Manager) *Tool {
 	cache := newLSPCache()
@@ -171,7 +173,7 @@ func executeLSP(ctx context.Context, ectx ExecutionContext, args []byte, mgr *ls
 
 	rootURI := lsp.FileURI(ectx.WorkDir)
 
-	// Build the list of operations — either from the batch array or the single top-level action.
+	// Build the list of operations either from the batch array or the single top-level action.
 	ops := params.Operations
 	if len(ops) == 0 {
 		if params.Action == "" {
@@ -180,12 +182,12 @@ func executeLSP(ctx context.Context, ectx ExecutionContext, args []byte, mgr *ls
 		ops = []lspOp{params.lspOp}
 	}
 
-	// Single operation — run directly, no batch overhead.
+	// Single operation run directly, no batch overhead.
 	if len(ops) == 1 {
 		return executeSingleLSP(ctx, ectx.WorkDir, mgr, cache, rootURI, ops[0])
 	}
 
-	// Batch — fan out all operations concurrently.
+	// Batch fan out all operations concurrently.
 	type indexedResult struct {
 		idx    int
 		title  string
@@ -525,14 +527,12 @@ func batchDiagnostics(ctx context.Context, mgr *lsp.Manager, rootURI, workDir st
 		Title:  fmt.Sprintf("diagnostics: %d files, %d with issues", len(files), totalIssues),
 		Output: strings.TrimSpace(sb.String()),
 		Metadata: map[string]any{
-			"action":      "diagnostics",
-			"files":       len(files),
+			"action":            "diagnostics",
+			"files":             len(files),
 			"files_with_issues": totalIssues,
 		},
 	}, nil
 }
-
-
 
 func lspWorkspaceSymbols(ctx context.Context, mgr *lsp.Manager, query string) (*Result, error) {
 	symbols, err := mgr.WorkspaceSymbol(ctx, query)

@@ -27,7 +27,7 @@ type Palette struct {
 // Returns an error if in is not a TTY, or if the terminal doesn't respond within timeout.
 //
 // in is io.ReadWriter so that in tests a bytes.Buffer with pre-built responses
-// can be passed — no real TTY is needed for tests.
+// can be passed, so no real TTY is needed for tests.
 func Detect(in io.ReadWriter, out io.Writer, timeout time.Duration) (Palette, error) {
 	// Only set raw mode if in is a real TTY.
 	if f, ok := in.(*os.File); ok {

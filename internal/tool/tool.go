@@ -24,7 +24,7 @@ import (
 //   - string-wrapped arrays: "[{...}]" → []T
 //   - single object where array expected: {...} → []T (wrapped in a slice)
 //
-// Strict unmarshal is tried first — zero overhead for well-formed input.
+// Strict unmarshal is tried first. Well-formed input takes the fast path.
 func flexUnmarshal(data []byte, dst any) error {
 	if err := json.Unmarshal(data, dst); err == nil {
 		return nil
@@ -61,7 +61,7 @@ func flexUnmarshal(data []byte, dst any) error {
 		// Coerce from string.
 		var s string
 		if json.Unmarshal(rawVal, &s) != nil {
-			// Not a string — try object-to-slice coercion for slice fields.
+			// If it is not a string, try object-to-slice coercion for slice fields.
 			if field.Type.Kind() == reflect.Slice {
 				elem := reflect.New(field.Type.Elem())
 				if json.Unmarshal(rawVal, elem.Interface()) == nil {

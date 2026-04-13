@@ -42,7 +42,7 @@ func TestEnsureDefaults_Idempotent(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Run again — should NOT overwrite.
+	// Run again. It should not overwrite the file.
 	EnsureDefaults()
 
 	data, err := os.ReadFile(cfgPath)

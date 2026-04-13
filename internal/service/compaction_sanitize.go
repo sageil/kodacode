@@ -54,7 +54,7 @@ func safeTruncateMessages(msgs []provider.Message, keepTurns int) []provider.Mes
 		return msgs
 	}
 
-	// Fewer turns than keepTurns — all existing turns fit within budget.
+	// If there are fewer turns than keepTurns, all existing turns fit within budget.
 	// For multi-turn sessions (≥2 boundaries), keep everything since we
 	// want all the turns we have.
 	if len(boundaries) > 1 {
@@ -359,7 +359,7 @@ func truncateMessagesToFit(msgs []provider.Message, maxTokens int) []provider.Me
 	}
 
 	if !bestFit {
-		// Even 1 tail turn exceeds budget — fall back to tail-only truncation.
+		// Even one tail turn exceeds the budget, so fall back to tail-only truncation.
 		result := msgs[turnStarts[nTurns-1]:]
 		for len(result) > 1 && estimateProviderMessages(result) > maxTokens {
 			result = result[1:]

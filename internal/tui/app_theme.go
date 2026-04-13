@@ -38,7 +38,7 @@ func (a App) applyThemeByName(name string) tea.Cmd {
 			themePath := filepath.Join(config.ThemesDir(), name+".yaml")
 			loaded, err := theme.NewLoader(theme.LoaderConfig{Path: themePath}).Load()
 			if err != nil {
-				// silently ignore — theme file not found or invalid
+				// Silently ignore a missing or invalid theme file.
 				return nil
 			}
 			th = loaded

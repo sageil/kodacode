@@ -1,26 +1,26 @@
-# Tokyo Night — https://github.com/enkia/tokyo-night-vscode-theme
+# Tokyo Night: https://github.com/enkia/tokyo-night-vscode-theme
 # Soft dark theme with blue undertones inspired by Tokyo city lights.
 name: tokyo-night
 syntax_style: tokyonight-night
 
 palette:
-  # Blue (#7aa2f7) — primary interactive elements and headings.
+  # Blue (#7aa2f7): primary interactive elements and headings.
   primary: "#7aa2f7"
-  # Cyan (#7dcfff) — secondary accents, links, badges.
+  # Cyan (#7dcfff): secondary accents, links, and badges.
   secondary: "#7dcfff"
-  # Surface (#24283b) — raised surfaces, panels, dialogs.
+  # Surface (#24283b): raised surfaces, panels, and dialogs.
   surface: "#24283b"
-  # Overlay (#414868) — input areas, selection highlights.
+  # Overlay (#414868): input areas and selection highlights.
   overlay: "#414868"
-  # Foreground (#c0caf5) — primary readable text.
+  # Foreground (#c0caf5): primary readable text.
   text: "#c0caf5"
-  # Comment (#565f89) — de-emphasised labels, hints.
+  # Comment (#565f89): de-emphasised labels and hints.
   subtext: "#565f89"
-  # Red (#f7768e) — errors and destructive actions.
+  # Red (#f7768e): errors and destructive actions.
   error: "#f7768e"
-  # Yellow (#e0af68) — warnings and caution states.
+  # Yellow (#e0af68): warnings and caution states.
   warning: "#e0af68"
-  # Green (#9ece6a) — success states and completion ticks.
+  # Green (#9ece6a): success states and completion ticks.
   success: "#9ece6a"
   thinking: "#bb9af7"
 

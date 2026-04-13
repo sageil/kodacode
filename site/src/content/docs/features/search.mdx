@@ -5,7 +5,7 @@ description: Hybrid symbol search combining full-text and embedding-based vector
 
 import { Aside } from '@astrojs/starlight/components';
 
-KodaCode can index every symbol in your codebase — functions, types, interfaces, constants, variables — and search them using a hybrid engine that combines keyword matching and semantic vector search. When you type `search query="handle authentication"`, the engine finds symbols whose names contain those words **and** symbols whose meaning is related, even if the words don't appear in the name.
+KodaCode can index every symbol in your codebase, including functions, types, interfaces, constants, and variables, then search them with a hybrid engine that combines keyword matching and semantic vector search. When you type `search query="handle authentication"`, the engine finds symbols whose names contain those words **and** symbols whose meaning is related, even if the words do not appear in the name.
 
 This page explains what the feature does, what it depends on, and how to set it up.
 
@@ -19,7 +19,7 @@ The search pipeline has three layers that build on each other:
 | **Full-text search (FTS)** | Indexes symbol names, kinds, signatures, and documentation for keyword search using SQLite FTS5 with BM25 scoring | Symbol extraction |
 | **Vector search** | Converts each symbol into a vector embedding via an AI model, then finds similar symbols using cosine similarity | FTS + an embedding model |
 
-Each layer is optional. You can run FTS without embeddings, or disable the whole thing. When both FTS and vector search are active, they run in parallel and results are merged using Reciprocal Rank Fusion (RRF) — symbols found by both methods get boosted scores.
+Each layer is optional. You can run FTS without embeddings, or disable the feature entirely. When both FTS and vector search are active, they run in parallel and the results are merged using Reciprocal Rank Fusion (RRF). Symbols found by both methods receive a higher score.
 
 ## Dependencies
 
@@ -76,7 +76,7 @@ search_index:
 
 #### What happens without ctags
 
-Without Universal Ctags, KodaCode falls back to **built-in extractors**. Currently only **Go** has a built-in extractor — it parses `.go` files directly and extracts functions, types, interfaces, constants, variables, and methods with full signatures and doc comments.
+Without Universal Ctags, KodaCode falls back to **built-in extractors**. At the moment, only **Go** has a built-in extractor. It parses `.go` files directly and extracts functions, types, interfaces, constants, variables, and methods with full signatures and doc comments.
 
 All other languages (JavaScript, TypeScript, Python, Rust, Java, Ruby, C, C++, and 90+ more) **require Universal Ctags** for symbol extraction. Without it, those files are invisible to symbol search.
 
@@ -125,7 +125,7 @@ search_index:
     model: "provider/model-name"
 ```
 
-The `model` field uses `provider/model` format — the provider ID must match one of your configured providers, and that provider must support the embeddings API.
+The `model` field uses `provider/model` format. The provider ID must match one of your configured providers, and that provider must support the embeddings API.
 
 ### Full configuration reference
 
@@ -182,19 +182,19 @@ This runs entirely on your machine. No API keys, no cost, no data leaving your n
 - LM Studio's local server running
 - Universal Ctags installed
 
-**Step 1 — Load the embedding model in LM Studio:**
+**Step 1: Load the embedding model in LM Studio**
 
 1. Open LM Studio
 2. Search for `nomic-embed-text` in the model browser
 3. Download and load the model
 
-**Step 2 — Start the local server:**
+**Step 2: Start the local server**
 
 1. Go to the **Developer** tab in LM Studio
 2. Click **Start Server** (default: `http://localhost:1234`)
-3. Verify the server is running — you should see a green status indicator
+3. Verify that the server is running. You should see a green status indicator.
 
-**Step 3 — Add LM Studio as a provider in KodaCode** (if not already configured):
+**Step 3: Add LM Studio as a provider in KodaCode** (if not already configured)
 
 ```yaml
 providers:
@@ -203,7 +203,7 @@ providers:
     base_url: "http://localhost:1234/v1"
 ```
 
-**Step 4 — Enable search with embeddings:**
+**Step 4: Enable search with embeddings**
 
 ```yaml
 search_index:
@@ -214,7 +214,7 @@ search_index:
     dimensions: 768
 ```
 
-**Step 5 — Start KodaCode.** The index builds automatically on first launch. You'll see log output like:
+**Step 5: Start KodaCode.** The index builds automatically on first launch. You will see log output like:
 
 ```
 search index: indexed 142 files
@@ -229,13 +229,13 @@ Similar to LM Studio but using Ollama's CLI.
 - [Ollama](https://ollama.com/) installed and running
 - Universal Ctags installed
 
-**Step 1 — Pull the embedding model:**
+**Step 1: Pull the embedding model**
 
 ```bash
 ollama pull nomic-embed-text
 ```
 
-**Step 2 — Verify it's available:**
+**Step 2: Verify that it is available**
 
 ```bash
 ollama list
@@ -243,7 +243,7 @@ ollama list
 
 You should see `nomic-embed-text` in the output.
 
-**Step 3 — Add Ollama as a provider in KodaCode** (if not already configured):
+**Step 3: Add Ollama as a provider in KodaCode** (if not already configured)
 
 ```yaml
 providers:
@@ -252,7 +252,7 @@ providers:
     base_url: "http://localhost:11434/v1"
 ```
 
-**Step 4 — Enable search with embeddings:**
+**Step 4: Enable search with embeddings**
 
 ```yaml
 search_index:
@@ -263,7 +263,7 @@ search_index:
     dimensions: 768
 ```
 
-**Step 5 — Start KodaCode.** Same as above — the index builds on first launch.
+**Step 5: Start KodaCode.** As above, the index builds on first launch.
 
 ### Example 4: Google Gemini embeddings (cloud)
 
@@ -290,7 +290,7 @@ search_index:
 | `mxbai-embed-large` | Ollama | 1024 | Local | Free |
 | `all-minilm` | Ollama | 384 | Local | Free |
 
-For local development, `nomic-embed-text` through LM Studio or Ollama is the recommended choice — good quality, fast, and free.
+For local development, `nomic-embed-text` through LM Studio or Ollama is a good default. It is fast, free, and produces solid results.
 
 ## Using the Search Tool
 
@@ -302,9 +302,9 @@ search query="authentication middleware" path="./internal"
 
 Results are grouped:
 
-- **Symbol matches** — from the hybrid FTS + vector engine. Each result includes file path, line number, symbol kind, name, signature, and documentation.
-- **File matches** — files whose names match the query terms.
-- **Content matches** — lines matching the query via ripgrep.
+- **Symbol matches**: from the hybrid FTS + vector engine. Each result includes the file path, line number, symbol kind, name, signature, and documentation.
+- **File matches**: files whose names match the query terms.
+- **Content matches**: lines that match the query through ripgrep.
 
 The model uses the `search` tool automatically when it needs to find code. You don't need to invoke it manually.
 
@@ -324,19 +324,19 @@ This gives the model enough context to decide whether to read the file, and exac
 
 When both FTS and embeddings are enabled, here's what happens for each query:
 
-1. **Parallel dispatch** — the query is sent to both FTS and vector search simultaneously
-2. **FTS path** — tokenizes the query, splits camelCase/snake_case, and runs BM25 scoring across name, kind, signature, doc, and token columns
+1. **Parallel dispatch**: the query is sent to both FTS and vector search at the same time
+2. **FTS path**: tokenizes the query, splits camelCase and snake_case, and runs BM25 scoring across the name, kind, signature, doc, and token columns
 3. **Vector path**:
    - Embeds the query text using the same model used for indexing
    - Prefilters candidates using FTS (to avoid comparing against every vector in the database)
    - Computes cosine similarity between the query vector and each candidate
    - Returns top-N results sorted by similarity score
-4. **RRF merge** — combines both ranked lists using Reciprocal Rank Fusion: `score = Σ(1 / (k + rank))` where k=60. Symbols appearing in both lists are deduplicated and get combined scores
-5. **Source annotation** — each result is tagged as `fts`, `vector`, or `both`
+4. **RRF merge**: combines both ranked lists using Reciprocal Rank Fusion: `score = Σ(1 / (k + rank))` where `k=60`. Symbols that appear in both lists are deduplicated and given combined scores.
+5. **Source annotation**: each result is tagged as `fts`, `vector`, or `both`
 
 This means:
 - **Exact name matches** (FTS strength) always surface
-- **Conceptual matches** (vector strength) also surface — searching "authentication" can find `ValidateJWT` even though the word "authentication" doesn't appear in the name
+- **Conceptual matches** (the strength of vector search) also surface. Searching for "authentication" can find `ValidateJWT` even though the word "authentication" does not appear in the name.
 - **Results in both** get the highest scores
 
 ## Supported Languages
@@ -362,24 +362,24 @@ With Universal Ctags installed, symbols are extracted from 100+ languages. KodaC
 | Lua | LuaDoc, module patterns |
 | PHP | PHPDoc, namespace resolution |
 
-Languages not in this list still get basic symbol extraction through ctags (name, kind, line number) — they just don't get enriched signatures or documentation.
+Languages not in this list still get basic symbol extraction through ctags (name, kind, line number), but they do not get enriched signatures or documentation.
 
 ### Without Universal Ctags
 
 | Language | What's extracted |
 |----------|-----------------|
 | Go | Functions, types, interfaces, constants, variables, methods (with full signatures and doc comments) |
-| All others | **Nothing** — files are not indexed |
+| All others | **Nothing**; files are not indexed |
 
 ## Incremental Indexing
 
 KodaCode watches your project directory and keeps the index current automatically:
 
-- **File watcher** — uses fsnotify to detect file changes, creations, and deletions in real-time
-- **Debouncing** — changes are batched with a 750ms debounce to avoid re-indexing on every keystroke during saves
-- **Content hashing** — files are SHA-256 hashed. Only files whose content actually changed get re-indexed
-- **Incremental embeddings** — when files change, only the affected symbols get new embeddings. Unchanged symbols keep their existing vectors
-- **Automatic cleanup** — deleted files have their symbols and embeddings removed
+- **File watcher**: uses `fsnotify` to detect file changes, creations, and deletions in real time
+- **Debouncing**: batches changes with a 750ms debounce to avoid re-indexing on every keystroke during saves
+- **Content hashing**: hashes files with SHA-256. Only files whose content actually changed are re-indexed.
+- **Incremental embeddings**: when files change, only the affected symbols get new embeddings. Unchanged symbols keep their existing vectors.
+- **Automatic cleanup**: deleted files have their symbols and embeddings removed
 
 The index is stored outside your project directory (in KodaCode's data directory, keyed by a hash of your project path), so it doesn't pollute your repo.
 
@@ -422,8 +422,8 @@ Check these in order:
 
 ### Index seems stale
 
-KodaCode uses content hashing — unchanged files are skipped. If you suspect the index is corrupted:
+KodaCode uses content hashing, so unchanged files are skipped. If you suspect the index is corrupted:
 
 1. Find the search database: it's stored in `~/.local/share/kodacode/search/<hash>/search.db` (the hash is derived from your project path)
 2. Delete the `search.db` file
-3. Restart KodaCode — the index will rebuild from scratch
+3. Restart KodaCode. The index will rebuild from scratch.

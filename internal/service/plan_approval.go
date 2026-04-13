@@ -179,7 +179,7 @@ func latestPlanApprovalState(msgs []provider.Message) (planApprovalDecision, str
 // priorApprovalInEffect returns true if there is an approved plan decision
 // in the message history that is not followed by a rejection. This handles
 // the case where a new planner is called during execution of an approved
-// plan — tools should remain available until the new plan is decided.
+// plan. Tools should remain available until the new plan is decided.
 func priorApprovalInEffect(msgs []provider.Message) bool {
 	approvalQuestionIDs := make(map[string][]planOption)
 	for _, m := range msgs {

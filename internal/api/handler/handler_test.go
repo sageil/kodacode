@@ -591,7 +591,7 @@ func TestHandler_ListMessages_AllPartTypes(t *testing.T) {
 		t.Errorf("m3 Parts = %+v, want one tool_result part", got[2].Parts)
 	}
 
-	// m4: reasoning only — must not be dropped
+	// m4 contains only reasoning parts and must not be dropped.
 	if len(got[3].Parts) != 1 || got[3].Parts[0].Type != "reasoning" {
 		t.Errorf("m4 Parts = %+v, want one reasoning part (must not be dropped)", got[3].Parts)
 	}

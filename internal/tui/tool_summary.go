@@ -76,7 +76,7 @@ func toolHintText(msg Message) string {
 			return ""
 		}
 		newLines := len(strings.Split(strings.TrimRight(newContent, "\n"), "\n"))
-		// When overwriting, ToolOutput contains the old content — show diff stats.
+		// When overwriting, ToolOutput contains the old content, so show diff stats.
 		if msg.ToolOutput != "" && msg.ToolOutput != "Wrote file successfully." {
 			oldLines := len(strings.Split(strings.TrimRight(msg.ToolOutput, "\n"), "\n"))
 			return fmt.Sprintf("-%d +%d lines", oldLines, newLines)
@@ -221,7 +221,7 @@ type toolSummary struct {
 func parseToolSummary(toolName, input string) toolSummary {
 	var fields map[string]any
 	if err := json.Unmarshal([]byte(input), &fields); err != nil {
-		// Partial JSON (still streaming) — try extracting known fields.
+		// Partial JSON is still streaming, so try extracting known fields.
 		partial := parsePartialToolInput(input)
 		if fp, ok := partial["filePath"]; ok && fp != "" {
 			return toolSummary{summary: (fp)}

@@ -19,7 +19,7 @@ func nextGoogleCallID() string {
 }
 
 // normalizeGoogleFinishReason maps Google finish reasons to kodacode's canonical set.
-// hasTools must be true only when the response *contains* tool calls — not merely
+// hasTools must be true only when the response *contains* tool calls, not merely
 // when the request had tools configured. Google emits STOP even when function calls
 // are present, so the caller is responsible for tracking whether any FunctionCall
 // parts were received.
@@ -68,7 +68,7 @@ func consumeGoogleStream(
 		}
 
 		if err != nil {
-			var apiErr genai.APIError // value receiver — errors.As matches genai.APIError, not *genai.APIError
+			var apiErr genai.APIError // Value receiver. errors.As matches genai.APIError, not *genai.APIError.
 			if errors.As(err, &apiErr) {
 				select {
 				case ch <- StreamChunk{Err: fmt.Errorf("google: api error %d: %w", apiErr.Code, err)}:
@@ -129,7 +129,7 @@ func consumeGoogleStream(
 
 				argsJSON := marshalFunctionArgs(part.FunctionCall.Args)
 
-				// Emit streaming delta (complete args — Google delivers atomically).
+				// Emit the streaming delta. Google delivers complete args atomically.
 				ch <- StreamChunk{
 					ToolCallDelta: &ToolCallDelta{
 						Index:          toolCallIndex,
@@ -150,7 +150,7 @@ func consumeGoogleStream(
 		}
 	}
 
-	// Normalise finish reason — Google uses STOP even when tool calls are present.
+	// Normalize the finish reason. Google uses STOP even when tool calls are present.
 	if finishReason == "" {
 		finishReason = "STOP"
 	}
@@ -167,7 +167,7 @@ func consumeGoogleStream(
 }
 
 // marshalFunctionArgs serialises function call arguments to a JSON string.
-// Returns an empty JSON object string on failure — malformed args from the model
+// Returns an empty JSON object string on failure. Malformed args from the model
 // should not crash the stream.
 func marshalFunctionArgs(args map[string]any) string {
 	if len(args) == 0 {

@@ -91,7 +91,7 @@ func (r *Registry) RefreshModels(ctx context.Context) {
 }
 
 // utilityModelHints maps provider IDs to substrings that identify cheap/fast
-// models. Checked in order — first match wins.
+// models. They are checked in order, and the first match wins.
 var utilityModelHints = map[string][]string{
 	"openai":         {"mini", "gpt-4.1-mini", "gpt-4o-mini"},
 	"anthropic":      {"haiku"},

@@ -1,7 +1,7 @@
 Reads multiple files in a single call. Accepts either a glob pattern or an explicit list of file paths. Returns concatenated file contents with headers showing file paths and line counts.
 
 Usage:
-- Use this when you need to read several files at once — especially after search or grep returns multiple relevant files
+- Use this when you need to read several files at once, especially after search or grep returns multiple relevant files
 - Accepts `files` (explicit path list) or `pattern` (glob); use `files` when you already know the paths
 - Reduces round-trips compared to calling `read` multiple times
 - Files are sorted by modification time (newest first) when using pattern

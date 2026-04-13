@@ -3,7 +3,7 @@ title: Project Memory
 description: Persistent instructions and auto-memories that follow your project
 ---
 
-KodaCode learns your project's conventions and carries them across every session. Instead of repeating yourself — "use snake_case", "always run tests before committing", "the auth middleware is in src/middleware/" — you tell KodaCode once and it remembers.
+KodaCode carries your project's conventions across sessions. Instead of repeating yourself with instructions like "use snake_case", "always run tests before committing", or "the auth middleware is in src/middleware/", you can tell KodaCode once and let it keep that context.
 
 ## Instruction Files (KODACODE.md)
 
@@ -11,11 +11,11 @@ Write project conventions in markdown files. KodaCode loads them in layers, with
 
 | File | Scope | Version controlled |
 |------|-------|-------------------|
-| `~/.config/kodacode/KODACODE.md` | Global — applies to all projects | No (personal) |
-| `KODACODE.md` or `.kodacode/KODACODE.md` | Project — shared with your team | Yes |
+| `~/.config/kodacode/KODACODE.md` | Global, applies to all projects | No (personal) |
+| `KODACODE.md` or `.kodacode/KODACODE.md` | Project, shared with your team | Yes |
 | `KODACODE.local.md` | Personal project overrides | No (gitignore this) |
 
-All three files are loaded and concatenated into the system prompt. KodaCode also reads `AGENTS.md`, `CLAUDE.md`, and `CONTEXT.md` if present — so existing instruction files from other tools work out of the box.
+All three files are loaded and concatenated into the system prompt. KodaCode also reads `AGENTS.md`, `CLAUDE.md`, and `CONTEXT.md` if they are present, so existing instruction files from other tools work out of the box.
 
 ### Example: Project KODACODE.md
 
@@ -26,7 +26,7 @@ All three files are loaded and concatenated into the system prompt. KodaCode als
 - Use table-driven tests with t.Run subtests.
 - Error messages start lowercase, no trailing punctuation.
 - All SQL queries go through the repository layer, never in handlers.
-- The deploy target is ARM64 Linux — avoid x86-specific code.
+- The deploy target is ARM64 Linux, so avoid x86-specific code.
 ```
 
 ### Example: Global KODACODE.md
@@ -74,12 +74,12 @@ For things that come up during conversation, use `/remember` instead of editing 
 
 ```
 /remember the auth middleware validates JWT tokens from the Authorization header
-/remember use MongoDB native driver, not Mongoose — we migrated in March 2026
+/remember use MongoDB native driver, not Mongoose; we migrated in March 2026
 /remember the CI pipeline runs on GitHub Actions, config is in .github/workflows/
 /remember API responses must include X-Request-ID header for tracing
 ```
 
-Each memory is stored as a small markdown file in `.kodacode/memories/` with a timestamp-based ID. They're project-scoped and not version-controlled — add `.kodacode/memories/` to your `.gitignore`.
+Each memory is stored as a small markdown file in `.kodacode/memories/` with a timestamp-based ID. Memories are project-scoped and not version-controlled, so add `.kodacode/memories/` to your `.gitignore`.
 
 ### Budget
 
@@ -98,7 +98,7 @@ For temporary instructions that should only last for the current session, use `/
 /pin Don't modify any files in the legacy/ directory
 ```
 
-Pinned instructions survive compaction but are session-scoped — they don't persist across sessions.
+Pinned instructions survive compaction, but they are session-scoped and do not persist across sessions.
 
 | Command | Description |
 |---------|-------------|

@@ -104,7 +104,7 @@ func convertMessages(m provider.Message) []openaisdk.ChatCompletionMessageParamU
 // Returns multiple SDK messages when a single provider.Message contains
 // multiple ToolResultParts (one SDK tool message per result).
 func convertUserMessages(m provider.Message) []openaisdk.ChatCompletionMessageParamUnion {
-	// Check for tool result parts — emit one tool message per result.
+	// Check for tool result parts and emit one tool message per result.
 	var toolMsgs []openaisdk.ChatCompletionMessageParamUnion
 	for _, p := range m.Parts {
 		if tr, ok := p.(provider.ToolResultPart); ok {

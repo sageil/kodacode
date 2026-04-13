@@ -102,7 +102,7 @@ func TestParseMarkdown_NoFrontmatter(t *testing.T) {
 }
 
 func TestParseMarkdown_NameFallsBackToID(t *testing.T) {
-	// No "name" in frontmatter — ID (filename) is used as name.
+	// If frontmatter has no "name", use the ID (filename).
 	content := "---\ndescription: no name here\n---\nsome prompt"
 
 	dir := t.TempDir()

@@ -57,6 +57,6 @@ func TestWatcher_InvalidWrite_NoMsg(t *testing.T) {
 	case <-received:
 		t.Fatal("expected no msg for invalid theme")
 	case <-time.After(500 * time.Millisecond):
-		// correct — nothing received
+		// Correct. Nothing was received.
 	}
 }

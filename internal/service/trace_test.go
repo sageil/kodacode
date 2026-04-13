@@ -13,8 +13,10 @@ func TestSessionTraces_CommitTurn(t *testing.T) {
 
 	steps := []StepTrace{
 		{Step: 1, ModelID: "m1", CostMicroUSD: 100, WallClock: 500 * time.Millisecond},
-		{Step: 2, ModelID: "m1", CostMicroUSD: 200, WallClock: 300 * time.Millisecond,
-			Tools: []StepToolTrace{{Name: "bash", Elapsed: 150 * time.Millisecond}}},
+		{
+			Step: 2, ModelID: "m1", CostMicroUSD: 200, WallClock: 300 * time.Millisecond,
+			Tools: []StepToolTrace{{Name: "bash", Elapsed: 150 * time.Millisecond}},
+		},
 	}
 	st.CommitTurn(steps)
 
@@ -157,7 +159,6 @@ func TestSessionTraces_CommitTurnIsolation(t *testing.T) {
 	steps := []StepTrace{{Step: 1, ModelID: "m1", Usage: &provider.Usage{InputTokens: 100}}}
 	st.CommitTurn(steps)
 
-	// Mutate the original — should not affect the stored copy.
 	steps[0].ModelID = "mutated"
 
 	turns := st.AllTurns()

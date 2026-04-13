@@ -93,14 +93,14 @@ func extractStringField(input, key string, result map[string]string) {
 			continue
 		}
 		if input[i] == '"' {
-			// End of string value — complete field.
+			// End of string value. The field is complete.
 			result[key] = sb.String()
 			return
 		}
 		sb.WriteByte(input[i])
 		i++
 	}
-	// Reached end without closing quote — partial value.
+	// Reached the end without a closing quote, so the value is partial.
 	result[key] = sb.String()
 }
 

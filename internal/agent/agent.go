@@ -48,7 +48,7 @@ type Agent struct {
 	// Model is the "providerID/modelID" string, e.g. "openai/gpt-4o".
 	Model string `json:"model"`
 
-	// Temperature controls sampling randomness (0–2). nil = provider default.
+	// Temperature controls sampling randomness (0 to 2). nil uses the provider default.
 	Temperature *float64 `json:"temperature,omitempty"`
 
 	// MaxTokens limits the response length. 0 = provider default.
@@ -64,7 +64,7 @@ type Agent struct {
 	DenyTools []string `json:"deny_tools"`
 
 	// Permission holds the per-tool permission rules for this agent.
-	// Object syntax (tool → Rule) is used in frontmatter and JSON.
+	// Frontmatter and JSON use object syntax that maps tools to rules.
 	Permission permission.Config `json:"permission"`
 
 	// Skills controls which skills are available to this agent.

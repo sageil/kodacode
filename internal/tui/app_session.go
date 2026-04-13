@@ -215,7 +215,7 @@ func (a App) openExternalEditor(currentText string) tea.Cmd {
 func (a *App) pushAndSaveHistory(text string) {
 	a.home.footer.PushHistory(text)
 	a.session.footer.PushHistory(text)
-	// Persist asynchronously — don't block the UI.
+	// Persist asynchronously so the UI does not block.
 	entries := a.home.footer.History()
 	go func() {
 		if data, err := json.Marshal(entries); err == nil {
@@ -278,7 +278,7 @@ func (a App) handleSessionCreated(msg sessionCreatedMsg) (tea.Model, tea.Cmd) {
 	a.refreshTaskPanel()
 
 	// When switching to an existing session, populate history from the API.
-	// Don't start SSE — the user is just viewing, not sending a message.
+	// Do not start SSE because the user is only viewing, not sending a message.
 	if msg.messages != nil {
 		tuiMsgs := make([]Message, 0, len(msg.messages))
 		for _, m := range msg.messages {
@@ -325,7 +325,7 @@ func (a App) handleSessionCreated(msg sessionCreatedMsg) (tea.Model, tea.Cmd) {
 		return a, nil
 	}
 
-	// New session flow — add user message and start SSE for the response.
+	// New session flow. Add the user message and start SSE for the response.
 	if msg.text != "" {
 		a.session.AppendUserMessage(msg.text)
 	}

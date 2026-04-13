@@ -1,4 +1,4 @@
-// google_export_test.go — test-only exports for white-box testing of google_convert.go.
+// google_export_test.go provides test-only exports for white-box testing of google_convert.go.
 package provider
 
 import "google.golang.org/genai"

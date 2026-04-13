@@ -139,7 +139,7 @@ func EstimateMessageTokens(m Message) int {
 
 // EffectiveContextSize returns the context size to use for compaction and
 // limit calculations. If MaxInputTokens is set (and smaller than ContextSize),
-// it is used instead — some providers cap input tokens below the full context window.
+// it is used instead because some providers cap input tokens below the full context window.
 func (m Model) EffectiveContextSize() int {
 	if m.MaxInputTokens > 0 && m.MaxInputTokens < m.ContextSize {
 		return m.MaxInputTokens

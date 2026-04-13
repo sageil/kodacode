@@ -1,26 +1,26 @@
-# Nord — https://www.nordtheme.com/docs/colors-and-palettes
+# Nord: https://www.nordtheme.com/docs/colors-and-palettes
 # Cool arctic theme with muted blues and clean frost accents.
 name: nord
 syntax_style: nord
 
 palette:
-  # Frost (#81a1c1) — muted blue, primary interactive elements.
+  # Frost (#81a1c1): muted blue for primary interactive elements.
   primary: "#81a1c1"
-  # Frost (#88c0d0) — lighter blue, secondary accents.
+  # Frost (#88c0d0): lighter blue for secondary accents.
   secondary: "#88c0d0"
-  # Polar Night (#3b4252) — raised surfaces, panels, dialogs.
+  # Polar Night (#3b4252): raised surfaces, panels, and dialogs.
   surface: "#3b4252"
-  # Polar Night (#434c5e) — input areas, selection highlights.
+  # Polar Night (#434c5e): input areas and selection highlights.
   overlay: "#434c5e"
-  # Snow Storm (#eceff4) — primary readable text.
+  # Snow Storm (#eceff4): primary readable text.
   text: "#eceff4"
-  # Polar Night (#4c566a) — de-emphasised labels, hints.
+  # Polar Night (#4c566a): de-emphasised labels and hints.
   subtext: "#4c566a"
-  # Aurora (#bf616a) — errors and destructive actions.
+  # Aurora (#bf616a): errors and destructive actions.
   error: "#bf616a"
-  # Aurora (#ebcb8b) — warnings and caution states.
+  # Aurora (#ebcb8b): warnings and caution states.
   warning: "#ebcb8b"
-  # Aurora (#a3be8c) — success states and completion ticks.
+  # Aurora (#a3be8c): success states and completion ticks.
   success: "#a3be8c"
   thinking: "#b48ead"
 

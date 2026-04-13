@@ -23,7 +23,7 @@ read filePath="./report.pdf"
 - Default: first 2000 lines from the start
 - Use `offset` and `limit` for specific ranges
 - Directories return a file listing with name, size, and modification time
-- Returns a `version` token in metadata — pass this to `edit`, `write`, or `patch` via `expectedVersion` for concurrency control
+- Returns a `version` token in metadata. Pass it to `edit`, `write`, or `patch` through `expectedVersion` for concurrency control.
 
 ### write
 
@@ -45,10 +45,10 @@ edit filePath="/src/handler.go" oldString="return nil" newString="return fmt.Err
 ```
 
 - Must read the file first
-- Fails if `oldString` matches multiple locations — add surrounding context to make it unique
+- Fails if `oldString` matches multiple locations. Add surrounding context to make it unique.
 - Use `replace_all: true` to replace every occurrence
-- `expectedVersion`: version token from `read` — rejects the edit if the file changed since it was read
-- `range`: precise text range replacement using `startLine`, `startCharacter`, `endLine`, `endCharacter` — replaces the exact range with `newString`, ignoring `oldString`
+- `expectedVersion`: version token from `read`. Rejects the edit if the file changed since it was read.
+- `range`: precise text range replacement using `startLine`, `startCharacter`, `endLine`, and `endCharacter`. Replaces the exact range with `newString`, ignoring `oldString`.
 
 ### patch
 
@@ -64,7 +64,7 @@ patch filePath="/src/handler.go" edits=[
 - Must read the file first
 - Atomic: all edits succeed or none are applied
 - Edits are applied in order
-- `expectedVersion`: version token from `read` — rejects the patch if the file changed since it was read
+- `expectedVersion`: version token from `read`. Rejects the patch if the file changed since it was read.
 - Each edit supports a `range` field for precise text range replacement (same semantics as `edit`)
 
 ### glob
@@ -94,7 +94,7 @@ tree path="./src" pattern="*.go" showHidden=true
 
 ### read_files
 
-Read multiple files in a single tool call — by glob pattern or explicit file list. Returns the first 100 lines of each file, up to 20 files and 96 KB total.
+Read multiple files in a single tool call, either by glob pattern or explicit file list. Returns the first 100 lines of each file, up to 20 files and 96 KB total.
 
 ```
 read_files pattern="internal/tool/*.go"
@@ -143,7 +143,7 @@ search query="authentication" path="./src"
 
 ### lsp
 
-Language server queries for code intelligence — go-to-definition, find-references, hover, diagnostics, and workspace symbol search.
+Language server queries provide code intelligence, including go-to-definition, find-references, hover, diagnostics, and workspace symbol search.
 
 ```
 lsp action="symbols" query="HandleRequest"
@@ -161,11 +161,11 @@ lsp action="hover" file="/src/main.go" line=42 character=10
 | `references` | Find all references to a symbol (up to 50 results) |
 | `hover` | Get type info and documentation for a symbol |
 
-Servers start on demand — the first query to a `.go` file starts gopls, the first `.ts` file starts vtsls. Timeout: 15 seconds per query.
+Servers start on demand. The first query to a `.go` file starts `gopls`, and the first query to a `.ts` file starts `vtsls`. Timeout: 15 seconds per query.
 
 ### code_action
 
-Apply LSP code actions — organize imports, quick fixes, refactors.
+Apply LSP code actions such as organizing imports, quick fixes, and refactors.
 
 ```
 code_action filePath="/src/main.go" startLine=10 startCharacter=0 endLine=10 endCharacter=20
@@ -188,7 +188,7 @@ If multiple actions match, returns the list of available actions so the model ca
 
 ### rename_symbol
 
-Rename symbols using the language server — compiler-accurate, project-wide.
+Rename symbols with the language server. The rename is compiler-accurate and project-wide.
 
 ```
 rename_symbol filePath="/src/handler.go" line=42 character=6 newName="HandleHTTPRequest"
@@ -201,7 +201,7 @@ rename_symbol filePath="/src/handler.go" line=42 character=6 newName="HandleHTTP
 | `character` | yes | Character offset of the symbol |
 | `newName` | yes | New name for the symbol |
 
-Unlike regex-based find-and-replace, this uses the language server's semantic understanding — it renames the symbol across the entire project, handling aliases, imports, and shadowed names correctly.
+Unlike regex-based find-and-replace, this uses the language server's semantic understanding. It renames the symbol across the entire project and handles aliases, imports, and shadowed names correctly.
 
 #### Server Discovery
 
@@ -221,7 +221,7 @@ When KodaCode needs to launch an LSP server, it looks for the binary in these lo
 | `$PNPM_HOME` or `~/.local/share/pnpm/` | pnpm global installs |
 
 <Aside type="tip">
-If you use Neovim with Mason, any LSP server you've installed through Mason is automatically available to KodaCode — no additional configuration needed. This is the easiest way to add language server support.
+If you use Neovim with Mason, any LSP server you installed through Mason is automatically available to KodaCode. No additional configuration is needed.
 </Aside>
 
 ##### Built-in defaults
@@ -295,7 +295,7 @@ bash command="docker compose up -d" run_in_background=true
 ```
 
 - Default timeout: 120 seconds (max 600 seconds)
-- Background mode returns a task ID immediately — use `task_output` to retrieve results
+- Background mode returns a task ID immediately. Use `task_output` to retrieve results.
 - Supports working directory override via `workingDir`
 
 ### test
@@ -315,7 +315,7 @@ Detected frameworks: Go (`go test`), npm (`npm test`), pytest, Cargo (`cargo tes
 
 ### git
 
-Structured git operations — safer than raw bash for git workflows.
+Structured git operations that are safer than raw bash for git workflows.
 
 ```
 git action="status"
@@ -373,7 +373,7 @@ Task kinds control how the task is displayed and processed:
 | `analysis` | Research, investigation, reading |
 | `report` | Summary output, documentation |
 
-The `notes` field is the durable task definition — it persists and describes what the task is. The `progress` field is a transient status summary that gets overwritten on each update.
+The `notes` field is the durable task definition. It persists and describes the task itself. The `progress` field is a transient status summary that gets overwritten on each update.
 
 ### task_output
 
@@ -479,7 +479,7 @@ search_skills query="error handling" limit=3
 - Searches skill names, descriptions, trigger phrases (from frontmatter), and section titles
 - Returns top 5 matches by default (configurable via `limit`)
 - Each result shows the skill name, description, match reasons, sections, and suggested related skills
-- Use this when unsure which skill is relevant — more efficient than loading skills to check their content
+- Use this when you are not sure which skill is relevant. It is more efficient than loading several skills just to inspect them.
 
 ## Parallel Execution
 
@@ -490,7 +490,7 @@ When the model returns multiple tool calls in a single response, KodaCode execut
 - Launching multiple subagent research tasks
 - Combining git status + test run + file reads in one batch
 
-No configuration needed — concurrency is automatic.
+No configuration is needed. Concurrency is automatic.
 
 ## Background Tasks
 
@@ -505,15 +505,15 @@ When `run_in_background` is set, the command returns a task ID immediately. When
 
 ## Live Diff Preview
 
-For `write`, `edit`, and `patch` tools, the TUI shows a live diff preview as the model streams the tool input — before the tool executes. You can cancel the stream (`Esc`) if the change looks wrong.
+For `write`, `edit`, and `patch`, the TUI shows a live diff preview as the model streams the tool input before the tool executes. You can cancel the stream with `Esc` if the change looks wrong.
 
 ## Auto-Diagnostics After Edits
 
-After file modifications (`write`, `edit`, `patch`), KodaCode automatically runs diagnostics on the changed files and feeds results back to the model. This catches errors immediately — the model sees compiler warnings and lint issues as part of the same tool loop, without you intervening.
+After file modifications (`write`, `edit`, `patch`), KodaCode automatically runs diagnostics on the changed files and feeds the results back to the model. This catches errors immediately, and the model sees compiler warnings and lint issues as part of the same tool loop.
 
 Diagnostics come from two sources:
 
-**Linters** — auto-detected from your project:
+**Linters**: auto-detected from your project
 
 | Project indicator | Linter |
 |---|---|
@@ -526,7 +526,7 @@ Diagnostics come from two sources:
 | `.flake8` | flake8 |
 | `Cargo.toml` | cargo clippy |
 
-**LSP diagnostics** — from running language servers (compiler errors, type mismatches).
+**LSP diagnostics**: from running language servers, including compiler errors and type mismatches.
 
 Both run concurrently with a 30-second timeout. You can also configure custom linters:
 
@@ -615,15 +615,15 @@ Model's tool sequence:
 3. lsp action="symbols" query="Err"
    → finds all exported error types and variables
 
-4. (responds with analysis — no files modified)
+4. (responds with analysis; no files are modified)
 ```
 
 ## Best Practices
 
 ### Choosing the Right Tool
-- Use **read** with offset/limit when you know the relevant section — don't read entire files unnecessarily
+- Use **read** with offset and limit when you know the relevant section. Do not read entire files unnecessarily.
 - Use **read_files** when you need a broad survey across many files (e.g. understanding patterns, checking conventions)
-- Use **grep** to find content, then **read** the specific lines — avoid reading whole files to search
+- Use **grep** to find content, then **read** the specific lines you need. Avoid reading whole files just to search them.
 - Use **search** when you're not sure if a term is a filename or code content
 - Use **lsp** for code navigation: `symbols` to find definitions by name, `diagnostics` after editing files, `references` before renaming. Compiler-accurate, unlike regex
 - Use **edit** for surgical changes (replace one string), **patch** for multiple changes to the same file, **write** for new files or complete rewrites

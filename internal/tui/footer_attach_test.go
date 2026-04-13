@@ -38,7 +38,7 @@ func TestValidateAttachment_DefaultSize(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Zero maxSize should use the 20 MB default — a 1-byte file passes.
+	// Zero maxSize should use the 20 MB default, so a 1-byte file passes.
 	if _, err := ValidateAttachment(f, 0); err != nil {
 		t.Fatalf("unexpected error with default size: %v", err)
 	}

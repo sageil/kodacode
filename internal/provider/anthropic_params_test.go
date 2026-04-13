@@ -32,7 +32,7 @@ func TestNormalizeAnthropicStopReason(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// buildAnthropicParams – system blocks
+// buildAnthropicParams: system blocks
 // ---------------------------------------------------------------------------
 
 func TestBuildAnthropicParams_SystemParts_BothNonEmpty(t *testing.T) {
@@ -71,7 +71,7 @@ func TestBuildAnthropicParams_SystemParts_SecondEmpty(t *testing.T) {
 	if err != nil {
 		t.Fatalf("buildAnthropicParams() error = %v, want nil", err)
 	}
-	// Empty second part must be skipped — only one system block emitted.
+	// Skip an empty second part so only one system block is emitted.
 	if got, want := len(params.System), 1; got != want {
 		t.Fatalf("len(params.System) = %d, want %d (empty parts should be skipped)", got, want)
 	}
@@ -92,7 +92,7 @@ func TestBuildAnthropicParams_NoSystemParts(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// buildAnthropicParams – reasoning / temperature
+// buildAnthropicParams: reasoning and temperature
 // ---------------------------------------------------------------------------
 
 func TestBuildAnthropicParams_ReasoningBudget(t *testing.T) {
@@ -142,7 +142,7 @@ func TestBuildAnthropicParams_DefaultMaxTokens(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// buildAnthropicParams – message conversion
+// buildAnthropicParams: message conversion
 // ---------------------------------------------------------------------------
 
 func TestBuildAnthropicParams_Messages(t *testing.T) {
@@ -160,7 +160,7 @@ func TestBuildAnthropicParams_Messages(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// buildAnthropicParams – tool conversion
+// buildAnthropicParams: tool conversion
 // ---------------------------------------------------------------------------
 
 func TestBuildAnthropicParams_Tools(t *testing.T) {
@@ -185,7 +185,7 @@ func TestBuildAnthropicParams_Tools(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// convertAnthropicMessage – ReasoningPart → ThinkingBlockParam
+// convertAnthropicMessage: ReasoningPart to ThinkingBlockParam
 // ---------------------------------------------------------------------------
 
 func TestConvertAnthropicMessage_ReasoningPart(t *testing.T) {
@@ -213,7 +213,7 @@ func TestConvertAnthropicMessage_ReasoningPart(t *testing.T) {
 	if thinkingBlock == nil {
 		t.Fatal("got.Content[0].OfThinking = nil, want ThinkingBlockParam")
 	}
-	// ThinkingBlockParam contains unexported SDK fields — compare only the fields
+	// ThinkingBlockParam contains unexported SDK fields, so compare only the fields
 	// that the production code sets.
 	if gotText, wantText := thinkingBlock.Thinking, "I need to think carefully about this."; gotText != wantText {
 		t.Errorf("ThinkingBlockParam.Thinking = %q, want %q", gotText, wantText)

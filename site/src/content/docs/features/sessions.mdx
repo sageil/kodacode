@@ -26,7 +26,7 @@ Titles are auto-generated from the first message using the utility model.
 
 ## Session Branching
 
-Branch from any point in a conversation to explore alternative approaches. The original session is preserved — branches are independent copies from that point forward.
+Branch from any point in a conversation to explore alternative approaches. The original session is preserved, and branches are independent copies from that point forward.
 
 This is useful when you want to try a different approach without losing your current progress. The original session stays intact, and you can switch between branches at any time.
 
@@ -67,7 +67,7 @@ All AI responses stream in real-time over Server-Sent Events (SSE):
 
 ## Task Persistence
 
-When a model stops mid-task — returning an empty response or hedging with phrases like "let me know if you'd like me to continue" — KodaCode detects it and automatically nudges the model to keep going.
+When a model stops mid-task, whether by returning an empty response or hedging with phrases like "let me know if you'd like me to continue", KodaCode detects it and nudges the model to keep going.
 
 **What triggers a nudge:**
 - The model returns an empty response after tool calls
@@ -84,13 +84,13 @@ This is especially useful with smaller or local models that tend to give up unde
 
 KodaCode detects when the model gets stuck in repetitive tool call patterns and intervenes progressively:
 
-1. **Warn** (3 identical calls) — a hint is injected telling the model it's repeating itself
-2. **Nudge** (4 identical calls, or a multi-step cycle repeated 3x) — a stronger message asking the model to try a different approach
-3. **Stop** (5 identical calls) — the tool loop is terminated and the model is forced to respond
+1. **Warn** (3 identical calls): injects a hint telling the model it is repeating itself
+2. **Nudge** (4 identical calls, or a multi-step cycle repeated 3x): injects a stronger message asking the model to try a different approach
+3. **Stop** (5 identical calls): terminates the tool loop and forces the model to respond
 
 The detector tracks the last 12 tool calls using a sliding window. It hashes both the tool arguments and output, so calling `grep` with the same pattern that returns the same results counts as a repeat, but calling `grep` with the same pattern that returns *different* results (because you edited a file) does not.
 
-Some tools are exempt from loop detection: `test`, `question`, `task`, and `skill` — these are legitimately called repeatedly with the same arguments.
+Some tools are exempt from loop detection: `test`, `question`, `task`, and `skill`. Those tools are legitimately called repeatedly with the same arguments.
 
 ## Background Auto-React
 
@@ -101,7 +101,7 @@ session:
   background_auto_react: true
 ```
 
-This enables autonomous workflows: "run the tests in the background and fix any failures" — the model kicks off `go test`, continues working, and when tests finish, sees the results and starts fixing failures without you intervening.
+This enables autonomous workflows such as "run the tests in the background and fix any failures." The model starts `go test`, continues working, and then resumes when the test results arrive.
 
 ### Example
 
@@ -126,7 +126,7 @@ User: Run the full test suite and fix any failures
 
 2. Model continues: "Running the full test suite. I'll fix any failures when results come in."
 
-3. (Tests complete — 3 failures automatically delivered to the model)
+3. (Tests complete, and 3 failures are automatically delivered to the model)
 
 4. Model reads failing test files, traces the errors:
    - read filePath="internal/auth/handler_test.go" offset=142 limit=30
@@ -149,7 +149,7 @@ This works because `background_auto_react: true` feeds completed task results ba
 ## Best Practices
 
 ### When to Branch vs Start Fresh
-- **Branch** when you want to try an alternative approach without losing progress — the original session stays intact
+- **Branch** when you want to try an alternative approach without losing progress. The original session stays intact.
 - **Start fresh** (`/new`) when the conversation has drifted off-topic or the context is cluttered
 
 ### Snapshots
@@ -163,4 +163,4 @@ Use `/replay` to navigate through workspace states. Each snapshot captures the f
 ### Session Hygiene
 - Use `/export` to save important sessions as markdown before they grow large
 - Long sessions benefit from `/pin` to keep critical instructions visible through compaction
-- If the model seems confused, check context usage with `/cost` — compaction may have removed important context
+- If the model seems confused, check context usage with `/cost`. Compaction may have removed important context.

@@ -32,7 +32,7 @@ type Manager struct {
 }
 
 // NewManager creates a manager from the resolved server configs.
-// No servers are started yet — they start on demand when a query arrives
+// No servers start until a query arrives.
 // for a matching file extension.
 func NewManager(configs []config.LSPServerConfig) *Manager {
 	extMap := make(map[string]string)
@@ -74,7 +74,7 @@ func (m *Manager) ServerFor(ctx context.Context, ext, rootURI string) (*Server, 
 		delete(m.starting, name)
 	}
 
-	// Dead server — clean up so we can restart.
+	// Clean up a dead server so it can restart.
 	if _, ok := m.servers[name]; ok {
 		delete(m.servers, name)
 		delete(m.starting, name)

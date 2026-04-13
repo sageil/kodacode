@@ -150,7 +150,7 @@ func hexVal(c byte) int {
 func strPtr(s string) *string { return &s }
 
 // ResolveSparse returns the ComponentStyle for the named component with only
-// the fields that are explicitly set in the YAML — no palette-derived defaults.
+// the fields that are explicitly set in the YAML, with no palette-derived defaults.
 // Use this for opt-in styling where absence means "render without that style".
 func (th *Theme) ResolveSparse(component string) ComponentStyle {
 	if th == nil || th.Components == nil {

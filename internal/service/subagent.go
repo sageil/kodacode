@@ -122,7 +122,7 @@ func (s *SessionService) SpawnSubagent(ctx context.Context, parentSessionID, age
 
 	result, timedOut := s.runSubagent(ctx, parentSessionID, agentID, modelID, task, timeout, onProgress)
 
-	// Retry once on timeout — give the subagent another chance with the
+	// Retry once on timeout. Give the subagent another chance with the
 	// partial results as context so it can pick up where it left off.
 	if timedOut && result != "" {
 		log.Printf("subagent: %s timed out with %d chars — retrying with partial context", agentID, len(result))
@@ -135,7 +135,7 @@ func (s *SessionService) SpawnSubagent(ctx context.Context, parentSessionID, age
 		if retryResult != "" {
 			return retryResult, nil
 		}
-		// Retry produced nothing — return original partial output.
+		// If the retry produced nothing, return the original partial output.
 		return result + "\n\n[subagent timed out — partial results above]", nil
 	}
 
@@ -227,7 +227,7 @@ func (s *SessionService) runSubagent(ctx context.Context, parentSessionID, agent
 				}
 			case "question", "user_question":
 				s.publish(parentSessionID, ev)
-				// Clear the response buffer — text before the question was
+				// Clear the response buffer. Text before the question was
 				// the question prompt, which is already displayed via the
 				// inline question panel. Keep only post-answer content.
 				mu.Lock()
@@ -259,7 +259,7 @@ func (s *SessionService) runSubagent(ctx context.Context, parentSessionID, agent
 
 	if sendErr != nil {
 		if ctx.Err() != nil {
-			// Timeout — return partial output.
+			// Timeout. Return partial output.
 			return result, true
 		}
 		log.Printf("subagent: send error: %v", sendErr)

@@ -31,12 +31,12 @@ internal/
 
 Every conversation turn flows through a middleware chain:
 
-1. **SandboxMiddleware** — sets up tool execution context with working directory and environment
-2. **SystemPromptMiddleware** — builds the system prompt from agent instructions, project context, pinned instructions, and environment info
-3. **CompactionMiddleware** — checks context usage and triggers pruning/compaction when needed
-4. **ToolResolverMiddleware** — resolves available tools (built-in + MCP), filtered by agent allowlists
-5. **TitleMiddleware** — generates session titles from the first user message
-6. **LLMMiddleware** — executes the streaming chat loop with parallel tool execution and fallback
+1. **SandboxMiddleware**: sets up tool execution context with the working directory and environment
+2. **SystemPromptMiddleware**: builds the system prompt from agent instructions, project context, pinned instructions, and environment info
+3. **CompactionMiddleware**: checks context usage and triggers pruning or compaction when needed
+4. **ToolResolverMiddleware**: resolves available tools (built-in + MCP), filtered by agent allowlists
+5. **TitleMiddleware**: generates session titles from the first user message
+6. **LLMMiddleware**: runs the streaming chat loop with parallel tool execution and fallback handling
 
 Each middleware wraps the next, forming a chain. Ephemeral sessions (subagents) skip compaction and title generation for efficiency.
 
@@ -72,9 +72,9 @@ Tool output is streamed in real-time to the TUI via SSE events.
 
 SQLite stores all persistent data:
 
-- **Sessions** — metadata, model, agent, title
-- **Messages** — role, content, tool calls/results
-- **Message parts** — typed content (text, tool calls, files, images)
+- **Sessions**: metadata, model, agent, and title
+- **Messages**: role, content, and tool calls/results
+- **Message parts**: typed content such as text, tool calls, files, and images
 
 The database lives at `~/.local/share/kodacode/koda.db`. Model metadata is cached separately at `~/.local/share/kodacode/models-cache.json`.
 
@@ -82,13 +82,13 @@ The database lives at `~/.local/share/kodacode/koda.db`. Model metadata is cache
 
 The terminal UI is built with [Bubble Tea](https://github.com/charmbracelet/bubbletea):
 
-- **App** — top-level model routing between home and session views
-- **Messages** — scrollable viewport with per-message render caching
-- **Tool panels** — expandable blocks with diff rendering, syntax highlighting
-- **Footer** — input textarea with slash command autocomplete
-- **Header** — session info, agent, model, variant display
+- **App**: top-level model routing between the home and session views
+- **Messages**: scrollable viewport with per-message render caching
+- **Tool panels**: expandable blocks with diff rendering and syntax highlighting
+- **Footer**: input textarea with slash command autocomplete
+- **Header**: session info, agent, model, and variant display
 
-Render performance is optimized with dirty-flag tracking — only changed messages are re-rendered, and tool output is batched.
+Render performance uses dirty-flag tracking, so only changed messages are re-rendered and tool output is batched.
 
 ## Key Dependencies
 

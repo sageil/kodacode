@@ -86,7 +86,7 @@ func (t *stdioTransport) readLoop(scanner *bufio.Scanner) {
 			continue
 		}
 		if resp.ID == 0 {
-			// Notification from server — no caller waiting.
+			// Notification from the server. No caller is waiting.
 			continue
 		}
 
@@ -109,7 +109,7 @@ func (t *stdioTransport) readLoop(scanner *bufio.Scanner) {
 		}
 	}
 
-	// Scanner done — notify all waiting callers.
+	// The scanner is done, so notify all waiting callers.
 	readErr := scanner.Err()
 	if readErr == nil {
 		readErr = fmt.Errorf("stdio mcp: subprocess stdout closed")

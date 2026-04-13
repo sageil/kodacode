@@ -149,7 +149,7 @@ func scanSSE(ctx context.Context, sessionID, url string, out chan<- SSEEventMsg,
 
 	resp, err := client.Do(req)
 	if err != nil {
-		// Don't report context cancellation as an error — it's an
+		// Don't report context cancellation as an error because it is an
 		// intentional shutdown (e.g. user pressed Esc).
 		if ctx.Err() != nil {
 			return

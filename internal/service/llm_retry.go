@@ -17,7 +17,7 @@ const maxSilentRetries = 10
 
 // retryChat attempts to open a chat stream, retrying on retryable errors
 // with exponential backoff. Transient errors (capacity exhausted, short
-// rate limits) are retried silently — the user only sees an error if all
+// rate limits) are retried silently. The user only sees an error if all
 // silent retries fail or the error is terminal (quota exhausted).
 func retryChat(
 	ctx context.Context,

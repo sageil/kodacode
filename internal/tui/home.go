@@ -240,7 +240,7 @@ func (h Home) View() string {
 	var content strings.Builder
 	content.WriteString(logo)
 
-	// No model configured — show welcome/setup message.
+	// No model is configured, so show the welcome/setup message.
 	if h.model == "" {
 		warnColor := colorFrom(h.theme, "warning", lipgloss.Color("214"))
 		warnStyle := lipgloss.NewStyle().Foreground(warnColor)

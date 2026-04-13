@@ -85,10 +85,7 @@ func (tl *turnLoop) streamWithRetry(params streamParams) (*streamResult, error) 
 				if sndbx != nil {
 					isReadOnly = sndbx.IsReadOnly
 				}
-				// The provider confirmed we exceeded the context limit.
-				// Pass the context size as lastInputTokens so compaction is
-				// guaranteed to trigger — req.Usage contains stale data from
-				// the previous successful step and would underestimate.
+
 				emergencyTokens := req.Model.EffectiveContextSize()
 				if emergencyTokens <= 0 {
 					emergencyTokens = 128000

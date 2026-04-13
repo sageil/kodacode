@@ -239,7 +239,7 @@ func buildConfigSections(l config.LayeredConfig) []configSection {
 	)
 	sections = append(sections, session)
 
-	// Providers — one section per provider.
+	// Providers. Render one section per provider.
 	for _, p := range m.Providers {
 		sec := configSection{Name: p.ID}
 		src := providerSource(p.ID, l)

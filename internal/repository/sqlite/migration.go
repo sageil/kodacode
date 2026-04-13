@@ -73,7 +73,7 @@ func RunMigrations(db *sql.DB) error {
 // addColumnIfMissing adds a column to a table only when the table exists and
 // the column is absent. SQLite does not support ADD COLUMN IF NOT EXISTS, so
 // we inspect PRAGMA table_info first. If the table does not exist yet (fresh
-// database), this is a no-op — the column will be included in the CREATE TABLE
+// database), this is a no-op. The column will be included in the CREATE TABLE
 // statement in Phase 2.
 func addColumnIfMissing(db *sql.DB, table, column, definition string) error {
 	rows, err := db.Query("PRAGMA table_info(" + table + ")")

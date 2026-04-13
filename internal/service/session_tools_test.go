@@ -314,7 +314,7 @@ func TestAnswer_unblocks_granted(t *testing.T) {
 	sub, cancel := svc.Subscribe(sess.ID)
 	defer cancel()
 
-	// Run Send in background — it will block waiting for Answer.
+	// Run Send in the background. It will block while waiting for Answer.
 	errCh := make(chan error, 1)
 	go func() {
 		errCh <- svc.Send(ctx, sess.ID, "run bash", nil, sandbox.OriginTUI)
@@ -405,7 +405,7 @@ func TestAnswer_unblocks_denied(t *testing.T) {
 	sub, cancel := svc.Subscribe(sess.ID)
 	defer cancel()
 
-	// Run Send in background — it will block waiting for Answer.
+	// Run Send in the background. It will block while waiting for Answer.
 	errCh := make(chan error, 1)
 	go func() {
 		errCh <- svc.Send(ctx, sess.ID, "run bash", nil, sandbox.OriginTUI)
@@ -515,7 +515,7 @@ func TestAnswerAlways_storesPatternAndSkipsFutureQuestions(t *testing.T) {
 	sub, cancel := svc.Subscribe(sess.ID)
 	defer cancel()
 
-	// Run Send in background — it will block waiting for Answer.
+	// Run Send in the background. It will block while waiting for Answer.
 	errCh := make(chan error, 1)
 	go func() {
 		errCh <- svc.Send(ctx, sess.ID, "run bash", nil, sandbox.OriginTUI)
@@ -554,7 +554,7 @@ waitQ1:
 		t.Fatalf("Answer() error = %v", err)
 	}
 
-	// Wait for second tool call (same command) — should NOT produce a question.
+	// Wait for the second tool call with the same command. It should not produce a question.
 	var questionCount int
 	var toolEndCount int
 waitDone:
@@ -646,7 +646,7 @@ func TestAnswerOnce_doesNotStorePattern(t *testing.T) {
 	sub, cancel := svc.Subscribe(sess.ID)
 	defer cancel()
 
-	// Run Send in background — it will block waiting for Answer.
+	// Run Send in the background. It will block while waiting for Answer.
 	errCh := make(chan error, 1)
 	go func() {
 		errCh <- svc.Send(ctx, sess.ID, "run bash", nil, sandbox.OriginTUI)
@@ -682,7 +682,7 @@ waitQ1:
 		t.Fatalf("Answer() error = %v", err)
 	}
 
-	// Wait for second tool call (same command) — SHOULD produce another question.
+	// Wait for the second tool call with the same command. It should produce another question.
 	var questionIDs []string
 	var toolEndCount int
 waitDone:

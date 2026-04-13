@@ -87,6 +87,6 @@ func (r *Rule) UnmarshalYAML(value *yaml.Node) error {
 	}
 }
 
-// Config is the full permission configuration — a map from tool name to Rule.
+// Config is the full permission configuration. It maps tool names to rules.
 // A nil Config is valid and means "use defaults".
 type Config map[string]*Rule

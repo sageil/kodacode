@@ -144,7 +144,7 @@ func (a App) handleDialogClosed(msg dialogClosedMsg) (tea.Model, tea.Cmd) {
 	}
 
 	if msg.result == nil {
-		// Cancelled — for most dialogs, nothing to do. But blocking dialogs
+		// Cancelled. For most dialogs there is nothing to do, but blocking dialogs
 		// (permission, user_question) must send a response to unblock the server,
 		// and then re-pump the SSE connection so subsequent events are delivered.
 		if rest, ok := strings.CutPrefix(msg.id, dialogIDPermission+":"); ok {
