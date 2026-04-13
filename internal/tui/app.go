@@ -91,7 +91,8 @@ type App struct {
 	memoryStore        *service.MemoryStore
 	errorBanner        string // global error banner, shown at top of screen
 	infoBanner         string // global info banner (success/info), shown at top of screen
-	cancelRequested    bool   // true when the user explicitly requested turn cancellation
+	queuedTurns        int
+	cancelRequested    bool // true when the user explicitly requested turn cancellation
 	quitting           bool
 	autoResume         bool
 

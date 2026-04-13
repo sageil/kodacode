@@ -127,6 +127,9 @@ func (h *Handler) sendMessage(c echo.Context) error {
 		if errors.Is(err, service.ErrSessionBusy) {
 			return echo.NewHTTPError(http.StatusConflict, err.Error())
 		}
+		if errors.Is(err, appservice.ErrSessionQueueFull) {
+			return echo.NewHTTPError(http.StatusConflict, err.Error())
+		}
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 	return c.JSON(http.StatusAccepted, apitypes.TurnStatusFromDomain(status))
@@ -196,6 +199,7 @@ func (h *Handler) streamSession(c echo.Context) error {
 	flusher, hasFlusher := w.Writer.(http.Flusher)
 
 	ctx := c.Request().Context()
+	queuedTurns := 0
 	for {
 		select {
 		case <-ctx.Done():
@@ -218,7 +222,12 @@ func (h *Handler) streamSession(c echo.Context) error {
 			if hasFlusher {
 				flusher.Flush()
 			}
-			if ev.Type == "done" || ev.Type == "error" {
+			if ev.Type == "turn_queue" {
+				if qd, ok := ev.Data.(service.SSETurnQueueData); ok {
+					queuedTurns = qd.Count
+				}
+			}
+			if (ev.Type == "done" || ev.Type == "error") && queuedTurns == 0 {
 				return nil
 			}
 		}

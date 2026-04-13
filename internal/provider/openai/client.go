@@ -222,10 +222,19 @@ func (c *Client) apiModeForModel(model string) apiMode {
 
 func defaultCompatibleAPIMode(providerID, model string) apiMode {
 	lower := strings.ToLower(model)
-	if providerID == "github-copilot" && strings.HasPrefix(lower, "gpt-5.4") {
+	if providerID == "github-copilot" && prefersResponsesOnGitHubCopilot(lower) {
 		return apiModeResponses
 	}
 	return apiModeChatCompletions
+}
+
+func prefersResponsesOnGitHubCopilot(model string) bool {
+	if !strings.HasPrefix(model, "gpt-5") {
+		return false
+	}
+	// gpt-5-mini is still accepted on /chat/completions. The rest of the GPT-5
+	// line should start on /responses and fall back only if Copilot rejects it.
+	return model != "gpt-5-mini"
 }
 
 func (c *Client) modelAPICapabilitiesFor(model string) modelAPICapabilities {

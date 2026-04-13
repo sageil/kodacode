@@ -74,15 +74,17 @@ type Snapshot struct {
 }
 
 type TurnStatus struct {
-	SessionID       string    `json:"session_id"`
-	OperationID     string    `json:"operation_id,omitempty"`
-	State           string    `json:"state"`
-	Active          bool      `json:"active"`
-	CancelRequested bool      `json:"cancel_requested,omitempty"`
-	Error           string    `json:"error,omitempty"`
-	StartedAt       time.Time `json:"started_at,omitempty"`
-	UpdatedAt       time.Time `json:"updated_at,omitempty"`
-	FinishedAt      time.Time `json:"finished_at,omitempty"`
+	SessionID         string    `json:"session_id"`
+	OperationID       string    `json:"operation_id,omitempty"`
+	State             string    `json:"state"`
+	Active            bool      `json:"active"`
+	QueueDepth        int       `json:"queue_depth,omitempty"`
+	QueuedOperationID string    `json:"queued_operation_id,omitempty"`
+	CancelRequested   bool      `json:"cancel_requested,omitempty"`
+	Error             string    `json:"error,omitempty"`
+	StartedAt         time.Time `json:"started_at,omitempty"`
+	UpdatedAt         time.Time `json:"updated_at,omitempty"`
+	FinishedAt        time.Time `json:"finished_at,omitempty"`
 }
 
 func SessionFromRepository(sess repository.Session) Session {
@@ -173,15 +175,17 @@ func ProviderModelsFromDomain(models []provider.ProviderModels) []ProviderModels
 
 func TurnStatusFromDomain(status service.TurnStatus) TurnStatus {
 	return TurnStatus{
-		SessionID:       status.SessionID,
-		OperationID:     status.OperationID,
-		State:           string(status.State),
-		Active:          status.Active,
-		CancelRequested: status.CancelRequested,
-		Error:           status.Error,
-		StartedAt:       status.StartedAt,
-		UpdatedAt:       status.UpdatedAt,
-		FinishedAt:      status.FinishedAt,
+		SessionID:         status.SessionID,
+		OperationID:       status.OperationID,
+		State:             string(status.State),
+		Active:            status.Active,
+		QueueDepth:        status.QueueDepth,
+		QueuedOperationID: status.QueuedOperationID,
+		CancelRequested:   status.CancelRequested,
+		Error:             status.Error,
+		StartedAt:         status.StartedAt,
+		UpdatedAt:         status.UpdatedAt,
+		FinishedAt:        status.FinishedAt,
 	}
 }
 

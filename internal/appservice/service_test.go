@@ -198,29 +198,117 @@ func TestServiceSendMessageRejectsCanceledBackgroundContext(t *testing.T) {
 	}
 }
 
-func TestServiceSendMessageReturnsBusyErrorBeforeAsyncDispatch(t *testing.T) {
-	called := false
+func TestServiceSendMessageQueuesBusyTurn(t *testing.T) {
+	evCh := make(chan service.SSEEvent, 2)
 	svc := New(Config{
 		Sessions: &stubSessionService{
 			session: repository.Session{ID: "s1"},
 			reserveFn: func(string) (*service.SendReservation, error) {
 				return nil, service.ErrSessionBusy
 			},
-			sendFn: func(context.Context, string, string, []service.FileAttachment, sandbox.Origin, ...string) error {
-				called = true
-				return nil
-			},
 		},
 		ProjectDir:    t.TempDir(),
 		BackgroundCtx: context.Background(),
+		Publish: func(sessionID string, ev service.SSEEvent) {
+			if sessionID == "s1" {
+				evCh <- ev
+			}
+		},
 	})
 
-	err := svc.SendMessage(context.Background(), "s1", "hello", nil, "", "")
-	if !errors.Is(err, service.ErrSessionBusy) {
-		t.Fatalf("SendMessage() error = %v, want ErrSessionBusy", err)
+	status, err := svc.SendMessageOperation(context.Background(), "s1", "hello", nil, "", "")
+	if err != nil {
+		t.Fatalf("SendMessageOperation() error = %v", err)
 	}
-	if called {
-		t.Fatal("Send() should not be dispatched when ReserveSend returns busy")
+	if status.State != service.TurnStateQueued {
+		t.Fatalf("status.State = %q, want %q", status.State, service.TurnStateQueued)
+	}
+	if status.QueueDepth != 1 {
+		t.Fatalf("status.QueueDepth = %d, want 1", status.QueueDepth)
+	}
+	select {
+	case ev := <-evCh:
+		if ev.Type != "turn_queue" {
+			t.Fatalf("event type = %q, want turn_queue", ev.Type)
+		}
+		data, ok := ev.Data.(service.SSETurnQueueData)
+		if !ok {
+			t.Fatalf("event data type = %T, want SSETurnQueueData", ev.Data)
+		}
+		if data.Count != 1 {
+			t.Fatalf("queue count = %d, want 1", data.Count)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for queue event")
+	}
+}
+
+func TestServiceDispatchesQueuedTurnAfterCompletion(t *testing.T) {
+	evCh := make(chan service.SSEEvent, 4)
+	sendCalls := make(chan string, 1)
+	sessions := &stubSessionService{
+		session: repository.Session{ID: "s1", AgentID: "engineer"},
+		sendFn: func(_ context.Context, _ string, prompt string, _ []service.FileAttachment, _ sandbox.Origin, _ ...string) error {
+			sendCalls <- prompt
+			return nil
+		},
+	}
+	svc := New(Config{
+		Sessions:      sessions,
+		ProjectDir:    t.TempDir(),
+		BackgroundCtx: context.Background(),
+		Publish: func(sessionID string, ev service.SSEEvent) {
+			if sessionID == "s1" {
+				evCh <- ev
+			}
+		},
+	})
+
+	status, err := svc.enqueueTurn("s1", "queued hello", nil, "reviewer", "adaptive")
+	if err != nil {
+		t.Fatalf("enqueueTurn() error = %v", err)
+	}
+	if status.State != service.TurnStateQueued {
+		t.Fatalf("status.State = %q, want %q", status.State, service.TurnStateQueued)
+	}
+
+	svc.maybeDispatchQueuedTurn("s1")
+
+	select {
+	case prompt := <-sendCalls:
+		if prompt != "queued hello" {
+			t.Fatalf("queued prompt = %q, want %q", prompt, "queued hello")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for queued send dispatch")
+	}
+
+	if sessions.session.AgentID != "reviewer" {
+		t.Fatalf("session AgentID = %q, want %q", sessions.session.AgentID, "reviewer")
+	}
+	if _, ok := svc.queuedTurn("s1"); ok {
+		t.Fatal("queued turn should be cleared after dispatch")
+	}
+
+	var counts []int
+	deadline := time.After(2 * time.Second)
+	for len(counts) < 2 {
+		select {
+		case ev := <-evCh:
+			if ev.Type != "turn_queue" {
+				continue
+			}
+			data, ok := ev.Data.(service.SSETurnQueueData)
+			if !ok {
+				t.Fatalf("event data type = %T, want SSETurnQueueData", ev.Data)
+			}
+			counts = append(counts, data.Count)
+		case <-deadline:
+			t.Fatalf("timed out waiting for queue update events, got %v", counts)
+		}
+	}
+	if counts[0] != 1 || counts[1] != 0 {
+		t.Fatalf("queue counts = %v, want [1 0]", counts)
 	}
 }
 

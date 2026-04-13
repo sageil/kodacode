@@ -9,8 +9,10 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/oklog/ulid/v2"
 	"github.com/sageil/kodacode/v1/internal/agent"
 	"github.com/sageil/kodacode/v1/internal/config"
 	"github.com/sageil/kodacode/v1/internal/message"
@@ -24,7 +26,17 @@ import (
 var (
 	ErrInvalidQuestionResponse = errors.New("invalid question response")
 	ErrSnapshotsDisabled       = errors.New("snapshots not enabled")
+	ErrSessionQueueFull        = errors.New("session already has a queued turn")
 )
+
+type queuedTurn struct {
+	operationID string
+	content     string
+	attachments []service.FileAttachment
+	agentID     string
+	variant     string
+	queuedAt    time.Time
+}
 
 type SettingsService interface {
 	GetSetting(ctx context.Context, key string) (string, error)
@@ -120,6 +132,8 @@ type Service struct {
 	refreshMCPTools func(context.Context) (int, error)
 	syncProviders   func(context.Context) ([]string, error)
 	publish         func(string, service.SSEEvent)
+	queueMu         sync.Mutex
+	queuedTurns     map[string]queuedTurn
 }
 
 func New(cfg Config) *Service {
@@ -137,6 +151,100 @@ func New(cfg Config) *Service {
 		refreshMCPTools: cfg.RefreshMCPTools,
 		syncProviders:   cfg.SyncProviders,
 		publish:         cfg.Publish,
+		queuedTurns:     make(map[string]queuedTurn),
+	}
+}
+
+func cloneFileAttachments(in []service.FileAttachment) []service.FileAttachment {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]service.FileAttachment, len(in))
+	for i, att := range in {
+		out[i] = att
+		if len(att.Data) > 0 {
+			out[i].Data = append([]byte(nil), att.Data...)
+		}
+	}
+	return out
+}
+
+func queuedTurnStatus(sessionID string, qt queuedTurn) service.TurnStatus {
+	return service.TurnStatus{
+		SessionID:         sessionID,
+		OperationID:       qt.operationID,
+		State:             service.TurnStateQueued,
+		Active:            false,
+		QueueDepth:        1,
+		QueuedOperationID: qt.operationID,
+		UpdatedAt:         qt.queuedAt,
+	}
+}
+
+func (s *Service) queuedTurnLocked(sessionID string) (queuedTurn, bool) {
+	qt, ok := s.queuedTurns[sessionID]
+	return qt, ok
+}
+
+func (s *Service) queuedTurn(sessionID string) (queuedTurn, bool) {
+	s.queueMu.Lock()
+	defer s.queueMu.Unlock()
+	return s.queuedTurnLocked(sessionID)
+}
+
+func (s *Service) augmentTurnStatus(sessionID string, status service.TurnStatus) service.TurnStatus {
+	s.queueMu.Lock()
+	qt, ok := s.queuedTurnLocked(sessionID)
+	s.queueMu.Unlock()
+	if !ok {
+		return status
+	}
+	if status.Active {
+		status.QueueDepth = 1
+		status.QueuedOperationID = qt.operationID
+		return status
+	}
+	return queuedTurnStatus(sessionID, qt)
+}
+
+func (s *Service) publishQueueState(sessionID string, qt *queuedTurn) {
+	if s.publish == nil {
+		return
+	}
+	data := service.SSETurnQueueData{}
+	if qt != nil {
+		data.Count = 1
+		data.OperationID = qt.operationID
+	}
+	s.publish(sessionID, service.SSEEvent{Type: "turn_queue", Data: data})
+}
+
+func (s *Service) enqueueTurn(sessionID, content string, attachments []service.FileAttachment, agentID, variant string) (service.TurnStatus, error) {
+	s.queueMu.Lock()
+	defer s.queueMu.Unlock()
+	if _, exists := s.queuedTurns[sessionID]; exists {
+		return service.TurnStatus{}, ErrSessionQueueFull
+	}
+	qt := queuedTurn{
+		operationID: ulid.Make().String(),
+		content:     content,
+		attachments: cloneFileAttachments(attachments),
+		agentID:     agentID,
+		variant:     variant,
+		queuedAt:    time.Now().UTC(),
+	}
+	s.queuedTurns[sessionID] = qt
+	s.publishQueueState(sessionID, &qt)
+	return queuedTurnStatus(sessionID, qt), nil
+}
+
+func (s *Service) clearQueuedTurn(sessionID string) {
+	s.queueMu.Lock()
+	_, existed := s.queuedTurns[sessionID]
+	delete(s.queuedTurns, sessionID)
+	s.queueMu.Unlock()
+	if existed {
+		s.publishQueueState(sessionID, nil)
 	}
 }
 
@@ -281,6 +389,7 @@ func (s *Service) ListMessages(ctx context.Context, sessionID string) ([]Message
 }
 
 func (s *Service) DeleteSession(ctx context.Context, id string) error {
+	s.clearQueuedTurn(id)
 	return s.sessions.Delete(ctx, id)
 }
 
@@ -293,17 +402,7 @@ func (s *Service) SendMessage(ctx context.Context, sessionID, content string, at
 	return err
 }
 
-func (s *Service) SendMessageOperation(ctx context.Context, sessionID, content string, attachments []AttachmentInput, agentID, variant string) (service.TurnStatus, error) {
-	sess, err := s.sessions.Get(ctx, sessionID)
-	if err != nil {
-		return service.TurnStatus{}, err
-	}
-
-	files, err := s.loadAttachments(attachments)
-	if err != nil {
-		return service.TurnStatus{}, err
-	}
-
+func (s *Service) startPreparedSend(ctx context.Context, sess repository.Session, sessionID, content string, files []service.FileAttachment, agentID, variant string, allowQueue bool) (service.TurnStatus, error) {
 	bg := s.asyncContext()
 	if err := bg.Err(); err != nil {
 		return service.TurnStatus{}, err
@@ -317,14 +416,19 @@ func (s *Service) SendMessageOperation(ctx context.Context, sessionID, content s
 	if preparer, ok := s.sessions.(interface {
 		PrepareSend(context.Context, string, []service.FileAttachment) (*service.SendReservation, error)
 	}); ok {
+		var err error
 		reservation, err = preparer.PrepareSend(ctx, sessionID, files)
 		if err != nil {
+			if allowQueue && errors.Is(err, service.ErrSessionBusy) {
+				return s.enqueueTurn(sessionID, content, files, agentID, variant)
+			}
 			return service.TurnStatus{}, err
 		}
 		if reservation != nil {
 			sendCtx = reservation.Context(bg)
 			prepared = true
 			status = reservation.Status()
+			var err error
 			sendCtx, release, err = bindReservationCancel(sendCtx, reservation)
 			if err != nil {
 				return service.TurnStatus{}, err
@@ -335,13 +439,18 @@ func (s *Service) SendMessageOperation(ctx context.Context, sessionID, content s
 		if reserver, ok := s.sessions.(interface {
 			ReserveSend(string) (*service.SendReservation, error)
 		}); ok {
+			var err error
 			reservation, err = reserver.ReserveSend(sessionID)
 			if err != nil {
+				if allowQueue && errors.Is(err, service.ErrSessionBusy) {
+					return s.enqueueTurn(sessionID, content, files, agentID, variant)
+				}
 				return service.TurnStatus{}, err
 			}
 			if reservation != nil {
 				sendCtx = reservation.Context(bg)
 				status = reservation.Status()
+				var err error
 				sendCtx, release, err = bindReservationCancel(sendCtx, reservation)
 				if err != nil {
 					return service.TurnStatus{}, err
@@ -360,6 +469,37 @@ func (s *Service) SendMessageOperation(ctx context.Context, sessionID, content s
 		}
 	}
 
+	s.launchPreparedSend(sendCtx, release, sessionID, content, files, variant)
+	return status, nil
+}
+
+func (s *Service) dispatchQueuedTurn(sessionID string, qt queuedTurn) {
+	sess, err := s.sessions.Get(context.Background(), sessionID)
+	if err != nil {
+		s.clearQueuedTurn(sessionID)
+		s.publishAsyncError(sessionID, err)
+		return
+	}
+	if _, err := s.startPreparedSend(context.Background(), sess, sessionID, qt.content, cloneFileAttachments(qt.attachments), qt.agentID, qt.variant, false); err != nil {
+		if errors.Is(err, service.ErrSessionBusy) {
+			return
+		}
+		s.clearQueuedTurn(sessionID)
+		s.publishAsyncError(sessionID, err)
+		return
+	}
+	s.clearQueuedTurn(sessionID)
+}
+
+func (s *Service) maybeDispatchQueuedTurn(sessionID string) {
+	qt, ok := s.queuedTurn(sessionID)
+	if !ok {
+		return
+	}
+	s.dispatchQueuedTurn(sessionID, qt)
+}
+
+func (s *Service) launchPreparedSend(sendCtx context.Context, release func(), sessionID, content string, files []service.FileAttachment, variant string) {
 	go func() {
 		defer release()
 		if err := s.sessions.Send(sendCtx, sessionID, content, files, sandbox.OriginAPI, variant); err != nil {
@@ -368,8 +508,22 @@ func (s *Service) SendMessageOperation(ctx context.Context, sessionID, content s
 				s.publishAsyncError(sessionID, err)
 			}
 		}
+		s.maybeDispatchQueuedTurn(sessionID)
 	}()
-	return status, nil
+}
+
+func (s *Service) SendMessageOperation(ctx context.Context, sessionID, content string, attachments []AttachmentInput, agentID, variant string) (service.TurnStatus, error) {
+	sess, err := s.sessions.Get(ctx, sessionID)
+	if err != nil {
+		return service.TurnStatus{}, err
+	}
+
+	files, err := s.loadAttachments(attachments)
+	if err != nil {
+		return service.TurnStatus{}, err
+	}
+
+	return s.startPreparedSend(ctx, sess, sessionID, content, files, agentID, variant, true)
 }
 
 func (s *Service) CancelTurn(ctx context.Context, sessionID string) error {
@@ -391,14 +545,25 @@ func (s *Service) TurnStatus(ctx context.Context, sessionID string) (service.Tur
 	if _, err := s.sessions.Get(ctx, sessionID); err != nil {
 		return service.TurnStatus{}, err
 	}
-	return s.sessions.TurnStatus(ctx, sessionID)
+	status, err := s.sessions.TurnStatus(ctx, sessionID)
+	if err != nil {
+		return service.TurnStatus{}, err
+	}
+	return s.augmentTurnStatus(sessionID, status), nil
 }
 
 func (s *Service) TurnStatusByOperation(ctx context.Context, sessionID, operationID string) (service.TurnStatus, error) {
 	if _, err := s.sessions.Get(ctx, sessionID); err != nil {
 		return service.TurnStatus{}, err
 	}
-	return s.sessions.TurnStatusByOperation(ctx, sessionID, operationID)
+	if qt, ok := s.queuedTurn(sessionID); ok && qt.operationID == operationID {
+		return queuedTurnStatus(sessionID, qt), nil
+	}
+	status, err := s.sessions.TurnStatusByOperation(ctx, sessionID, operationID)
+	if err != nil {
+		return service.TurnStatus{}, err
+	}
+	return s.augmentTurnStatus(sessionID, status), nil
 }
 
 func (s *Service) SpawnSubagent(ctx context.Context, sessionID, agentID, task string) error {

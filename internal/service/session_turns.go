@@ -29,6 +29,7 @@ type sendReservationKey struct{}
 type TurnState string
 
 const (
+	TurnStateQueued     TurnState = "queued"
 	TurnStateIdle       TurnState = "idle"
 	TurnStateRunning    TurnState = "running"
 	TurnStateCancelling TurnState = "cancelling"
@@ -38,15 +39,17 @@ const (
 )
 
 type TurnStatus struct {
-	SessionID       string
-	OperationID     string
-	State           TurnState
-	Active          bool
-	CancelRequested bool
-	Error           string
-	StartedAt       time.Time
-	UpdatedAt       time.Time
-	FinishedAt      time.Time
+	SessionID         string
+	OperationID       string
+	State             TurnState
+	Active            bool
+	QueueDepth        int
+	QueuedOperationID string
+	CancelRequested   bool
+	Error             string
+	StartedAt         time.Time
+	UpdatedAt         time.Time
+	FinishedAt        time.Time
 }
 
 type sessionTurnBroker struct {

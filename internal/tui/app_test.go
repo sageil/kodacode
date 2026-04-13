@@ -280,6 +280,86 @@ func TestDoneEventRefreshesTitleAfterCompletion(t *testing.T) {
 	}
 }
 
+func TestTurnQueueEventUpdatesQueuedIndicator(t *testing.T) {
+	app := NewApp("http://localhost:0", nil)
+	app.width = 80
+	app.height = 24
+	app.ready = true
+	app.route = routeSession
+	app.sessionID = "sess-1"
+
+	data, _ := json.Marshal(struct {
+		Count int `json:"count"`
+	}{Count: 1})
+	updated, _ := app.Update(SSEEventMsg{
+		SessionID: "sess-1",
+		Type:      "turn_queue",
+		Data:      data,
+	})
+	app = updated.(App)
+
+	if app.queuedTurns != 1 {
+		t.Fatalf("queuedTurns = %d, want 1", app.queuedTurns)
+	}
+	if app.session.statusBar.queuedTurns != 1 {
+		t.Fatalf("statusBar.queuedTurns = %d, want 1", app.session.statusBar.queuedTurns)
+	}
+
+	clearData, _ := json.Marshal(struct {
+		Count int `json:"count"`
+	}{Count: 0})
+	updated, _ = app.Update(SSEEventMsg{
+		SessionID: "sess-1",
+		Type:      "turn_queue",
+		Data:      clearData,
+	})
+	app = updated.(App)
+
+	if app.queuedTurns != 0 {
+		t.Fatalf("queuedTurns = %d, want 0", app.queuedTurns)
+	}
+	if app.session.statusBar.queuedTurns != 0 {
+		t.Fatalf("statusBar.queuedTurns = %d, want 0", app.session.statusBar.queuedTurns)
+	}
+}
+
+func TestDoneEventKeepsStreamOpenWhenQueuedTurnPending(t *testing.T) {
+	app := NewApp("http://localhost:0", nil)
+	app.width = 80
+	app.height = 24
+	app.ready = true
+	app.route = routeSession
+	app.sessionID = "sess-1"
+	app.queuedTurns = 1
+	app.session.SetQueuedTurns(1)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	events := make(chan SSEEventMsg, 1)
+	done := make(chan struct{})
+	app.sse.ctx = ctx
+	app.sse.cancel = cancel
+	app.sse.conn = &sseConn{sessionID: "sess-1", events: events, done: done}
+
+	data, _ := json.Marshal(SSEDonePayload{})
+	updated, cmd := app.Update(SSEEventMsg{
+		SessionID: "sess-1",
+		Type:      "done",
+		Data:      data,
+	})
+	result := updated.(App)
+
+	if !result.sse.IsConnected() {
+		t.Fatal("sse should stay connected while a queued turn is pending")
+	}
+	if result.session.footer.streaming {
+		t.Fatal("session should stop showing the current turn as streaming after done")
+	}
+	if cmd == nil {
+		t.Fatal("done event should keep the SSE pump alive while a queued turn is pending")
+	}
+}
+
 func TestProviderConnectedMsgUpdatesModelCatalog(t *testing.T) {
 	app := NewApp("http://localhost:0", nil)
 	app.cfg.Model = "openai/gpt-4.1"

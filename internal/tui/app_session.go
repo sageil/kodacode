@@ -256,9 +256,11 @@ func (a App) startSession(text string, attachments []Attachment) tea.Cmd {
 
 func (a App) handleSessionCreated(msg sessionCreatedMsg) (tea.Model, tea.Cmd) {
 	a.cancelRequested = false
+	a.queuedTurns = 0
 	a.sessionID = msg.session.ID
 	a.route = routeSession
 	a.resetSession(msg.session.AgentID, msg.session.ModelID)
+	a.session.SetQueuedTurns(0)
 	// Load pinned instructions for this session.
 	a.pins = nil
 	if saved, err := a.api.GetSetting(a.ctx, "pins:"+msg.session.ID); err != nil {
@@ -358,18 +360,16 @@ func (a App) cancelTurn() tea.Cmd {
 	}
 }
 
-// handleMessageSent appends the user message to the view and restarts SSE
-// if there's no active SSE connection (e.g., after a previous "done" event closed it).
+// handleMessageSent appends the user message to the view and restarts SSE only
+// when there is no active connection for the session.
 func (a App) handleMessageSent(msg messageSentMsg) (tea.Model, tea.Cmd) {
 	a.cancelRequested = false
 	if msg.text != "" {
 		a.session.AppendUserMessage(msg.text)
 	}
 
-	// Only restart SSE if there's no active connection.
-	// The connection closes after "done", so we need to restart it for the next message.
-	// But if a connection is already active (e.g., when quickly sending multiple messages),
-	// don't cancel it.
+	// Only restart SSE if there's no active connection. When a next turn is
+	// queued, the same stream stays open across the handoff.
 	if !a.sse.IsConnected() {
 		return a, a.startSSE(msg.sessionID)
 	}

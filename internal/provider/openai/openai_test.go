@@ -295,25 +295,46 @@ func TestBuildResponseParams_OmitsMaxOutputTokensWhenDisabled(t *testing.T) {
 	}
 }
 
-func TestAPIModeForModel_GitHubCopilotGPT54PrefersResponses(t *testing.T) {
+func TestAPIModeForModel_GitHubCopilotPrefersResponsesForGPT5Family(t *testing.T) {
+	tests := []string{
+		"gpt-5",
+		"gpt-5.1-codex",
+		"gpt-5.1-codex-max",
+		"gpt-5.1-codex-mini",
+		"gpt-5.2",
+		"gpt-5.2-codex",
+		"gpt-5.3-codex",
+		"gpt-5.4",
+		"gpt-5.4-mini",
+	}
+
 	c := &Client{id: "github-copilot"}
-	if got := c.apiModeForModel("gpt-5.4-mini"); got != apiModeResponses {
-		t.Fatalf("apiModeForModel(gpt-5.4-mini) = %v, want responses", got)
+	for _, model := range tests {
+		if got := c.apiModeForModel(model); got != apiModeResponses {
+			t.Fatalf("apiModeForModel(%q) = %v, want responses", model, got)
+		}
 	}
 }
 
-func TestAPIModeForModel_GitHubCopilotGPT5MiniUsesChatCompletions(t *testing.T) {
+func TestAPIModeForModel_GitHubCopilotKeepsGPT5MiniOnChatCompletions(t *testing.T) {
 	c := &Client{id: "github-copilot"}
 	if got := c.apiModeForModel("gpt-5-mini"); got != apiModeChatCompletions {
 		t.Fatalf("apiModeForModel(gpt-5-mini) = %v, want chat_completions", got)
 	}
 }
 
+func TestAPIModeForModel_GitHubCopilotKeepsOlderModelsOnChatCompletions(t *testing.T) {
+	c := &Client{id: "github-copilot"}
+	if got := c.apiModeForModel("gpt-4.1"); got != apiModeChatCompletions {
+		t.Fatalf("apiModeForModel(gpt-4.1) = %v, want chat_completions", got)
+	}
+}
+
 func TestAPIModeForModel_FallsBackToChatCompletionsWhenResponsesRejected(t *testing.T) {
 	c := &Client{id: "github-copilot"}
-	c.MarkResponsesUnsupported("gpt-5.4-mini")
-	if got := c.apiModeForModel("gpt-5.4-mini"); got != apiModeChatCompletions {
-		t.Fatalf("apiModeForModel(gpt-5.4-mini) = %v, want chat_completions after responses rejection", got)
+	c.MarkResponsesUnsupported("gpt-5.3-codex")
+	if got := c.apiModeForModel("gpt-5.3-codex"); got != apiModeChatCompletions {
+		t.Fatalf("apiModeForModel(gpt-5.3-codex) = %v, want chat_completions after responses rejection", got)
 	}
 }
 

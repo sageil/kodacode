@@ -215,6 +215,7 @@ func (b *LocalBackend) OpenStream(ctx context.Context, sessionID string) (sseCon
 		defer close(done)
 		defer close(events)
 		defer cancel()
+		queuedTurns := 0
 		for {
 			select {
 			case <-ctx.Done():
@@ -238,7 +239,12 @@ func (b *LocalBackend) OpenStream(ctx context.Context, sessionID string) (sseCon
 				case <-ctx.Done():
 					return
 				}
-				if ev.Type == "done" || ev.Type == "error" {
+				if ev.Type == "turn_queue" {
+					if data, ok := ev.Data.(service.SSETurnQueueData); ok {
+						queuedTurns = data.Count
+					}
+				}
+				if (ev.Type == "done" || ev.Type == "error") && queuedTurns == 0 {
 					return
 				}
 			}

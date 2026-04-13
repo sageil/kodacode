@@ -78,6 +78,7 @@ func (a App) handleSSEEvent(msg SSEEventMsg) (tea.Model, tea.Cmd) {
 	}
 	switch msg.Type {
 	case "delta":
+		a.session.SetStreaming(true)
 		var p SSEDeltaPayload
 		if err := json.Unmarshal(msg.Data, &p); err == nil {
 			a.session.AppendDelta(p.Content)
@@ -85,6 +86,7 @@ func (a App) handleSSEEvent(msg SSEEventMsg) (tea.Model, tea.Cmd) {
 		a.errorBanner = ""
 
 	case "assistant_message":
+		a.session.SetStreaming(true)
 		var p sseAssistantMessagePayload
 		if err := json.Unmarshal(msg.Data, &p); err == nil && p.Content != "" {
 			a.session.AppendAssistantMessage(p.Content)
@@ -100,6 +102,7 @@ func (a App) handleSSEEvent(msg SSEEventMsg) (tea.Model, tea.Cmd) {
 		}
 
 	case "reasoning_delta":
+		a.session.SetStreaming(true)
 		var p SSEDeltaPayload
 		if err := json.Unmarshal(msg.Data, &p); err == nil {
 			log.Printf("[6-tui] reasoning_delta: %d chars, content=%q", len(p.Content), p.Content)
@@ -182,9 +185,14 @@ func (a App) handleSSEEvent(msg SSEEventMsg) (tea.Model, tea.Cmd) {
 			}
 			a.session.AppendSystemMessage(pinText.String())
 		}
-		a.sse.MarkDone()
+		if a.queuedTurns == 0 {
+			a.sse.MarkDone()
+		}
 		a.session.SetStreaming(false)
 		a.session.SetToolLoopStep(0)
+		if a.queuedTurns > 0 {
+			return a, nil
+		}
 		if a.cfg.PlannerPending {
 			return a.completePlannerApprovalAfterDone()
 		}
@@ -193,6 +201,7 @@ func (a App) handleSSEEvent(msg SSEEventMsg) (tea.Model, tea.Cmd) {
 		}
 
 	case "tool_start":
+		a.session.SetStreaming(true)
 		var p struct {
 			Tool   string `json:"tool"`
 			Input  string `json:"input"`
@@ -259,6 +268,7 @@ func (a App) handleSSEEvent(msg SSEEventMsg) (tea.Model, tea.Cmd) {
 		}
 
 	case "question":
+		a.session.SetStreaming(true)
 		var p sseQuestionPayload
 		if err := json.Unmarshal(msg.Data, &p); err == nil && p.QuestionID != "" {
 			id := dialogIDPermission + ":" + msg.SessionID + ":" + p.QuestionID
@@ -268,6 +278,7 @@ func (a App) handleSSEEvent(msg SSEEventMsg) (tea.Model, tea.Cmd) {
 		}
 
 	case "user_question":
+		a.session.SetStreaming(true)
 		var p sseUserQuestionPayload
 		if err := json.Unmarshal(msg.Data, &p); err == nil && p.QuestionID != "" {
 			id := dialogIDUserQuestion + ":" + msg.SessionID + ":" + p.QuestionID
@@ -295,11 +306,25 @@ func (a App) handleSSEEvent(msg SSEEventMsg) (tea.Model, tea.Cmd) {
 		}
 
 	case "active_model":
+		a.session.SetStreaming(true)
 		var p struct {
 			Model string `json:"model"`
 		}
 		if err := json.Unmarshal(msg.Data, &p); err == nil {
 			a.session.SetActiveModel(p.Model)
+		}
+
+	case "turn_queue":
+		var p struct {
+			Count       int    `json:"count"`
+			OperationID string `json:"operation_id"`
+		}
+		if err := json.Unmarshal(msg.Data, &p); err == nil {
+			if p.Count < 0 {
+				p.Count = 0
+			}
+			a.queuedTurns = p.Count
+			a.session.SetQueuedTurns(p.Count)
 		}
 
 	case "loop_detected":
@@ -365,8 +390,10 @@ func (a App) handleSSEEvent(msg SSEEventMsg) (tea.Model, tea.Cmd) {
 			}
 		}
 		a.session.FinishStreaming()
-		a.sse.MarkDone()
 		a.session.SetStreaming(false)
+		if a.queuedTurns == 0 {
+			a.sse.MarkDone()
+		}
 		return a, nil
 	}
 	return a, nil

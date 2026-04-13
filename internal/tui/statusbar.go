@@ -20,11 +20,12 @@ type MCPServerStatus struct {
 // StatusBar renders a 1-row information bar below the footer showing
 // git branch, connected MCP servers, tool count, and keyboard shortcuts.
 type StatusBar struct {
-	width          int
-	theme          *theme.Theme
-	toolCount      int
-	pinCount       int
-	mcpServers     []MCPServerStatus
+	width            int
+	theme            *theme.Theme
+	toolCount        int
+	pinCount         int
+	queuedTurns      int
+	mcpServers       []MCPServerStatus
 	inputTokens      int
 	outputTokens     int
 	reasoningTokens  int
@@ -34,14 +35,14 @@ type StatusBar struct {
 	maxOutputTokens  int
 	contextSize      int
 	budgetWarn       bool
-	toolLoopStep   int
-	streaming      bool
-	compacting     bool
-	loopDetected   bool
-	gitBranch      string
-	sessionCost    float64
-	subagentCost   float64
-	costSnapshot   *CostSnapshotPayload
+	toolLoopStep     int
+	streaming        bool
+	compacting       bool
+	loopDetected     bool
+	gitBranch        string
+	sessionCost      float64
+	subagentCost     float64
+	costSnapshot     *CostSnapshotPayload
 }
 
 func NewStatusBar() StatusBar { return StatusBar{} }
@@ -67,6 +68,8 @@ func (s *StatusBar) SetSize(w int) { s.width = w }
 func (s *StatusBar) SetToolCount(n int) { s.toolCount = n }
 
 func (s *StatusBar) SetPinCount(n int) { s.pinCount = n }
+
+func (s *StatusBar) SetQueuedTurns(n int) { s.queuedTurns = n }
 
 func (s *StatusBar) SetMCPServers(servers []MCPServerStatus) { s.mcpServers = servers }
 
@@ -219,6 +222,11 @@ func (s StatusBar) View() string {
 	if s.pinCount > 0 {
 		pinStyle := lipgloss.NewStyle().Foreground(dimColor)
 		parts = append(parts, pinStyle.Render(fmt.Sprintf("📌 %d", s.pinCount)))
+	}
+	if s.queuedTurns > 0 {
+		queueColor := colorFrom(s.theme, "warning", lipgloss.Color("214"))
+		queueStyle := lipgloss.NewStyle().Foreground(queueColor)
+		parts = append(parts, queueStyle.Render(fmt.Sprintf("◷ queued %d", s.queuedTurns)))
 	}
 
 	left := strings.Join(parts, "  ")

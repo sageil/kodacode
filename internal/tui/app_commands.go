@@ -129,7 +129,9 @@ func (a App) handleSlashCommand(text string) (App, tea.Cmd, bool) {
 		}, true
 	case "/new":
 		a.sessionID = ""
+		a.queuedTurns = 0
 		a.resetSession(a.cfg.Agent, a.cfg.Model)
+		a.session.SetQueuedTurns(0)
 		a.route = routeSession
 		return a, nil, true
 	case "/help":

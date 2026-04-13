@@ -110,8 +110,8 @@ func (s *Session) UpdateSubagentActivity(tool, input, output string, done, hasEr
 	s.msgs.UpdateSubagentActivity(tool, input, output, done, hasError)
 }
 
-func (s *Session) FlushMessagesRender()  { s.msgs.FlushRender() }
-func (s *Session) ToggleAllCollapsed()   { s.msgs.ToggleAllCollapsed() }
+func (s *Session) FlushMessagesRender() { s.msgs.FlushRender() }
+func (s *Session) ToggleAllCollapsed()  { s.msgs.ToggleAllCollapsed() }
 
 func (s *Session) SetStreaming(streaming bool) {
 	s.footer.SetStreaming(streaming)
@@ -161,6 +161,8 @@ func (s *Session) SetActiveModel(model string) { s.header.SetActiveModel(model) 
 func (s *Session) SetToolCount(n int) { s.statusBar.SetToolCount(n) }
 
 func (s *Session) SetPinCount(n int) { s.statusBar.SetPinCount(n) }
+
+func (s *Session) SetQueuedTurns(n int) { s.statusBar.SetQueuedTurns(n) }
 
 func (s *Session) SetMCPServers(servers []MCPServerStatus) { s.statusBar.SetMCPServers(servers) }
 

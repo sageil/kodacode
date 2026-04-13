@@ -118,3 +118,8 @@ type SSEOverflowData struct {
 	Dropped  int  `json:"dropped"`
 	Critical bool `json:"critical,omitempty"`
 }
+
+type SSETurnQueueData struct {
+	Count       int    `json:"count"`
+	OperationID string `json:"operation_id,omitempty"`
+}
