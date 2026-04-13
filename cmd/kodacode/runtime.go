@@ -91,6 +91,7 @@ func run(resume bool) error {
 			return fmt.Errorf("register provider %q: %w", pc.ID, regErr)
 		}
 	}
+	providerSync := newProviderSyncer(projectDir, cfg, authStore, registry, modelCache)
 	warmInitialModelCatalog(ctx, registry, startupWarmProviderIDs(cfg, registry), 1500*time.Millisecond)
 
 	toolRegistry := tool.NewRegistry()
@@ -380,6 +381,7 @@ func run(resume bool) error {
 		BackgroundCtx:   ctx,
 		MCPStatus:       mcpStatus,
 		RefreshMCPTools: refreshMCPTools,
+		SyncProviders:   providerSync.Sync,
 	})
 
 	if err := tui.RunWithBackend(backend, tui.RunOpts{

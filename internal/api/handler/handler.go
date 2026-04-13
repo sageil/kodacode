@@ -74,6 +74,7 @@ type Handler struct {
 	mcpServers    []MCPServerInfo
 	mcpStatusFn   func() []MCPServerInfo             // dynamic MCP status, overrides mcpServers when set
 	mcpRefreshFn  func(context.Context) (int, error) // invalidates + rediscovers MCP tools
+	providerSync  func(context.Context) ([]string, error)
 	snapshotSvc   *snapshot.Service
 	projectDir    string // working directory for attachment path validation
 	backgroundCtx context.Context
@@ -101,6 +102,7 @@ func RegisterRoutes(e *echo.Echo, sessions SessionService, agents AgentService, 
 	e.GET("/config", h.getConfig)
 	e.GET("/models", h.listModels)
 	e.POST("/models/refresh", h.refreshModels)
+	e.POST("/providers/sync", h.syncProviders)
 	e.POST("/mcp/refresh", h.refreshMCPTools)
 
 	e.POST("/sessions", h.createSession)
@@ -163,6 +165,12 @@ func (h *Handler) rebuildAppService() {
 		ToolCount:     h.toolCount,
 		BackgroundCtx: h.backgroundCtx,
 		MCPStatus:     mcpStatus,
+		SyncProviders: func(ctx context.Context) ([]string, error) {
+			if h.providerSync == nil {
+				return nil, nil
+			}
+			return h.providerSync(ctx)
+		},
 		RefreshMCPTools: func(ctx context.Context) (int, error) {
 			if h.mcpRefreshFn == nil {
 				return 0, nil
@@ -189,6 +197,11 @@ func (h *Handler) SetMCPStatusFunc(fn func() []MCPServerInfo) {
 // re-discovers them from all connected servers. Returns the number of tools found.
 func (h *Handler) SetMCPRefreshFunc(fn func(context.Context) (int, error)) {
 	h.mcpRefreshFn = fn
+	h.rebuildAppService()
+}
+
+func (h *Handler) SetProviderSyncFunc(fn func(context.Context) ([]string, error)) {
+	h.providerSync = fn
 	h.rebuildAppService()
 }
 
@@ -232,6 +245,14 @@ func (h *Handler) refreshMCPTools(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 	return c.JSON(http.StatusOK, map[string]any{"tools": n})
+}
+
+func (h *Handler) syncProviders(c echo.Context) error {
+	activated, err := h.appService().SyncProviders(c.Request().Context())
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+	return c.JSON(http.StatusOK, map[string]any{"activated": activated})
 }
 
 func (h *Handler) getConfig(c echo.Context) error {

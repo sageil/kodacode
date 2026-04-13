@@ -28,6 +28,7 @@ type LocalBackendConfig struct {
 	BackgroundCtx   context.Context
 	MCPStatus       func() []handler.MCPServerInfo
 	RefreshMCPTools func(context.Context) (int, error)
+	SyncProviders   func(context.Context) ([]string, error)
 }
 
 type LocalBackend struct {
@@ -63,6 +64,7 @@ func NewLocalBackend(cfg LocalBackendConfig) *LocalBackend {
 			BackgroundCtx:   cfg.BackgroundCtx,
 			MCPStatus:       mcpStatus,
 			RefreshMCPTools: cfg.RefreshMCPTools,
+			SyncProviders:   cfg.SyncProviders,
 			Publish:         localSessionPublisher(cfg.Sessions),
 		}),
 	}
@@ -82,6 +84,14 @@ func (b *LocalBackend) ListModels(ctx context.Context) ([]APIProviderModels, err
 
 func (b *LocalBackend) RefreshModels(ctx context.Context) ([]APIProviderModels, error) {
 	return apitypes.ProviderModelsFromDomain(b.app.RefreshModels(ctx)), nil
+}
+
+func (b *LocalBackend) SyncProviders(ctx context.Context) ([]string, error) {
+	return b.app.SyncProviders(ctx)
+}
+
+func (b *LocalBackend) HasActiveTurns(ctx context.Context) (bool, error) {
+	return b.app.HasActiveTurns(ctx)
 }
 
 func (b *LocalBackend) RefreshMCPTools(ctx context.Context) (int, error) {

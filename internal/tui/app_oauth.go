@@ -13,7 +13,10 @@ import (
 type providerConnectedMsg struct {
 	providerID string
 	message    string
+	models     []APIProviderModels
 }
+
+const providerConnectBusyMessage = "Finish active turns before connecting a new provider. Restart is required for provider updates or removals."
 
 // removeProvider deletes a provider from config and its OAuth credentials.
 func removeProvider(providerID string) tea.Msg {
@@ -56,7 +59,7 @@ func (a App) applyProviderConnection(result ProviderConnectResult) tea.Cmd {
 
 		// Copilot token import or manual entry.
 		if strings.HasPrefix(result.AuthType, "copilot-") {
-			return applyCopilotConnection(result)
+			return a.applyCopilotConnection(result)
 		}
 
 		// API key: save to config.
@@ -70,6 +73,8 @@ func (a App) applyProviderConnection(result ProviderConnectResult) tea.Cmd {
 			// Derive provider ID from base URL host.
 			providerID = result.ProviderID
 		}
+
+		existing := providerExists(cfg, providerID)
 
 		found := false
 		for i := range cfg.Providers {
@@ -96,7 +101,19 @@ func (a App) applyProviderConnection(result ProviderConnectResult) tea.Cmd {
 			return SSEErrorMsg{Err: fmt.Errorf("save config: %w", err)}
 		}
 
-		return providerConnectedMsg{providerID: providerID, message: fmt.Sprintf("Provider %q saved. Restart kodacode to activate.", providerID)}
+		if existing {
+			return providerConnectedMsg{
+				providerID: providerID,
+				message:    fmt.Sprintf("Provider %q updated. Restart kodacode to apply.", providerID),
+			}
+		}
+		if a.providerSyncBlocked() {
+			return providerConnectedMsg{
+				providerID: providerID,
+				message:    fmt.Sprintf("Provider %q saved. %s", providerID, providerConnectBusyMessage),
+			}
+		}
+		return a.syncProvidersAndRefresh(providerID)
 	}
 }
 
@@ -107,7 +124,7 @@ func (a App) runOAuthFlow(providerID string) tea.Msg {
 	return SSEErrorMsg{Err: fmt.Errorf("OAuth login is not supported for provider %q", providerID)}
 }
 
-func applyCopilotConnection(result ProviderConnectResult) tea.Msg {
+func (a App) applyCopilotConnection(result ProviderConnectResult) tea.Msg {
 	var ghoToken string
 	var err error
 
@@ -157,8 +174,64 @@ func applyCopilotConnection(result ProviderConnectResult) tea.Msg {
 	}
 	_ = config.Save(cfg)
 
-	return providerConnectedMsg{
-		providerID: "github-copilot",
-		message:    "GitHub Copilot connected. Restart kodacode to activate.",
+	if found {
+		return providerConnectedMsg{
+			providerID: "github-copilot",
+			message:    `Provider "github-copilot" updated. Restart kodacode to apply.`,
+		}
 	}
+	if a.providerSyncBlocked() {
+		return providerConnectedMsg{
+			providerID: "github-copilot",
+			message:    `Provider "github-copilot" saved. ` + providerConnectBusyMessage,
+		}
+	}
+	return a.syncProvidersAndRefresh("github-copilot")
+}
+
+func (a App) syncProvidersAndRefresh(providerID string) tea.Msg {
+	activated, err := a.api.SyncProviders(a.ctx)
+	if err != nil {
+		return SSEErrorMsg{Err: fmt.Errorf("sync providers: %w", err)}
+	}
+
+	message := fmt.Sprintf("Provider %q saved and activated.", providerID)
+	if !containsString(activated, providerID) {
+		message = fmt.Sprintf("Provider %q saved. Restart kodacode to apply changes to the active provider.", providerID)
+	}
+
+	models, err := a.api.RefreshModels(a.ctx)
+	if err != nil {
+		return providerConnectedMsg{
+			providerID: providerID,
+			message:    message + " Model list refresh failed: " + err.Error(),
+		}
+	}
+
+	return providerConnectedMsg{
+		providerID: providerID,
+		message:    message,
+		models:     models,
+	}
+}
+
+func containsString(items []string, target string) bool {
+	for _, item := range items {
+		if item == target {
+			return true
+		}
+	}
+	return false
+}
+
+func providerExists(cfg *config.Config, providerID string) bool {
+	if cfg == nil {
+		return false
+	}
+	for _, pc := range cfg.Providers {
+		if pc.ID == providerID {
+			return true
+		}
+	}
+	return false
 }

@@ -4,7 +4,9 @@ package openai
 
 import (
 	"context"
+	"log"
 	"strings"
+	"sync"
 
 	openaisdk "github.com/openai/openai-go/v2"
 	"github.com/openai/openai-go/v2/option"
@@ -27,8 +29,23 @@ type Client struct {
 	skipStreamUsage bool // set after a provider rejects stream_options
 	skipToolChoice  bool // set after a provider rejects tool_choice
 
-	useResponsesAPI  bool   // true for OpenAI native (API key + OAuth), false for compatible providers
-	reasoningSummary string // Responses API only: "auto", "concise", or "detailed"
+	useResponsesAPI             bool   // true for OpenAI native (API key + OAuth), false for compatible providers
+	skipResponseMaxOutputTokens bool   // true for codex/oauth, which rejects max_output_tokens
+	reasoningSummary            string // Responses API only: "auto", "concise", or "detailed"
+	apiModeMu                   sync.RWMutex
+	modelAPICaps                map[string]modelAPICapabilities
+}
+
+type apiMode uint8
+
+const (
+	apiModeChatCompletions apiMode = iota
+	apiModeResponses
+)
+
+type modelAPICapabilities struct {
+	chatCompletionsUnsupported bool
+	responsesUnsupported       bool
 }
 
 // New creates an OpenAI-compatible provider client.
@@ -127,13 +144,19 @@ func (c *Client) Chat(
 ) (<-chan provider.StreamChunk, error) {
 	ch := make(chan provider.StreamChunk, 64)
 
-	if c.useResponsesAPI {
-		params := buildResponseParams(model, messages, opts, c.skipToolChoice, c.reasoningSummary)
+	api := c.apiModeForModel(model)
+	if api == apiModeResponses {
+		allowMaxOutputTokens := c.responseMaxOutputTokensEnabled()
+		tokenField := responseTokenField(opts.MaxTokens, allowMaxOutputTokens)
+		log.Printf("openai: provider=%s api=responses model=%s token_field=%s token_limit=%d", c.id, model, tokenField, opts.MaxTokens)
+		params := buildResponseParams(model, messages, opts, c.skipToolChoice, c.reasoningSummary, allowMaxOutputTokens)
 		stream := c.sdkClient.Responses.NewStreaming(ctx, params)
 		go consumeResponseStream(ctx, stream, ch)
 		return ch, nil
 	}
 
+	tokenField := chatCompletionTokenField(model, opts.MaxTokens)
+	log.Printf("openai: provider=%s api=chat_completions model=%s token_field=%s token_limit=%d", c.id, model, tokenField, opts.MaxTokens)
 	params := buildParams(model, messages, opts, c.skipStreamUsage, c.skipToolChoice, chatToolChoiceMode(c.id))
 	stream := c.sdkClient.Chat.Completions.NewStreaming(ctx, params)
 	go consumeStream(ctx, stream, ch)
@@ -158,4 +181,99 @@ func (c *Client) MarkToolChoiceUnsupported() {
 // Only applies when useResponsesAPI is true.
 func (c *Client) MarkReasoningSummaryUnsupported(fallback string) {
 	c.reasoningSummary = fallback
+}
+
+func responseTokenField(maxTokens int, allowMaxOutputTokens bool) string {
+	if maxTokens <= 0 {
+		return "none"
+	}
+	if allowMaxOutputTokens {
+		return "max_output_tokens"
+	}
+	return "none"
+}
+
+func (c *Client) apiModeForModel(model string) apiMode {
+	if c.useResponsesAPI {
+		return apiModeResponses
+	}
+
+	defaultMode := defaultCompatibleAPIMode(c.id, model)
+	caps := c.modelAPICapabilitiesFor(model)
+
+	if defaultMode == apiModeResponses {
+		if !caps.responsesUnsupported {
+			return apiModeResponses
+		}
+		if !caps.chatCompletionsUnsupported {
+			return apiModeChatCompletions
+		}
+		return apiModeResponses
+	}
+
+	if !caps.chatCompletionsUnsupported {
+		return apiModeChatCompletions
+	}
+	if !caps.responsesUnsupported {
+		return apiModeResponses
+	}
+	return apiModeChatCompletions
+}
+
+func defaultCompatibleAPIMode(providerID, model string) apiMode {
+	lower := strings.ToLower(model)
+	if providerID == "github-copilot" && strings.HasPrefix(lower, "gpt-5.4") {
+		return apiModeResponses
+	}
+	return apiModeChatCompletions
+}
+
+func (c *Client) modelAPICapabilitiesFor(model string) modelAPICapabilities {
+	key := strings.ToLower(model)
+	c.apiModeMu.RLock()
+	defer c.apiModeMu.RUnlock()
+	if c.modelAPICaps == nil {
+		return modelAPICapabilities{}
+	}
+	return c.modelAPICaps[key]
+}
+
+func (c *Client) markAPIModeUnsupported(model string, mode apiMode) {
+	if model == "" {
+		return
+	}
+	key := strings.ToLower(model)
+	c.apiModeMu.Lock()
+	defer c.apiModeMu.Unlock()
+	if c.modelAPICaps == nil {
+		c.modelAPICaps = make(map[string]modelAPICapabilities)
+	}
+	caps := c.modelAPICaps[key]
+	switch mode {
+	case apiModeResponses:
+		caps.responsesUnsupported = true
+	case apiModeChatCompletions:
+		caps.chatCompletionsUnsupported = true
+	}
+	c.modelAPICaps[key] = caps
+}
+
+func (c *Client) MarkChatCompletionsUnsupported(model string) {
+	c.markAPIModeUnsupported(model, apiModeChatCompletions)
+}
+
+func (c *Client) MarkResponsesUnsupported(model string) {
+	c.markAPIModeUnsupported(model, apiModeResponses)
+}
+
+func (c *Client) MarkResponseMaxOutputTokensUnsupported() {
+	c.apiModeMu.Lock()
+	defer c.apiModeMu.Unlock()
+	c.skipResponseMaxOutputTokens = true
+}
+
+func (c *Client) responseMaxOutputTokensEnabled() bool {
+	c.apiModeMu.RLock()
+	defer c.apiModeMu.RUnlock()
+	return !c.skipResponseMaxOutputTokens
 }

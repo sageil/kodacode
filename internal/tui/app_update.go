@@ -184,6 +184,9 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case providerConnectedMsg:
 		a.infoBanner = msg.message
+		if msg.models != nil {
+			a.replaceAvailableModels(msg.models)
+		}
 		return a, nil
 
 	case dialogClosedMsg:

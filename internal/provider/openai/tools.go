@@ -3,6 +3,7 @@ package openai
 import (
 	"encoding/json"
 	"log"
+	"strings"
 
 	openaisdk "github.com/openai/openai-go/v2"
 	"github.com/openai/openai-go/v2/packages/param"
@@ -66,7 +67,12 @@ func buildParams(
 	}
 
 	if opts.MaxTokens > 0 {
-		params.MaxTokens = param.NewOpt(int64(opts.MaxTokens))
+		switch chatCompletionTokenField(model, opts.MaxTokens) {
+		case "max_completion_tokens":
+			params.MaxCompletionTokens = param.NewOpt(int64(opts.MaxTokens))
+		case "max_tokens":
+			params.MaxTokens = param.NewOpt(int64(opts.MaxTokens))
+		}
 	}
 	if opts.Temperature != nil {
 		params.Temperature = param.NewOpt(*opts.Temperature)
@@ -86,6 +92,27 @@ func buildParams(
 	}
 
 	return params
+}
+
+// usesMaxCompletionTokens reports whether a Chat Completions request should
+// send max_completion_tokens instead of the deprecated max_tokens field.
+// GPT-5 and o-series models reject max_tokens on the Chat Completions API.
+func usesMaxCompletionTokens(model string) bool {
+	lower := strings.ToLower(model)
+	if strings.HasPrefix(lower, "gpt-5") {
+		return true
+	}
+	return len(lower) > 1 && lower[0] == 'o' && lower[1] >= '0' && lower[1] <= '9'
+}
+
+func chatCompletionTokenField(model string, maxTokens int) string {
+	if maxTokens <= 0 {
+		return "none"
+	}
+	if usesMaxCompletionTokens(model) {
+		return "max_completion_tokens"
+	}
+	return "max_tokens"
 }
 
 // convertMessages converts a provider.Message to one or more SDK messages.

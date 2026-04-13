@@ -109,6 +109,43 @@ func (c *APIClient) RefreshModels(ctx context.Context) ([]APIProviderModels, err
 	return decodeJSON[[]APIProviderModels](resp)
 }
 
+func (c *APIClient) SyncProviders(ctx context.Context) ([]string, error) {
+	resp, err := c.do(ctx, http.MethodPost, "/providers/sync", nil)
+	if err != nil {
+		return nil, err
+	}
+	result, err := decodeJSON[struct {
+		Activated []string `json:"activated"`
+	}](resp)
+	if err != nil {
+		return nil, err
+	}
+	return result.Activated, nil
+}
+
+type APITurnStatus = apitypes.TurnStatus
+
+func (c *APIClient) HasActiveTurns(ctx context.Context) (bool, error) {
+	sessions, err := c.ListSessions(ctx)
+	if err != nil {
+		return false, err
+	}
+	for _, sess := range sessions {
+		resp, err := c.do(ctx, http.MethodGet, "/sessions/"+sess.ID+"/turn", nil)
+		if err != nil {
+			return false, err
+		}
+		status, err := decodeJSON[APITurnStatus](resp)
+		if err != nil {
+			return false, err
+		}
+		if status.Active {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 func (c *APIClient) RefreshMCPTools(ctx context.Context) (int, error) {
 	resp, err := c.do(ctx, http.MethodPost, "/mcp/refresh", nil)
 	if err != nil {

@@ -248,6 +248,30 @@ func (tl *turnLoop) streamWithRetry(params streamParams) (*streamResult, error) 
 			}
 		}
 
+		if isChatCompletionsEndpointUnsupportedError(streamErr.Error()) {
+			if mc, ok := params.activeProv.(interface{ MarkChatCompletionsUnsupported(string) }); ok {
+				mc.MarkChatCompletionsUnsupported(params.activeModel)
+				log.Printf("llm: /chat/completions rejected model %q, retrying with responses", params.activeModel)
+				continue
+			}
+		}
+
+		if isResponsesEndpointUnsupportedError(streamErr.Error()) {
+			if mc, ok := params.activeProv.(interface{ MarkResponsesUnsupported(string) }); ok {
+				mc.MarkResponsesUnsupported(params.activeModel)
+				log.Printf("llm: /responses rejected model %q, retrying with /chat/completions", params.activeModel)
+				continue
+			}
+		}
+
+		if isResponseMaxOutputTokensError(streamErr.Error()) {
+			if mc, ok := params.activeProv.(interface{ MarkResponseMaxOutputTokensUnsupported() }); ok {
+				mc.MarkResponseMaxOutputTokensUnsupported()
+				log.Printf("llm: provider rejected max_output_tokens, retrying without it")
+				continue
+			}
+		}
+
 		if isNoToolSupportError(streamErr.Error()) && len(tools) > 0 {
 			log.Printf("llm: provider does not support tools, retrying without tools")
 			tools = nil

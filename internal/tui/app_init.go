@@ -139,11 +139,7 @@ func (a *App) handleAgentsLoaded(msg agentsLoadedMsg) (App, tea.Cmd) {
 	} else if a.cfg.Agent != "" {
 		a.cfg.AgentName = formatAgentName(a.cfg.Agent)
 	}
-	items := buildModelItems(msg.models)
-	a.cfg.Models = make(map[string]ModelItem, len(items))
-	for _, item := range items {
-		a.cfg.Models[item.ProviderID+"/"+item.ModelID] = item
-	}
+	items := a.replaceAvailableModels(msg.models)
 	if msg.lastModelID != "" {
 		if _, ok := a.cfg.Models[msg.lastModelID]; ok {
 			a.cfg.Model = msg.lastModelID

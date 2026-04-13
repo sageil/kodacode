@@ -243,6 +243,29 @@ func TestModelCacheRefreshLocalDiscoveryDoesNotAssumeToolSupportOrContext(t *tes
 	}
 }
 
+func TestModelCacheRegisterLocalUpdatesExistingEndpoint(t *testing.T) {
+	t.Parallel()
+
+	mc := NewModelCache(365)
+	mc.RegisterLocal(LocalProviderEndpoint{
+		ID:      "ollama",
+		Name:    "Ollama",
+		BaseURL: "http://127.0.0.1:11434/v1",
+	})
+	mc.RegisterLocal(LocalProviderEndpoint{
+		ID:      "ollama",
+		Name:    "Ollama",
+		BaseURL: "http://localhost:11434/v1",
+	})
+
+	if len(mc.locals) != 1 {
+		t.Fatalf("len(locals) = %d, want 1", len(mc.locals))
+	}
+	if mc.locals[0].BaseURL != "http://localhost:11434/v1" {
+		t.Fatalf("locals[0].BaseURL = %q, want updated endpoint", mc.locals[0].BaseURL)
+	}
+}
+
 func TestModelCacheRefreshLocalDiscoveryPreservesAuthoritativeCloudMetadata(t *testing.T) {
 	t.Parallel()
 

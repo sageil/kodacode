@@ -14,13 +14,15 @@ import (
 )
 
 type testBackend struct {
-	cancelTurnFn   func(context.Context, string) error
-	getSessionFn   func(context.Context, string) (APISession, error)
-	listModelsFn   func(context.Context) ([]APIProviderModels, error)
-	listSessionsFn func(context.Context) ([]APISession, error)
-	listAgentsFn   func(context.Context) ([]APIAgent, error)
-	getSettingFn   func(context.Context, string) (string, error)
-	setSettingFn   func(context.Context, string, string) error
+	cancelTurnFn     func(context.Context, string) error
+	getSessionFn     func(context.Context, string) (APISession, error)
+	hasActiveTurnsFn func(context.Context) (bool, error)
+	listModelsFn     func(context.Context) ([]APIProviderModels, error)
+	syncProvidersFn  func(context.Context) ([]string, error)
+	listSessionsFn   func(context.Context) ([]APISession, error)
+	listAgentsFn     func(context.Context) ([]APIAgent, error)
+	getSettingFn     func(context.Context, string) (string, error)
+	setSettingFn     func(context.Context, string, string) error
 }
 
 func (b testBackend) CreateSession(context.Context, string, string) (APISession, error) {
@@ -33,9 +35,21 @@ func (b testBackend) ListModels(ctx context.Context) ([]APIProviderModels, error
 	return nil, nil
 }
 func (b testBackend) RefreshModels(context.Context) ([]APIProviderModels, error) { return nil, nil }
-func (b testBackend) RefreshMCPTools(context.Context) (int, error)               { return 0, nil }
-func (b testBackend) UpdateSessionModel(context.Context, string, string) error   { return nil }
-func (b testBackend) UpdateSessionAgent(context.Context, string, string) error   { return nil }
+func (b testBackend) SyncProviders(ctx context.Context) ([]string, error) {
+	if b.syncProvidersFn != nil {
+		return b.syncProvidersFn(ctx)
+	}
+	return nil, nil
+}
+func (b testBackend) HasActiveTurns(ctx context.Context) (bool, error) {
+	if b.hasActiveTurnsFn != nil {
+		return b.hasActiveTurnsFn(ctx)
+	}
+	return false, nil
+}
+func (b testBackend) RefreshMCPTools(context.Context) (int, error)             { return 0, nil }
+func (b testBackend) UpdateSessionModel(context.Context, string, string) error { return nil }
+func (b testBackend) UpdateSessionAgent(context.Context, string, string) error { return nil }
 func (b testBackend) ListSessions(ctx context.Context) ([]APISession, error) {
 	if b.listSessionsFn != nil {
 		return b.listSessionsFn(ctx)
@@ -263,6 +277,62 @@ func TestDoneEventRefreshesTitleAfterCompletion(t *testing.T) {
 	}
 	if calls != 2 {
 		t.Fatalf("GetSession() calls = %d, want 2", calls)
+	}
+}
+
+func TestProviderConnectedMsgUpdatesModelCatalog(t *testing.T) {
+	app := NewApp("http://localhost:0", nil)
+	app.cfg.Model = "openai/gpt-4.1"
+	app.cfg.Models = map[string]ModelItem{
+		"openai/gpt-4.1": {
+			ProviderID:   "openai",
+			ProviderName: "OpenAI",
+			ModelID:      "gpt-4.1",
+			ModelName:    "GPT-4.1",
+		},
+	}
+
+	updated, _ := app.Update(providerConnectedMsg{
+		providerID: "github-copilot",
+		message:    `Provider "github-copilot" saved and activated.`,
+		models: []APIProviderModels{
+			{
+				ProviderID:   "openai",
+				ProviderName: "OpenAI",
+				Models:       []APIModel{{ID: "gpt-4.1", Name: "GPT-4.1"}},
+			},
+			{
+				ProviderID:   "github-copilot",
+				ProviderName: "GitHub Copilot",
+				Models:       []APIModel{{ID: "gpt-5.4", Name: "GPT-5.4"}},
+			},
+		},
+	})
+	result := updated.(App)
+
+	if result.infoBanner != `Provider "github-copilot" saved and activated.` {
+		t.Fatalf("infoBanner = %q", result.infoBanner)
+	}
+	if _, ok := result.cfg.Models["github-copilot/gpt-5.4"]; !ok {
+		t.Fatal("github-copilot model missing from cfg.Models")
+	}
+}
+
+func TestHandleSlashCommand_ConnectBlockedWhenTurnsActive(t *testing.T) {
+	app := NewAppWithBackend(testBackend{
+		hasActiveTurnsFn: func(context.Context) (bool, error) { return true, nil },
+	}, nil)
+
+	updated, cmd, handled := app.handleSlashCommand("/connect")
+	if !handled {
+		t.Fatal("/connect was not handled")
+	}
+	if cmd != nil {
+		_ = cmd()
+	}
+	result := updated
+	if result.errorBanner != providerConnectBusyMessage {
+		t.Fatalf("errorBanner = %q, want %q", result.errorBanner, providerConnectBusyMessage)
 	}
 }
 

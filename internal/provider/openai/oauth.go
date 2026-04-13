@@ -91,15 +91,16 @@ func NewWithOAuth(auth *provider.AuthEntry, store *provider.AuthStore) *Client {
 	)
 
 	return &Client{
-		id:              "openai",
-		name:            "OpenAI",
-		sdkClient:       client,
-		useResponsesAPI: true,
+		id:                          "openai",
+		name:                        "OpenAI",
+		sdkClient:                   client,
+		useResponsesAPI:             true,
+		skipResponseMaxOutputTokens: true,
 	}
 }
 
 // buildResponseParams converts kodacode's neutral message types to Responses API params.
-func buildResponseParams(model string, messages []provider.Message, opts provider.ChatOptions, skipToolChoice bool, reasoningSummary string) responses.ResponseNewParams {
+func buildResponseParams(model string, messages []provider.Message, opts provider.ChatOptions, skipToolChoice bool, reasoningSummary string, includeMaxOutputTokens bool) responses.ResponseNewParams {
 	params := responses.ResponseNewParams{
 		Model:   shared.ResponsesModel(model),
 		Store:   param.NewOpt(false),
@@ -123,8 +124,9 @@ func buildResponseParams(model string, messages []provider.Message, opts provide
 		}
 	}
 
-	// Note: max_output_tokens is NOT supported by the codex endpoint (400 Bad Request).
-	// Output limiting is enforced client-side in consumeResponseStream.
+	if includeMaxOutputTokens && opts.MaxTokens > 0 {
+		params.MaxOutputTokens = param.NewOpt(int64(opts.MaxTokens))
+	}
 
 	// Always set reasoning params so the model knows to use the structured
 	// reasoning API instead of dumping chain-of-thought as visible text.

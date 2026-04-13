@@ -17,6 +17,35 @@ func (a *App) applyStatusBar() {
 	a.session.SetGitBranch(a.sbGitBranch)
 }
 
+func (a App) providerSyncBlocked() bool {
+	active, err := a.api.HasActiveTurns(a.ctx)
+	if err != nil {
+		return true
+	}
+	return active
+}
+
+func (a *App) replaceAvailableModels(providers []APIProviderModels) []ModelItem {
+	items := buildModelItems(providers)
+	a.cfg.Models = make(map[string]ModelItem, len(items))
+	for _, item := range items {
+		a.cfg.Models[item.ProviderID+"/"+item.ModelID] = item
+	}
+	if item, ok := a.cfg.Models[a.cfg.Model]; ok {
+		a.cfg.ModelInfo = modelInfoString(item)
+		a.cfg.HasReasoning = item.Reasoning
+		a.home.SetProviderName(item.ProviderName)
+		if a.route == routeSession {
+			a.session.SetProviderName(item.ProviderName)
+			a.session.SetModelInfo(a.cfg.ModelInfo)
+		}
+	}
+	cmds := a.buildSlashCommands()
+	a.home.footer.SetSlashCommands(cmds)
+	a.session.footer.SetSlashCommands(cmds)
+	return items
+}
+
 func (a *App) refreshHomeRecentSessions() {
 	ctx, cancel := context.WithTimeout(a.ctx, 3*time.Second)
 	defer cancel()

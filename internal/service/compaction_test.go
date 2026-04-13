@@ -360,6 +360,38 @@ func TestIsStreamOptionsError_ExcludesToolCallArgs(t *testing.T) {
 	}
 }
 
+func TestIsStreamOptionsError_ExcludesUnsupportedMaxTokens(t *testing.T) {
+	errMsg := `400 Bad Request {"message":"Unsupported parameter: 'max_tokens' is not supported with this model. Use 'max_completion_tokens' instead."}`
+	if isStreamOptionsError(errMsg) {
+		t.Fatal("isStreamOptionsError should not match unsupported max_tokens errors")
+	}
+}
+
+func TestEndpointCompatibilityDetectors(t *testing.T) {
+	chatErr := `openai: stream: POST "https://api.githubcopilot.com/chat/completions": 400 Bad Request {"message":"model \"gpt-5.4-mini\" is not accessible via the /chat/completions endpoint","code":"unsupported_api_for_model"}`
+	if !isChatCompletionsEndpointUnsupportedError(chatErr) {
+		t.Fatal("expected chat completions endpoint detector to match")
+	}
+	if isResponsesEndpointUnsupportedError(chatErr) {
+		t.Fatal("responses endpoint detector should not match chat completions error")
+	}
+
+	responsesErr := `openai responses: stream: POST "https://api.githubcopilot.com/responses": 404 Not Found`
+	if !isResponsesEndpointUnsupportedError(responsesErr) {
+		t.Fatal("expected responses endpoint detector to match")
+	}
+	if isChatCompletionsEndpointUnsupportedError(responsesErr) {
+		t.Fatal("chat completions endpoint detector should not match responses error")
+	}
+}
+
+func TestIsResponseMaxOutputTokensError(t *testing.T) {
+	errMsg := `400 Bad Request {"message":"Unsupported parameter: 'max_output_tokens' is not supported with this model."}`
+	if !isResponseMaxOutputTokensError(errMsg) {
+		t.Fatal("expected max_output_tokens detector to match")
+	}
+}
+
 func TestStripUnknownToolCalls_DropsEntireMessageIfAllUnknown(t *testing.T) {
 	msgs := []provider.Message{
 		{Role: "user", Parts: []provider.MessagePart{provider.TextPart{Text: "go"}}},

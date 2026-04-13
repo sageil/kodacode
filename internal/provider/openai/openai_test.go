@@ -184,6 +184,52 @@ func TestBuildParams_MaxTokensAndTemperature(t *testing.T) {
 	}
 }
 
+func TestBuildParams_UsesMaxCompletionTokensForGPT5(t *testing.T) {
+	opts := provider.ChatOptions{MaxTokens: 512}
+	params := buildParams("gpt-5.4", nil, opts, false, false, openaisdk.ChatCompletionToolChoiceOptionAutoRequired)
+
+	if !params.MaxCompletionTokens.Valid() || params.MaxCompletionTokens.Value != 512 {
+		t.Fatalf("MaxCompletionTokens = %v, want 512", params.MaxCompletionTokens)
+	}
+	if params.MaxTokens.Valid() {
+		t.Fatalf("MaxTokens = %v, want unset", params.MaxTokens)
+	}
+}
+
+func TestBuildParams_UsesMaxCompletionTokensForOSeries(t *testing.T) {
+	opts := provider.ChatOptions{MaxTokens: 256}
+	params := buildParams("o3", nil, opts, false, false, openaisdk.ChatCompletionToolChoiceOptionAutoRequired)
+
+	if !params.MaxCompletionTokens.Valid() || params.MaxCompletionTokens.Value != 256 {
+		t.Fatalf("MaxCompletionTokens = %v, want 256", params.MaxCompletionTokens)
+	}
+	if params.MaxTokens.Valid() {
+		t.Fatalf("MaxTokens = %v, want unset", params.MaxTokens)
+	}
+}
+
+func TestChatCompletionTokenField(t *testing.T) {
+	tests := []struct {
+		name      string
+		model     string
+		maxTokens int
+		want      string
+	}{
+		{name: "no token cap", model: "gpt-4o", maxTokens: 0, want: "none"},
+		{name: "legacy chat model", model: "gpt-4o", maxTokens: 256, want: "max_tokens"},
+		{name: "gpt5", model: "gpt-5.4", maxTokens: 256, want: "max_completion_tokens"},
+		{name: "o series", model: "o3", maxTokens: 256, want: "max_completion_tokens"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := chatCompletionTokenField(tt.model, tt.maxTokens); got != tt.want {
+				t.Fatalf("chatCompletionTokenField(%q, %d) = %q, want %q", tt.model, tt.maxTokens, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestBuildParams_StreamOptionsIncludeUsage(t *testing.T) {
 	params := buildParams("gpt-4o", nil, provider.ChatOptions{}, false, false, openaisdk.ChatCompletionToolChoiceOptionAutoRequired)
 	if !params.StreamOptions.IncludeUsage.Valid() || !params.StreamOptions.IncludeUsage.Value {
@@ -225,9 +271,49 @@ func TestBuildResponseParams_UsesAutoToolChoice(t *testing.T) {
 		},
 	}
 
-	params := buildResponseParams("gpt-5.3-codex", nil, opts, false, "")
+	params := buildResponseParams("gpt-5.3-codex", nil, opts, false, "", false)
 	if !params.ToolChoice.OfToolChoiceMode.Valid() || params.ToolChoice.OfToolChoiceMode.Value != "auto" {
 		t.Fatalf("tool choice = %#v, want auto", params.ToolChoice)
+	}
+}
+
+func TestBuildResponseParams_UsesMaxOutputTokensWhenEnabled(t *testing.T) {
+	opts := provider.ChatOptions{MaxTokens: 512}
+
+	params := buildResponseParams("gpt-5.4-mini", nil, opts, false, "", true)
+	if !params.MaxOutputTokens.Valid() || params.MaxOutputTokens.Value != 512 {
+		t.Fatalf("MaxOutputTokens = %v, want 512", params.MaxOutputTokens)
+	}
+}
+
+func TestBuildResponseParams_OmitsMaxOutputTokensWhenDisabled(t *testing.T) {
+	opts := provider.ChatOptions{MaxTokens: 512}
+
+	params := buildResponseParams("gpt-5.3-codex", nil, opts, false, "", false)
+	if params.MaxOutputTokens.Valid() {
+		t.Fatalf("MaxOutputTokens = %v, want unset", params.MaxOutputTokens)
+	}
+}
+
+func TestAPIModeForModel_GitHubCopilotGPT54PrefersResponses(t *testing.T) {
+	c := &Client{id: "github-copilot"}
+	if got := c.apiModeForModel("gpt-5.4-mini"); got != apiModeResponses {
+		t.Fatalf("apiModeForModel(gpt-5.4-mini) = %v, want responses", got)
+	}
+}
+
+func TestAPIModeForModel_GitHubCopilotGPT5MiniUsesChatCompletions(t *testing.T) {
+	c := &Client{id: "github-copilot"}
+	if got := c.apiModeForModel("gpt-5-mini"); got != apiModeChatCompletions {
+		t.Fatalf("apiModeForModel(gpt-5-mini) = %v, want chat_completions", got)
+	}
+}
+
+func TestAPIModeForModel_FallsBackToChatCompletionsWhenResponsesRejected(t *testing.T) {
+	c := &Client{id: "github-copilot"}
+	c.MarkResponsesUnsupported("gpt-5.4-mini")
+	if got := c.apiModeForModel("gpt-5.4-mini"); got != apiModeChatCompletions {
+		t.Fatalf("apiModeForModel(gpt-5.4-mini) = %v, want chat_completions after responses rejection", got)
 	}
 }
 

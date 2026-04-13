@@ -102,6 +102,7 @@ type Config struct {
 	BackgroundCtx   context.Context
 	MCPStatus       func() []MCPServerInfo
 	RefreshMCPTools func(context.Context) (int, error)
+	SyncProviders   func(context.Context) ([]string, error)
 	Publish         func(string, service.SSEEvent)
 }
 
@@ -117,6 +118,7 @@ type Service struct {
 	backgroundCtx   context.Context
 	mcpStatus       func() []MCPServerInfo
 	refreshMCPTools func(context.Context) (int, error)
+	syncProviders   func(context.Context) ([]string, error)
 	publish         func(string, service.SSEEvent)
 }
 
@@ -133,6 +135,7 @@ func New(cfg Config) *Service {
 		backgroundCtx:   cfg.BackgroundCtx,
 		mcpStatus:       cfg.MCPStatus,
 		refreshMCPTools: cfg.RefreshMCPTools,
+		syncProviders:   cfg.SyncProviders,
 		publish:         cfg.Publish,
 	}
 }
@@ -178,6 +181,33 @@ func (s *Service) RefreshMCPTools(ctx context.Context) (int, error) {
 		return 0, nil
 	}
 	return s.refreshMCPTools(ctx)
+}
+
+func (s *Service) SyncProviders(ctx context.Context) ([]string, error) {
+	if s.syncProviders == nil {
+		return nil, nil
+	}
+	return s.syncProviders(ctx)
+}
+
+func (s *Service) HasActiveTurns(ctx context.Context) (bool, error) {
+	if s.sessions == nil {
+		return false, nil
+	}
+	sessions, err := s.sessions.List(ctx)
+	if err != nil {
+		return false, err
+	}
+	for _, sess := range sessions {
+		status, err := s.sessions.TurnStatus(ctx, sess.ID)
+		if err != nil {
+			return false, err
+		}
+		if status.Active {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func (s *Service) UpdateSessionModel(ctx context.Context, id, modelID string) error {

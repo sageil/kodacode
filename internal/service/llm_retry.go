@@ -74,6 +74,30 @@ func retryChat(
 			errMsg = err.Error()
 		}
 
+		if isChatCompletionsEndpointUnsupportedError(errMsg) {
+			if mc, ok := prov.(interface{ MarkChatCompletionsUnsupported(string) }); ok {
+				mc.MarkChatCompletionsUnsupported(modelID)
+				log.Printf("llm: /chat/completions rejected model %q, retrying with responses", modelID)
+				continue
+			}
+		}
+
+		if isResponsesEndpointUnsupportedError(errMsg) {
+			if mc, ok := prov.(interface{ MarkResponsesUnsupported(string) }); ok {
+				mc.MarkResponsesUnsupported(modelID)
+				log.Printf("llm: /responses rejected model %q, retrying with /chat/completions", modelID)
+				continue
+			}
+		}
+
+		if isResponseMaxOutputTokensError(errMsg) {
+			if mc, ok := prov.(interface{ MarkResponseMaxOutputTokensUnsupported() }); ok {
+				mc.MarkResponseMaxOutputTokensUnsupported()
+				log.Printf("llm: provider rejected max_output_tokens, retrying without it")
+				continue
+			}
+		}
+
 		if !isRetryableError(errMsg) {
 			if isRateLimitError(errMsg) {
 				return fmt.Errorf("%s", formatRateLimitMessage(errMsg))
@@ -124,7 +148,7 @@ func isStreamOptionsError(errMsg string) bool {
 		return false
 	}
 	return strings.Contains(lower, "400") &&
-		(strings.Contains(lower, "invalid") || strings.Contains(lower, "parameter") || strings.Contains(lower, "unknown"))
+		(strings.Contains(lower, "stream_options") || strings.Contains(lower, "stream options"))
 }
 
 // isToolChoiceError detects errors caused by the provider rejecting the
@@ -141,6 +165,26 @@ func isToolChoiceError(errMsg string) bool {
 func isReasoningSummaryError(errMsg string) bool {
 	lower := strings.ToLower(errMsg)
 	return strings.Contains(lower, "unsupported value") && strings.Contains(lower, "supported values")
+}
+
+func isChatCompletionsEndpointUnsupportedError(errMsg string) bool {
+	lower := strings.ToLower(errMsg)
+	return (strings.Contains(lower, "unsupported_api_for_model") ||
+		strings.Contains(lower, "not accessible via the /chat/completions endpoint")) &&
+		strings.Contains(lower, "/chat/completions")
+}
+
+func isResponsesEndpointUnsupportedError(errMsg string) bool {
+	lower := strings.ToLower(errMsg)
+	return strings.Contains(lower, "/responses") &&
+		(strings.Contains(lower, "unsupported_api_for_model") ||
+			strings.Contains(lower, "not accessible via the /responses endpoint") ||
+			strings.Contains(lower, "404 not found"))
+}
+
+func isResponseMaxOutputTokensError(errMsg string) bool {
+	lower := strings.ToLower(errMsg)
+	return strings.Contains(lower, "unsupported parameter") && strings.Contains(lower, "max_output_tokens")
 }
 
 // isNoToolSupportError checks if the error indicates the provider/model doesn't support tool use.

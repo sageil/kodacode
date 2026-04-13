@@ -8,6 +8,8 @@ type Backend interface {
 	CreateSession(ctx context.Context, agentID, modelID string) (APISession, error)
 	ListModels(ctx context.Context) ([]APIProviderModels, error)
 	RefreshModels(ctx context.Context) ([]APIProviderModels, error)
+	SyncProviders(ctx context.Context) ([]string, error)
+	HasActiveTurns(ctx context.Context) (bool, error)
 	RefreshMCPTools(ctx context.Context) (int, error)
 	UpdateSessionModel(ctx context.Context, id, modelID string) error
 	UpdateSessionAgent(ctx context.Context, id, agentID string) error

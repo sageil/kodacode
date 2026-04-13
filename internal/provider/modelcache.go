@@ -54,6 +54,13 @@ func (mc *ModelCache) SetOAuthProvider(providerID string) {
 // RegisterLocal adds a local provider endpoint for model discovery.
 func (mc *ModelCache) RegisterLocal(ep LocalProviderEndpoint) {
 	mc.mu.Lock()
+	for i := range mc.locals {
+		if mc.locals[i].ID == ep.ID {
+			mc.locals[i] = ep
+			mc.mu.Unlock()
+			return
+		}
+	}
 	mc.locals = append(mc.locals, ep)
 	mc.mu.Unlock()
 }

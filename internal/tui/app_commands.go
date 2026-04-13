@@ -111,6 +111,9 @@ func (a App) handleSlashCommand(text string) (App, tea.Cmd, bool) {
 		}
 		return a, a.openThemePicker(), true
 	case "/connect":
+		if a.providerSyncBlocked() {
+			return a, a.showErrorToast("Finish active turns before connecting a new provider. Restart is required for provider updates or removals."), true
+		}
 		// Collect configured provider IDs from the model lookup map.
 		seen := make(map[string]bool)
 		var configuredProviders []string
