@@ -309,30 +309,6 @@ func classifyPlanApprovalAnswer(output string, options []planOption) planApprova
 var rejectionPattern = regexp.MustCompile(`(?i)\b(cancel|reject|stop|decline|no)\b`)
 
 // ---------------------------------------------------------------------------
-// Message history helpers
-// ---------------------------------------------------------------------------
-
-// hasCalledAgent checks if a subagent tool call for a specific agent ID
-// exists in the message history.
-func hasCalledAgent(msgs []provider.Message, agentID string) bool {
-	for _, m := range msgs {
-		if m.Role != "assistant" {
-			continue
-		}
-		for _, p := range m.Parts {
-			tc, ok := p.(provider.ToolCallPart)
-			if !ok || tc.Name != "subagent" {
-				continue
-			}
-			if plannerAgentIDFromArgs(tc.Arguments) == agentID {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-// ---------------------------------------------------------------------------
 // Tool list helpers
 // ---------------------------------------------------------------------------
 
