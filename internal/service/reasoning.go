@@ -27,6 +27,7 @@ func resolveChatReasoning(req *pipeline.TurnRequest) provider.ChatOptions {
 	budget = ContextAwareReasoningBudget(budget, req.ContextUsage)
 
 	return provider.ChatOptions{
+		SupportedEndpoints: append([]string(nil), req.Model.SupportedEndpoints...),
 		ReasoningBudget:    budget,
 		ReasoningEffort:    effort,
 		ReasoningSupported: req.Model.Reasoning || req.Model.ThinkingBudget != nil,

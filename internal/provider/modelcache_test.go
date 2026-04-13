@@ -387,3 +387,102 @@ func TestModelCacheSaveToDiskExcludesLocalProviders(t *testing.T) {
 		t.Fatal("cloud provider missing from persisted cache")
 	}
 }
+
+func TestModelCacheRefreshCloudUsesCopilotCatalogAsSource(t *testing.T) {
+	t.Parallel()
+
+	mc := NewModelCache(365)
+	mc.fetchCloud = func(context.Context) map[string]modelsDevProvider {
+		return map[string]modelsDevProvider{
+			"github-copilot": {
+				ID:   "github-copilot",
+				Name: "GitHub Copilot",
+				Models: map[string]modelsDevModel{
+					"gpt-5.1-codex": {
+						ID:   "gpt-5.1-codex",
+						Name: "GPT-5.1-Codex",
+					},
+					"gpt-5.4": {
+						ID:   "gpt-5.4",
+						Name: "GPT-5.4",
+						Cost: modelsDevCost{Input: 2.5, Output: 10},
+					},
+				},
+			},
+		}
+	}
+	mc.copilotToken = func() string { return "token" }
+	mc.fetchCopilot = func(context.Context, string) ([]CopilotModel, error) {
+		return []CopilotModel{
+			{
+				ID:                 "gpt-5.4",
+				Name:               "GPT-5.4",
+				ModelPickerEnabled: true,
+				SupportedEndpoints: []string{"/responses", "/chat/completions"},
+				ContextSize:        400000,
+				MaxInputTokens:     272000,
+				MaxOutputTokens:    128000,
+				ToolCalls:          true,
+				Reasoning:          true,
+			},
+			{
+				ID:                 "gpt-5.4-mini",
+				Name:               "GPT-5.4 mini",
+				ModelPickerEnabled: true,
+				SupportedEndpoints: []string{"/responses"},
+				ContextSize:        400000,
+				MaxInputTokens:     272000,
+				MaxOutputTokens:    128000,
+				ToolCalls:          true,
+				Reasoning:          true,
+			},
+		}, nil
+	}
+
+	mc.providers = mc.refreshCloudProviders(context.Background(), nil)
+
+	models := mc.ModelsForProvider("github-copilot")
+	if len(models) != 2 {
+		t.Fatalf("ModelsForProvider(github-copilot) len = %d, want 2", len(models))
+	}
+	if models[0].ID != "gpt-5.4" || models[1].ID != "gpt-5.4-mini" {
+		t.Fatalf("models = %#v, want Copilot catalog models only", models)
+	}
+	if got := models[0].SupportedEndpoints; len(got) != 2 || got[0] != "/responses" || got[1] != "/chat/completions" {
+		t.Fatalf("SupportedEndpoints = %#v, want Copilot endpoint metadata", got)
+	}
+	if models[0].CostInput != 2.5 || models[0].CostOutput != 10 {
+		t.Fatalf("cost = (%v, %v), want models.dev enrichment preserved", models[0].CostInput, models[0].CostOutput)
+	}
+}
+
+func TestModelCacheRefreshCloudFallsBackToModelsDevWhenCopilotFetchFails(t *testing.T) {
+	t.Parallel()
+
+	mc := NewModelCache(365)
+	mc.fetchCloud = func(context.Context) map[string]modelsDevProvider {
+		return map[string]modelsDevProvider{
+			"github-copilot": {
+				ID:   "github-copilot",
+				Name: "GitHub Copilot",
+				Models: map[string]modelsDevModel{
+					"gpt-5.4": {
+						ID:   "gpt-5.4",
+						Name: "GPT-5.4",
+					},
+				},
+			},
+		}
+	}
+	mc.copilotToken = func() string { return "token" }
+	mc.fetchCopilot = func(context.Context, string) ([]CopilotModel, error) {
+		return nil, context.DeadlineExceeded
+	}
+
+	mc.providers = mc.refreshCloudProviders(context.Background(), nil)
+
+	models := mc.ModelsForProvider("github-copilot")
+	if len(models) != 1 || models[0].ID != "gpt-5.4" {
+		t.Fatalf("models = %#v, want models.dev fallback when Copilot fetch fails", models)
+	}
+}

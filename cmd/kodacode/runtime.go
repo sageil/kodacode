@@ -58,7 +58,14 @@ func run(resume bool) error {
 		log.Printf("startup: cleaned up %d ephemeral sessions", n)
 	}
 
+	authStore := provider.NewAuthStore()
 	modelCache := provider.NewModelCache(cfg.ModelRefreshInterval)
+	modelCache.SetCopilotTokenProvider(func() string {
+		if auth := authStore.Get("github-copilot"); auth != nil {
+			return auth.Access
+		}
+		return ""
+	})
 	for _, pc := range cfg.Providers {
 		if isLocalProvider(pc) {
 			modelCache.RegisterLocal(provider.LocalProviderEndpoint{
@@ -73,7 +80,6 @@ func run(resume bool) error {
 	defer cancel()
 	modelCache.Init(ctx)
 
-	authStore := provider.NewAuthStore()
 	registry := provider.NewRegistry()
 	registry.ModelCache = modelCache
 	for _, pc := range cfg.Providers {

@@ -25,8 +25,10 @@ type ModelCache struct {
 	cacheFile       string
 	oauthProviders  map[string]bool // providers using OAuth (for model filtering)
 	fetchCloud      func(context.Context) map[string]modelsDevProvider
+	fetchCopilot    func(context.Context, string) ([]CopilotModel, error)
 	fetchLocal      func(context.Context, LocalProviderEndpoint) []modelsDevModel
 	networkCheck    func() bool
+	copilotToken    func() string
 }
 
 // NewModelCache creates a ModelCache with the given refresh interval in days.
@@ -36,6 +38,7 @@ func NewModelCache(refreshIntervalDays int) *ModelCache {
 		cacheFile:       filepath.Join(dataDir(), "models-cache.json"),
 	}
 	mc.fetchCloud = mc.fetchModelsDevData
+	mc.fetchCopilot = FetchCopilotModels
 	mc.fetchLocal = mc.fetchLocalModels
 	mc.networkCheck = hasNetwork
 	return mc
@@ -49,6 +52,10 @@ func (mc *ModelCache) SetOAuthProvider(providerID string) {
 		mc.oauthProviders = make(map[string]bool)
 	}
 	mc.oauthProviders[providerID] = true
+}
+
+func (mc *ModelCache) SetCopilotTokenProvider(fn func() string) {
+	mc.copilotToken = fn
 }
 
 // RegisterLocal adds a local provider endpoint for model discovery.
@@ -266,6 +273,9 @@ func (mc *ModelCache) refreshCloudProviders(ctx context.Context, current map[str
 	if cloud == nil {
 		cloud = make(map[string]modelsDevProvider)
 	}
+	if copilot := mc.refreshCopilotProvider(ctx, cloud["github-copilot"]); copilot != nil {
+		cloud["github-copilot"] = *copilot
+	}
 	return cloud
 }
 
@@ -322,25 +332,26 @@ func (mc *ModelCache) ModelsForProvider(providerID string) []Model {
 			outputModalities = cloneStrings(m.Modalities.Output)
 		}
 		models = append(models, Model{
-			ID:               m.ID,
-			Name:             name,
-			ContextSize:      m.Limit.Context,
-			MaxInputTokens:   m.Limit.Input,
-			Reasoning:        m.Reasoning,
-			ToolCall:         m.ToolCall,
-			ToolCallKnown:    m.ToolCallKnown,
-			Attachment:       m.Attachment,
-			AttachmentKnown:  m.AttachmentKnown,
-			Vision:           vision,
-			VisionKnown:      m.VisionKnown,
-			CostInput:        m.Cost.Input,
-			CostOutput:       m.Cost.Output,
-			CostCacheRead:    m.Cost.CacheRead,
-			CostCacheWrite:   m.Cost.CacheWrite,
-			CostReasoning:    m.Cost.Output, // reasoning billed at output rate
-			Family:           m.Family,
-			InputModalities:  inputModalities,
-			OutputModalities: outputModalities,
+			ID:                 m.ID,
+			Name:               name,
+			ContextSize:        m.Limit.Context,
+			MaxInputTokens:     m.Limit.Input,
+			Reasoning:          m.Reasoning,
+			ToolCall:           m.ToolCall,
+			ToolCallKnown:      m.ToolCallKnown,
+			Attachment:         m.Attachment,
+			AttachmentKnown:    m.AttachmentKnown,
+			Vision:             vision,
+			VisionKnown:        m.VisionKnown,
+			CostInput:          m.Cost.Input,
+			CostOutput:         m.Cost.Output,
+			CostCacheRead:      m.Cost.CacheRead,
+			CostCacheWrite:     m.Cost.CacheWrite,
+			CostReasoning:      m.Cost.Output, // reasoning billed at output rate
+			Family:             m.Family,
+			InputModalities:    inputModalities,
+			OutputModalities:   outputModalities,
+			SupportedEndpoints: cloneStrings(m.SupportedEndpoints),
 		})
 	}
 	sort.Slice(models, func(i, j int) bool {
@@ -459,6 +470,13 @@ func cloneProviders(src map[string]modelsDevProvider) map[string]modelsDevProvid
 		if provider.Models != nil {
 			cloned.Models = make(map[string]modelsDevModel, len(provider.Models))
 			for modelID, model := range provider.Models {
+				if model.Modalities != nil {
+					model.Modalities = &modelsDevModality{
+						Input:  cloneStrings(model.Modalities.Input),
+						Output: cloneStrings(model.Modalities.Output),
+					}
+				}
+				model.SupportedEndpoints = cloneStrings(model.SupportedEndpoints)
 				cloned.Models[modelID] = model
 			}
 		}
@@ -489,6 +507,13 @@ func filterLocalProviders(src map[string]modelsDevProvider, locals []LocalProvid
 		if provider.Models != nil {
 			cloned.Models = make(map[string]modelsDevModel, len(provider.Models))
 			for modelID, model := range provider.Models {
+				if model.Modalities != nil {
+					model.Modalities = &modelsDevModality{
+						Input:  cloneStrings(model.Modalities.Input),
+						Output: cloneStrings(model.Modalities.Output),
+					}
+				}
+				model.SupportedEndpoints = cloneStrings(model.SupportedEndpoints)
 				cloned.Models[modelID] = model
 			}
 		}
@@ -543,6 +568,9 @@ func (mc *ModelCache) EnrichModel(providerID string, m *Model) {
 		if cached.Modalities != nil {
 			m.OutputModalities = cloneStrings(cached.Modalities.Output)
 		}
+	}
+	if len(m.SupportedEndpoints) == 0 {
+		m.SupportedEndpoints = cloneStrings(cached.SupportedEndpoints)
 	}
 	m.Reasoning = m.Reasoning || cached.Reasoning
 	if cached.ToolCallKnown {
@@ -600,6 +628,113 @@ func mergeLocalDiscoveredModel(cached, discovered modelsDevModel) modelsDevModel
 		if cachedModelVision(discovered) {
 			merged.Attachment = true
 		}
+	}
+	return merged
+}
+
+func (mc *ModelCache) refreshCopilotProvider(ctx context.Context, modelsDev modelsDevProvider) *modelsDevProvider {
+	if mc.copilotToken == nil || mc.fetchCopilot == nil {
+		return nil
+	}
+	token := strings.TrimSpace(mc.copilotToken())
+	if token == "" {
+		return nil
+	}
+
+	models, err := mc.fetchCopilot(ctx, token)
+	if err != nil {
+		log.Printf("modelcache: copilot fetch failed: %v", err)
+		return nil
+	}
+
+	providerEntry := modelsDevProvider{
+		ID:     "github-copilot",
+		Name:   "GitHub Copilot",
+		Models: make(map[string]modelsDevModel),
+	}
+	if modelsDev.Name != "" {
+		providerEntry.Name = modelsDev.Name
+	}
+
+	for _, model := range models {
+		if !model.ModelPickerEnabled {
+			continue
+		}
+		cachedModel := copilotModelToCachedModel(model)
+		if existing, ok := modelsDev.Models[cachedModel.ID]; ok {
+			cachedModel = mergeCopilotCachedModel(existing, cachedModel)
+		}
+		providerEntry.Models[cachedModel.ID] = cachedModel
+	}
+	if len(providerEntry.Models) == 0 {
+		return nil
+	}
+	return &providerEntry
+}
+
+func copilotModelToCachedModel(model CopilotModel) modelsDevModel {
+	cached := modelsDevModel{
+		ID:                 model.ID,
+		Name:               model.Name,
+		Family:             model.Family,
+		Limit:              modelsDevLimit{Context: model.ContextSize, Input: model.MaxInputTokens, Output: model.MaxOutputTokens},
+		Reasoning:          model.Reasoning,
+		ToolCall:           model.ToolCalls,
+		ToolCallKnown:      true,
+		VisionKnown:        true,
+		SupportedEndpoints: cloneStrings(model.SupportedEndpoints),
+	}
+	if model.Vision {
+		cached.Modalities = &modelsDevModality{Input: []string{"image"}}
+	}
+	return cached
+}
+
+func mergeCopilotCachedModel(modelsDev, copilot modelsDevModel) modelsDevModel {
+	merged := copilot
+	if merged.Name == "" {
+		merged.Name = modelsDev.Name
+	}
+	if merged.Family == "" {
+		merged.Family = modelsDev.Family
+	}
+	if merged.Limit.Context == 0 {
+		merged.Limit.Context = modelsDev.Limit.Context
+	}
+	if merged.Limit.Input == 0 {
+		merged.Limit.Input = modelsDev.Limit.Input
+	}
+	if merged.Limit.Output == 0 {
+		merged.Limit.Output = modelsDev.Limit.Output
+	}
+	if !merged.Reasoning {
+		merged.Reasoning = modelsDev.Reasoning
+	}
+	if !merged.ToolCallKnown && modelsDev.ToolCallKnown {
+		merged.ToolCall = modelsDev.ToolCall
+		merged.ToolCallKnown = true
+	}
+	if !merged.AttachmentKnown && modelsDev.AttachmentKnown {
+		merged.Attachment = modelsDev.Attachment
+		merged.AttachmentKnown = true
+	}
+	if !merged.VisionKnown && modelsDev.VisionKnown {
+		merged.VisionKnown = true
+		if cachedModelVision(modelsDev) {
+			merged.Modalities = &modelsDevModality{Input: []string{"image"}}
+		}
+	}
+	if merged.Modalities == nil && modelsDev.Modalities != nil {
+		merged.Modalities = &modelsDevModality{
+			Input:  cloneStrings(modelsDev.Modalities.Input),
+			Output: cloneStrings(modelsDev.Modalities.Output),
+		}
+	}
+	if len(merged.SupportedEndpoints) == 0 {
+		merged.SupportedEndpoints = cloneStrings(modelsDev.SupportedEndpoints)
+	}
+	if merged.Cost == (modelsDevCost{}) {
+		merged.Cost = modelsDev.Cost
 	}
 	return merged
 }

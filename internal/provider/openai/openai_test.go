@@ -298,9 +298,6 @@ func TestBuildResponseParams_OmitsMaxOutputTokensWhenDisabled(t *testing.T) {
 func TestAPIModeForModel_GitHubCopilotPrefersResponsesForGPT5Family(t *testing.T) {
 	tests := []string{
 		"gpt-5",
-		"gpt-5.1-codex",
-		"gpt-5.1-codex-max",
-		"gpt-5.1-codex-mini",
 		"gpt-5.2",
 		"gpt-5.2-codex",
 		"gpt-5.3-codex",
@@ -310,22 +307,22 @@ func TestAPIModeForModel_GitHubCopilotPrefersResponsesForGPT5Family(t *testing.T
 
 	c := &Client{id: "github-copilot"}
 	for _, model := range tests {
-		if got := c.apiModeForModel(model); got != apiModeResponses {
+		if got := c.apiModeForModel(model, nil); got != apiModeResponses {
 			t.Fatalf("apiModeForModel(%q) = %v, want responses", model, got)
 		}
 	}
 }
 
-func TestAPIModeForModel_GitHubCopilotKeepsGPT5MiniOnChatCompletions(t *testing.T) {
+func TestAPIModeForModel_GitHubCopilotUsesResponsesWhenCatalogAdvertisesIt(t *testing.T) {
 	c := &Client{id: "github-copilot"}
-	if got := c.apiModeForModel("gpt-5-mini"); got != apiModeChatCompletions {
-		t.Fatalf("apiModeForModel(gpt-5-mini) = %v, want chat_completions", got)
+	if got := c.apiModeForModel("gpt-5-mini", []string{"/chat/completions", "/responses"}); got != apiModeResponses {
+		t.Fatalf("apiModeForModel(gpt-5-mini) = %v, want responses", got)
 	}
 }
 
-func TestAPIModeForModel_GitHubCopilotKeepsOlderModelsOnChatCompletions(t *testing.T) {
+func TestAPIModeForModel_GitHubCopilotUsesChatCompletionsWhenCatalogOnlyAllowsChat(t *testing.T) {
 	c := &Client{id: "github-copilot"}
-	if got := c.apiModeForModel("gpt-4.1"); got != apiModeChatCompletions {
+	if got := c.apiModeForModel("gpt-4.1", []string{"/chat/completions"}); got != apiModeChatCompletions {
 		t.Fatalf("apiModeForModel(gpt-4.1) = %v, want chat_completions", got)
 	}
 }
@@ -333,7 +330,7 @@ func TestAPIModeForModel_GitHubCopilotKeepsOlderModelsOnChatCompletions(t *testi
 func TestAPIModeForModel_FallsBackToChatCompletionsWhenResponsesRejected(t *testing.T) {
 	c := &Client{id: "github-copilot"}
 	c.MarkResponsesUnsupported("gpt-5.3-codex")
-	if got := c.apiModeForModel("gpt-5.3-codex"); got != apiModeChatCompletions {
+	if got := c.apiModeForModel("gpt-5.3-codex", []string{"/responses"}); got != apiModeChatCompletions {
 		t.Fatalf("apiModeForModel(gpt-5.3-codex) = %v, want chat_completions after responses rejection", got)
 	}
 }

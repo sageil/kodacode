@@ -144,7 +144,7 @@ func (c *Client) Chat(
 ) (<-chan provider.StreamChunk, error) {
 	ch := make(chan provider.StreamChunk, 64)
 
-	api := c.apiModeForModel(model)
+	api := c.apiModeForModel(model, opts.SupportedEndpoints)
 	if api == apiModeResponses {
 		allowMaxOutputTokens := c.responseMaxOutputTokensEnabled()
 		tokenField := responseTokenField(opts.MaxTokens, allowMaxOutputTokens)
@@ -193,12 +193,12 @@ func responseTokenField(maxTokens int, allowMaxOutputTokens bool) string {
 	return "none"
 }
 
-func (c *Client) apiModeForModel(model string) apiMode {
+func (c *Client) apiModeForModel(model string, supportedEndpoints []string) apiMode {
 	if c.useResponsesAPI {
 		return apiModeResponses
 	}
 
-	defaultMode := defaultCompatibleAPIMode(c.id, model)
+	defaultMode := defaultCompatibleAPIMode(c.id, model, supportedEndpoints)
 	caps := c.modelAPICapabilitiesFor(model)
 
 	if defaultMode == apiModeResponses {
@@ -220,12 +220,29 @@ func (c *Client) apiModeForModel(model string) apiMode {
 	return apiModeChatCompletions
 }
 
-func defaultCompatibleAPIMode(providerID, model string) apiMode {
+func defaultCompatibleAPIMode(providerID, model string, supportedEndpoints []string) apiMode {
+	if providerID == "github-copilot" {
+		switch {
+		case supportsCopilotEndpoint(supportedEndpoints, "/responses"):
+			return apiModeResponses
+		case supportsCopilotEndpoint(supportedEndpoints, "/chat/completions"):
+			return apiModeChatCompletions
+		}
+	}
 	lower := strings.ToLower(model)
 	if providerID == "github-copilot" && prefersResponsesOnGitHubCopilot(lower) {
 		return apiModeResponses
 	}
 	return apiModeChatCompletions
+}
+
+func supportsCopilotEndpoint(endpoints []string, endpoint string) bool {
+	for _, candidate := range endpoints {
+		if candidate == endpoint {
+			return true
+		}
+	}
+	return false
 }
 
 func prefersResponsesOnGitHubCopilot(model string) bool {

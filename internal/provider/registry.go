@@ -450,6 +450,9 @@ func mergeVisibleModels(primary, fallback Model) Model {
 	if len(merged.OutputModalities) == 0 {
 		merged.OutputModalities = cloneStrings(fallback.OutputModalities)
 	}
+	if len(merged.SupportedEndpoints) == 0 {
+		merged.SupportedEndpoints = cloneStrings(fallback.SupportedEndpoints)
+	}
 	return merged
 }
 

@@ -75,6 +75,7 @@ type ChatOptions struct {
 	Tools              []Tool
 	Temperature        *float64
 	MaxTokens          int
+	SupportedEndpoints []string
 	ReasoningBudget    *int   // max reasoning tokens; nil means no extended thinking
 	ReasoningEffort    string // "low" | "medium" | "high"
 	ReasoningSupported bool   // true when the model is known to support reasoning
@@ -82,26 +83,27 @@ type ChatOptions struct {
 
 // Model is a model offered by a provider.
 type Model struct {
-	ID               string   `json:"id"`
-	Name             string   `json:"name"`
-	ContextSize      int      `json:"context_size"`
-	MaxInputTokens   int      `json:"max_input_tokens,omitempty"`
-	Reasoning        bool     `json:"reasoning,omitempty"`
-	ToolCall         bool     `json:"tool_call,omitempty"`
-	ToolCallKnown    bool     `json:"-"`
-	Attachment       bool     `json:"attachment,omitempty"`
-	Vision           bool     `json:"vision,omitempty"`
-	CostInput        float64  `json:"cost_input,omitempty"`
-	CostOutput       float64  `json:"cost_output,omitempty"`
-	CostCacheRead    float64  `json:"cost_cache_read,omitempty"`
-	CostCacheWrite   float64  `json:"cost_cache_write,omitempty"`
-	CostReasoning    float64  `json:"cost_reasoning,omitempty"`
-	ThinkingBudget   *int     `json:"-"`
-	AttachmentKnown  bool     `json:"-"`
-	VisionKnown      bool     `json:"-"`
-	Family           string   `json:"-"`
-	InputModalities  []string `json:"-"`
-	OutputModalities []string `json:"-"`
+	ID                 string   `json:"id"`
+	Name               string   `json:"name"`
+	ContextSize        int      `json:"context_size"`
+	MaxInputTokens     int      `json:"max_input_tokens,omitempty"`
+	Reasoning          bool     `json:"reasoning,omitempty"`
+	ToolCall           bool     `json:"tool_call,omitempty"`
+	ToolCallKnown      bool     `json:"-"`
+	Attachment         bool     `json:"attachment,omitempty"`
+	Vision             bool     `json:"vision,omitempty"`
+	CostInput          float64  `json:"cost_input,omitempty"`
+	CostOutput         float64  `json:"cost_output,omitempty"`
+	CostCacheRead      float64  `json:"cost_cache_read,omitempty"`
+	CostCacheWrite     float64  `json:"cost_cache_write,omitempty"`
+	CostReasoning      float64  `json:"cost_reasoning,omitempty"`
+	ThinkingBudget     *int     `json:"-"`
+	AttachmentKnown    bool     `json:"-"`
+	VisionKnown        bool     `json:"-"`
+	Family             string   `json:"-"`
+	InputModalities    []string `json:"-"`
+	OutputModalities   []string `json:"-"`
+	SupportedEndpoints []string `json:"-"`
 }
 
 // EstimateTokens returns a rough char/4 token estimate for the given
