@@ -38,6 +38,9 @@ func (c *Config) Validate() error {
 	if c.Session.EngineerReviewLimit < 0 {
 		errs = append(errs, fmt.Sprintf("session.engineer_review_limit must be non-negative, got %d", c.Session.EngineerReviewLimit))
 	}
+	if c.Session.EngineerExecutionRetryLimit < 0 {
+		errs = append(errs, fmt.Sprintf("session.engineer_execution_retry_limit must be non-negative, got %d", c.Session.EngineerExecutionRetryLimit))
+	}
 	if c.Session.MaxSubagents < 0 {
 		errs = append(errs, fmt.Sprintf("session.max_subagents must be non-negative, got %d", c.Session.MaxSubagents))
 	}

@@ -422,7 +422,7 @@ func (tl *turnLoop) run() error {
 				taskExecutionRetryCount = 1
 				lastTaskExecutionState = currentTaskState
 			}
-			if taskExecutionRetryCount > tl.builderReviewLimit() {
+			if taskExecutionRetryCount > tl.engineerExecutionRetryLimit() {
 				if stallContinueAwaitingProgress && currentTaskState == stallContinueState {
 					disableTools, err := tl.blockStalledExecutionTask("[SYSTEM: Execution stalled again on %s (%s) after the user chose to keep working. The task has been marked blocked. Do not call more tools. Respond briefly that execution is paused and wait for the user's next message.]")
 					if err != nil {

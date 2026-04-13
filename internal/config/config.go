@@ -17,17 +17,18 @@ func defaults() Config {
 		Version:      CurrentConfigVersion,
 		DefaultAgent: "builder",
 		Session: SessionConfig{
-			CompactionThreshold:     float64Ptr(0.8),
-			CompactionKeepTurns:     intPtr(10),
-			PruneProtectTokens:      intPtr(40000),
-			PruneMinSavings:         intPtr(20000),
-			ContextLimit:            float64Ptr(0.9),
-			MaxRetries:              5,
-			ToolCallArgumentTimeout: 300,
-			EngineerReviewLimit:     3,
-			MaxSubagents:            10,
-			BackgroundAutoReact:     boolPtr(true),
-			Trace:                   boolPtr(false),
+			CompactionThreshold:         float64Ptr(0.8),
+			CompactionKeepTurns:         intPtr(10),
+			PruneProtectTokens:          intPtr(40000),
+			PruneMinSavings:             intPtr(20000),
+			ContextLimit:                float64Ptr(0.9),
+			MaxRetries:                  5,
+			ToolCallArgumentTimeout:     300,
+			EngineerReviewLimit:         3,
+			EngineerExecutionRetryLimit: 6,
+			MaxSubagents:                10,
+			BackgroundAutoReact:         boolPtr(true),
+			Trace:                       boolPtr(false),
 		},
 		Server: ServerConfig{
 			Port: 0,
@@ -309,6 +310,9 @@ func mergeSessionConfig(dst *SessionConfig, overlay sessionConfigOverlay) {
 	}
 	if overlay.EngineerReviewLimit != nil {
 		dst.EngineerReviewLimit = *overlay.EngineerReviewLimit
+	}
+	if overlay.EngineerExecutionRetryLimit != nil {
+		dst.EngineerExecutionRetryLimit = *overlay.EngineerExecutionRetryLimit
 	}
 	if overlay.MaxSubagents != nil {
 		dst.MaxSubagents = *overlay.MaxSubagents

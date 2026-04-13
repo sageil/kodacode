@@ -29,27 +29,28 @@ type configOverlay struct {
 }
 
 type sessionConfigOverlay struct {
-	CompactionThreshold     *float64                             `yaml:"compaction_threshold"`
-	CompactionKeepTurns     *int                                 `yaml:"compaction_keep_turns"`
-	PruneProtectTokens      *int                                 `yaml:"prune_protect_tokens"`
-	PruneMinSavings         *int                                 `yaml:"prune_min_savings"`
-	ContextLimit            *float64                             `yaml:"context_limit"`
-	MaxRetries              *int                                 `yaml:"max_retries"`
-	ToolCallArgumentTimeout *int                                 `yaml:"tool_call_argument_timeout"`
-	EngineerReviewLimit     *int                                 `yaml:"engineer_review_limit"`
-	MaxSubagents            *int                                 `yaml:"max_subagents"`
-	SubagentTimeout         *int                                 `yaml:"subagent_timeout"`
-	PlanApproval            *bool                                `yaml:"plan_approval"`
-	BackgroundAutoReact     *bool                                `yaml:"background_auto_react"`
-	Snapshot                *bool                                `yaml:"snapshot"`
-	Trace                   *bool                                `yaml:"trace"`
-	Budget                  *float64                             `yaml:"budget"`
-	BudgetWarn              *float64                             `yaml:"budget_warn"`
-	TotalBudget             *float64                             `yaml:"total_budget"`
-	TotalBudgetWarn         *float64                             `yaml:"total_budget_warn"`
-	PrimaryMaxSteps         *int                                 `yaml:"primary_max_steps"`
-	SubagentMaxSteps        *int                                 `yaml:"subagent_max_steps"`
-	Models                  map[string]modelSessionConfigOverlay `yaml:"models"`
+	CompactionThreshold         *float64                             `yaml:"compaction_threshold"`
+	CompactionKeepTurns         *int                                 `yaml:"compaction_keep_turns"`
+	PruneProtectTokens          *int                                 `yaml:"prune_protect_tokens"`
+	PruneMinSavings             *int                                 `yaml:"prune_min_savings"`
+	ContextLimit                *float64                             `yaml:"context_limit"`
+	MaxRetries                  *int                                 `yaml:"max_retries"`
+	ToolCallArgumentTimeout     *int                                 `yaml:"tool_call_argument_timeout"`
+	EngineerReviewLimit         *int                                 `yaml:"engineer_review_limit"`
+	EngineerExecutionRetryLimit *int                                 `yaml:"engineer_execution_retry_limit"`
+	MaxSubagents                *int                                 `yaml:"max_subagents"`
+	SubagentTimeout             *int                                 `yaml:"subagent_timeout"`
+	PlanApproval                *bool                                `yaml:"plan_approval"`
+	BackgroundAutoReact         *bool                                `yaml:"background_auto_react"`
+	Snapshot                    *bool                                `yaml:"snapshot"`
+	Trace                       *bool                                `yaml:"trace"`
+	Budget                      *float64                             `yaml:"budget"`
+	BudgetWarn                  *float64                             `yaml:"budget_warn"`
+	TotalBudget                 *float64                             `yaml:"total_budget"`
+	TotalBudgetWarn             *float64                             `yaml:"total_budget_warn"`
+	PrimaryMaxSteps             *int                                 `yaml:"primary_max_steps"`
+	SubagentMaxSteps            *int                                 `yaml:"subagent_max_steps"`
+	Models                      map[string]modelSessionConfigOverlay `yaml:"models"`
 }
 
 type modelSessionConfigOverlay struct {

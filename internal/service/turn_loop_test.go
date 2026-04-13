@@ -31,10 +31,11 @@ type stalledExecutionProvider struct {
 }
 
 type workflowIntentTestProvider struct {
-	calls    int
-	response string
-	chatErr  error
-	assert   func(model string, messages []provider.Message, opts provider.ChatOptions)
+	calls     int
+	response  string
+	reasoning string
+	chatErr   error
+	assert    func(model string, messages []provider.Message, opts provider.ChatOptions)
 }
 
 type blockedPrebuildProvider struct {
@@ -66,9 +67,12 @@ func (p *workflowIntentTestProvider) Chat(_ context.Context, model string, messa
 	if p.chatErr != nil {
 		return nil, p.chatErr
 	}
-	ch := make(chan provider.StreamChunk, 2)
+	ch := make(chan provider.StreamChunk, 3)
 	go func() {
 		defer close(ch)
+		if p.reasoning != "" {
+			ch <- provider.StreamChunk{ReasoningDelta: p.reasoning}
+		}
 		ch <- provider.StreamChunk{Delta: p.response}
 		ch <- provider.StreamChunk{FinishReason: "stop", Usage: &provider.Usage{InputTokens: 10, OutputTokens: 5}}
 	}()
@@ -536,16 +540,16 @@ func TestTurnLoop_ExecutionStallAsksUserAndBlocksTask(t *testing.T) {
 	if asked != 1 {
 		t.Fatalf("asked = %d, want 1", asked)
 	}
-	if prov.calls != 5 {
-		t.Fatalf("provider calls = %d, want %d", prov.calls, 5)
+	if prov.calls != 8 {
+		t.Fatalf("provider calls = %d, want %d", prov.calls, 8)
 	}
 	tasks := taskStore.GetTasks(req.SessionID)
 	if len(tasks) != 1 || tasks[0].Status != "blocked" {
 		t.Fatalf("tasks = %+v, want one blocked task", tasks)
 	}
 	volatile := strings.Join(prov.volatile, "\n")
-	if !strings.Contains(volatile, "Task execution is not complete") {
-		t.Fatalf("volatile directives = %#v, want execution retry prompt", prov.volatile)
+	if !strings.Contains(volatile, "Execution has not started for the current active task") {
+		t.Fatalf("volatile directives = %#v, want explicit task-start prompt", prov.volatile)
 	}
 	if !strings.Contains(volatile, "The user chose to block") {
 		t.Fatalf("volatile directives = %#v, want block-stop prompt", prov.volatile)
@@ -589,7 +593,7 @@ func TestTurnLoop_ExecutionStallUsesConfiguredMaxRetries(t *testing.T) {
 		msgs:      &turnLoopMessageRepo{},
 		taskStore: taskStore,
 		toolCache: newToolResultCache(),
-		cfg:       &config.SessionConfig{EngineerReviewLimit: 1},
+		cfg:       &config.SessionConfig{EngineerExecutionRetryLimit: 1},
 		askUser: func(_ context.Context, _ string) func(string, []string, bool, string) (string, error) {
 			return func(string, []string, bool, string) (string, error) {
 				asked++
@@ -662,8 +666,8 @@ func TestTurnLoop_ExecutionStallDoesNotReaskAfterKeepWorkingWithoutProgress(t *t
 	if asked != 1 {
 		t.Fatalf("asked = %d, want 1", asked)
 	}
-	if prov.calls != 9 {
-		t.Fatalf("provider calls = %d, want 9", prov.calls)
+	if prov.calls != 15 {
+		t.Fatalf("provider calls = %d, want 15", prov.calls)
 	}
 	tasks := taskStore.GetTasks(req.SessionID)
 	if len(tasks) != 1 || tasks[0].Status != "blocked" {
@@ -672,6 +676,84 @@ func TestTurnLoop_ExecutionStallDoesNotReaskAfterKeepWorkingWithoutProgress(t *t
 	volatile := strings.Join(prov.volatile, "\n")
 	if !strings.Contains(volatile, "after the user chose to keep working") {
 		t.Fatalf("volatile directives = %#v, want auto-block directive after continue", prov.volatile)
+	}
+}
+
+func TestActiveTaskHasStartedWork_FalseBeforeAnyConcreteToolCall(t *testing.T) {
+	taskStore := tool.NewTaskStore(nil)
+	taskTool := tool.NewTaskTool(taskStore)
+	if _, err := taskTool.Execute(t.Context(), tool.ExecutionContext{SessionID: "active-task-not-started-test"}, []byte(`{"action":"create","title":"Task 1","kind":"implementation","notes":"Do the work","status":"in_progress"}`)); err != nil {
+		t.Fatalf("create task: %v", err)
+	}
+
+	req := &pipeline.TurnRequest{
+		SessionID: "active-task-not-started-test",
+		AgentID:   "engineer",
+		Messages: []provider.Message{
+			{
+				Role: "assistant",
+				Parts: []provider.MessagePart{
+					provider.ToolCallPart{ID: "start-1", Name: "task", Arguments: `{"action":"update","id":"task 1","status":"in_progress"}`},
+				},
+			},
+			{
+				Role: "user",
+				Parts: []provider.MessagePart{
+					provider.ToolResultPart{ToolCallID: "start-1", Output: "task 1 is now in progress"},
+				},
+			},
+		},
+	}
+
+	tl := &turnLoop{req: req, taskStore: taskStore}
+	tasks := taskStore.GetTasks(req.SessionID)
+	if len(tasks) != 1 {
+		t.Fatalf("task count = %d, want 1", len(tasks))
+	}
+	if tl.activeTaskHasStartedWork(tasks[0]) {
+		t.Fatal("activeTaskHasStartedWork() = true, want false before any concrete tool call")
+	}
+}
+
+func TestActiveTaskHasStartedWork_TrueAfterConcreteToolCall(t *testing.T) {
+	taskStore := tool.NewTaskStore(nil)
+	taskTool := tool.NewTaskTool(taskStore)
+	if _, err := taskTool.Execute(t.Context(), tool.ExecutionContext{SessionID: "active-task-started-test"}, []byte(`{"action":"create","title":"Task 1","kind":"implementation","notes":"Do the work","status":"in_progress"}`)); err != nil {
+		t.Fatalf("create task: %v", err)
+	}
+
+	req := &pipeline.TurnRequest{
+		SessionID: "active-task-started-test",
+		AgentID:   "engineer",
+		Messages: []provider.Message{
+			{
+				Role: "assistant",
+				Parts: []provider.MessagePart{
+					provider.ToolCallPart{ID: "start-1", Name: "task", Arguments: `{"action":"update","id":"task 1","status":"in_progress"}`},
+				},
+			},
+			{
+				Role: "user",
+				Parts: []provider.MessagePart{
+					provider.ToolResultPart{ToolCallID: "start-1", Output: "task 1 is now in progress"},
+				},
+			},
+			{
+				Role: "assistant",
+				Parts: []provider.MessagePart{
+					provider.ToolCallPart{ID: "read-1", Name: "read", Arguments: `{"file":"app.go"}`},
+				},
+			},
+		},
+	}
+
+	tl := &turnLoop{req: req, taskStore: taskStore}
+	tasks := taskStore.GetTasks(req.SessionID)
+	if len(tasks) != 1 {
+		t.Fatalf("task count = %d, want 1", len(tasks))
+	}
+	if !tl.activeTaskHasStartedWork(tasks[0]) {
+		t.Fatal("activeTaskHasStartedWork() = false, want true after a concrete tool call")
 	}
 }
 
@@ -1876,11 +1958,11 @@ func TestTurnLoop_ApprovedExecutionRetriesWhenTaskProgressIsIncomplete(t *testin
 		t.Fatalf("run() error = %v", err)
 	}
 
-	if prov.calls != 5 {
-		t.Fatalf("provider calls = %d, want %d", prov.calls, 5)
+	if prov.calls != 8 {
+		t.Fatalf("provider calls = %d, want %d", prov.calls, 8)
 	}
-	if !strings.Contains(prov.secondVolatile, "Task execution is not complete") {
-		t.Fatalf("second request volatile part = %q, want task retry directive", prov.secondVolatile)
+	if !strings.Contains(prov.secondVolatile, "Execution has not started for the current active task") {
+		t.Fatalf("second request volatile part = %q, want task-start directive", prov.secondVolatile)
 	}
 	tasks := taskStore.GetTasks(req.SessionID)
 	if len(tasks) != 2 || tasks[0].Status != "blocked" {
@@ -2957,6 +3039,86 @@ func TestMaybeBootstrapWorkflowController_FallsBackToPrimaryIntentModel(t *testi
 	}
 	if !strings.Contains(intentEnd.Output, "primary-model") {
 		t.Fatalf("intent output = %q, want primary fallback marker", intentEnd.Output)
+	}
+}
+
+func TestMaybeBootstrapWorkflowController_UsesReasoningOnlyIntentOutput(t *testing.T) {
+	taskStore := tool.NewTaskStore(nil)
+	primaryProv := &workflowIntentTestProvider{
+		reasoning: "broad_review_execute",
+	}
+	req := &pipeline.TurnRequest{
+		SessionID: "workflow-bootstrap-intent-reasoning-test",
+		AgentID:   "engineer",
+		Messages:  builderBootstrapVerifiedMessages("Please review the full project and suggest improvements."),
+		Tools:     []provider.Tool{{Name: "subagent"}, {Name: "question"}, {Name: "task"}},
+	}
+
+	spawned := 0
+	var events []SSEEvent
+	tl := &turnLoop{
+		ctx:       context.Background(),
+		req:       req,
+		prov:      primaryProv,
+		modelID:   "primary-model",
+		msgs:      &turnLoopMessageRepo{},
+		taskStore: taskStore,
+		publish: func(_ string, ev SSEEvent) {
+			events = append(events, ev)
+		},
+		spawnSubagent: func(_ context.Context, _ string, agentID, _ string, _ ProgressFunc) (string, error) {
+			spawned++
+			switch agentID {
+			case "explorer":
+				return "Relevant findings\n[SCOPE: broad]", nil
+			case "planner":
+				return `{"summary":"Plan ready.","tasks":[{"title":"Task 1","kind":"analysis","notes":"First step. Acceptance criteria: 1. Audit scope is documented. 2. Findings are actionable."}]}`, nil
+			default:
+				t.Fatalf("unexpected agent %q", agentID)
+				return "", nil
+			}
+		},
+		askUser: func(_ context.Context, _ string) func(string, []string, bool, string) (string, error) {
+			return func(_ string, _ []string, _ bool, _ string) (string, error) {
+				return planApprovalProceedOption, nil
+			}
+		},
+	}
+
+	bootstrapped, err := tl.maybeBootstrapWorkflowController()
+	if err != nil {
+		t.Fatalf("maybeBootstrapWorkflowController() error = %v", err)
+	}
+	if !bootstrapped {
+		t.Fatal("bootstrapped = false, want true")
+	}
+	if primaryProv.calls != 1 {
+		t.Fatalf("primary classifier calls = %d, want 1", primaryProv.calls)
+	}
+	if spawned != 2 {
+		t.Fatalf("spawned = %d, want 2", spawned)
+	}
+
+	var intentEnd *SSEToolEndData
+	for _, ev := range events {
+		if ev.Type != "tool_end" {
+			continue
+		}
+		data, ok := ev.Data.(SSEToolEndData)
+		if !ok || data.CallID != "workflow-controller-intent" {
+			continue
+		}
+		intentEnd = &data
+		break
+	}
+	if intentEnd == nil {
+		t.Fatal("intent tool_end not published")
+	}
+	if !strings.Contains(intentEnd.Output, "Selected workflow: Review + Plan + Execute") {
+		t.Fatalf("intent output = %q", intentEnd.Output)
+	}
+	if !strings.Contains(intentEnd.Output, "Model: workflow-intent-test/primary-model") {
+		t.Fatalf("intent output = %q, want provider/model marker", intentEnd.Output)
 	}
 }
 

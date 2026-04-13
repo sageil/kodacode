@@ -289,6 +289,13 @@ func (tl *turnLoop) builderReviewLimit() int {
 	return 3
 }
 
+func (tl *turnLoop) engineerExecutionRetryLimit() int {
+	if tl != nil && tl.cfg != nil && tl.cfg.EngineerExecutionRetryLimit > 0 {
+		return tl.cfg.EngineerExecutionRetryLimit
+	}
+	return 6
+}
+
 func (tl *turnLoop) toolCallArgumentTimeout(providerID, modelID string) time.Duration {
 	if tl != nil && tl.cfg != nil {
 		if mc, ok := tl.cfg.ModelConfig(providerID, modelID); ok && mc.ToolCallArgumentTimeout > 0 {
@@ -315,12 +322,14 @@ func (tl *turnLoop) incompleteTaskExecutionRetry(finishReason string, toolCalls 
 	active, next := tl.incompleteTaskExecutionTasks()
 
 	switch {
+	case active != nil && !tl.activeTaskHasStartedWork(active):
+		return fmt.Sprintf("[SYSTEM: Execution has not started for the current active task %s: %s. Do not stop with prose. Call one relevant tool now to begin this task, or call task.update only if the task is already completed or blocked. After the tool result returns, continue working until the task status changes.]", active.ID, active.Title)
 	case active != nil && next != nil:
 		return fmt.Sprintf("[SYSTEM: Task execution is not complete. The current active task is %s: %s. Before stopping, either continue working on this task with tools, or call task.update to mark it completed or blocked. If you complete it, immediately set %s (%s) to in_progress and continue. Do not stop yet.]", active.ID, active.Title, next.ID, next.Title)
 	case active != nil:
 		return fmt.Sprintf("[SYSTEM: Task execution is not complete. The current active task is %s: %s. Before stopping, either continue working on this task with tools, or call task.update to mark it completed or blocked. Do not stop yet.]", active.ID, active.Title)
 	case next != nil:
-		return fmt.Sprintf("[SYSTEM: Task execution is not complete. Start the next pending task now: %s (%s). Call task.update to set it to in_progress, then continue with tools. Do not stop yet.]", next.ID, next.Title)
+		return fmt.Sprintf("[SYSTEM: Task execution has not started yet. Start the next pending task now: %s (%s). First call task.update to set it to in_progress, then immediately call one relevant tool. Do not stop with prose.]", next.ID, next.Title)
 	default:
 		return ""
 	}
@@ -350,6 +359,10 @@ func (tl *turnLoop) incompleteTaskExecutionTasks() (*tool.Task, *tool.Task) {
 func (tl *turnLoop) incompleteTaskExecutionState() string {
 	active, next := tl.incompleteTaskExecutionTasks()
 	switch {
+	case active != nil && next != nil && !tl.activeTaskHasStartedWork(active):
+		return fmt.Sprintf("active:%s:not_started|next:%s:%s", active.ID, next.ID, next.Status)
+	case active != nil && !tl.activeTaskHasStartedWork(active):
+		return fmt.Sprintf("active:%s:not_started", active.ID)
 	case active != nil && next != nil:
 		return fmt.Sprintf("active:%s:%s|next:%s:%s", active.ID, active.Status, next.ID, next.Status)
 	case active != nil:
@@ -358,6 +371,96 @@ func (tl *turnLoop) incompleteTaskExecutionState() string {
 		return fmt.Sprintf("next:%s:%s", next.ID, next.Status)
 	default:
 		return ""
+	}
+}
+
+func (tl *turnLoop) activeTaskHasStartedWork(task *tool.Task) bool {
+	if tl == nil || tl.req == nil || task == nil {
+		return false
+	}
+	if strings.TrimSpace(task.Progress) != "" {
+		return true
+	}
+
+	activeTaskID := strings.TrimSpace(task.ID)
+	activeTaskTitle := strings.TrimSpace(task.Title)
+	activeStarted := false
+
+	for _, m := range tl.req.Messages {
+		for _, p := range m.Parts {
+			tc, ok := p.(provider.ToolCallPart)
+			if !ok {
+				continue
+			}
+			if tc.Name == "task" {
+				args, ok := parseTaskToolCallArgs(tc.Arguments)
+				if !ok {
+					continue
+				}
+				switch {
+				case taskCallStartsTask(args, activeTaskID, activeTaskTitle):
+					activeStarted = true
+				case activeStarted && taskCallStopsTask(args, activeTaskID):
+					activeStarted = false
+				}
+				continue
+			}
+			if activeStarted && isExecutionProgressToolName(tc.Name) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+type taskToolCallArgs struct {
+	Action string `json:"action"`
+	ID     string `json:"id"`
+	Title  string `json:"title"`
+	Status string `json:"status"`
+}
+
+func parseTaskToolCallArgs(raw string) (taskToolCallArgs, bool) {
+	var args taskToolCallArgs
+	if err := json.Unmarshal([]byte(raw), &args); err != nil {
+		return taskToolCallArgs{}, false
+	}
+	return args, true
+}
+
+func taskCallStartsTask(args taskToolCallArgs, activeTaskID, activeTaskTitle string) bool {
+	if args.Status != "in_progress" {
+		return false
+	}
+	switch args.Action {
+	case "update":
+		return strings.TrimSpace(args.ID) != "" && strings.TrimSpace(args.ID) == activeTaskID
+	case "create":
+		title := strings.TrimSpace(args.Title)
+		return title != "" && activeTaskTitle != "" && title == activeTaskTitle
+	default:
+		return false
+	}
+}
+
+func taskCallStopsTask(args taskToolCallArgs, activeTaskID string) bool {
+	if args.Action != "update" || strings.TrimSpace(args.ID) != activeTaskID {
+		return false
+	}
+	switch args.Status {
+	case "completed", "blocked":
+		return true
+	default:
+		return false
+	}
+}
+
+func isExecutionProgressToolName(name string) bool {
+	switch name {
+	case "", "task", "task_output", "question":
+		return false
+	default:
+		return true
 	}
 }
 

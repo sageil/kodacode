@@ -128,12 +128,12 @@ func phasePostplanPending(allTools []provider.Tool, msgs []provider.Message, _ i
 }
 
 func approvalRuntimeDirective(answer string) string {
-	directive := "Plan approved. Execute the full approved task list now. Set the first task to in_progress and begin working on it immediately. Continue through the remaining tasks in order without asking the user for confirmation between tasks unless blocked. Do not re-present the plan."
+	directive := "Plan approved. Execute the full approved task list now. Set the first task to in_progress and begin working on it immediately. After setting it to in_progress, make the first concrete tool call for that task right away. Do not stop with prose before starting work. Continue through the remaining tasks in order without asking the user for confirmation between tasks unless blocked. Do not re-present the plan."
 	switch normalizePlanApprovalAnswer(answer) {
 	case planApprovalSaveOption:
-		directive = "Plan approved. The user chose \"Save plan and proceed\". The approved markdown plan has already been saved under docs/kodacode/plans/. Do not rewrite the plan files. Execute the full approved task list now. Set the first task to in_progress and begin working on it immediately. Continue through the remaining tasks in order without asking the user for confirmation between tasks unless blocked. Do not re-present the plan."
+		directive = "Plan approved. The user chose \"Save plan and proceed\". The approved markdown plan has already been saved under docs/kodacode/plans/. Do not rewrite the plan files. Execute the full approved task list now. Set the first task to in_progress and begin working on it immediately. After setting it to in_progress, make the first concrete tool call for that task right away. Do not stop with prose before starting work. Continue through the remaining tasks in order without asking the user for confirmation between tasks unless blocked. Do not re-present the plan."
 	case planApprovalProceedOption:
-		directive = "Plan approved. The user chose \"Proceed without saving plan files\". Skip saving the plan files and execute the full approved task list now. Set the first task to in_progress and begin working on it immediately. Continue through the remaining tasks in order without asking the user for confirmation between tasks unless blocked. Do not re-present the plan."
+		directive = "Plan approved. The user chose \"Proceed without saving plan files\". Skip saving the plan files and execute the full approved task list now. Set the first task to in_progress and begin working on it immediately. After setting it to in_progress, make the first concrete tool call for that task right away. Do not stop with prose before starting work. Continue through the remaining tasks in order without asking the user for confirmation between tasks unless blocked. Do not re-present the plan."
 	}
 	return directive
 }

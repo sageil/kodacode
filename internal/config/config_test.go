@@ -695,6 +695,25 @@ session:
 	}
 }
 
+func TestLoad_EngineerExecutionRetryLimitOverride(t *testing.T) {
+	xdgDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", xdgDir)
+
+	projectDir := t.TempDir()
+	writeYAML(t, projectDir, "kodacode.yaml", `
+session:
+  engineer_execution_retry_limit: 9
+`)
+
+	cfg, err := config.Load(projectDir)
+	if err != nil {
+		t.Fatalf("Load(%q) error = %v, want nil", projectDir, err)
+	}
+	if cfg.Session.EngineerExecutionRetryLimit != 9 {
+		t.Fatalf("Session.EngineerExecutionRetryLimit = %d, want 9", cfg.Session.EngineerExecutionRetryLimit)
+	}
+}
+
 func TestMerge_LSPServers_ByNameFieldByField(t *testing.T) {
 	xdgDir := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", xdgDir)
