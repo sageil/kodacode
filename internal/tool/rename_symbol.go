@@ -73,9 +73,28 @@ func executeRenameSymbol(ctx context.Context, ectx ExecutionContext, args []byte
 	if err != nil {
 		return nil, err
 	}
-	edit, err := server.Rename(ctx, path, params.Line-1, params.Character, params.NewName)
-	if err != nil {
-		return nil, err
+	positions := bestEffortPositionCandidates(path, params.Line, params.Character)
+	var (
+		edit      *lsp.WorkspaceEdit
+		firstEdit *lsp.WorkspaceEdit
+		firstErr  error
+	)
+	for i, character := range positions {
+		candidate, err := server.Rename(ctx, path, params.Line-1, character, params.NewName)
+		if i == 0 {
+			firstEdit = candidate
+			firstErr = err
+		}
+		if err == nil && workspaceEditHasChanges(candidate) {
+			edit = candidate
+			break
+		}
+	}
+	if edit == nil {
+		edit = firstEdit
+	}
+	if firstErr != nil && !workspaceEditHasChanges(edit) {
+		return nil, firstErr
 	}
 	summary, err := applyWorkspaceEdit(ctx, ectx.WorkDir, edit, notify, versionLookup)
 	if err != nil {

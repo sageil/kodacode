@@ -37,6 +37,18 @@ func TestProviderPrompt(t *testing.T) {
 			wantContains: "conventions",
 		},
 		{
+			name:         "deepseek provider",
+			providerID:   "deepseek",
+			modelID:      "deepseek-reasoner",
+			wantContains: "reasoning_content",
+		},
+		{
+			name:         "deepseek model on compatible provider",
+			providerID:   "openrouter",
+			modelID:      "deepseek/deepseek-reasoner",
+			wantContains: "reasoning_content",
+		},
+		{
 			name:         "unknown model",
 			providerID:   "other",
 			modelID:      "unknown-model",

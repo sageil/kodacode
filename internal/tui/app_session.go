@@ -127,6 +127,7 @@ func (a *App) resetSession(agentID, modelID string) {
 	if a.theme != nil {
 		a.session.ApplyTheme(a.theme)
 	}
+	a.session.SetProjectDir(a.projectDir)
 	a.session.SetAgent(agentID, a.cfg.AgentNames[agentID])
 	a.session.SetModel(modelID)
 	a.session.SetProviderName(a.lookupProviderName(modelID))

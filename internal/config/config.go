@@ -23,7 +23,7 @@ func defaults() Config {
 			PruneMinSavings:             intPtr(20000),
 			ContextLimit:                float64Ptr(0.9),
 			MaxRetries:                  5,
-			ToolCallArgumentTimeout:     300,
+			ToolCallArgumentTimeout:     60,
 			EngineerReviewLimit:         3,
 			EngineerExecutionRetryLimit: 6,
 			MaxSubagents:                10,

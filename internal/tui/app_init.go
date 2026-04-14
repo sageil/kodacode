@@ -4,14 +4,11 @@ import (
 	"encoding/json"
 	"log"
 	"os"
-	"os/exec"
 	"sort"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
 )
-
-type gitBranchMsg struct{ branch string }
 
 type configLoadedMsg struct{ cfg APIConfig }
 
@@ -51,26 +48,13 @@ func (a App) fetchInitialConfig() tea.Cmd {
 	return tea.Batch(
 		a.home.Init(),
 		shimTick(),
+		a.loadWorkspaceStatus(),
 		func() tea.Msg {
 			cfg, err := api.GetConfig(ctx)
 			if err != nil {
 				return nil
 			}
 			return configLoadedMsg{cfg: cfg}
-		},
-		func() tea.Msg {
-			dir := a.projectDir
-			cmd := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD")
-			cmd.Dir = dir
-			if out, err := cmd.Output(); err == nil {
-				return gitBranchMsg{branch: strings.TrimSpace(string(out))}
-			}
-			cmd = exec.Command("git", "symbolic-ref", "--short", "HEAD")
-			cmd.Dir = dir
-			if out, err := cmd.Output(); err == nil {
-				return gitBranchMsg{branch: strings.TrimSpace(string(out))}
-			}
-			return nil
 		},
 	)
 }

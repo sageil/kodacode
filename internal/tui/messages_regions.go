@@ -54,20 +54,7 @@ func (m *Messages) handleMouseClick(msg tea.MouseClickMsg) bool {
 		}
 	}
 
-	// 2. Reasoning header clicks (first line of each msg region with reasoning).
-	for _, mr := range m.msgRegions {
-		if contentLine == mr.startLine {
-			mm := &m.messages[mr.msgIndex]
-			if mm.Role == "assistant" && mm.Reasoning != "" && mm.ReasoningDone {
-				mm.ReasoningCollapsed = !mm.ReasoningCollapsed
-				m.invalidateFrom(mr.msgIndex)
-				m.needsRender = true
-				return true
-			}
-		}
-	}
-
-	// 3. Hunk accept/reject toggles (exact line match inside tool body).
+	// 2. Hunk accept/reject toggles (exact line match inside tool body).
 	for _, hr := range m.hunkRegions {
 		if contentLine == hr.line {
 			if hr.hunkIndex == -1 {
@@ -86,7 +73,7 @@ func (m *Messages) handleMouseClick(msg tea.MouseClickMsg) bool {
 		}
 	}
 
-	// 4. Subagent activity toggles.
+	// 3. Subagent activity toggles.
 	for _, sr := range m.subagentActivityRegions {
 		if contentLine == sr.line {
 			smsg := &m.messages[sr.msgIndex]
@@ -102,7 +89,7 @@ func (m *Messages) handleMouseClick(msg tea.MouseClickMsg) bool {
 		}
 	}
 
-	// 5. Click anywhere else inside a tool body to toggle collapse.
+	// 4. Click anywhere else inside a tool body to toggle collapse.
 	for _, tr := range m.toolRegions {
 		if contentLine > tr.startLine && contentLine < tr.endLine {
 			mi := tr.msgIndex
@@ -112,19 +99,6 @@ func (m *Messages) handleMouseClick(msg tea.MouseClickMsg) bool {
 			m.invalidateFrom(mi)
 			m.needsRender = true
 			return true
-		}
-	}
-
-	// 6. Click anywhere inside a reasoning block to toggle collapse.
-	for _, mr := range m.msgRegions {
-		if contentLine > mr.startLine && contentLine < mr.endLine {
-			mm := &m.messages[mr.msgIndex]
-			if mm.Role == "assistant" && mm.Reasoning != "" && mm.ReasoningDone {
-				mm.ReasoningCollapsed = !mm.ReasoningCollapsed
-				m.invalidateFrom(mr.msgIndex)
-				m.needsRender = true
-				return true
-			}
 		}
 	}
 

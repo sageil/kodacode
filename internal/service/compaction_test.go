@@ -485,9 +485,10 @@ func TestSafeTruncateMessages_KeepsTwoTurns(t *testing.T) {
 	}
 }
 
-func TestSafeTruncateMessages_FewTurnsWithManyToolCalls(t *testing.T) {
+func TestSafeTruncateMessages_FewTurnsWithManyToolCallsStillShrinks(t *testing.T) {
 	// 3 turns, each with 10 tool pairs = 3 boundaries, 63 messages.
-	// With keepTurns=5, all 3 turns should be kept (no truncation).
+	// Even though keepTurns=5 exceeds the number of user turns, compaction
+	// should still drop the oldest full turn so summarization makes progress.
 	var msgs []provider.Message
 	for turn := range 3 {
 		msgs = append(msgs, provider.Message{
@@ -504,8 +505,12 @@ func TestSafeTruncateMessages_FewTurnsWithManyToolCalls(t *testing.T) {
 	}
 
 	result := safeTruncateMessages(msgs, 5)
-	if len(result) != len(msgs) {
-		t.Fatalf("keepTurns=5 with 3 turns: got %d messages, want %d (all kept)", len(result), len(msgs))
+	if len(result) >= len(msgs) {
+		t.Fatalf("keepTurns=5 with 3 turns: got %d messages, want fewer than %d", len(result), len(msgs))
+	}
+	tp, ok := result[0].Parts[0].(provider.TextPart)
+	if !ok || tp.Text != "turn 2" {
+		t.Fatalf("first kept message = %v, want user turn 2", result[0].Parts[0])
 	}
 }
 
@@ -546,6 +551,47 @@ func TestSafeTruncateMessages_MidTurnFallback(t *testing.T) {
 	last := result[len(result)-1]
 	if _, ok := last.Parts[0].(provider.ToolResultPart); !ok {
 		t.Errorf("last message should be tool_result, got %T", last.Parts[0])
+	}
+}
+
+func TestSafeTruncateMessages_MidTurnFallbackShrinksSmallSingleTurn(t *testing.T) {
+	msgs := []provider.Message{
+		{Role: "user", Parts: []provider.MessagePart{provider.TextPart{Text: "do everything"}}},
+	}
+	for i := range 4 {
+		id := fmt.Sprintf("c%d", i)
+		msgs = append(msgs,
+			provider.Message{Role: "assistant", Parts: []provider.MessagePart{provider.ToolCallPart{ID: id, Name: "read", Arguments: `{}`}}},
+			provider.Message{Role: "user", Parts: []provider.MessagePart{provider.ToolResultPart{ToolCallID: id, Output: "ok"}}},
+		)
+	}
+
+	result := safeTruncateMessages(msgs, 10)
+
+	if len(result) >= len(msgs) {
+		t.Fatalf("single-turn fallback should shrink: got %d messages, want fewer than %d", len(result), len(msgs))
+	}
+	tp, ok := result[0].Parts[0].(provider.TextPart)
+	if !ok || tp.Text != "do everything" {
+		t.Fatalf("first message should keep original prompt, got %v", result[0].Parts[0])
+	}
+}
+
+func TestSafeTruncateMessages_MidTurnFallbackDropsToPromptWhenTailHasNoAssistant(t *testing.T) {
+	msgs := []provider.Message{
+		{Role: "user", Parts: []provider.MessagePart{provider.TextPart{Text: "do everything"}}},
+		{Role: "assistant", Parts: []provider.MessagePart{provider.ToolCallPart{ID: "c0", Name: "read", Arguments: `{}`}}},
+		{Role: "user", Parts: []provider.MessagePart{provider.ToolResultPart{ToolCallID: "c0", Output: "ok"}}},
+	}
+
+	result := safeTruncateMessages(msgs, 10)
+
+	if len(result) != 1 {
+		t.Fatalf("fallback without assistant tail should keep only prompt: got %d messages, want 1", len(result))
+	}
+	tp, ok := result[0].Parts[0].(provider.TextPart)
+	if !ok || tp.Text != "do everything" {
+		t.Fatalf("first message should keep original prompt, got %v", result[0].Parts[0])
 	}
 }
 
@@ -800,6 +846,92 @@ func TestMaybeCompact_FallsBackToAlternateUtilityCandidate(t *testing.T) {
 	}
 	if !tracker.isUnavailableAt(utility.withoutAlternates(), time.Now()) {
 		t.Fatal("expected permanently failing utility model to be marked unavailable")
+	}
+}
+
+func TestMaybeCompact_FewTurnsStillPersistsCutoffAndShrinksReloadedTranscript(t *testing.T) {
+	repo := &compactionRepoStub{
+		messages: []repository.Message{
+			{ID: "m1", SessionID: "s1", Role: "user"},
+			{ID: "m2", SessionID: "s1", Role: "assistant"},
+			{ID: "m3", SessionID: "s1", Role: "user"},
+			{ID: "m4", SessionID: "s1", Role: "assistant"},
+			{ID: "m5", SessionID: "s1", Role: "user"},
+			{ID: "m6", SessionID: "s1", Role: "assistant"},
+		},
+		parts: []repository.MessagePart{
+			{ID: "p1", MessageID: "m1", SessionID: "s1", Type: "text", Content: mustMarshalText(t, strings.Repeat("turn 1 user ", 25))},
+			{ID: "p2", MessageID: "m2", SessionID: "s1", Type: "text", Content: mustMarshalText(t, strings.Repeat("turn 1 assistant ", 25))},
+			{ID: "p3", MessageID: "m3", SessionID: "s1", Type: "text", Content: mustMarshalText(t, strings.Repeat("turn 2 user ", 25))},
+			{ID: "p4", MessageID: "m4", SessionID: "s1", Type: "text", Content: mustMarshalText(t, strings.Repeat("turn 2 assistant ", 25))},
+			{ID: "p5", MessageID: "m5", SessionID: "s1", Type: "text", Content: mustMarshalText(t, strings.Repeat("turn 3 user ", 25))},
+			{ID: "p6", MessageID: "m6", SessionID: "s1", Type: "text", Content: mustMarshalText(t, strings.Repeat("turn 3 assistant ", 25))},
+		},
+	}
+
+	req := &pipeline.TurnRequest{
+		SessionID: "s1",
+		Model:     provider.Model{ID: "test-model", ContextSize: 100},
+		Messages: []provider.Message{
+			{Role: "user", Parts: []provider.MessagePart{provider.TextPart{Text: strings.Repeat("turn 1 user ", 25)}}},
+			{Role: "assistant", Parts: []provider.MessagePart{provider.TextPart{Text: strings.Repeat("turn 1 assistant ", 25)}}},
+			{Role: "user", Parts: []provider.MessagePart{provider.TextPart{Text: strings.Repeat("turn 2 user ", 25)}}},
+			{Role: "assistant", Parts: []provider.MessagePart{provider.TextPart{Text: strings.Repeat("turn 2 assistant ", 25)}}},
+			{Role: "user", Parts: []provider.MessagePart{provider.TextPart{Text: strings.Repeat("turn 3 user ", 25)}}},
+			{Role: "assistant", Parts: []provider.MessagePart{provider.TextPart{Text: strings.Repeat("turn 3 assistant ", 25)}}},
+		},
+	}
+	cfg := &config.SessionConfig{
+		CompactionThreshold: f64p(0.5),
+		CompactionKeepTurns: intp(5),
+		PruneProtectTokens:  intp(0),
+		PruneMinSavings:     intp(1000),
+	}
+	summary := strings.TrimSpace(strings.Repeat("Durable compacted summary. ", 12))
+
+	if err := maybeCompact(context.Background(), cfg, repo, nil, utilityProvider{
+		prov:    testProvider{id: "good", response: summary},
+		modelID: "good-model",
+	}, nil, req, 100, nil, nil); err != nil {
+		t.Fatalf("maybeCompact() error = %v", err)
+	}
+
+	if len(req.Messages) >= 6 {
+		t.Fatalf("req.Messages should shrink, got %d messages", len(req.Messages))
+	}
+
+	var storedSummary repository.Message
+	found := false
+	for _, m := range repo.messages {
+		if m.Summary {
+			storedSummary = m
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("expected stored summary message")
+	}
+	if storedSummary.CompactionParentID == "" {
+		t.Fatal("expected stored summary to persist non-empty compaction cutoff")
+	}
+	if storedSummary.CompactionParentID != "m2" {
+		t.Fatalf("CompactionParentID = %q, want m2", storedSummary.CompactionParentID)
+	}
+
+	reloaded, err := repo.ListMessagesWithParts(context.Background(), "s1")
+	if err != nil {
+		t.Fatalf("ListMessagesWithParts() error = %v", err)
+	}
+	providerMsgs, summaryText := buildTurnMessagesFromMessages(reloaded)
+	if len(providerMsgs) != 4 {
+		t.Fatalf("reloaded transcript = %d messages, want 4 (turns 2 and 3 only)", len(providerMsgs))
+	}
+	first, ok := providerMsgs[0].Parts[0].(provider.TextPart)
+	if !ok || !strings.HasPrefix(first.Text, "turn 2 user") {
+		t.Fatalf("first reloaded message = %v, want turn 2 user", providerMsgs[0].Parts[0])
+	}
+	if !strings.Contains(summaryText, summary) {
+		t.Fatalf("summaryText = %q, want to contain generated summary", summaryText)
 	}
 }
 

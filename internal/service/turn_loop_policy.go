@@ -271,7 +271,7 @@ const (
 	executionStallContinueOption   = "Keep working on the current task"
 	executionStallBlockOption      = "Mark the current task blocked and stop"
 	executionStallStopOption       = "Stop and wait for me"
-	defaultToolCallArgumentTimeout = 5 * time.Minute
+	defaultToolCallArgumentTimeout = 1 * time.Minute
 )
 
 type executionStallDecision string
@@ -529,6 +529,8 @@ func (tl *turnLoop) failedFileMutationRetry(retrySent bool, executions []toolExe
 
 	var toolsUsed []string
 	var paths []string
+	missingFileWithVersion := false
+	mixedRangeAndLineScope := false
 	for _, ex := range executions {
 		if !executionFailed(ex) || !isFileMutationTool(ex.call.Name) {
 			continue
@@ -536,6 +538,13 @@ func (tl *turnLoop) failedFileMutationRetry(retrySent bool, executions []toolExe
 		toolsUsed = appendUnique(toolsUsed, ex.call.Name)
 		if path := extractFilePath(ex.call.Arguments); path != "" {
 			paths = appendUnique(paths, path)
+		}
+		lower := strings.ToLower(failedExecutionText(ex))
+		if strings.Contains(lower, "file no longer exists") && strings.Contains(lower, "expected version") {
+			missingFileWithVersion = true
+		}
+		if strings.Contains(lower, "use either range or startline/endline, not both") {
+			mixedRangeAndLineScope = true
 		}
 	}
 	if len(toolsUsed) == 0 {
@@ -545,14 +554,7 @@ func (tl *turnLoop) failedFileMutationRetry(retrySent bool, executions []toolExe
 	var sb strings.Builder
 	sb.WriteString("[SYSTEM: One or more file mutation tools failed (")
 	sb.WriteString(strings.Join(toolsUsed, ", "))
-	sb.WriteString("). Do not stop yet. Inspect the failed tool results, reread the affected file")
-	if len(paths) != 1 {
-		sb.WriteString("s")
-	}
-	if len(paths) > 0 {
-		sb.WriteString(" first")
-	}
-	sb.WriteString(", and retry with a more exact edit or patch.")
+	sb.WriteString("). Do not stop yet. Inspect the failed tool results before retrying.")
 	if len(paths) > 0 {
 		sb.WriteString(" Affected path")
 		if len(paths) != 1 {
@@ -562,8 +564,36 @@ func (tl *turnLoop) failedFileMutationRetry(retrySent bool, executions []toolExe
 		sb.WriteString(strings.Join(paths, ", "))
 		sb.WriteString(".")
 	}
-	sb.WriteString(" If the exact text no longer matches, use read/read_files to capture the current content before trying again.]")
+	if missingFileWithVersion {
+		sb.WriteString(" At least one failure says the target file does not exist while an expectedVersion guard was supplied. Do not reuse that stale expectedVersion on the retry. If you intend to create the file, retry without expectedVersion after confirming the path. If you expected the file to exist, inspect the directory or related files first and pick the correct path.")
+	} else {
+		sb.WriteString(" Reread the affected file")
+		if len(paths) != 1 {
+			sb.WriteString("s")
+		}
+		if len(paths) > 0 {
+			sb.WriteString(" first")
+		}
+		sb.WriteString(" before retrying.")
+	}
+	if mixedRangeAndLineScope {
+		sb.WriteString(" For edit/patch retries, use either range or startLine/endLine, never both in the same edit.")
+	}
+	sb.WriteString(" If the exact text no longer matches, use read/read_files to capture the current content before trying again. Do not repeat the same failing mutation call unchanged.]")
 	return sb.String()
+}
+
+func failedExecutionText(ex toolExecution) string {
+	switch {
+	case ex.result != nil && ex.result.Output != "":
+		return ex.result.Output
+	case ex.output != "":
+		return ex.output
+	case ex.errStr != nil:
+		return *ex.errStr
+	default:
+		return ""
+	}
 }
 
 func initialUserText(msgs []provider.Message) string {

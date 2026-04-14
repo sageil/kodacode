@@ -11,5 +11,6 @@ Usage:
 - The edit will FAIL if `oldString` is found multiple times in the file with an error "Found multiple matches for oldString. Provide more surrounding lines in oldString to identify the correct match." Either provide a larger string with more surrounding context to make it unique or use `replaceAll` to change every instance of `oldString`.
 - If the exact replacement target is already known, prefer the `range` field for direct replacement. `range` uses 1-based lines and 0-based characters and replaces that exact region after validating it still matches `oldString`.
 - If you only need to narrow the search area, use `startLine` and `endLine` instead of `range`.
+- Do not send `range` together with `startLine` or `endLine`. Choose one targeting method per edit.
 - If you previously read the file, pass the latest `<version>` token back as `expectedVersion` so the edit fails cleanly if the file changed since you read it.
 - Use `replaceAll` for replacing and renaming strings across the file. This parameter is useful when you want to rename a variable, for instance.

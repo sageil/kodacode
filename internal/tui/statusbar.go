@@ -2,14 +2,14 @@ package tui
 
 import (
 	"fmt"
-	"image/color"
 	"strings"
 
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/sageil/kodacode/v1/internal/tui/theme"
 )
 
-const statusBarHeight = 1
+const statusBarHeight = 0
 
 type MCPServerStatus struct {
 	Name    string
@@ -18,7 +18,7 @@ type MCPServerStatus struct {
 }
 
 // StatusBar renders a 1-row information bar below the footer showing
-// git branch, connected MCP servers, tool count, and keyboard shortcuts.
+// persistent session state such as git, MCP, queueing, and warnings.
 type StatusBar struct {
 	width            int
 	theme            *theme.Theme
@@ -26,6 +26,8 @@ type StatusBar struct {
 	pinCount         int
 	queuedTurns      int
 	mcpServers       []MCPServerStatus
+	lspServers       []string
+	changedFiles     int
 	inputTokens      int
 	outputTokens     int
 	reasoningTokens  int
@@ -73,6 +75,10 @@ func (s *StatusBar) SetQueuedTurns(n int) { s.queuedTurns = n }
 
 func (s *StatusBar) SetMCPServers(servers []MCPServerStatus) { s.mcpServers = servers }
 
+func (s *StatusBar) SetLSPServers(names []string) { s.lspServers = append([]string(nil), names...) }
+
+func (s *StatusBar) SetChangedFiles(n int) { s.changedFiles = n }
+
 func (s *StatusBar) SetToolLoopStep(n int) { s.toolLoopStep = n }
 
 func (s *StatusBar) SetStreaming(v bool) {
@@ -115,23 +121,6 @@ func (s *StatusBar) SetTokens(inputTokens, outputTokens, contextSize, maxInputTo
 	}
 }
 
-// tokenColor returns a theme-consistent color based on token usage ratio:
-// < 80% → subtext (dim), 80-90% → warning, ≥ 90% → error.
-func (s StatusBar) tokenColor() color.Color {
-	if s.maxInputTokens <= 0 {
-		return colorFrom(s.theme, "subtext", lipgloss.Color("241"))
-	}
-	pct := float64(s.inputTokens) / float64(s.maxInputTokens) * 100
-	switch {
-	case pct >= 90:
-		return colorFrom(s.theme, "error", lipgloss.Color("196"))
-	case pct >= 80:
-		return colorFrom(s.theme, "warning", lipgloss.Color("214"))
-	default:
-		return colorFrom(s.theme, "subtext", lipgloss.Color("241"))
-	}
-}
-
 func (s StatusBar) renderStreamingIndicator(label string) string {
 	accentColor := colorFrom(s.theme, "secondary", lipgloss.Color("141"))
 	brightColor := colorFrom(s.theme, "primary", lipgloss.Color("255"))
@@ -168,6 +157,25 @@ func (s StatusBar) renderStreamingIndicator(label string) string {
 	return sb.String()
 }
 
+func (s StatusBar) contextUsagePercent() float64 {
+	limit := s.maxInputTokens
+	if limit <= 0 {
+		limit = s.contextSize
+	}
+	if s.inputTokens <= 0 || limit <= 0 {
+		return 0
+	}
+	return (float64(s.inputTokens) / float64(limit)) * 100
+}
+
+func (s StatusBar) lspStatusText() string {
+	if len(s.lspServers) == 0 {
+		return ""
+	}
+	label := "LSP " + strings.Join(s.lspServers, " + ")
+	return truncateTail(label, 32)
+}
+
 func (s StatusBar) View() string {
 	w := s.width
 	if w < 1 {
@@ -178,12 +186,25 @@ func (s StatusBar) View() string {
 	dimStyle := lipgloss.NewStyle().Foreground(dimColor)
 	errorColor := colorFrom(s.theme, "error", lipgloss.Color("196"))
 	activeGreen := colorFrom(s.theme, "success", lipgloss.Color("76"))
+	warnColor := colorFrom(s.theme, "warning", lipgloss.Color("214"))
+	accentColor := colorFrom(s.theme, "secondary", lipgloss.Color("141"))
 
 	var parts []string
 
 	if s.gitBranch != "" {
 		gitStyle := lipgloss.NewStyle().Foreground(activeGreen)
 		parts = append(parts, gitStyle.Render("⎇ "+s.gitBranch))
+	}
+
+	if lspStatus := s.lspStatusText(); lspStatus != "" {
+		lspStyle := lipgloss.NewStyle().Foreground(accentColor)
+		parts = append(parts, lspStyle.Render(lspStatus))
+	}
+
+	if s.changedFiles > 0 {
+		changeStyle := lipgloss.NewStyle().Foreground(warnColor)
+		label := fmt.Sprintf("%d changed", s.changedFiles)
+		parts = append(parts, changeStyle.Render(label))
 	}
 
 	for _, srv := range s.mcpServers {
@@ -213,8 +234,21 @@ func (s StatusBar) View() string {
 		parts = append(parts, s.renderStreamingIndicator(label))
 	}
 
+	if s.budgetWarn {
+		warnStyle := lipgloss.NewStyle().Foreground(warnColor)
+		parts = append(parts, warnStyle.Render("⚠ budget"))
+	}
+
+	if pct := s.contextUsagePercent(); pct >= 80 {
+		contextColor := warnColor
+		if pct >= 90 {
+			contextColor = errorColor
+		}
+		contextStyle := lipgloss.NewStyle().Foreground(contextColor)
+		parts = append(parts, contextStyle.Render(fmt.Sprintf("⚠ context %.0f%%", pct)))
+	}
+
 	if s.loopDetected {
-		warnColor := colorFrom(s.theme, "warning", lipgloss.Color("214"))
 		warnStyle := lipgloss.NewStyle().Foreground(warnColor)
 		parts = append(parts, warnStyle.Render("⚠ loop detected"))
 	}
@@ -230,47 +264,10 @@ func (s StatusBar) View() string {
 	}
 
 	left := strings.Join(parts, "  ")
-
-	var rightParts []string
-	if s.sessionCost > 0 {
-		costStr := fmt.Sprintf("$%.4f", s.sessionCost)
-		if s.sessionCost >= 0.01 {
-			costStr = fmt.Sprintf("$%.2f", s.sessionCost)
-		}
-		costStyle := dimStyle
-		if s.budgetWarn {
-			warnColor := colorFrom(s.theme, "warning", lipgloss.Color("214"))
-			costStyle = lipgloss.NewStyle().Foreground(warnColor)
-			costStr = "⚠ " + costStr
-		}
-		rightParts = append(rightParts, costStyle.Render(costStr))
+	line := " " + left + " "
+	if lipgloss.Width(line) > w {
+		line = ansi.Truncate(line, w, "")
 	}
-	if s.inputTokens > 0 {
-		inputStr := formatTokenCount(s.inputTokens)
-		if s.maxInputTokens > 0 {
-			inputStr += "/" + formatTokenCount(s.maxInputTokens)
-		}
-		inputStr += "↑"
-		tokenStyle := lipgloss.NewStyle().Foreground(s.tokenColor())
-		rightParts = append(rightParts, tokenStyle.Render(inputStr))
-
-		if s.outputTokens > 0 || s.maxOutputTokens > 0 {
-			outStr := formatTokenCount(s.outputTokens)
-			if s.maxOutputTokens > 0 {
-				outStr += "/" + formatTokenCount(s.maxOutputTokens)
-			}
-			outStr += "↓"
-			outStyle := lipgloss.NewStyle().Foreground(dimColor)
-			rightParts = append(rightParts, outStyle.Render(outStr))
-		}
-	}
-	right := strings.Join(rightParts, "  ")
-
-	leftWidth := lipgloss.Width(left)
-	rightWidth := lipgloss.Width(right)
-	gap := max(w-leftWidth-rightWidth-2, 1)
-
-	line := " " + left + strings.Repeat(" ", gap) + right + " "
 
 	return lipgloss.NewStyle().
 		Width(w).

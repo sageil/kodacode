@@ -21,6 +21,7 @@ KodaCode embeds an HTTP server (Echo) for programmatic access. The server starts
 | `GET` | `/sessions/:id` | Get session details (includes cost) |
 | `PATCH` | `/sessions/:id` | Update session (change agent or model) |
 | `DELETE` | `/sessions/:id` | Delete session |
+| `GET` | `/sessions/:id/traces` | Get persisted per-turn step traces (requires `session.trace: true`) |
 
 ## Messages
 
@@ -81,12 +82,15 @@ The `/sessions/:id/stream` endpoint delivers real-time events:
 | `tool_input_delta` | Streaming tool input (for live diff preview) |
 | `tool_output` | Streaming tool output |
 | `tool_end` | Tool execution complete |
+| `step_trace` | Per-turn step breakdown for `/cost` and `/trace` (only when `session.trace: true`) |
 | `done` | Turn complete (includes session cost) |
 | `error` | Error occurred |
 | `retry` | Retrying after failure |
 | `title_updated` | Session title changed |
 | `compaction` | Context compaction triggered |
 | `user_question` | Permission or question prompt for the user |
+
+When trace capture is enabled, `step_trace` events and `GET /sessions/:id/traces` let you build external dashboards or postmortem tooling around slow or expensive workflows.
 
 ## Example: Create a Session and Send a Message
 

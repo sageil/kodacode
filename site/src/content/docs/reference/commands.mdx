@@ -44,13 +44,33 @@ The palette uses fuzzy matching with scoring for consecutive matches, word bound
 | `/reload` | Check for externally modified files |
 | `/diff [args]` | Show current branch diff |
 | `/undo [file]` | Revert last file change |
-| `/cost` | Session cost, tokens, and per-turn trace table |
-| `/trace <N>` | Step-level detail for turn N (token breakdown, tool timing) |
+| `/cost` | Inspect session spend, token mix, and per-turn hotspots |
+| `/trace <N>` | Explain why turn `N` was slow or expensive (requires `session.trace: true`) |
 | `/export [path]` | Export session as markdown |
 | `/replay` | Navigate session snapshots (requires `snapshot: true`) |
 | `/variant` | Cycle thinking effort: low/high/max (reasoning models only) |
 | `/logs [clear]` | View or clear the log file |
 | `/heap` | Dump memory profile and show top consumers |
+
+## Cost and Trace Workflows
+
+Use `/cost` during a long session to see whether spend is coming from prompt growth, heavy subagent usage, or repeated model/tool loops.
+
+When `session.trace: true` is enabled, `/cost` adds a per-turn table and `/trace N` lets you inspect a single turn's:
+
+- input/output/cache tokens
+- retries and fallback usage
+- tool timing
+- prompt segment mix
+
+Typical workflow:
+
+```
+/cost
+/trace 4
+```
+
+That is the fastest way to answer practical questions such as "why did this turn suddenly get slow?", "which workflow is blowing up my token bill?", or "did compaction actually help here?".
 
 ## Memory Commands
 

@@ -84,8 +84,8 @@ The engineer workflow can ask these controller-owned questions:
 - `session.max_retries` controls retryable provider/API failures only.
 - `session.engineer_review_limit` controls engineer workflow retries:
   - reviewer reruns before the review-cap question is shown
-  - repeated stalled-task execution retries before the stall question is shown
-- Default `engineer_review_limit` is `3`.
+- `session.engineer_execution_retry_limit` controls repeated stalled-task execution nudges before the stall-resolution question is shown
+- Effective defaults are `engineer_review_limit: 3` and `engineer_execution_retry_limit: 6`.
 
 #### Scope
 

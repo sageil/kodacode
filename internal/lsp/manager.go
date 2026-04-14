@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -25,10 +26,10 @@ type Manager struct {
 	configs []config.LSPServerConfig
 
 	mu       sync.Mutex
-	servers  map[string]*Server          // config name → running server
-	extMap   map[string]string           // extension → config name (read-only after init)
-	failed   map[string]failedEntry      // config name → cached start error with timestamp
-	starting map[string]*sync.Once       // config name → start-once guard
+	servers  map[string]*Server     // config name → running server
+	extMap   map[string]string      // extension → config name (read-only after init)
+	failed   map[string]failedEntry // config name → cached start error with timestamp
+	starting map[string]*sync.Once  // config name → start-once guard
 }
 
 // NewManager creates a manager from the resolved server configs.
@@ -295,6 +296,21 @@ func (m *Manager) HasRunningServers() bool {
 		}
 	}
 	return false
+}
+
+// RunningServerNames returns the configured names of currently running LSP servers.
+func (m *Manager) RunningServerNames() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	names := make([]string, 0, len(m.servers))
+	for name, srv := range m.servers {
+		if srv != nil && srv.Alive() {
+			names = append(names, name)
+		}
+	}
+	sort.Strings(names)
+	return names
 }
 
 // Extensions returns all file extensions that have a configured server.

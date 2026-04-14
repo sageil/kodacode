@@ -7,7 +7,6 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/sageil/kodacode/v1/internal/logging"
 	"github.com/sageil/kodacode/v1/internal/tui/theme"
 )
 
@@ -74,10 +73,6 @@ func (m *Messages) renderMessageAt(i int, msg Message) string {
 		sb.WriteString(strings.Join(lines, "\n") + "\n")
 
 	case "assistant":
-		if msg.Reasoning != "" {
-			logging.Debugf("[8-render] renderMessageAt[%d]: reasoning=%d chars, content=%d chars, reasoningDone=%v collapsed=%v", i, len(msg.Reasoning), len(msg.Content), msg.ReasoningDone, msg.ReasoningCollapsed)
-			sb.WriteString(m.renderReasoning(msg.Reasoning, boxWidth, msg))
-		}
 		if strings.TrimSpace(msg.Content) == "" {
 			break
 		}
@@ -176,6 +171,12 @@ func (m *Messages) renderMessageAt(i int, msg Message) string {
 		if shouldAutoHide(msg) {
 			return ""
 		}
+		if shouldHideRedundantDiffTool(m.messages, i) {
+			return ""
+		}
+		if shouldHideSupersededMutationFailure(m.messages, i) {
+			return ""
+		}
 		rendered, reviewMeta := m.renderToolCall(msg, i == m.focusedTool, i)
 		if reviewMeta != nil {
 			m.pendingMetas = append(m.pendingMetas, *reviewMeta)
@@ -223,21 +224,6 @@ func highlightMatches(content, query string) string {
 		pos += idx + qLen
 	}
 	return sb.String()
-}
-
-// dashWaveFrames generates the dash wave animation. Each dash fades
-// independently based on pulseTick, producing a slow wave effect.
-func dashWaveFrames(tick int64) string {
-	var out [4]byte
-	for i := range 4 {
-		phase := (tick + int64(i)*2) % 16
-		if phase < 4 || phase >= 12 {
-			out[i] = '-'
-		} else {
-			out[i] = ' '
-		}
-	}
-	return string(out[:])
 }
 
 // renderQuestionToolCall renders a question tool_call as a question card,
@@ -320,6 +306,9 @@ func shouldAutoCollapse(msg Message) bool {
 	if msg.ToolName == "question" {
 		return false
 	}
+	if msg.ToolName == "patch" && msg.ToolError == "" && patchEditCount(msg.ToolInput) > 1 {
+		return true
+	}
 	if isStreamingDiffTool(msg.ToolName) {
 		return false
 	}
@@ -331,13 +320,39 @@ func shouldAutoCollapse(msg Message) bool {
 		}
 		return true
 	}
-	if msg.ToolError != "" {
+	if msg.ToolError != "" || isStructuredToolResultError(msg.ToolOutput) {
 		return isReadOnlyToolCall(msg.ToolName, msg.ToolInput)
 	}
 	return !looksLikeFailure(msg.ToolOutput)
 }
 
+func shouldHideRedundantDiffTool(messages []Message, idx int) bool {
+	if idx < 0 || idx >= len(messages) {
+		return false
+	}
+	sig, ok := completedDiffSignature(messages[idx])
+	if !ok {
+		return false
+	}
+
+	for j := idx + 1; j < len(messages); j++ {
+		next := messages[j]
+		if next.Role != "tool_call" || !isStreamingDiffTool(next.ToolName) {
+			break
+		}
+		nextSig, ok := completedDiffSignature(next)
+		if !ok {
+			continue
+		}
+		return nextSig == sig
+	}
+	return false
+}
+
 func looksLikeFailure(output string) bool {
+	if isStructuredToolResultError(output) {
+		return true
+	}
 	lines := strings.Split(output, "\n")
 	start := max(len(lines)-10, 0)
 	for _, line := range lines[start:] {

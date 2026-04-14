@@ -1037,6 +1037,257 @@ func TestWriteToolExpandedShowsFileContent(t *testing.T) {
 	}
 }
 
+func TestWriteToolConflictRendersAsErrorNotDiff(t *testing.T) {
+	m := NewMessages()
+	m.SetSize(120, 40)
+
+	input := `{"filePath":"/path/to/main.go","content":"alpha\nbeta\n"}`
+	conflict := "tool error (conflict): write: file version mismatch for /path/to/main.go. Expected version \"old\", current version is \"new\".\n(This error is transient — retrying may succeed.)"
+
+	m.AppendToolStart("write", input, "")
+	m.UpdateToolEnd("write", conflict, "", "")
+
+	view := ansi.Strip(flushView(&m))
+	if !strings.Contains(view, "⚠") {
+		t.Fatalf("write conflict should render as a warning, got:\n%s", view)
+	}
+	if !strings.Contains(view, "conflict") {
+		t.Fatalf("write conflict header should show conflict status, got:\n%s", view)
+	}
+	if !strings.Contains(view, "file version mismatch") {
+		t.Fatalf("write conflict body should surface the error text, got:\n%s", view)
+	}
+	if strings.Contains(view, "tool error (conflict)") {
+		t.Fatalf("write conflict body should not show the raw structured error wrapper, got:\n%s", view)
+	}
+	if strings.Contains(view, "Hunk 1/1") || strings.Contains(view, "+ alpha") || strings.Contains(view, "+ beta") {
+		t.Fatalf("write conflict should not render a synthetic diff, got:\n%s", view)
+	}
+}
+
+func TestEditAndPatchConflictsRenderAsErrorsNotDiffs(t *testing.T) {
+	cases := []struct {
+		name     string
+		toolName string
+		input    string
+		conflict string
+	}{
+		{
+			name:     "edit",
+			toolName: "edit",
+			input:    `{"filePath":"/path/to/main.go","oldString":"alpha","newString":"beta"}`,
+			conflict: "tool error (conflict): edit: file version mismatch for /path/to/main.go. Expected version \"old\", current version is \"new\".\n(This error is transient — retrying may succeed.)",
+		},
+		{
+			name:     "patch",
+			toolName: "patch",
+			input:    `{"filePath":"/path/to/main.go","edits":[{"oldString":"alpha","newString":"beta"}]}`,
+			conflict: "tool error (conflict): patch: file version mismatch for /path/to/main.go. Expected version \"old\", current version is \"new\".\n(This error is transient — retrying may succeed.)",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			m := NewMessages()
+			m.SetSize(120, 40)
+
+			m.AppendToolStart(tc.toolName, tc.input, "")
+			m.UpdateToolEnd(tc.toolName, tc.conflict, "", "")
+
+			view := ansi.Strip(flushView(&m))
+			if !strings.Contains(view, "⚠") {
+				t.Fatalf("%s conflict should render as a warning, got:\n%s", tc.toolName, view)
+			}
+			if !strings.Contains(view, "conflict") {
+				t.Fatalf("%s conflict header should show conflict status, got:\n%s", tc.toolName, view)
+			}
+			if !strings.Contains(view, "file version mismatch") {
+				t.Fatalf("%s conflict body should surface the error text, got:\n%s", tc.toolName, view)
+			}
+			if strings.Contains(view, "tool error (conflict)") {
+				t.Fatalf("%s conflict body should not show the raw structured error wrapper, got:\n%s", tc.toolName, view)
+			}
+			if strings.Contains(view, "Hunk 1/1") || strings.Contains(view, "- alpha") || strings.Contains(view, "+ beta") {
+				t.Fatalf("%s conflict should not render a synthetic diff, got:\n%s", tc.toolName, view)
+			}
+		})
+	}
+}
+
+func TestStructuredInvalidArgsUsesWarningSeverity(t *testing.T) {
+	m := NewMessages()
+	m.SetSize(120, 40)
+
+	input := `{"filePath":"/path/to/main.go","oldString":"alpha","newString":"beta","startLine":1,"endLine":1,"range":{"startLine":1,"startCharacter":0,"endLine":1,"endCharacter":5}}`
+	invalid := "tool error (invalid_args): edit: use either range or startLine/endLine, not both"
+
+	m.AppendToolStart("edit", input, "")
+	m.UpdateToolEnd("edit", invalid, "", "")
+
+	view := ansi.Strip(flushView(&m))
+	if !strings.Contains(view, "⚠") {
+		t.Fatalf("invalid args should render as a warning, got:\n%s", view)
+	}
+	if !strings.Contains(view, "fix args") {
+		t.Fatalf("invalid args header should tell the user this is fixable, got:\n%s", view)
+	}
+	if !strings.Contains(view, "use either range or startLine/endLine, not both") {
+		t.Fatalf("invalid args body should show the actionable message, got:\n%s", view)
+	}
+	if strings.Contains(view, "tool error (invalid_args)") {
+		t.Fatalf("invalid args body should not show the raw structured error wrapper, got:\n%s", view)
+	}
+}
+
+func TestSupersededWriteConflictIsHiddenAfterSuccessfulMutation(t *testing.T) {
+	m := NewMessages()
+	m.SetSize(120, 40)
+
+	writeInput := `{"filePath":"src/rateLimit.ts","content":"alpha\nbeta\n"}`
+	conflict := "tool error (conflict): write: file version mismatch for src/rateLimit.ts. Expected version \"old\", current version is \"new\".\n(This error is transient — retrying may succeed.)"
+	editInput := `{"filePath":"src/rateLimit.ts","oldString":"alpha","newString":"beta"}`
+
+	m.AppendToolStart("write", writeInput, "")
+	m.UpdateToolEnd("write", conflict, "", "")
+	m.AppendToolStart("edit", editInput, "")
+	m.UpdateToolEnd("edit", "Edited file successfully.", "", "")
+
+	view := ansi.Strip(flushView(&m))
+	if strings.Contains(view, "tool error (conflict)") || strings.Contains(view, "file version mismatch") {
+		t.Fatalf("superseded write conflict should be hidden after a successful follow-up mutation, got:\n%s", view)
+	}
+	if strings.Contains(view, "Write") {
+		t.Fatalf("superseded write panel should be hidden after a successful follow-up mutation, got:\n%s", view)
+	}
+	if !strings.Contains(view, "Edit") {
+		t.Fatalf("successful follow-up mutation should remain visible, got:\n%s", view)
+	}
+}
+
+func TestSupersededEditAndPatchConflictsAreHiddenAfterSuccessfulMutation(t *testing.T) {
+	cases := []struct {
+		name          string
+		firstTool     string
+		firstInput    string
+		firstConflict string
+		secondTool    string
+		secondInput   string
+		secondOutput  string
+	}{
+		{
+			name:          "edit then patch success",
+			firstTool:     "edit",
+			firstInput:    `{"filePath":"src/rateLimit.ts","oldString":"alpha","newString":"beta"}`,
+			firstConflict: "tool error (conflict): edit: file version mismatch for src/rateLimit.ts. Expected version \"old\", current version is \"new\".\n(This error is transient — retrying may succeed.)",
+			secondTool:    "patch",
+			secondInput:   `{"filePath":"src/rateLimit.ts","edits":[{"oldString":"alpha","newString":"beta"}]}`,
+			secondOutput:  "Applied 1 edit to src/rateLimit.ts",
+		},
+		{
+			name:          "patch then edit success",
+			firstTool:     "patch",
+			firstInput:    `{"filePath":"src/rateLimit.ts","edits":[{"oldString":"alpha","newString":"beta"}]}`,
+			firstConflict: "tool error (conflict): patch: file version mismatch for src/rateLimit.ts. Expected version \"old\", current version is \"new\".\n(This error is transient — retrying may succeed.)",
+			secondTool:    "edit",
+			secondInput:   `{"filePath":"src/rateLimit.ts","oldString":"alpha","newString":"beta"}`,
+			secondOutput:  "Edited file successfully.",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			m := NewMessages()
+			m.SetSize(120, 40)
+
+			m.AppendToolStart(tc.firstTool, tc.firstInput, "")
+			m.UpdateToolEnd(tc.firstTool, tc.firstConflict, "", "")
+			m.AppendToolStart(tc.secondTool, tc.secondInput, "")
+			m.UpdateToolEnd(tc.secondTool, tc.secondOutput, "", "")
+
+			view := ansi.Strip(flushView(&m))
+			if strings.Contains(view, "tool error (conflict)") || strings.Contains(view, "file version mismatch") {
+				t.Fatalf("superseded %s conflict should be hidden after successful follow-up mutation, got:\n%s", tc.firstTool, view)
+			}
+			if strings.Contains(view, toolDisplayName(tc.firstTool)) {
+				t.Fatalf("superseded %s panel should be hidden after successful follow-up mutation, got:\n%s", tc.firstTool, view)
+			}
+			if !strings.Contains(view, toolDisplayName(tc.secondTool)) {
+				t.Fatalf("successful follow-up %s mutation should remain visible, got:\n%s", tc.secondTool, view)
+			}
+		})
+	}
+}
+
+func TestEarlierMutationFailuresAreHiddenWhenLaterFailureTakesOverSameFile(t *testing.T) {
+	m := NewMessages()
+	m.SetSize(140, 40)
+
+	path := "/Users/sageil/dev/typescript/projects/Kairo/tests/server.test.ts"
+	writeInput := fmt.Sprintf(`{"filePath":%q,"content":"process.env.SESSION_SECRET='x'\n"}`, path)
+	readFilesInput := fmt.Sprintf(`{"files":[%q]}`, path)
+	patchInput := fmt.Sprintf(`{"filePath":%q,"edits":[{"oldString":"alpha","newString":"beta","startLine":1,"endLine":1,"range":{"startLine":1,"startCharacter":0,"endLine":1,"endCharacter":5}}]}`, path)
+	editInput := fmt.Sprintf(`{"filePath":%q,"oldString":"alpha","newString":"beta","startLine":1,"endLine":1,"range":{"startLine":1,"startCharacter":0,"endLine":1,"endCharacter":5}}`, path)
+
+	writeConflict := fmt.Sprintf("tool error (conflict): write: file version mismatch for %s. Expected version \"*\", current version is \"abc123\".\n(This error is transient — retrying may succeed.)", path)
+	patchInvalid := "tool error (invalid_args): patch: edit 0: use either range or startLine/endLine, not both"
+	editInvalid := "tool error (invalid_args): edit: use either range or startLine/endLine, not both"
+
+	m.AppendToolStart("write", writeInput, "")
+	m.UpdateToolEnd("write", writeConflict, "", "")
+	m.AppendToolStart("read_files", readFilesInput, "")
+	m.UpdateToolEnd("read_files", "── "+path+"\nprocess.env.SESSION_SECRET='x'\n", "", "")
+	m.AppendToolStart("patch", patchInput, "")
+	m.UpdateToolEnd("patch", patchInvalid, "", "")
+	m.AppendToolStart("edit", editInput, "")
+	m.UpdateToolEnd("edit", editInvalid, "", "")
+
+	view := ansi.Strip(flushView(&m))
+	if strings.Contains(view, "Write") {
+		t.Fatalf("earlier write failure should be hidden after later same-file mutation attempts, got:\n%s", view)
+	}
+	if strings.Contains(view, "Patch") {
+		t.Fatalf("earlier patch failure should be hidden after later same-file mutation attempt, got:\n%s", view)
+	}
+	if !strings.Contains(view, "Edit") {
+		t.Fatalf("latest same-file mutation failure should remain visible, got:\n%s", view)
+	}
+	if !strings.Contains(view, "use either range or startLine/endLine, not both") {
+		t.Fatalf("latest mutation error text should remain visible, got:\n%s", view)
+	}
+}
+
+func TestEarlierMutationFailuresStayHiddenAcrossAssistantMessagesUntilNextUserTurn(t *testing.T) {
+	m := NewMessages()
+	m.SetSize(140, 40)
+
+	path := "/Users/sageil/dev/typescript/projects/Kairo/tests/rateLimit.test.ts"
+	writeInput := fmt.Sprintf(`{"filePath":%q,"content":"test('x')\n"}`, path)
+	editInput := fmt.Sprintf(`{"filePath":%q,"oldString":"test","newString":"it","startLine":1,"endLine":1,"range":{"startLine":1,"startCharacter":0,"endLine":1,"endCharacter":4}}`, path)
+	writeConflict := fmt.Sprintf("tool error (conflict): write: file version mismatch for %s. Expected version \"*\", but the file no longer exists.\n(This error is transient — retrying may succeed.)", path)
+	editInvalid := "tool error (invalid_args): edit: use either range or startLine/endLine, not both"
+
+	m.AppendToolStart("write", writeInput, "")
+	m.UpdateToolEnd("write", writeConflict, "", "")
+	m.AppendDelta("I'll add unit tests for rate-limit behavior and then run that single test file.")
+	m.FinishStreaming()
+	m.AppendToolStart("edit", editInput, "")
+	m.UpdateToolEnd("edit", editInvalid, "", "")
+
+	view := ansi.Strip(flushView(&m))
+	if strings.Contains(view, "Write") {
+		t.Fatalf("earlier write failure should stay hidden even across assistant commentary in the same turn, got:\n%s", view)
+	}
+	if !strings.Contains(view, "Edit") {
+		t.Fatalf("latest same-turn mutation failure should remain visible, got:\n%s", view)
+	}
+
+	m.AppendUserMessage("Try a different approach.")
+	view = ansi.Strip(flushView(&m))
+	if !strings.Contains(view, "Try a different approach.") {
+		t.Fatalf("user turn should remain visible, got:\n%s", view)
+	}
+}
+
 func TestBashOutputPreservesNewlines(t *testing.T) {
 	m := NewMessages()
 	m.SetSize(80, 40)
@@ -1119,6 +1370,87 @@ func TestEditToolShowsDiff(t *testing.T) {
 	// Tool name should appear in panel
 	if !strings.Contains(view, "Edit") {
 		t.Errorf("tool name should appear in panel, got:\n%s", view)
+	}
+}
+
+func TestPatchToolMultiEditAutoCollapses(t *testing.T) {
+	m := NewMessages()
+	m.SetSize(80, 40)
+
+	input := `{"filePath":"/path/to/main.go","edits":[{"oldString":"a","newString":"b"},{"oldString":"c","newString":"d"}]}`
+	m.AppendToolStart("patch", input, "")
+	m.UpdateToolEnd("patch", "Applied 2 edits to /path/to/main.go", "", "")
+
+	if !m.messages[len(m.messages)-1].Collapsed {
+		t.Fatal("successful multi-edit patch should auto-collapse")
+	}
+
+	view := ansi.Strip(flushView(&m))
+	if !strings.Contains(view, "Patch") {
+		t.Fatalf("collapsed patch should show tool name, got:\n%s", view)
+	}
+	if !strings.Contains(view, "[2 edits]") {
+		t.Fatalf("collapsed patch should show edit count, got:\n%s", view)
+	}
+	if strings.Contains(view, "Hunk 1/1") {
+		t.Fatalf("collapsed patch should not render hunk chrome, got:\n%s", view)
+	}
+}
+
+func TestPatchToolGroupsDuplicateEditsWhenExpanded(t *testing.T) {
+	m := NewMessages()
+	m.SetSize(120, 40)
+
+	input := `{"filePath":"/path/to/main.go","edits":[{"oldString":"import { MaterialCommunityIcons } from '@expo/vector-icons';","newString":"import type { MaterialCommunityIcons as MaterialCommunityIconsType } from '@expo/vector-icons';"},{"oldString":"import { MaterialCommunityIcons } from '@expo/vector-icons';","newString":"import type { MaterialCommunityIcons as MaterialCommunityIconsType } from '@expo/vector-icons';"},{"oldString":"import { MaterialCommunityIcons } from '@expo/vector-icons';","newString":"import type { MaterialCommunityIcons as MaterialCommunityIconsType } from '@expo/vector-icons';"},{"oldString":"import { MaterialCommunityIcons } from '@expo/vector-icons';","newString":"import type { MaterialCommunityIcons as MaterialCommunityIconsType } from '@expo/vector-icons';"}]}`
+	m.AppendToolStart("patch", input, "")
+	m.UpdateToolEnd("patch", "Applied 4 edits to /path/to/main.go", "", "")
+
+	m.messages[len(m.messages)-1].Collapsed = false
+	m.invalidateFrom(0)
+	m.render()
+
+	view := ansi.Strip(flushView(&m))
+	if strings.Contains(view, "Hunk 1/1") {
+		t.Fatalf("expanded multi-edit patch should not show repeated hunk headers, got:\n%s", view)
+	}
+	if strings.Contains(view, "[Apply Changes]") {
+		t.Fatalf("expanded multi-edit patch should not show apply action bar, got:\n%s", view)
+	}
+	if !strings.Contains(view, "4 edits, 1 unique changes") && !strings.Contains(view, "4 edits, 1 unique change") {
+		t.Fatalf("expanded patch should summarize grouped edits, got:\n%s", view)
+	}
+	if !strings.Contains(view, "Repeated change [4 matches]") {
+		t.Fatalf("expanded patch should group duplicate edits, got:\n%s", view)
+	}
+	if strings.Count(view, "import { MaterialCommunityIcons } from '@expo/vector-icons';") != 1 {
+		t.Fatalf("expanded patch should show the repeated old line once, got:\n%s", view)
+	}
+}
+
+func TestConsecutiveDuplicateDiffToolsAreSuppressed(t *testing.T) {
+	m := NewMessages()
+	m.SetSize(120, 40)
+
+	patchInput := `{"filePath":"src/config.ts","edits":[{"oldString":"AUTH_MAX: 10,","newString":"AUTH_MAX: 5,"}]}`
+	editInput := `{"filePath":"src/config.ts","oldString":"AUTH_MAX: 10,","newString":"AUTH_MAX: 5,"}`
+
+	m.AppendToolStart("patch", patchInput, "")
+	m.UpdateToolEnd("patch", "Applied 1 edit to src/config.ts", "", "")
+	m.AppendToolStart("edit", editInput, "")
+	m.UpdateToolEnd("edit", "Edited file successfully.", "", "")
+
+	view := ansi.Strip(flushView(&m))
+	if strings.Contains(view, "Patch") {
+		t.Fatalf("duplicate patch panel should be suppressed when a matching edit follows, got:\n%s", view)
+	}
+	if !strings.Contains(view, "Edit") {
+		t.Fatalf("latest diff tool should remain visible, got:\n%s", view)
+	}
+	if strings.Count(view, "AUTH_MAX: 10,") != 1 {
+		t.Fatalf("duplicate diff lines should render once, got:\n%s", view)
+	}
+	if strings.Count(view, "AUTH_MAX: 5,") != 1 {
+		t.Fatalf("duplicate diff lines should render once, got:\n%s", view)
 	}
 }
 
@@ -1789,30 +2121,6 @@ func TestClickOnScrolledToolAfterSecondPrompt(t *testing.T) {
 
 // ---- Streaming transition edge cases ----------------------------------------
 
-func TestReasoningDoneStopsAcceptingDeltas(t *testing.T) {
-	m := NewMessages()
-	m.SetSize(80, 20)
-
-	m.AppendReasoningDelta("thinking step 1")
-	m.FinishReasoning()
-
-	if len(m.messages) != 1 {
-		t.Fatalf("want 1 message after reasoning, got %d", len(m.messages))
-	}
-	if !m.messages[0].ReasoningDone {
-		t.Fatal("ReasoningDone should be true after FinishReasoning")
-	}
-
-	m.AppendReasoningDelta("late delta")
-
-	if len(m.messages) != 2 {
-		t.Fatalf("late reasoning delta after FinishReasoning should create new message, got %d", len(m.messages))
-	}
-	if m.messages[1].Reasoning != "late delta" {
-		t.Errorf("new message reasoning = %q, want %q", m.messages[1].Reasoning, "late delta")
-	}
-}
-
 func TestFinishStreamingMarksIncompleteToolsInterrupted(t *testing.T) {
 	m := NewMessages()
 	m.SetSize(80, 20)
@@ -1921,12 +2229,10 @@ func TestToolEndAppendsCompletedToolWhenNoStartExists(t *testing.T) {
 	}
 }
 
-func TestReasoningThenTextThenToolSequence(t *testing.T) {
+func TestTextThenToolSequence(t *testing.T) {
 	m := NewMessages()
 	m.SetSize(80, 20)
 
-	m.AppendReasoningDelta("let me think...")
-	m.FinishReasoning()
 	m.AppendDelta("I'll run a command.")
 	m.AppendToolStart("bash", `{"command":"ls"}`, "")
 	m.UpdateToolEnd("bash", "file.go", "", "")
@@ -1935,9 +2241,6 @@ func TestReasoningThenTextThenToolSequence(t *testing.T) {
 
 	if len(m.messages) != 3 {
 		t.Fatalf("want 3 messages (assistant+tool+assistant), got %d", len(m.messages))
-	}
-	if m.messages[0].Reasoning != "let me think..." {
-		t.Errorf("first msg reasoning = %q", m.messages[0].Reasoning)
 	}
 	if m.messages[0].Content != "I'll run a command." {
 		t.Errorf("first msg content = %q", m.messages[0].Content)

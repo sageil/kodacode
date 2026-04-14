@@ -22,11 +22,11 @@ var patchParams = json.RawMessage(`{
 				"properties": {
 					"oldString": {"type": "string", "description": "Text to find"},
 					"newString": {"type": "string", "description": "Replacement text"},
-					"startLine": {"type": "integer", "description": "Optional 1-based start line to constrain this edit"},
-					"endLine": {"type": "integer", "description": "Optional 1-based end line to constrain this edit"},
+					"startLine": {"type": "integer", "description": "Optional 1-based start line to constrain this edit. Omit this when range is set."},
+					"endLine": {"type": "integer", "description": "Optional 1-based end line to constrain this edit. Omit this when range is set."},
 					"range": {
 						"type": "object",
-						"description": "Optional exact 1-based line, 0-based UTF-16 character range to replace directly",
+						"description": "Optional exact 1-based line, 0-based UTF-16 character range to replace directly. When range is set, omit startLine and endLine.",
 						"properties": {
 							"startLine": {"type": "integer"},
 							"startCharacter": {"type": "integer"},
@@ -99,11 +99,9 @@ func executePatch(ctx context.Context, ectx ExecutionContext, args []byte) (*Res
 	spans := make([]replacementSpan, 0, len(params.Edits))
 
 	for i, edit := range params.Edits {
+		preferExactRange(edit.Range, &edit.StartLine, &edit.EndLine)
 		if edit.OldString == edit.NewString {
 			return ErrorResult(ErrCodeInvalidArgs, fmt.Sprintf("patch: edit %d has identical oldString and newString", i), false), nil
-		}
-		if edit.Range != nil && edit.Range.active() && (edit.StartLine != 0 || edit.EndLine != 0) {
-			return ErrorResult(ErrCodeInvalidArgs, fmt.Sprintf("patch: edit %d: use either range or startLine/endLine, not both", i), false), nil
 		}
 		var span replacementSpan
 		if edit.Range != nil && edit.Range.active() {

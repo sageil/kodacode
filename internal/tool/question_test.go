@@ -38,3 +38,35 @@ func TestQuestionTool_UserCancellationReturnsCancelledError(t *testing.T) {
 		t.Fatalf("unexpected output: %q", res.Output)
 	}
 }
+
+func TestQuestionTool_SingleObjectOptionAndStringWrappedMultiple(t *testing.T) {
+	tl := tool.NewQuestionTool()
+	called := false
+	res, err := tl.Execute(t.Context(), tool.ExecutionContext{
+		AskUser: func(question string, options []string, multiple bool, purpose string) (string, error) {
+			called = true
+			if question != "Proceed?" {
+				t.Fatalf("question = %q", question)
+			}
+			if len(options) != 1 || options[0] != "Yes" {
+				t.Fatalf("options = %#v", options)
+			}
+			if !multiple {
+				t.Fatal("multiple should parse from string-wrapped bool")
+			}
+			if purpose != "plan_approval" {
+				t.Fatalf("purpose = %q", purpose)
+			}
+			return "Yes", nil
+		},
+	}, []byte(`{"question":"Proceed?","options":{"label":"Yes","role":"approve"},"multiple":"true","purpose":"plan_approval"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !called {
+		t.Fatal("expected AskUser to be called")
+	}
+	if res == nil || !strings.Contains(res.Output, "> Yes") {
+		t.Fatalf("unexpected result: %#v", res)
+	}
+}

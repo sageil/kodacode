@@ -45,6 +45,15 @@ func (r textRange) active() bool {
 	return r.StartLine > 0 || r.EndLine > 0 || r.StartCharacter > 0 || r.EndCharacter > 0
 }
 
+// Prefer an exact range over redundant line scoping when weaker models emit
+// both. This keeps the tools tolerant without changing the intended target.
+func preferExactRange(rng *textRange, startLine, endLine *int) {
+	if rng != nil && rng.active() {
+		*startLine = 0
+		*endLine = 0
+	}
+}
+
 func normalizeLineScope(content string, startLine, endLine int) (lineScope, error) {
 	if startLine < 0 || endLine < 0 {
 		return lineScope{}, fmt.Errorf("startLine and endLine must be positive when provided")
@@ -151,6 +160,10 @@ func locateRangeReplacement(content, old, new string, rng textRange) (replacemen
 	}
 	current := content[start:end]
 	if old != "" && current != old {
+		scope := lineScope{Start: rng.StartLine, End: rng.EndLine}
+		if span, scopeErr := locateExactReplacement(content, old, new, scope); scopeErr == nil {
+			return span, nil
+		}
 		msg := fmt.Sprintf("range %d:%d-%d:%d does not match oldString.", rng.StartLine, rng.StartCharacter, rng.EndLine, rng.EndCharacter)
 		if snippet := truncateSnippet(strings.TrimSpace(current), 120); snippet != "" {
 			msg += fmt.Sprintf(" Current text in range: %q.", snippet)

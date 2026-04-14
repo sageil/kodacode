@@ -1692,7 +1692,7 @@ func TestFailedFileMutationRetry(t *testing.T) {
 	if !strings.Contains(got, "/tmp/example.ts") {
 		t.Fatalf("retry directive = %q, want affected file path", got)
 	}
-	if !strings.Contains(got, "reread the affected file") {
+	if !strings.Contains(strings.ToLower(got), "reread the affected file") {
 		t.Fatalf("retry directive = %q, want reread guidance", got)
 	}
 
@@ -1701,6 +1701,59 @@ func TestFailedFileMutationRetry(t *testing.T) {
 		errStr: ptr("failed"),
 	}}); got != "" {
 		t.Fatalf("retry directive with retrySent = %q, want empty", got)
+	}
+}
+
+func TestFailedFileMutationRetry_MissingFileWithExpectedVersionGetsSpecificGuidance(t *testing.T) {
+	tl := &turnLoop{
+		req: &pipeline.TurnRequest{
+			SessionID: "file-mutation-retry-missing-file-test",
+			AgentID:   "engineer",
+		},
+	}
+
+	got := tl.failedFileMutationRetry(false, []toolExecution{{
+		call: provider.ToolCall{
+			Name:      "write",
+			Arguments: `{"filePath":"/tmp/rateLimit.test.ts","content":"test","expectedVersion":"*"}`,
+		},
+		result: &tool.Result{
+			ErrorCode: tool.ErrCodeConflict,
+			Retryable: true,
+			Output:    `write: file version mismatch for /tmp/rateLimit.test.ts. Expected version "*", but the file no longer exists. Reread the file and retry.`,
+		},
+	}})
+	if !strings.Contains(strings.ToLower(got), "do not reuse that stale expectedversion") {
+		t.Fatalf("retry directive = %q, want stale expectedVersion guidance", got)
+	}
+	if !strings.Contains(strings.ToLower(got), "retry without expectedversion") {
+		t.Fatalf("retry directive = %q, want create-without-expectedVersion guidance", got)
+	}
+}
+
+func TestFailedFileMutationRetry_RangeAndLineScopeGetsSpecificGuidance(t *testing.T) {
+	tl := &turnLoop{
+		req: &pipeline.TurnRequest{
+			SessionID: "file-mutation-retry-range-scope-test",
+			AgentID:   "engineer",
+		},
+	}
+
+	got := tl.failedFileMutationRetry(false, []toolExecution{{
+		call: provider.ToolCall{
+			Name:      "patch",
+			Arguments: `{"filePath":"/tmp/rateLimit.test.ts","edits":[{"oldString":"a","newString":"b","startLine":1,"endLine":1,"range":{"startLine":1,"startCharacter":0,"endLine":1,"endCharacter":1}}]}`,
+		},
+		result: &tool.Result{
+			ErrorCode: tool.ErrCodeInvalidArgs,
+			Output:    "patch: edit 0: use either range or startLine/endLine, not both",
+		},
+	}})
+	if !strings.Contains(strings.ToLower(got), "use either range or startline/endline, never both") {
+		t.Fatalf("retry directive = %q, want range/line-scope guidance", got)
+	}
+	if !strings.Contains(strings.ToLower(got), "do not repeat the same failing mutation call unchanged") {
+		t.Fatalf("retry directive = %q, want anti-repeat guidance", got)
 	}
 }
 

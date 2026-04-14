@@ -13,22 +13,48 @@ The current session cost is shown in the TUI footer, next to the context utiliza
 
 Use `/cost` to see a detailed breakdown of input tokens, output tokens, reasoning tokens, cache read/write tokens, and estimated dollar cost for the current session.
 
+## Turn Inspection With Trace
+
+Enable trace capture when you want to know why a turn was expensive or slow, not just how much the session cost in total:
+
+```yaml
+session:
+  trace: true
+```
+
+With trace enabled:
+
+- `/cost` adds a per-turn table so you can spot the outlier turn quickly
+- `/trace N` drills into one turn's step-by-step token usage, cache hits/writes, retries, fallbacks, prompt segment mix, and tool timing
+- `GET /sessions/:id/traces` exposes the same persisted data over the API
+
+**Practical value**:
+
+- Find out whether a spike came from large file reads, repeated tool loops, retries, or prompt growth
+- Separate model latency from tool latency before you start tuning the wrong thing
+- Verify that compaction, pruning, or utility-model routing is actually reducing spend in your real workflow
+- Compare recurring workflows and tune them with evidence instead of guesswork
+
 ## Budget Caps
 
-Set a maximum dollar cost per session:
+Set a maximum dollar cost per session and, if needed, across all persisted sessions in your local database:
 
 ```yaml
 session:
   budget: 5.00
   budget_warn: 0.8
+  total_budget: 20.00
+  total_budget_warn: 0.8
 ```
 
-| Field | Default | Description |
-|-------|---------|-------------|
-| `budget` | `0` | Maximum dollars per session. 0 = unlimited |
-| `budget_warn` | `0.8` | Fraction of budget at which a warning is shown |
+| Field | Effective Default | Description | Practical Value |
+|-------|-------------------|-------------|-----------------|
+| `budget` | `0` | Maximum dollars per session. `0` means unlimited. | Use this for per-task guardrails, CI jobs, provider experiments, or any session where you want a hard stop before spend runs away. |
+| `budget_warn` | `0` | Fraction of `budget` at which a warning is shown. `0` disables warnings. | Set this to `0.8` or `0.9` to get an early warning while you still have time to change models, trim context, or stop. |
+| `total_budget` | `0` | Maximum dollars across all persisted non-ephemeral sessions. `0` means unlimited. | Use this when several sessions or subagents share one budget and you need a global ceiling, not just per-session caps. |
+| `total_budget_warn` | `0` | Fraction of `total_budget` at which a warning is shown. `0` disables warnings. | Helps catch aggregate spend pressure before multiple sessions collectively hit the global cap. |
 
-When the budget is exceeded, the tool loop stops. Tools are removed and the model must respond with what it has.
+When the per-session budget is exceeded, the tool loop stops. Tools are removed and the model must respond with what it has. When the cross-session budget is exceeded, the same stop behavior is triggered based on total persisted spend across sessions.
 
 ## How KodaCode Reduces Cost
 
@@ -157,5 +183,5 @@ Costs vary by provider and model. As a rough guide:
 | Large refactoring across many files | $2.00–10.00 |
 
 <Aside type="tip">
-Use `/cost` during a session to see what's driving spend. Large file reads and extended reasoning are usually the biggest contributors.
+Use `/cost` during a session to see what's driving spend. If a specific turn looks wrong, enable `session.trace: true` and inspect it with `/trace N`.
 </Aside>

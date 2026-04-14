@@ -280,9 +280,11 @@ session:
     anthropic/claude-opus-4-6:
       compaction_threshold: 0.7    # compact earlier (Opus is expensive)
       prune_protect_tokens: 30000
-    openai/gpt-4o:
-      compaction_threshold: 0.9    # compact later (cheaper model)
+    openai/gpt-5.4:
+      compaction_threshold: 0.85   # keep more raw history on this model
       prune_protect_tokens: 80000
 ```
 
-This lets you be more aggressive with compaction on expensive models (saving input tokens) while letting cheaper models use more of their context window.
+These are examples you opt into. KodaCode does not ship hidden provider-specific `session.models` presets.
+
+This lets you be more aggressive with compaction on one model to control input cost while letting another keep more raw context before compaction kicks in.

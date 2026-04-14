@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strconv"
 	"strings"
 )
 
@@ -78,7 +79,12 @@ func executeQuestion(ctx context.Context, ectx ExecutionContext, args []byte) (*
 		_ = json.Unmarshal(q, &qa.Question)
 	}
 	if m, ok := raw["multiple"]; ok {
-		_ = json.Unmarshal(m, &qa.Multiple)
+		if err := json.Unmarshal(m, &qa.Multiple); err != nil {
+			var s string
+			if json.Unmarshal(m, &s) == nil {
+				qa.Multiple, _ = strconv.ParseBool(strings.TrimSpace(s))
+			}
+		}
 	}
 	if p, ok := raw["purpose"]; ok {
 		_ = json.Unmarshal(p, &qa.Purpose)
@@ -153,6 +159,11 @@ func parseQuestionOptions(raw json.RawMessage) []questionOption {
 	if json.Unmarshal(raw, &opts) == nil && len(opts) > 0 && opts[0].Label != "" {
 		return opts
 	}
+	// Try single object.
+	var singleOpt questionOption
+	if json.Unmarshal(raw, &singleOpt) == nil && singleOpt.Label != "" {
+		return []questionOption{singleOpt}
+	}
 	// Try string array.
 	var strs []string
 	if json.Unmarshal(raw, &strs) == nil {
@@ -163,10 +174,10 @@ func parseQuestionOptions(raw json.RawMessage) []questionOption {
 		return out
 	}
 	// Try comma-separated string.
-	var single string
-	if json.Unmarshal(raw, &single) == nil && single != "" {
+	var singleText string
+	if json.Unmarshal(raw, &singleText) == nil && singleText != "" {
 		var out []questionOption
-		for s := range strings.SplitSeq(single, ",") {
+		for s := range strings.SplitSeq(singleText, ",") {
 			s = strings.TrimSpace(s)
 			if s != "" {
 				out = append(out, questionOption{Label: s})

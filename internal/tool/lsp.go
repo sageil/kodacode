@@ -47,6 +47,13 @@ type lspCacheEntry struct {
 	expires time.Time
 }
 
+type positionQueryServer interface {
+	Name() string
+	Definition(ctx context.Context, filePath string, line, character int) ([]lsp.Location, error)
+	References(ctx context.Context, filePath string, line, character int) ([]lsp.Location, error)
+	Hover(ctx context.Context, filePath string, line, character int) (*lsp.HoverResult, error)
+}
+
 func newLSPCache() *lspCache {
 	return &lspCache{entries: make(map[string]lspCacheEntry)}
 }
@@ -262,15 +269,7 @@ func executeSingleLSP(ctx context.Context, workDir string, mgr *lsp.Manager, cac
 		if r, err, ok := cache.get(key); ok {
 			return r, err
 		}
-		var r *Result
-		switch op.Action {
-		case "definition":
-			r, err = lspDefinition(ctx, srv, filePath, displayPath, line, op.Character)
-		case "references":
-			r, err = lspReferences(ctx, srv, filePath, displayPath, line, op.Character)
-		case "inspect":
-			r, err = lspInspect(ctx, srv, filePath, displayPath, line, op.Character)
-		}
+		r, err := executePositionLSPAction(ctx, op.Action, srv, filePath, displayPath, line, op.Character)
 		cache.set(key, r, err)
 		return r, err
 
@@ -319,11 +318,41 @@ func executeSingleLSP(ctx context.Context, workDir string, mgr *lsp.Manager, cac
 	return nil, fmt.Errorf("unknown action: %s", op.Action)
 }
 
-func lspDefinition(ctx context.Context, srv *lsp.Server, filePath, displayPath string, line, character int) (*Result, error) {
-	locations, err := srv.Definition(ctx, filePath, line, character)
-	if err != nil {
-		return nil, err
+func executePositionLSPAction(ctx context.Context, action string, srv positionQueryServer, filePath, displayPath string, line, character int) (*Result, error) {
+	switch action {
+	case "definition":
+		return lspDefinition(ctx, srv, filePath, displayPath, line, character)
+	case "references":
+		return lspReferences(ctx, srv, filePath, displayPath, line, character)
+	case "inspect":
+		return lspInspect(ctx, srv, filePath, displayPath, line, character)
+	default:
+		return nil, fmt.Errorf("unknown action: %s", action)
 	}
+}
+
+func lspDefinition(ctx context.Context, srv positionQueryServer, filePath, displayPath string, line, character int) (*Result, error) {
+	var (
+		firstLocations []lsp.Location
+		firstErr       error
+	)
+	for i, candidate := range bestEffortPositionCandidates(filePath, line+1, character) {
+		locations, err := srv.Definition(ctx, filePath, line, candidate)
+		if i == 0 {
+			firstLocations = locations
+			firstErr = err
+		}
+		if err == nil && len(locations) > 0 {
+			return formatDefinitionResult(srv, displayPath, line, character, locations), nil
+		}
+	}
+	if firstErr != nil {
+		return nil, firstErr
+	}
+	return formatDefinitionResult(srv, displayPath, line, character, firstLocations), nil
+}
+
+func formatDefinitionResult(srv positionQueryServer, displayPath string, line, character int, locations []lsp.Location) *Result {
 	if len(locations) == 0 {
 		return &Result{
 			Title:  fmt.Sprintf("lsp definition: %s:%d:%d", displayPath, line+1, character),
@@ -332,7 +361,7 @@ func lspDefinition(ctx context.Context, srv *lsp.Server, filePath, displayPath s
 				"action": "definition",
 				"server": srv.Name(),
 			},
-		}, nil
+		}
 	}
 
 	var sb strings.Builder
@@ -348,14 +377,31 @@ func lspDefinition(ctx context.Context, srv *lsp.Server, filePath, displayPath s
 			"action": "definition",
 			"server": srv.Name(),
 		},
-	}, nil
+	}
 }
 
-func lspReferences(ctx context.Context, srv *lsp.Server, filePath, displayPath string, line, character int) (*Result, error) {
-	locations, err := srv.References(ctx, filePath, line, character)
-	if err != nil {
-		return nil, err
+func lspReferences(ctx context.Context, srv positionQueryServer, filePath, displayPath string, line, character int) (*Result, error) {
+	var (
+		firstLocations []lsp.Location
+		firstErr       error
+	)
+	for i, candidate := range bestEffortPositionCandidates(filePath, line+1, character) {
+		locations, err := srv.References(ctx, filePath, line, candidate)
+		if i == 0 {
+			firstLocations = locations
+			firstErr = err
+		}
+		if err == nil && len(locations) > 0 {
+			return formatReferencesResult(srv, displayPath, line, character, locations), nil
+		}
 	}
+	if firstErr != nil {
+		return nil, firstErr
+	}
+	return formatReferencesResult(srv, displayPath, line, character, firstLocations), nil
+}
+
+func formatReferencesResult(srv positionQueryServer, displayPath string, line, character int, locations []lsp.Location) *Result {
 	if len(locations) == 0 {
 		return &Result{
 			Title:  fmt.Sprintf("lsp references: %s:%d:%d", displayPath, line+1, character),
@@ -366,7 +412,7 @@ func lspReferences(ctx context.Context, srv *lsp.Server, filePath, displayPath s
 				"truncated": false,
 				"server":    srv.Name(),
 			},
-		}, nil
+		}
 	}
 
 	truncated := len(locations) > lspReferencesLimit
@@ -394,16 +440,35 @@ func lspReferences(ctx context.Context, srv *lsp.Server, filePath, displayPath s
 			"truncated": truncated,
 			"server":    srv.Name(),
 		},
-	}, nil
+	}
 }
 
-func lspInspect(ctx context.Context, srv *lsp.Server, filePath, displayPath string, line, character int) (*Result, error) {
-	hover, err := srv.Hover(ctx, filePath, line, character)
-	if err != nil {
-		return nil, err
+func lspInspect(ctx context.Context, srv positionQueryServer, filePath, displayPath string, line, character int) (*Result, error) {
+	var (
+		firstHover *lsp.HoverResult
+		firstErr   error
+	)
+	for i, candidate := range bestEffortPositionCandidates(filePath, line+1, character) {
+		hover, err := srv.Hover(ctx, filePath, line, candidate)
+		if i == 0 {
+			firstHover = hover
+			firstErr = err
+		}
+		if err == nil && hover != nil && hover.ExtractHoverText() != "" {
+			return formatInspectResult(srv, displayPath, line, character, hover), nil
+		}
 	}
+	if firstErr != nil {
+		return nil, firstErr
+	}
+	return formatInspectResult(srv, displayPath, line, character, firstHover), nil
+}
 
-	text := hover.ExtractHoverText()
+func formatInspectResult(srv positionQueryServer, displayPath string, line, character int, hover *lsp.HoverResult) *Result {
+	text := ""
+	if hover != nil {
+		text = hover.ExtractHoverText()
+	}
 	if text == "" {
 		text = "No type information available."
 	}
@@ -415,7 +480,7 @@ func lspInspect(ctx context.Context, srv *lsp.Server, filePath, displayPath stri
 			"action": "inspect",
 			"server": srv.Name(),
 		},
-	}, nil
+	}
 }
 
 func lspDiagnostics(ctx context.Context, srv *lsp.Server, filePath, displayPath string) (*Result, error) {

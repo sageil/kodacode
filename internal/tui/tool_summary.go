@@ -19,6 +19,9 @@ func toolHintText(msg Message) string {
 		}
 		return "failed"
 	}
+	if isStructuredToolResultError(msg.ToolOutput) {
+		return structuredToolResultHint(msg.ToolOutput)
+	}
 	switch msg.ToolName {
 	case "bash":
 		if strings.HasPrefix(strings.TrimSpace(msg.ToolOutput), "error:") {
@@ -76,8 +79,7 @@ func toolHintText(msg Message) string {
 			return ""
 		}
 		newLines := len(strings.Split(strings.TrimRight(newContent, "\n"), "\n"))
-		// When overwriting, ToolOutput contains the old content, so show diff stats.
-		if msg.ToolOutput != "" && msg.ToolOutput != "Wrote file successfully." {
+		if writeOutputCarriesOldContent(msg.ToolOutput) {
 			oldLines := len(strings.Split(strings.TrimRight(msg.ToolOutput, "\n"), "\n"))
 			return fmt.Sprintf("-%d +%d lines", oldLines, newLines)
 		}

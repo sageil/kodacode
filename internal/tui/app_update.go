@@ -71,16 +71,12 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.cancelRequested = false
 			a.infoBanner = ""
 			a.errorBanner = "Cancel failed: " + msg.err.Error()
+			a.retryBanner = ""
 			return a, nil
 		}
 		a.infoBanner = "Cancelling turn..."
 		a.errorBanner = ""
-		return a, nil
-
-	case gitBranchMsg:
-		a.sbGitBranch = msg.branch
-		a.home.SetGitBranch(msg.branch)
-		a.applyStatusBar()
+		a.retryBanner = ""
 		return a, nil
 
 	case configLoadedMsg:
@@ -127,6 +123,17 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return a, a.deferMCPRefresh()
 
+	case workspaceStatusTickMsg:
+		return a, a.loadWorkspaceStatus()
+
+	case workspaceStatusMsg:
+		a.sbGitBranch = msg.branch
+		a.sbChangedFiles = msg.changedFiles
+		a.sbLSPServers = append([]string(nil), msg.lspServers...)
+		a.home.SetGitBranch(msg.branch)
+		a.applyStatusBar()
+		return a, a.workspaceStatusTick()
+
 	case homeOpenSessionMsg:
 		return a, a.switchSession(msg.sessionID)
 
@@ -160,6 +167,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.cancelRequested = false
 			a.infoBanner = "Turn cancelled."
 			a.errorBanner = ""
+			a.retryBanner = ""
 			if a.route == routeSession {
 				a.session.AppendDelta("\n[cancelled]")
 				a.session.FinishStreaming()
@@ -170,6 +178,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return a, nil
 		}
 		a.errorBanner = msg.Err.Error()
+		a.retryBanner = ""
 		if a.route == routeSession {
 			a.session.FinishStreaming()
 			a.sse.MarkDone()
@@ -374,6 +383,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	if sub, ok := msg.(submitMsg); ok {
 		a.errorBanner = ""
+		a.retryBanner = ""
 		if updated, cmd, handled := a.handleSlashCommand(sub.text); handled {
 			return updated, cmd
 		}
@@ -399,15 +409,18 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	if kp, ok := msg.(tea.KeyPressMsg); ok {
-		if a.errorBanner != "" || a.infoBanner != "" {
+		if a.errorBanner != "" || a.retryBanner != "" || a.infoBanner != "" {
 			if key.Matches(kp, a.keys.PasteClipboard) {
 				if a.errorBanner != "" {
 					writeClipboard(a.errorBanner)
+				} else if a.retryBanner != "" {
+					writeClipboard(a.retryBanner)
 				} else {
 					writeClipboard(a.infoBanner)
 				}
 			}
 			a.errorBanner = ""
+			a.retryBanner = ""
 			a.infoBanner = ""
 			return a, nil
 		}
@@ -436,10 +449,12 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				a.session.CancelTaskSpinners()
 				a.infoBanner = "Cancelling turn..."
 				a.errorBanner = ""
+				a.retryBanner = ""
 				a.session.FlushMessagesRender()
 				return a, a.cancelTurn()
 			}
 			a.errorBanner = ""
+			a.retryBanner = ""
 			a.session.FlushMessagesRender()
 
 		case key.Matches(kp, a.keys.CycleAgent):
@@ -552,6 +567,8 @@ func (a App) View() tea.View {
 	var banner string
 	if a.errorBanner != "" {
 		banner = renderBanner(a.errorBanner, "error", "✗ Error", a.innerWidth(), a.theme)
+	} else if a.retryBanner != "" {
+		banner = renderBanner(a.retryBanner, "warning", "↻ Retrying", a.innerWidth(), a.theme)
 	} else if a.infoBanner != "" {
 		banner = renderBanner(a.infoBanner, "success", "✓ Done", a.innerWidth(), a.theme)
 	}

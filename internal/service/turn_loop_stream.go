@@ -297,7 +297,7 @@ func (tl *turnLoop) streamWithRetry(params streamParams) (*streamResult, error) 
 			req.Step, attempt, maxRetries, streamErr)
 		publish(req.SessionID, SSEEvent{
 			Type: "retry",
-			Data: SSEErrorData{Message: fmt.Sprintf("%s — retrying in %v (attempt %d/%d)", lastErr, delay, attempt+1, maxRetries)},
+			Data: SSEErrorData{Message: formatRetryStatusMessage(streamErr.Error(), delay, attempt, maxRetries)},
 		})
 		select {
 		case <-ctx.Done():

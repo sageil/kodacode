@@ -3,8 +3,6 @@ package tui
 import (
 	"strings"
 	"time"
-
-	"github.com/sageil/kodacode/v1/internal/logging"
 )
 
 func (m *Messages) SetMessages(msgs []Message) {
@@ -22,45 +20,6 @@ func (m *Messages) SetSearch(query string) {
 	m.searchQuery = query
 	m.searchActive = query != ""
 	m.invalidateFrom(0)
-	m.needsRender = true
-}
-
-func (m *Messages) AppendReasoningDelta(delta string) {
-	last := len(m.messages) - 1
-	if last >= 0 && m.messages[last].Streaming && !m.messages[last].ReasoningDone {
-		m.messages[last].Reasoning += delta
-		logging.Debugf("[7-messages] AppendReasoningDelta: appended %d chars to msg[%d], total reasoning=%d", len(delta), last, len(m.messages[last].Reasoning))
-		m.invalidateFrom(last)
-	} else {
-		logging.Debugf("[7-messages] AppendReasoningDelta: new assistant msg, last=%d streaming=%v reasoningDone=%v", last, last >= 0 && m.messages[last].Streaming, last >= 0 && m.messages[last].ReasoningDone)
-		m.messages = append(m.messages, Message{
-			Role: "assistant", Reasoning: delta, Streaming: true, Timestamp: time.Now(),
-			ReasoningStartTime: time.Now(),
-		})
-		m.invalidateFrom(len(m.messages) - 1)
-	}
-	if !m.userScrolled {
-		m.autoScroll = true
-	}
-	m.needsRender = true
-}
-
-func (m *Messages) FinishReasoning() {
-	// Search backwards for the last assistant message with active reasoning.
-	// The last message may be a tool_call if reasoning_done arrives after
-	// tool_start, so we can't assume m.messages[last] is the target.
-	for i := len(m.messages) - 1; i >= 0; i-- {
-		msg := &m.messages[i]
-		if msg.Role == "assistant" && msg.Streaming && msg.Reasoning != "" && !msg.ReasoningDone {
-			msg.ReasoningDone = true
-			msg.ReasoningCollapsed = true
-			if !msg.ReasoningStartTime.IsZero() {
-				msg.ReasoningElapsed = time.Since(msg.ReasoningStartTime)
-			}
-			m.invalidateFrom(i)
-			break
-		}
-	}
 	m.needsRender = true
 }
 
@@ -103,13 +62,6 @@ func (m *Messages) FinishStreaming() {
 	for i := range m.messages {
 		if m.messages[i].Streaming {
 			m.messages[i].Streaming = false
-			m.messages[i].ReasoningDone = true
-			if m.messages[i].Reasoning != "" {
-				m.messages[i].ReasoningCollapsed = true
-				if m.messages[i].ReasoningElapsed == 0 && !m.messages[i].ReasoningStartTime.IsZero() {
-					m.messages[i].ReasoningElapsed = time.Since(m.messages[i].ReasoningStartTime)
-				}
-			}
 			m.invalidateFrom(i)
 		}
 		if m.messages[i].Role == "tool_call" && !m.messages[i].ToolDone {

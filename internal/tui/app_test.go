@@ -1404,3 +1404,21 @@ func TestEscClearsErrorToast(t *testing.T) {
 		t.Errorf("errorBanner = %q, want empty (ESC should clear error banner)", result.errorBanner)
 	}
 }
+
+func TestEscClearsRetryToast(t *testing.T) {
+	app := NewApp("http://localhost:0", nil)
+	app.width = 80
+	app.height = 24
+	app.ready = true
+	app.route = routeSession
+	app.sessionID = "sess-1"
+
+	app.retryBanner = "Provider rate limited the request — retrying in 37s (retry 1/5)"
+
+	updated, _ := app.Update(tea.KeyPressMsg{Code: 27, Text: ""})
+	result := updated.(App)
+
+	if result.retryBanner != "" {
+		t.Errorf("retryBanner = %q, want empty (ESC should clear retry banner)", result.retryBanner)
+	}
+}

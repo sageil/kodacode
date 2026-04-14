@@ -21,13 +21,18 @@ func (m *Messages) renderToolCall(msg Message, _ bool, msgIndex int) (string, *d
 		boxWidth = 80
 	}
 
-	isError := msg.ToolDone && (msg.ToolError != "" || strings.HasPrefix(strings.TrimSpace(msg.ToolOutput), "error:"))
+	trimmedOutput := strings.TrimSpace(msg.ToolOutput)
+	structuredSeverity := structuredToolResultSeverity(trimmedOutput)
+	isError := msg.ToolDone && (msg.ToolError != "" || structuredSeverity == structuredToolErrorSeverityError || strings.HasPrefix(trimmedOutput, "error:"))
+	isWarning := msg.ToolDone && structuredSeverity == structuredToolErrorSeverityWarn
 	accentStyle := s.secondary
 	var statusIcon string
 	switch {
 	case !msg.ToolDone:
 		frame := (pulseTick % 10) * 3
 		statusIcon = accentStyle.Render(spinnerFrames[frame : frame+3])
+	case isWarning:
+		statusIcon = warnStyle.Render("⚠")
 	case isError:
 		statusIcon = errorStyle.Render("⊘")
 	default:
@@ -61,7 +66,14 @@ func (m *Messages) renderToolCall(msg Message, _ bool, msgIndex int) (string, *d
 		header += "  " + dimStyle.Render(ts.args)
 	}
 	if hint := toolHintText(msg); hint != "" && msg.ToolDone {
-		header += "  " + dimStyle.Render(hint)
+		hintStyle := dimStyle
+		switch {
+		case isWarning:
+			hintStyle = warnStyle
+		case isError:
+			hintStyle = errorStyle
+		}
+		header += "  " + hintStyle.Render(hint)
 	}
 	if msg.ToolDone && msg.ToolElapsed > 0 {
 		header += "  " + dimStyle.Render(formatElapsed(msg.ToolElapsed))
@@ -154,6 +166,26 @@ func (m *Messages) renderToolPanelContent(body *strings.Builder, msg Message, ms
 		}
 		return nil
 	}
+	if code, message, ok := parseStructuredToolResultError(msg.ToolOutput); ok {
+		subtextStyle := lipgloss.NewStyle().Foreground(colorFrom(m.theme, "subtext", lipgloss.Color("241")))
+		lines := strings.Split(strings.TrimRight(strings.TrimSpace(message), "\n"), "\n")
+		if len(lines) == 0 {
+			lines = []string{strings.TrimSpace(code)}
+		}
+		for i, line := range lines {
+			line = strings.TrimSpace(line)
+			if line == "" {
+				continue
+			}
+			lineStyle := subtextStyle
+			lower := strings.ToLower(line)
+			if i > 0 || strings.Contains(lower, "transient") || strings.Contains(lower, "retry") {
+				lineStyle = dimStyle
+			}
+			fmt.Fprintf(body, "  %s\n", lineStyle.Render(line))
+		}
+		return nil
+	}
 
 	if msg.ToolName == "task" && isTaskListOutput(msg.ToolOutput) {
 		renderTaskList(body, msg.ToolOutput, successStyle, dimStyle)
@@ -211,7 +243,7 @@ func (m *Messages) renderToolPanelContent(body *strings.Builder, msg Message, ms
 		if err := json.Unmarshal([]byte(msg.ToolInput), &fields); err == nil {
 			newContent, _ := fields["content"].(string)
 			filePath, _ := fields["filePath"].(string)
-			if newContent != "" && output != "" && output != "Wrote file successfully." {
+			if newContent != "" && writeOutputCarriesOldContent(output) {
 				oldLines := strings.Split(strings.TrimRight(output, "\n"), "\n")
 				newLines := strings.Split(strings.TrimRight(newContent, "\n"), "\n")
 				allOps := diffLines(oldLines, newLines)
@@ -270,35 +302,26 @@ func (m *Messages) renderToolPanelContent(body *strings.Builder, msg Message, ms
 	}
 
 	if msg.ToolName == "patch" {
-		var fields map[string]any
-		if err := json.Unmarshal([]byte(msg.ToolInput), &fields); err == nil {
-			filePath, _ := fields["filePath"].(string)
-			if edits, ok := fields["edits"].([]any); ok && len(edits) > 0 {
-				var meta *diffReviewMeta
-				for _, e := range edits {
-					em, ok := e.(map[string]any)
-					if !ok {
-						continue
-					}
-					oldStr, _ := em["oldString"].(string)
-					newStr, _ := em["newString"].(string)
-					if oldStr == "" && newStr == "" {
-						continue
-					}
+		if parsed, ok := parsePatchDiffInput(msg.ToolInput, false); ok {
+			if len(parsed.Edits) > 1 {
+				if preview := renderPatchDiffPreview(parsed.Edits, textWidth); preview != "" {
+					body.WriteString(preview)
+					body.WriteString("\n")
+					return nil
+				}
+			} else if len(parsed.Edits) == 1 {
+				edit := parsed.Edits[0]
+				if edit.OldString != "" || edit.NewString != "" {
 					var oldLines, newLines []string
-					if oldStr != "" {
-						oldLines = strings.Split(strings.TrimRight(oldStr, "\n"), "\n")
+					if edit.OldString != "" {
+						oldLines = strings.Split(strings.TrimRight(edit.OldString, "\n"), "\n")
 					}
-					if newStr != "" {
-						newLines = strings.Split(strings.TrimRight(newStr, "\n"), "\n")
+					if edit.NewString != "" {
+						newLines = strings.Split(strings.TrimRight(edit.NewString, "\n"), "\n")
 					}
 					allOps := diffLines(oldLines, newLines)
-					editMeta := m.renderDiffWithHunks(body, msgIndex, allOps, oldLines, filePath, newStr, true, dimStyle, textWidth)
-					if editMeta != nil {
-						meta = editMeta
-					}
+					return m.renderDiffWithHunks(body, msgIndex, allOps, oldLines, parsed.FilePath, edit.NewString, true, dimStyle, textWidth)
 				}
-				return meta
 			}
 		}
 		for line := range strings.SplitSeq(strings.TrimRight(output, "\n"), "\n") {

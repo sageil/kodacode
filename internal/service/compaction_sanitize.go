@@ -20,12 +20,12 @@ import (
 // Tool-heavy turns (with many tool_call/tool_result pairs) are preserved
 // as complete units.
 //
-// When there are fewer turn boundaries than keepTurns (e.g., a single turn
-// with many tool_call/result pairs), it falls back to keeping the first
-// user prompt plus the last keepTurns*2 messages to avoid returning the
-// entire unbounded conversation.
+// When there are fewer turn boundaries than keepTurns, compaction still needs
+// to make progress. Multi-turn sessions drop at least the oldest full turn.
+// Single-turn sessions fall back to keeping the first user prompt plus a
+// recent tail so tool-heavy turns do not remain effectively unbounded.
 func safeTruncateMessages(msgs []provider.Message, keepTurns int) []provider.Message {
-	if keepTurns <= 0 {
+	if keepTurns <= 0 || len(msgs) <= 1 {
 		return msgs
 	}
 
@@ -54,19 +54,39 @@ func safeTruncateMessages(msgs []provider.Message, keepTurns int) []provider.Mes
 		return msgs
 	}
 
-	// If there are fewer turns than keepTurns, all existing turns fit within budget.
-	// For multi-turn sessions (≥2 boundaries), keep everything since we
-	// want all the turns we have.
+	// Under compaction pressure, keeping the entire conversation defeats the
+	// purpose of summarization. If there are multiple user turns but fewer than
+	// keepTurns boundaries, keep one fewer full turn so every compaction
+	// meaningfully shrinks the transcript.
 	if len(boundaries) > 1 {
-		return msgs
+		keepRecentTurns := len(boundaries) - 1
+		if keepRecentTurns > keepTurns {
+			keepRecentTurns = keepTurns
+		}
+		if keepRecentTurns < 1 {
+			keepRecentTurns = 1
+		}
+		cutIdx := boundaries[len(boundaries)-keepRecentTurns]
+		if cutIdx > 0 {
+			return msgs[cutIdx:]
+		}
 	}
 
 	// Single-turn fallback: one user prompt followed by many
 	// tool_call/result pairs. Use message-count truncation to avoid
-	// returning an unbounded conversation.
+	// returning an unbounded conversation. Even when keepTurns*2 would cover
+	// the whole message slice, still drop at least one message so compaction
+	// cannot become a no-op.
+	if len(msgs) == 2 {
+		return msgs[:1]
+	}
+
 	keep := keepTurns * 2
-	if len(msgs) <= keep {
-		return msgs
+	if keep < 1 {
+		keep = 1
+	}
+	if keep >= len(msgs)-1 {
+		keep = len(msgs) - 2
 	}
 
 	// Keep the first user prompt + the last `keep` messages, starting
@@ -76,7 +96,7 @@ func safeTruncateMessages(msgs []provider.Message, keepTurns int) []provider.Mes
 		start++
 	}
 	if start >= len(msgs) {
-		return msgs
+		return msgs[:1]
 	}
 	var result []provider.Message
 	if len(boundaries) > 0 && boundaries[0] < start {

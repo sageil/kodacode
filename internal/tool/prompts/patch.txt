@@ -9,6 +9,7 @@ Usage:
 - Each edit may use either:
   - `range` for an exact 1-based line / 0-based character replacement, or
   - `startLine` / `endLine` to constrain text matching to a smaller region.
+- Do not send `range` together with `startLine` or `endLine` in the same edit. Choose one targeting method per edit.
 - If you previously read the file, pass the latest `<version>` token back as `expectedVersion` so the patch fails cleanly if the file changed since you read it.
 - If any edit fails, NONE of the edits are applied. The error will indicate which edit (by index) failed and why.
 - The patch will FAIL if `oldString` is not found in the file.

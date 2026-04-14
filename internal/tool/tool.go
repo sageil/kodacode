@@ -58,18 +58,16 @@ func flexUnmarshal(data []byte, dst any) error {
 			continue
 		}
 
+		if field.Type.Kind() == reflect.Slice {
+			if single, ok := coerceSingleValueToSlice(rawVal, field.Type); ok {
+				fv.Set(single)
+				continue
+			}
+		}
+
 		// Coerce from string.
 		var s string
 		if json.Unmarshal(rawVal, &s) != nil {
-			// If it is not a string, try object-to-slice coercion for slice fields.
-			if field.Type.Kind() == reflect.Slice {
-				elem := reflect.New(field.Type.Elem())
-				if json.Unmarshal(rawVal, elem.Interface()) == nil {
-					sl := reflect.MakeSlice(field.Type, 1, 1)
-					sl.Index(0).Set(elem.Elem())
-					fv.Set(sl)
-				}
-			}
 			continue
 		}
 
@@ -104,6 +102,10 @@ func flexUnmarshal(data []byte, dst any) error {
 				fv.Set(sl.Elem())
 				continue
 			}
+			if single, ok := coerceSingleValueToSlice(rawVal, field.Type); ok {
+				fv.Set(single)
+				continue
+			}
 		}
 
 		if coerced.IsValid() {
@@ -117,6 +119,19 @@ func flexUnmarshal(data []byte, dst any) error {
 		}
 	}
 	return nil
+}
+
+func coerceSingleValueToSlice(rawVal json.RawMessage, sliceType reflect.Type) (reflect.Value, bool) {
+	if sliceType.Kind() != reflect.Slice {
+		return reflect.Value{}, false
+	}
+	elem := reflect.New(sliceType.Elem())
+	if json.Unmarshal(rawVal, elem.Interface()) != nil {
+		return reflect.Value{}, false
+	}
+	sl := reflect.MakeSlice(sliceType, 1, 1)
+	sl.Index(0).Set(elem.Elem())
+	return sl, true
 }
 
 // MaxLines is the maximum number of lines before truncation.

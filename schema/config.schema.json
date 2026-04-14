@@ -133,9 +133,9 @@
         },
         "tool_call_argument_timeout": {
           "type": "integer",
-          "description": "Maximum seconds to wait for the model to finish emitting one tool call's JSON arguments before aborting the stream. This does not limit the tool execution itself.",
+          "description": "Maximum seconds to wait for the model to finish emitting one tool call's JSON arguments before aborting the stream. This does not limit the tool execution itself. 60 seconds is the general default; slower local models may need a higher override.",
           "minimum": 0,
-          "default": 300
+          "default": 60
         },
         "engineer_review_limit": {
           "type": "integer",
@@ -143,11 +143,28 @@
           "minimum": 0,
           "default": 3
         },
+        "engineer_execution_retry_limit": {
+          "type": "integer",
+          "description": "Maximum repeated stalled-task execution nudges before asking how to proceed.",
+          "minimum": 0,
+          "default": 6
+        },
         "max_subagents": {
           "type": "integer",
           "description": "Maximum concurrent subagent sessions",
           "minimum": 1,
           "default": 10
+        },
+        "subagent_timeout": {
+          "type": "integer",
+          "description": "Minutes before a subagent session is cancelled.",
+          "minimum": 0,
+          "default": 5
+        },
+        "plan_approval": {
+          "type": "boolean",
+          "description": "When true, broad engineer workflows pause for user approval before execution.",
+          "default": true
         },
         "background_auto_react": {
           "type": "boolean",
@@ -190,6 +207,18 @@
           "maximum": 1,
           "default": 0
         },
+        "primary_max_steps": {
+          "type": "integer",
+          "description": "Maximum tool calls allowed in one primary-session turn before KodaCode forces a final response.",
+          "minimum": 0,
+          "default": 250
+        },
+        "subagent_max_steps": {
+          "type": "integer",
+          "description": "Maximum tool calls allowed in one subagent turn before KodaCode forces a final response.",
+          "minimum": 0,
+          "default": 30
+        },
         "models": {
           "type": "object",
           "description": "Per-model session configuration overrides. Keys are 'providerID/modelID'.",
@@ -225,7 +254,7 @@
               },
               "tool_call_argument_timeout": {
                 "type": "integer",
-                "description": "Override the maximum seconds to wait for the model to finish emitting one tool call's JSON arguments before aborting the stream",
+                "description": "Override the maximum seconds to wait for the model to finish emitting one tool call's JSON arguments before aborting the stream. Useful for slower local models.",
                 "minimum": 0
               }
             },

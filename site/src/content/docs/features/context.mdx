@@ -61,18 +61,25 @@ session:
 
   # Per-model overrides
   models:
-    openai/gpt-4o:
-      compaction_threshold: 0.9
-      prune_protect_tokens: 80000
+    anthropic/claude-opus-4-6:
+      compaction_threshold: 0.7
+      prune_protect_tokens: 30000
+    openai/gpt-5.4:
+      compaction_keep_turns: 6
+      context_limit: 0.95
 ```
 
-| Field | Default | Description |
-|-------|---------|-------------|
-| `compaction_threshold` | `0.8` | Fraction of context window that triggers compaction |
-| `compaction_keep_turns` | `10` | Recent turns preserved verbatim after compaction |
-| `prune_protect_tokens` | `40000` | Tokens protected from pruning |
-| `prune_min_savings` | `20000` | Minimum savings required to trigger pruning |
-| `context_limit` | `0.9` | Fraction of context that stops the tool loop |
+These per-model entries are opt-in overrides, not hidden defaults. If you do not set a model key under `session.models`, KodaCode uses the top-level `session` values.
+
+KodaCode also applies one automatic safeguard for smaller-context models: if a model is under `256k` context, `compaction_threshold` is floored at `0.60`; under `64k`, it is floored at `0.70`. This prevents overly aggressive compaction from stripping recent working context too early.
+
+| Field | Default | Description | Practical Value |
+|-------|---------|-------------|-----------------|
+| `compaction_threshold` | `0.8` | Fraction of context window that triggers compaction | Lower it to keep costs flatter in long sessions. Raise it when raw recent history matters more than token efficiency. |
+| `compaction_keep_turns` | `10` | Recent turns preserved verbatim after compaction | Increase it when the latest tool outputs and discussion details need to stay intact after compaction. |
+| `prune_protect_tokens` | `40000` | Tokens protected from pruning | Raise it when recent file reads and command output are important for correctness. Lower it to reclaim room sooner. |
+| `prune_min_savings` | `20000` | Minimum savings required to trigger pruning | Lower it if smaller pruning wins still matter in verbose sessions. |
+| `context_limit` | `0.9` | Fraction of context that stops the tool loop | Lower it for fragile providers or local models that degrade near the limit. |
 
 ## Pinned Instructions
 
@@ -114,6 +121,7 @@ Use `/cost` to see current token usage. Watch for:
 - **Long refactoring sessions**: Lower `compaction_threshold` (0.7) and increase `compaction_keep_turns` (15) to preserve more recent context
 - **Quick Q&A sessions**: the defaults usually work well because compaction rarely triggers
 - **Large codebases**: Increase `prune_protect_tokens` (60000+) to keep more tool output visible
+- **Smaller-context models**: remember KodaCode will not let `compaction_threshold` drop below `0.60` on sub-`256k` models or `0.70` on sub-`64k` models, so tune above those floors rather than below them
 
 ### When Context Gets Lost
 If the model forgets something important after compaction:

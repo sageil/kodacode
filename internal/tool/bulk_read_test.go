@@ -167,6 +167,25 @@ func TestBulkReadTool_subdirectoryPattern(t *testing.T) {
 	}
 }
 
+func TestBulkReadTool_singleFileStringCoercesToFilesArray(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "main.go")
+	writeFile(t, file, "package main\n")
+
+	tl := tool.NewBulkReadTool()
+	args := []byte(`{"files":"` + file + `"}`)
+	res, err := tl.Execute(t.Context(), tool.ExecutionContext{WorkDir: dir}, args)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(res.Output, "main.go") {
+		t.Fatalf("expected coerced single file to be read, got: %s", res.Output)
+	}
+	if res.Metadata["count"].(int) != 1 {
+		t.Fatalf("expected count=1, got %v", res.Metadata["count"])
+	}
+}
+
 func writeFile(t *testing.T, path, content string) {
 	t.Helper()
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {

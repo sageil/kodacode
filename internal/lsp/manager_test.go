@@ -44,3 +44,35 @@ func TestManager_FailureCooldown(t *testing.T) {
 		t.Error("expected a fresh start attempt after cooldown, but got the exact same error object")
 	}
 }
+
+func TestManager_RunningServerNames(t *testing.T) {
+	m := NewManager(nil)
+
+	m.mu.Lock()
+	m.servers["eslint"] = &Server{
+		cfg:    config.LSPServerConfig{Name: "eslint"},
+		client: &Client{},
+	}
+	m.servers["tsserver"] = &Server{
+		cfg:    config.LSPServerConfig{Name: "tsserver"},
+		client: &Client{},
+	}
+	deadDone := make(chan struct{})
+	close(deadDone)
+	m.servers["dead"] = &Server{
+		cfg:    config.LSPServerConfig{Name: "dead"},
+		client: &Client{done: deadDone},
+	}
+	m.mu.Unlock()
+
+	got := m.RunningServerNames()
+	want := []string{"eslint", "tsserver"}
+	if len(got) != len(want) {
+		t.Fatalf("len(RunningServerNames()) = %d, want %d (%v)", len(got), len(want), got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("RunningServerNames()[%d] = %q, want %q (%v)", i, got[i], want[i], got)
+		}
+	}
+}

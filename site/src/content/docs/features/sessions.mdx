@@ -65,6 +65,26 @@ All AI responses stream in real-time over Server-Sent Events (SSE):
 - Tool output streams as it's produced
 - Diffs render live as the model writes them
 
+## Inspecting Session Health
+
+Use `/cost` to understand how the current session is evolving: spend, token mix, context pressure, and subagent contribution all show up there.
+
+If you also enable trace capture:
+
+```yaml
+session:
+  trace: true
+```
+
+then `/trace N` explains one turn in detail: step-by-step token usage, cache activity, retries and fallbacks, prompt segment composition, and tool timing.
+
+**Practical uses**:
+
+- Spot turns inflated by repeated file reads or oversized tool schemas
+- See whether a slowdown came from the model itself or from a slow shell/test command
+- Tune `compaction_threshold`, `budget`, `primary_max_steps`, and model routing based on real traces instead of intuition
+- Compare similar workflows over time and make cost-saving changes that actually matter
+
 ## Task Persistence
 
 When a model stops mid-task, whether by returning an empty response or hedging with phrases like "let me know if you'd like me to continue", KodaCode detects it and nudges the model to keep going.
@@ -164,3 +184,4 @@ Use `/replay` to navigate through workspace states. Each snapshot captures the f
 - Use `/export` to save important sessions as markdown before they grow large
 - Long sessions benefit from `/pin` to keep critical instructions visible through compaction
 - If the model seems confused, check context usage with `/cost`. Compaction may have removed important context.
+- If a turn is unusually slow or expensive, enable `session.trace: true` and inspect it with `/trace N` before changing compaction or model settings.

@@ -172,6 +172,58 @@ func TestPatchTool_exactRangeEdit(t *testing.T) {
 	}
 }
 
+func TestPatchTool_exactRangeWinsOverRedundantLineScope(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "src.go")
+	content := "package main\n\nfunc alpha() {}\nfunc beta() {}\n"
+	if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	tl := tool.NewPatchTool()
+	args := []byte(`{"filePath":"` + p + `","edits":[{"oldString":"func beta() {}","newString":"func gamma() {}","startLine":4,"endLine":4,"range":{"startLine":4,"startCharacter":0,"endLine":4,"endCharacter":14}}]}`)
+	res, err := tl.Execute(t.Context(), tool.ExecutionContext{}, args)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.ErrorCode != "" {
+		t.Fatalf("unexpected error result: %#v", res)
+	}
+	data, err := os.ReadFile(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "package main\n\nfunc alpha() {}\nfunc gamma() {}\n"
+	if string(data) != want {
+		t.Fatalf("unexpected content: %q", data)
+	}
+}
+
+func TestPatchTool_exactRangeFallsBackToLineScopedExactMatchWhenOffsetsDrift(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "src.go")
+	content := "package main\n\nfunc alpha() {}\nfunc beta() {}\n"
+	if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	tl := tool.NewPatchTool()
+	args := []byte(`{"filePath":"` + p + `","edits":[{"oldString":"func beta() {}","newString":"func gamma() {}","range":{"startLine":4,"startCharacter":1,"endLine":4,"endCharacter":14}}]}`)
+	res, err := tl.Execute(t.Context(), tool.ExecutionContext{}, args)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.ErrorCode != "" {
+		t.Fatalf("unexpected error result: %#v", res)
+	}
+	data, err := os.ReadFile(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "package main\n\nfunc alpha() {}\nfunc gamma() {}\n"
+	if string(data) != want {
+		t.Fatalf("unexpected content: %q", data)
+	}
+}
+
 func TestPatchTool_conflictOnStaleExpectedVersion(t *testing.T) {
 	dir := t.TempDir()
 	p := filepath.Join(dir, "src.go")

@@ -43,3 +43,22 @@ func TestGlobTool_noMatch(t *testing.T) {
 		t.Fatalf("expected no match message, got: %s", res.Output)
 	}
 }
+
+func TestGlobTool_stringWrappedPatternAndPath(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "foo.go"), []byte(""), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	tl := tool.NewGlobTool()
+	args := []byte(`{"pattern":"**/*.go","path":"` + dir + `"}`)
+	res, err := tl.Execute(t.Context(), tool.ExecutionContext{}, args)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.ErrorCode != "" {
+		t.Fatalf("unexpected error result: %#v", res)
+	}
+	if !strings.Contains(res.Output, "foo.go") {
+		t.Fatalf("expected foo.go, got: %s", res.Output)
+	}
+}

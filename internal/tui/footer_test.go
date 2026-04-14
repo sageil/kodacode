@@ -1,9 +1,14 @@
 package tui
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 )
 
 func TestFooterBackspaceRequestsAttachmentRemoval(t *testing.T) {
@@ -84,5 +89,142 @@ func TestFooterTypingStaysAfterAttachmentTokens(t *testing.T) {
 	}
 	if got := footer.attachmentPrompt(); got != "  [Image image.png #1] " {
 		t.Fatalf("attachment prompt = %q, want %q", got, "  [Image image.png #1] ")
+	}
+}
+
+func TestFormatProjectDir_HomeRelative(t *testing.T) {
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		t.Skip("home directory unavailable")
+	}
+
+	got := formatProjectDir(filepath.Join(home, "dev", "github", "koda"))
+	if got != "~/dev/github/koda" {
+		t.Fatalf("formatProjectDir() = %q, want %q", got, "~/dev/github/koda")
+	}
+}
+
+func TestFooterFullWidthView_RendersContextAboveInputAndMetaBelow(t *testing.T) {
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		t.Skip("home directory unavailable")
+	}
+
+	footer := NewFooter()
+	footer.SetSize(80)
+	footer.SetProjectDir(filepath.Join(home, "dev", "github", "koda"))
+	footer.SetGitBranch("main")
+	footer.SetLSPServers([]string{"tsserver"})
+	footer.SetChangedFiles(3)
+	footer.SetTokens(27900, 1200, 128000, 128000)
+	footer.SetSessionCost(0.42, 0)
+	footer.lastTurnElapsed = 3 * time.Second
+	footer.lastTurnAt = time.Now()
+
+	view := ansi.Strip(footer.View())
+
+	contextIdx := strings.Index(view, "last turn 3s")
+	inputIdx := strings.Index(view, "Ask anything...")
+	pathIdx := strings.Index(view, "~/dev/github/koda")
+	branchIdx := strings.Index(view, "⎇ main")
+	lspIdx := strings.Index(view, "LSP tsserver")
+	changesIdx := strings.Index(view, "3 changed")
+	shortcutIdx := strings.Index(view, "^E expand")
+
+	if contextIdx == -1 {
+		t.Fatalf("missing context row in view:\n%s", view)
+	}
+	if inputIdx == -1 {
+		t.Fatalf("missing input placeholder in view:\n%s", view)
+	}
+	if pathIdx == -1 {
+		t.Fatalf("missing project path in view:\n%s", view)
+	}
+	if branchIdx == -1 || lspIdx == -1 || changesIdx == -1 {
+		t.Fatalf("missing merged status fields in view:\n%s", view)
+	}
+	if shortcutIdx == -1 {
+		t.Fatalf("missing shortcut hints in view:\n%s", view)
+	}
+	if contextIdx >= inputIdx || inputIdx >= pathIdx {
+		t.Fatalf("expected context row above input and metadata below input:\n%s", view)
+	}
+	if !strings.Contains(view, "$0.42") {
+		t.Fatalf("missing session cost in context row:\n%s", view)
+	}
+	if !strings.Contains(view, "input 27.9k") {
+		t.Fatalf("missing input tokens in context row:\n%s", view)
+	}
+}
+
+func TestFooterFullWidthView_HidesContextStripWhenIdle(t *testing.T) {
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		t.Skip("home directory unavailable")
+	}
+
+	footer := NewFooter()
+	footer.SetSize(80)
+	footer.SetProjectDir(filepath.Join(home, "dev", "github", "koda"))
+	footer.SetGitBranch("main")
+	footer.SetLSPServers([]string{"tsserver"})
+	footer.SetChangedFiles(3)
+
+	view := ansi.Strip(footer.View())
+
+	if strings.Contains(view, "last turn") || strings.Contains(view, " ready ") {
+		t.Fatalf("idle footer should not show context strip:\n%s", view)
+	}
+	if strings.Contains(view, "▎") || strings.Contains(view, "▕") {
+		t.Fatalf("idle footer should not show active input rails:\n%s", view)
+	}
+	if !strings.Contains(view, "⎇ main") || !strings.Contains(view, "LSP tsserver") || !strings.Contains(view, "3 changed") {
+		t.Fatalf("idle footer should keep merged info row:\n%s", view)
+	}
+}
+
+func TestFooterFullWidthView_StreamingHighlightsInputWithoutMovingMetaRow(t *testing.T) {
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		t.Skip("home directory unavailable")
+	}
+
+	footer := NewFooter()
+	footer.SetSize(80)
+	footer.SetProjectDir(filepath.Join(home, "dev", "github", "koda"))
+	footer.SetGitBranch("main")
+	footer.SetLSPServers([]string{"tsserver"})
+	footer.SetChangedFiles(3)
+	footer.SetStreaming(true)
+
+	view := ansi.Strip(footer.View())
+
+	if !strings.Contains(view, "▎  Ask anything...") || !strings.Contains(view, "▕") {
+		t.Fatalf("streaming footer should highlight the input row:\n%s", view)
+	}
+	if !strings.Contains(view, "⎇ main") || !strings.Contains(view, "LSP tsserver") || !strings.Contains(view, "3 changed") {
+		t.Fatalf("streaming footer should keep merged info row unchanged:\n%s", view)
+	}
+}
+
+func TestFooterFullWidthView_UsesSingleLineInputWhenIdle(t *testing.T) {
+	footer := NewFooter()
+	footer.SetSize(80)
+
+	if got := footer.input.Height(); got != 1 {
+		t.Fatalf("idle full-width input height = %d, want 1", got)
+	}
+}
+
+func TestFooterBoxedView_KeepsShortcutPlaceholder(t *testing.T) {
+	footer := NewFooter()
+	footer.SetBoxed(80)
+
+	view := ansi.Strip(footer.View())
+	if !strings.Contains(view, "Ask anything... (⇧↵ newline · ^E expand · ^O editor · ^R history)") {
+		t.Fatalf("boxed footer lost shortcut placeholder:\n%s", view)
+	}
+	if strings.Contains(view, "~/dev/github/koda") {
+		t.Fatalf("boxed footer should not render session path metadata:\n%s", view)
 	}
 }

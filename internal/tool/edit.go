@@ -16,12 +16,12 @@ var editParams = json.RawMessage(`{
 		"oldString": {"type": "string", "description": "The text to replace"},
 		"newString": {"type": "string", "description": "The text to replace it with (must be different from oldString)"},
 		"replaceAll": {"type": "boolean", "description": "Replace all occurrences of oldString (default false)"},
-		"startLine": {"type": "integer", "description": "Optional 1-based start line to constrain the edit search"},
-		"endLine": {"type": "integer", "description": "Optional 1-based end line to constrain the edit search"},
+		"startLine": {"type": "integer", "description": "Optional 1-based start line to constrain the edit search. Omit this when range is set."},
+		"endLine": {"type": "integer", "description": "Optional 1-based end line to constrain the edit search. Omit this when range is set."},
 		"expectedVersion": {"type": "string", "description": "Optional version token from a prior read result. If provided, the edit only succeeds when the file still matches that version."},
 		"range": {
 			"type": "object",
-			"description": "Optional exact 1-based line, 0-based UTF-16 character range to replace directly",
+			"description": "Optional exact 1-based line, 0-based UTF-16 character range to replace directly. When range is set, omit startLine and endLine.",
 			"properties": {
 				"startLine": {"type": "integer"},
 				"startCharacter": {"type": "integer"},
@@ -58,6 +58,7 @@ func executeEdit(ctx context.Context, ectx ExecutionContext, args []byte) (*Resu
 	if err := flexUnmarshal(args, &params); err != nil {
 		return ErrorResult(ErrCodeInvalidArgs, fmt.Sprintf("edit: invalid arguments: %v", err), false), nil
 	}
+	preferExactRange(params.Range, &params.StartLine, &params.EndLine)
 	if params.OldString == params.NewString && params.OldString != "" {
 		return ErrorResult(ErrCodeInvalidArgs, "edit: oldString and newString must be different", false), nil
 	}
@@ -131,9 +132,6 @@ func executeEdit(ctx context.Context, ectx ExecutionContext, args []byte) (*Resu
 		if currentVersion != params.ExpectedVersion {
 			return ErrorResult(ErrCodeConflict, "edit: "+versionMismatchMessage(path, params.ExpectedVersion, currentVersion), true), nil
 		}
-	}
-	if params.Range != nil && params.Range.active() && (params.StartLine != 0 || params.EndLine != 0) {
-		return ErrorResult(ErrCodeInvalidArgs, "edit: use either range or startLine/endLine, not both", false), nil
 	}
 
 	var result string

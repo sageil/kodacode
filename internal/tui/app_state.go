@@ -15,6 +15,8 @@ func (a *App) applyStatusBar() {
 	a.session.SetToolCount(a.sbToolCount)
 	a.session.SetMCPServers(a.sbMCPServers)
 	a.session.SetGitBranch(a.sbGitBranch)
+	a.session.SetLSPServers(a.sbLSPServers)
+	a.session.SetChangedFiles(a.sbChangedFiles)
 }
 
 func (a App) providerSyncBlocked() bool {
@@ -101,6 +103,7 @@ func (a App) innerHeight() int { return a.height }
 
 func (a *App) showErrorToast(err string) tea.Cmd {
 	a.errorBanner = err
+	a.retryBanner = ""
 	a.infoBanner = ""
 	return nil
 }
@@ -108,6 +111,7 @@ func (a *App) showErrorToast(err string) tea.Cmd {
 func (a *App) showInfoToast(text string) tea.Cmd {
 	a.infoBanner = text
 	a.errorBanner = ""
+	a.retryBanner = ""
 	return nil
 }
 

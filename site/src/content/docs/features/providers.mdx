@@ -259,7 +259,7 @@ Use `/models` in the TUI to browse and switch models mid-session.
 
 - Ollama, LM Studio, and llama.cpp models are auto-discovered from their `/v1/models` endpoint
 - Set `context_size` in config for local models. The default may not match the model's actual capacity.
-- If a slow local model takes a long time to finish emitting tool-call JSON, raise `session.tool_call_argument_timeout` or set a per-model override
+- `session.tool_call_argument_timeout` defaults to `60s`, which is a good general default for hosted providers. If you use slower local models in Ollama or LM Studio and they take longer to finish emitting tool-call JSON, raise it globally or set a per-model override.
 - Local model title generation can be slow. Kodacode retries up to 3 times with a 30-second timeout.
 
 ### Cost Optimization

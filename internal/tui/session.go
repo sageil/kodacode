@@ -70,9 +70,7 @@ func (s *Session) SetSessionID(id string) { s.header.SetSessionID(id) }
 
 func (s *Session) SetMessages(msgs []Message) { s.msgs.SetMessages(msgs) }
 
-func (s *Session) AppendDelta(delta string)          { s.msgs.AppendDelta(delta) }
-func (s *Session) AppendReasoningDelta(delta string) { s.msgs.AppendReasoningDelta(delta) }
-func (s *Session) FinishReasoning()                  { s.msgs.FinishReasoning() }
+func (s *Session) AppendDelta(delta string) { s.msgs.AppendDelta(delta) }
 
 func (s *Session) AppendUserMessage(text string) { s.msgs.AppendUserMessage(text) }
 
@@ -116,6 +114,7 @@ func (s *Session) ToggleAllCollapsed()  { s.msgs.ToggleAllCollapsed() }
 func (s *Session) SetStreaming(streaming bool) {
 	s.footer.SetStreaming(streaming)
 	s.statusBar.SetStreaming(streaming)
+	s.layout()
 }
 
 func (s *Session) SetToolLoopStep(n int) {
@@ -123,16 +122,25 @@ func (s *Session) SetToolLoopStep(n int) {
 	s.footer.SetToolLoopStep(n)
 }
 
-func (s *Session) AdvanceFooterAnim()      { s.footer.AdvanceAnim() }
+func (s *Session) AdvanceFooterAnim() {
+	prevH := s.footer.Height()
+	s.footer.AdvanceAnim()
+	if s.footer.Height() != prevH {
+		s.layout()
+	}
+}
 func (s *Session) InvalidateRunningTools() { s.msgs.invalidateRunningTools() }
 
 func (s *Session) SetTokens(inputTokens, outputTokens, contextSize, maxInputTokens, maxOutputTokens int) {
 	s.statusBar.SetTokens(inputTokens, outputTokens, contextSize, maxInputTokens, maxOutputTokens)
+	s.footer.SetTokens(inputTokens, outputTokens, contextSize, maxInputTokens)
 	s.layout()
 }
 
 func (s *Session) SetSessionCost(cost, subagentCost float64) {
 	s.statusBar.SetSessionCost(cost, subagentCost)
+	s.footer.SetSessionCost(cost, subagentCost)
+	s.layout()
 }
 
 func (s *Session) SetTokenBreakdown(reasoning, cacheRead, cacheWrite int) {
@@ -141,10 +149,14 @@ func (s *Session) SetTokenBreakdown(reasoning, cacheRead, cacheWrite int) {
 
 func (s *Session) SetBudgetWarning(v bool) {
 	s.statusBar.SetBudgetWarning(v)
+	s.footer.SetBudgetWarning(v)
+	s.layout()
 }
 
 func (s *Session) SetCostSnapshot(snap *CostSnapshotPayload) {
 	s.statusBar.SetCostSnapshot(snap)
+	s.footer.SetCostSnapshot(snap)
+	s.layout()
 }
 
 func (s Session) Title() string {
@@ -160,13 +172,37 @@ func (s *Session) SetActiveModel(model string) { s.header.SetActiveModel(model) 
 
 func (s *Session) SetToolCount(n int) { s.statusBar.SetToolCount(n) }
 
-func (s *Session) SetPinCount(n int) { s.statusBar.SetPinCount(n) }
+func (s *Session) SetPinCount(n int) {
+	s.statusBar.SetPinCount(n)
+	s.footer.SetPinCount(n)
+}
 
-func (s *Session) SetQueuedTurns(n int) { s.statusBar.SetQueuedTurns(n) }
+func (s *Session) SetQueuedTurns(n int) {
+	s.statusBar.SetQueuedTurns(n)
+	s.footer.SetQueuedTurns(n)
+}
 
 func (s *Session) SetMCPServers(servers []MCPServerStatus) { s.statusBar.SetMCPServers(servers) }
 
-func (s *Session) SetGitBranch(branch string) { s.statusBar.SetGitBranch(branch) }
+func (s *Session) SetGitBranch(branch string) {
+	s.statusBar.SetGitBranch(branch)
+	s.footer.SetGitBranch(branch)
+}
+
+func (s *Session) SetLSPServers(names []string) {
+	s.statusBar.SetLSPServers(names)
+	s.footer.SetLSPServers(names)
+}
+
+func (s *Session) SetChangedFiles(n int) {
+	s.statusBar.SetChangedFiles(n)
+	s.footer.SetChangedFiles(n)
+}
+
+func (s *Session) SetProjectDir(dir string) {
+	s.footer.SetProjectDir(dir)
+	s.layout()
+}
 
 func (s *Session) SetSearch(query string) { s.msgs.SetSearch(query) }
 
@@ -228,22 +264,24 @@ func (s *Session) ToggleTaskPanel() {
 
 func (s *Session) CancelTaskSpinners() { s.taskPanel.Cancel() }
 
-func (s *Session) SetLoopDetected(v bool) { s.statusBar.SetLoopDetected(v) }
+func (s *Session) SetLoopDetected(v bool) {
+	s.statusBar.SetLoopDetected(v)
+	s.footer.SetLoopDetected(v)
+}
 
 // layout computes child dimensions from total width/height.
 func (s *Session) layout() {
 	s.header.SetSize(s.width)
 	s.taskPanel.SetSize(s.width)
-	s.statusBar.SetSize(s.width)
 	footerH := s.footer.Height()
 	taskH := s.taskPanel.Height()
 	inlineH := 0
 	if s.inlinePanel != nil {
 		inlineH = s.inlinePanelH
 	}
-	// Subtract 3 for the "\n" separators between header/body, body/footer, and footer/statusbar in View().
+	// Subtract 2 for the "\n" separators between header/body and body/footer in View().
 	// Add 1 more for each visible panel ("\n" prefix before task panel and/or inline panel).
-	separators := 3
+	separators := 2
 	if taskH > 0 {
 		separators++ // "\n" before task panel
 	}
@@ -363,6 +401,6 @@ func (s Session) View() string {
 		}
 	}
 
-	full := s.header.View() + taskView + "\n" + body + inlineView + "\n" + s.footer.View() + "\n" + s.statusBar.View()
+	full := s.header.View() + taskView + "\n" + body + inlineView + "\n" + s.footer.View()
 	return full
 }

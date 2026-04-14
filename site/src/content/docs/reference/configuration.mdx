@@ -110,6 +110,8 @@ The model for each session is selected via the `/models` command or the model pi
 
 ## Session
 
+Session settings control three practical parts of daily use: how aggressively KodaCode spends tokens, how much it can do autonomously before checking with you, and how much recovery or observability you have when a session goes off the rails.
+
 ```yaml
 session:
   compaction_threshold: 0.8     # compact at 80% of context window
@@ -118,61 +120,101 @@ session:
   prune_min_savings: 20000      # only prune if saves 20K+ tokens
   context_limit: 0.9            # stop tool loop at 90% of context
   max_retries: 5                # retry transient provider/API failures
-  tool_call_argument_timeout: 300 # seconds to finish streaming one tool call's JSON args
-  engineer_review_limit: 3      # engineer review/stall retries before asking you what to do
+  tool_call_argument_timeout: 60  # good default for hosted providers; raise for local models
+  engineer_review_limit: 3      # reviewer reruns before asking you what to do
+  engineer_execution_retry_limit: 6 # stalled-task nudges before asking you what to do
   max_subagents: 10             # max concurrent subagent sessions
   subagent_timeout: 5           # minutes before a subagent is cancelled (default: 5)
   plan_approval: true           # require user approval before executing plans (default: true)
   background_auto_react: true   # auto-prompt model when background task completes
   snapshot: false               # enable per-turn git snapshots (/replay to navigate)
+  trace: false                  # enable per-turn trace capture for /cost and /trace
   primary_max_steps: 250        # max tool calls per primary turn (default: 250)
   subagent_max_steps: 30        # max tool calls per subagent turn (default: 30)
   budget: 0.0                   # max dollars per session (0 = unlimited)
-  budget_warn: 0.8              # warn at this fraction of budget
+  budget_warn: 0.0              # warn at this fraction of budget (0 = disabled)
+  total_budget: 0.0             # max dollars across all non-ephemeral sessions
+  total_budget_warn: 0.0        # cross-session warning threshold (0 = disabled)
 
   # Per-model overrides
   models:
-    openai/gpt-4o:
-      compaction_threshold: 0.9
-      prune_protect_tokens: 80000
+    anthropic/claude-opus-4-6:
+      compaction_threshold: 0.7
+      prune_protect_tokens: 30000
+      context_limit: 0.92
+    openai/gpt-5.4:
+      compaction_keep_turns: 6
       context_limit: 0.95
-    gpt-4.1:
-      max_input_tokens: 64000   # override when provider caps below context
     ollama/qwen2.5-coder:
       tool_call_argument_timeout: 900 # slower local model: allow 15 minutes
 ```
 
-| Field | Default | Description |
-|-------|---------|-------------|
-| `compaction_threshold` | `0.8` | Trigger compaction at this fraction of context window |
-| `compaction_keep_turns` | `10` | Number of recent turns to preserve after compaction |
-| `prune_protect_tokens` | `40000` | Tokens protected from pruning |
-| `prune_min_savings` | `20000` | Minimum token savings to trigger pruning |
-| `context_limit` | `0.9` | Stop tool loop at this fraction of context |
-| `max_retries` | `5` | Max retries for transient provider/API errors |
-| `tool_call_argument_timeout` | `300` | Max seconds to let a model finish streaming one tool call's JSON arguments |
-| `engineer_review_limit` | `3` | Max automatic engineer reviewer reruns and stalled-task retries before KodaCode asks how to proceed |
-| `max_subagents` | `10` | Max concurrent subagent sessions |
-| `subagent_timeout` | `5` | Minutes before a subagent is cancelled |
-| `plan_approval` | `true` | Require user approval before executing plans |
-| `background_auto_react` | `true` | Auto-send background task results to model |
-| `snapshot` | `false` | Enable per-turn git snapshots |
-| `primary_max_steps` | `250` | Max tool calls per primary agent turn |
-| `subagent_max_steps` | `30` | Max tool calls per subagent turn |
-| `budget` | `0` | Max session cost in dollars (0 = unlimited) |
-| `budget_warn` | `0.8` | Fraction of budget that triggers a warning |
+Some of these values are stored as `0` or `nil` in config and pick up runtime fallbacks when left unset. The table below lists the effective behavior you get if you omit the field entirely.
+
+| Field | Effective Default | What It Controls | Practical Value |
+|-------|-------------------|------------------|-----------------|
+| `compaction_threshold` | `0.8` | When older history is summarized into a compact session summary | Lower it for long or expensive sessions to keep input costs flatter. Raise it when preserving raw recent history matters more than token efficiency. |
+| `compaction_keep_turns` | `10` | How many recent turns stay verbatim after compaction | Increase it when recent tool outputs and conversation nuance are important, especially in long refactors or debugging sessions. |
+| `prune_protect_tokens` | `40000` | Tail of history protected from automatic tool-output pruning | Increase it when you want more recent file reads and command output to stay visible. Lower it to reclaim context earlier. |
+| `prune_min_savings` | `20000` | Minimum savings before pruning happens at all | Lower it if smaller pruning wins still matter in verbose sessions. Raise it if you only want pruning to happen when it buys back a lot of room. |
+| `context_limit` | `0.9` | Point where KodaCode stops tool calls and forces a final answer | Lower it for fragile providers or local models that struggle near the limit. Keep it high when you want the model to push further before stopping. |
+| `max_retries` | `5` | Retries for transient provider/API failures | Raise it for flaky providers or rate-limit-heavy workflows. Lower it if you prefer fast failure over waiting through repeated retries. |
+| `tool_call_argument_timeout` | `60` seconds | How long KodaCode waits for a model to finish streaming one tool call's JSON arguments | This is the general default for hosted providers. If you use slower local models in LM Studio or Ollama, raise it so valid tool-call streams do not false-timeout. |
+| `engineer_review_limit` | `3` | How many reviewer reruns the engineer workflow performs before asking you how to proceed | Lower it if you want to step in sooner on review disagreements. Raise it if you want more autonomous acceptance-criteria fixing. |
+| `engineer_execution_retry_limit` | `6` | How many stalled-task nudges KodaCode injects before it asks you how to resolve execution stall | Lower it if you want earlier intervention on stuck tasks. Raise it if you trust the engineer to recover from temporary stalls without your help. |
+| `max_subagents` | `10` | Maximum concurrent subagent sessions | Lower it to cap parallel spend and provider load. Raise it when wide parallel research or planning materially speeds up your workflow. |
+| `subagent_timeout` | `5` minutes | How long a subagent can run before it is cancelled | Increase it for large audits, slower providers, or repo-wide analysis. Lower it if stale subagents are wasting time or budget. |
+| `plan_approval` | `true` | Whether broad engineer workflows pause for approval before execution | Keep it on when you want a checkpoint before multi-step work. Turn it off when you want the engineer to plan and execute in one pass. |
+| `background_auto_react` | `true` | Whether completed background bash jobs are automatically fed back to the model | Keep it on for test-fix loops and long-running commands. Turn it off if you want manual control over when background output re-enters the session. |
+| `snapshot` | `false` | Whether file-changing turns create shadow git snapshots for `/replay` | Turn it on when you want time-travel, recovery, or safe state restoration without touching your working branch. |
+| `trace` | `false` | Whether per-turn step traces are captured for `/cost`, `/trace`, and the traces API | Turn it on when you need to understand why a turn was slow or expensive, or to tune prompts, tool usage, and cost. |
+| `budget` | `0` | Per-session spend cap in USD (`0` disables it) | Set it for experiments, CI runs, or provider testing where you want a hard stop before spend runs away. |
+| `budget_warn` | `0` | Warning threshold for `budget` (`0` disables warnings) | Set it to something like `0.8` so you get an early heads-up before the session hard cap trips. |
+| `total_budget` | `0` | Cross-session spend cap across persisted non-ephemeral sessions (`0` disables it) | Use it when many sessions or subagents share the same wallet and you want one global ceiling, not just per-session caps. |
+| `total_budget_warn` | `0` | Warning threshold for `total_budget` (`0` disables warnings) | Set it to `0.8` or `0.9` to detect aggregate spend pressure before KodaCode starts forcing sessions to stop. |
+| `primary_max_steps` | `250` | Maximum tool calls allowed in one primary-session turn | Lower it to stop runaway tool loops earlier and keep costs predictable. Raise it only if legitimate long-horizon tasks are being cut off too soon. |
+| `subagent_max_steps` | `30` | Maximum tool calls allowed in one subagent turn | Lower it to keep research agents cheap and bounded. Raise it when a subagent needs more room to complete repo-wide exploration. |
+
+### Per-model session overrides
+
+Use `session.models` when different models need different guardrails. A frontier model may benefit from earlier compaction to keep spend down, while a local model may need more time to finish streaming tool-call JSON.
+
+Keys are best written as `provider/model`. Bare model IDs still work as a compatibility fallback.
+
+These entries are explicit user overrides, not hidden built-in model profiles. If you do not define a key under `session.models`, KodaCode uses the top-level `session` values for that model.
+
+| Override | Practical Value |
+|----------|-----------------|
+| `compaction_threshold` | Compact earlier on expensive models to cap input cost, or later on cheaper models to preserve more raw history. |
+| `compaction_keep_turns` | Preserve more recent context for models that lose track of short-term conversation state after compaction. |
+| `prune_protect_tokens` | Keep more recent tool output intact for models that need direct evidence instead of compact summaries. |
+| `prune_min_savings` | Make pruning more or less eager for specific models depending on context pressure tolerance. |
+| `context_limit` | Stop weaker or smaller-context models earlier before they overflow or degrade. |
+| `max_input_tokens` | Work around providers that cap usable input below the model's advertised context window. |
+| `tool_call_argument_timeout` | Give slow local models longer to finish emitting tool-call JSON without penalizing faster cloud models. |
+
+### Automatic compaction floor for smaller-context models
+
+KodaCode applies one runtime safeguard even when `session.models` is empty:
+
+- If a model's effective context window is below `256k`, `compaction_threshold` is raised to at least `0.60`.
+- If a model's effective context window is below `64k`, `compaction_threshold` is raised to at least `0.70`.
+
+Practical value: this prevents overly aggressive compaction on smaller-context models, where compacting too early can throw away useful recent working context. Explicit per-model overrides still apply, but values below this floor are raised to the minimum.
 
 ### Tool Call Argument Timeout
 
 `tool_call_argument_timeout` only controls how long kodacode waits for the model to finish streaming one tool call's JSON arguments.
 
 - It does not limit how long the tool itself may run.
-- It is most useful for slower local models that emit tool-call JSON gradually.
+- The default is `60s`, which is a reasonable general-purpose setting for hosted providers.
+- LM Studio and Ollama users should expect to raise it for slower local models that emit tool-call JSON gradually.
 - If a local model keeps tripping this limit, raise it globally under `session` or per model under `session.models`.
+- If your hosted provider is consistently healthy, `60s` usually fails broken tool-call streams fast enough without being too aggressive.
 
 ### Engineer workflow controls
 
-`max_retries` and `engineer_review_limit` cover different failure modes:
+`max_retries`, `engineer_review_limit`, and `engineer_execution_retry_limit` cover different failure modes:
 
 - `max_retries`
   - retries transient provider/API failures such as rate limits or temporary upstream errors
@@ -180,8 +222,11 @@ session:
 
 - `engineer_review_limit`
   - controls how many times engineer will automatically retry reviewer verification for a task
-  - also controls how many times engineer will retry a stalled active task before asking you what to do
-  - default is `3`
+  - default effective behavior is `3`
+
+- `engineer_execution_retry_limit`
+  - controls how many times KodaCode will inject "keep working" nudges for a stalled active task before asking you what to do
+  - default effective behavior is `6`
 
 The engineer workflow can ask these questions when it reaches a decision point:
 

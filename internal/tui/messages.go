@@ -5,9 +5,9 @@ import (
 	"time"
 
 	"charm.land/bubbles/v2/viewport"
-	"github.com/sageil/kodacode/v1/internal/logging"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/sageil/kodacode/v1/internal/logging"
 	"github.com/sageil/kodacode/v1/internal/tui/theme"
 )
 
@@ -32,12 +32,6 @@ type Message struct {
 	Timestamp    time.Time
 	Collapsed    bool
 	UserExpanded bool
-
-	Reasoning          string
-	ReasoningDone      bool
-	ReasoningCollapsed bool
-	ReasoningStartTime time.Time
-	ReasoningElapsed   time.Duration
 
 	ToolCallID         string
 	ToolName           string
@@ -64,14 +58,6 @@ type subagentActivityRegion struct {
 	activityIndex int
 }
 
-// msgRegion maps a range of rendered lines to a message index for click handling
-// on assistant messages (for toggling collapse).
-type msgRegion struct {
-	startLine int // inclusive, in content coordinates
-	endLine   int // exclusive
-	msgIndex  int // index into Messages.messages
-}
-
 // hunkRegion maps a single rendered line to a hunk header or action bar for click handling.
 type hunkRegion struct {
 	line      int // absolute content-line
@@ -94,7 +80,6 @@ type Messages struct {
 	focusedTool             int                      // index into messages of the focused tool_call block; -1 = none
 	toolRegions             []toolRegion             // click regions for tool blocks, rebuilt on render
 	subagentActivityRegions []subagentActivityRegion // click regions for subagent activities, rebuilt on render
-	msgRegions              []msgRegion              // click regions for assistant messages, rebuilt on render
 	hunkRegions             []hunkRegion             // click regions for diff hunk headers/action bar, rebuilt on render
 	diffReviews             map[int]*diffReview      // msgIndex → per-hunk acceptance state
 	diffReviewMetas         map[int]*diffReviewMeta  // msgIndex → persistent hunk region offsets
@@ -198,8 +183,7 @@ func (m *Messages) invalidateRunningTools() {
 	earliest := -1
 	for i := len(m.messages) - 1; i >= 0; i-- {
 		msg := m.messages[i]
-		if (msg.Role == "tool_call" && !msg.ToolDone) ||
-			(msg.Role == "assistant" && msg.Reasoning != "" && !msg.ReasoningDone) {
+		if msg.Role == "tool_call" && !msg.ToolDone {
 			earliest = i
 		}
 		if msg.Role == "tool_call" && msg.ToolDone && !msg.UserExpanded &&
@@ -234,31 +218,27 @@ func (m *Messages) render() {
 	var sb strings.Builder
 	m.toolRegions = m.toolRegions[:0]
 	m.subagentActivityRegions = m.subagentActivityRegions[:0]
-	m.msgRegions = m.msgRegions[:0]
 	m.hunkRegions = m.hunkRegions[:0]
 	m.pendingMetas = m.pendingMetas[:0]
 	lineCount := 0
 	wroteFirst := false
 	prevRole := ""
-	prevIsThinkingOnly := false
 	for i := range len(m.messages) {
-		if m.messages[i].Role == "assistant" && strings.TrimSpace(m.messages[i].Content) == "" && m.messages[i].Reasoning == "" {
+		if m.messages[i].Role == "assistant" && strings.TrimSpace(m.messages[i].Content) == "" {
 			logging.Debugf("[8-render] SKIP empty assistant msg[%d]", i)
 			continue
 		}
 
 		if wroteFirst {
 			isToolCall := m.messages[i].Role == "tool_call"
-			isThinkingOnly := m.messages[i].Role == "assistant" && m.messages[i].Reasoning != "" && strings.TrimSpace(m.messages[i].Content) == ""
 			prevIsToolCall := prevRole == "tool_call"
-			if !isToolCall && !isThinkingOnly && !prevIsToolCall && !prevIsThinkingOnly {
+			if !isToolCall && !prevIsToolCall {
 				sb.WriteString("\n")
 				lineCount++
 			}
 		}
 		wroteFirst = true
 		prevRole = m.messages[i].Role
-		prevIsThinkingOnly = m.messages[i].Role == "assistant" && m.messages[i].Reasoning != "" && strings.TrimSpace(m.messages[i].Content) == ""
 
 		startLine := lineCount
 		sb.WriteString(m.renderCache[i])
@@ -302,13 +282,6 @@ func (m *Messages) render() {
 			}
 		}
 
-		if m.messages[i].Role == "assistant" && (!m.messages[i].Streaming || m.messages[i].ReasoningDone) {
-			m.msgRegions = append(m.msgRegions, msgRegion{
-				startLine: startLine,
-				endLine:   lineCount,
-				msgIndex:  i,
-			})
-		}
 	}
 	content := sb.String()
 

@@ -86,13 +86,38 @@ func executeCodeAction(ctx context.Context, ectx ExecutionContext, args []byte, 
 	if strings.TrimSpace(params.Kind) != "" {
 		only = []string{strings.TrimSpace(params.Kind)}
 	}
-	actions, err := server.CodeActions(ctx, path, rng, only)
-	if err != nil {
-		return nil, err
+	candidateRanges := append([]lsp.Range{rng}, bestEffortCodeActionRanges(path, params.StartLine, params.StartCharacter, params.EndLine, params.EndCharacter)...)
+	var (
+		firstErr   error
+		lastSelect error
+		lastAction []lsp.CodeAction
+		selected   *lsp.CodeAction
+	)
+	for i, candidate := range candidateRanges {
+		actions, err := server.CodeActions(ctx, path, candidate, only)
+		if err != nil {
+			if i == 0 {
+				firstErr = err
+			}
+			continue
+		}
+		lastAction = actions
+		selected, lastSelect = selectCodeAction(actions, params.Title, params.Kind, params.OnlyPreferred)
+		if lastSelect == nil {
+			break
+		}
+		if !shouldRetryCodeActionSelection(lastSelect, actions) {
+			return ErrorResult(ErrCodeInvalidArgs, "code_action: "+lastSelect.Error(), true), nil
+		}
 	}
-	selected, err := selectCodeAction(actions, params.Title, params.Kind, params.OnlyPreferred)
-	if err != nil {
-		return ErrorResult(ErrCodeInvalidArgs, "code_action: "+err.Error(), true), nil
+	if selected == nil {
+		if firstErr != nil && len(lastAction) == 0 {
+			return nil, firstErr
+		}
+		if lastSelect == nil {
+			lastSelect = fmt.Errorf("no code actions available")
+		}
+		return ErrorResult(ErrCodeInvalidArgs, "code_action: "+lastSelect.Error(), true), nil
 	}
 	if selected.Edit == nil {
 		if selected.Command != nil {
@@ -132,6 +157,17 @@ func executeCodeAction(ctx context.Context, ectx ExecutionContext, args []byte, 
 			"changed":  true,
 		},
 	}, nil
+}
+
+func shouldRetryCodeActionSelection(err error, actions []lsp.CodeAction) bool {
+	if err == nil {
+		return false
+	}
+	if len(actions) == 0 {
+		return true
+	}
+	msg := err.Error()
+	return strings.HasPrefix(msg, "no code actions available") || strings.HasPrefix(msg, "no enabled code actions matched")
 }
 
 func selectCodeAction(actions []lsp.CodeAction, title, kind string, onlyPreferred bool) (*lsp.CodeAction, error) {

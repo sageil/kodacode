@@ -3,7 +3,9 @@ package service
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/sageil/kodacode/v1/internal/pipeline"
 	"github.com/sageil/kodacode/v1/internal/provider"
@@ -85,5 +87,26 @@ func TestRetryChat_StripsUnknownHistoricalToolCallsOnInvalidToolArgs(t *testing.
 	}
 	if req.Messages[0].Role != "user" {
 		t.Fatalf("remaining message role = %q, want user", req.Messages[0].Role)
+	}
+}
+
+func TestFormatRetryStatusMessage_RateLimitIsProviderAgnosticAndConcise(t *testing.T) {
+	msg := `429: Error 429, Message: You exceeded your current quota, please check your plan and billing details. retryDelay:37s map[quota_metric:generate_content_free_tier_requests]`
+
+	got := formatRetryStatusMessage(msg, 37*time.Second, 1, 5)
+
+	if got != "Provider rate limited the request — retrying in 37s (retry 1/5)" {
+		t.Fatalf("formatRetryStatusMessage() = %q", got)
+	}
+	if strings.Contains(got, "google") || strings.Contains(got, "quota_metric") || strings.Contains(got, "billing") {
+		t.Fatalf("formatRetryStatusMessage() leaked provider-specific details: %q", got)
+	}
+}
+
+func TestFormatRetryStatusMessage_StreamInterruptionUsesNeutralSummary(t *testing.T) {
+	got := formatRetryStatusMessage("openai: stream interrupted: unexpected EOF", 1500*time.Millisecond, 2, 5)
+
+	if got != "Connection to the provider was interrupted — retrying in 2s (retry 2/5)" {
+		t.Fatalf("formatRetryStatusMessage() = %q", got)
 	}
 }

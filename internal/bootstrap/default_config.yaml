@@ -74,7 +74,7 @@ session:
   # Maximum seconds to wait for the model to finish emitting one tool call's
   # JSON arguments before aborting the stream. This does not limit the tool
   # execution itself.
-  tool_call_argument_timeout: 300
+  tool_call_argument_timeout: 60
 
   # Maximum automatic Engineer workflow retries before asking how to proceed.
   # Applies to reviewer reruns and repeated stalled-task execution nudges.

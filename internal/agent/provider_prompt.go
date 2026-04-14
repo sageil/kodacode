@@ -41,6 +41,8 @@ func ProviderPrompt(providerID, modelID string) string {
 	switch {
 	case strings.Contains(modelLower, "claude"):
 		canonical = "anthropic"
+	case providerID == "deepseek" || strings.Contains(modelLower, "deepseek"):
+		canonical = "deepseek"
 	case providerID == "openai":
 		canonical = "openai"
 	case strings.Contains(modelLower, "gemini"):

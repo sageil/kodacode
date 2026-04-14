@@ -76,9 +76,11 @@ type App struct {
 	themeName string // bare name of the active theme ("" = system palette)
 
 	// Cached status bar data from /config. It survives session resets.
-	sbToolCount  int
-	sbMCPServers []MCPServerStatus
-	sbGitBranch  string
+	sbToolCount    int
+	sbMCPServers   []MCPServerStatus
+	sbGitBranch    string
+	sbLSPServers   []string
+	sbChangedFiles int
 
 	pendingAttachments []Attachment
 	pendingUndoFile    string
@@ -90,6 +92,7 @@ type App struct {
 	pins               []string
 	memoryStore        *service.MemoryStore
 	errorBanner        string // global error banner, shown at top of screen
+	retryBanner        string // global retry/wait banner, shown at top of screen
 	infoBanner         string // global info banner (success/info), shown at top of screen
 	queuedTurns        int
 	cancelRequested    bool // true when the user explicitly requested turn cancellation
@@ -129,6 +132,7 @@ func NewAppWithBackend(backend Backend, th *theme.Theme) App {
 		app.home.ApplyTheme(th)
 		app.session.ApplyTheme(th)
 	}
+	app.session.SetProjectDir(wd)
 	return app
 }
 

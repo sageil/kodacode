@@ -121,8 +121,7 @@ func retryChat(
 			visible := attempt - maxSilentRetries
 			publish(req.SessionID, SSEEvent{
 				Type: "retry",
-				Data: SSEErrorData{Message: fmt.Sprintf("%s — retrying in %v (attempt %d/%d)",
-					cleanErrorMessage(errMsg), delay, visible+1, maxRetries)},
+				Data: SSEErrorData{Message: formatRetryStatusMessage(errMsg, delay, visible, maxRetries)},
 			})
 		}
 
@@ -244,6 +243,46 @@ func formatRateLimitMessage(errMsg string) string {
 		return fmt.Sprintf("API is overloaded — try again in a few minutes (resets %s)", resetStr)
 	}
 	return fmt.Sprintf("You've hit your usage limit — resets %s", resetStr)
+}
+
+func formatRetryStatusMessage(errMsg string, delay time.Duration, retryNum, maxRetries int) string {
+	wait := formatRetryDelay(delay)
+	summary := retryStatusSummary(errMsg)
+	if retryNum > 0 && maxRetries > 0 {
+		return fmt.Sprintf("%s — retrying in %s (retry %d/%d)", summary, wait, retryNum, maxRetries)
+	}
+	return fmt.Sprintf("%s — retrying in %s", summary, wait)
+}
+
+func formatRetryDelay(delay time.Duration) string {
+	if delay >= time.Second {
+		return delay.Round(time.Second).String()
+	}
+	return delay.Round(100 * time.Millisecond).String()
+}
+
+func retryStatusSummary(errMsg string) string {
+	lower := strings.ToLower(cleanErrorMessage(errMsg))
+	switch {
+	case strings.Contains(lower, "overloaded") ||
+		strings.Contains(lower, "service unavailable") ||
+		strings.Contains(lower, "bad gateway") ||
+		strings.Contains(lower, "internal server error") ||
+		strings.Contains(lower, "temporarily unavailable"):
+		return "Provider is temporarily unavailable"
+	case isRateLimitError(errMsg) ||
+		strings.Contains(lower, "quota") ||
+		strings.Contains(lower, "resource exhausted") ||
+		strings.Contains(lower, "usage limit"):
+		return "Provider rate limited the request"
+	case strings.Contains(lower, "stream interrupted") ||
+		strings.Contains(lower, "unexpected eof") ||
+		strings.Contains(lower, "connection reset") ||
+		strings.Contains(lower, "broken pipe"):
+		return "Connection to the provider was interrupted"
+	default:
+		return "Transient provider error"
+	}
 }
 
 // cleanErrorMessage extracts a human-readable error from the raw error string.

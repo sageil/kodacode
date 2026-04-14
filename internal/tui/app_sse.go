@@ -84,6 +84,7 @@ func (a App) handleSSEEvent(msg SSEEventMsg) (tea.Model, tea.Cmd) {
 			a.session.AppendDelta(p.Content)
 		}
 		a.errorBanner = ""
+		a.retryBanner = ""
 
 	case "assistant_message":
 		a.session.SetStreaming(true)
@@ -91,6 +92,7 @@ func (a App) handleSSEEvent(msg SSEEventMsg) (tea.Model, tea.Cmd) {
 		if err := json.Unmarshal(msg.Data, &p); err == nil && p.Content != "" {
 			a.session.AppendAssistantMessage(p.Content)
 		}
+		a.retryBanner = ""
 
 	case "task_sync":
 		a.refreshTaskPanel()
@@ -105,15 +107,13 @@ func (a App) handleSSEEvent(msg SSEEventMsg) (tea.Model, tea.Cmd) {
 		a.session.SetStreaming(true)
 		var p SSEDeltaPayload
 		if err := json.Unmarshal(msg.Data, &p); err == nil {
-			log.Printf("[6-tui] reasoning_delta: %d chars, content=%q", len(p.Content), p.Content)
-			a.session.AppendReasoningDelta(p.Content)
+			log.Printf("[6-tui] reasoning_delta: %d chars", len(p.Content))
 		} else {
 			log.Printf("[6-tui] reasoning_delta UNMARSHAL ERROR: %v, raw=%s", err, string(msg.Data))
 		}
 
 	case "reasoning_done":
 		log.Printf("[6-tui] reasoning_done received")
-		a.session.FinishReasoning()
 
 	case "usage":
 		var p SSEDonePayload
@@ -159,6 +159,7 @@ func (a App) handleSSEEvent(msg SSEEventMsg) (tea.Model, tea.Cmd) {
 
 	case "done":
 		a.cancelRequested = false
+		a.retryBanner = ""
 		var p SSEDonePayload
 		if err := json.Unmarshal(msg.Data, &p); err == nil {
 			inputTokens := p.Usage.InputTokens + p.Usage.CacheReadTokens + p.Usage.CacheWriteTokens
@@ -209,6 +210,7 @@ func (a App) handleSSEEvent(msg SSEEventMsg) (tea.Model, tea.Cmd) {
 		}
 		if err := json.Unmarshal(msg.Data, &p); err == nil {
 			a.errorBanner = ""
+			a.retryBanner = ""
 			a.session.SetLoopDetected(false)
 			a.session.AppendToolStart(p.Tool, p.Input, p.CallID)
 			a.session.SetToolLoopStep(a.sse.IncrementToolStep())
@@ -353,11 +355,21 @@ func (a App) handleSSEEvent(msg SSEEventMsg) (tea.Model, tea.Cmd) {
 			a.session.FlushMessagesRender()
 		}
 
-	case "retry", "warning":
+	case "retry":
+		type retryPayload struct{ Message string }
+		var p retryPayload
+		if err := json.Unmarshal(msg.Data, &p); err == nil {
+			a.retryBanner = p.Message
+			a.errorBanner = ""
+			a.infoBanner = ""
+		}
+
+	case "warning":
 		type warnPayload struct{ Message string }
 		var p warnPayload
 		if err := json.Unmarshal(msg.Data, &p); err == nil {
 			a.errorBanner = p.Message
+			a.retryBanner = ""
 		}
 
 	case "overflow":
@@ -381,11 +393,13 @@ func (a App) handleSSEEvent(msg SSEEventMsg) (tea.Model, tea.Cmd) {
 				a.cancelRequested = false
 				a.infoBanner = "Turn cancelled."
 				a.errorBanner = ""
+				a.retryBanner = ""
 				if a.route == routeSession {
 					a.session.AppendDelta("\n[cancelled]")
 				}
 			} else {
 				a.errorBanner = p.Message
+				a.retryBanner = ""
 				a.infoBanner = ""
 			}
 		}

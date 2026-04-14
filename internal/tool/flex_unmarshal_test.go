@@ -82,6 +82,19 @@ func TestFlexUnmarshal_singleObjectToSlice(t *testing.T) {
 	}
 }
 
+func TestFlexUnmarshal_singlePrimitiveToSlice(t *testing.T) {
+	var p struct {
+		Files []string `json:"files"`
+	}
+	err := flexUnmarshal([]byte(`{"files":"src/main.go"}`), &p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(p.Files) != 1 || p.Files[0] != "src/main.go" {
+		t.Fatalf("unexpected: %+v", p.Files)
+	}
+}
+
 func TestFlexUnmarshal_pointerInt(t *testing.T) {
 	var p struct {
 		Depth *int `json:"depth"`

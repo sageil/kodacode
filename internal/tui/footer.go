@@ -2,6 +2,8 @@ package tui
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -15,8 +17,14 @@ import (
 )
 
 const (
-	inputMaxHeight = 8
-	inputMinHeight = 1
+	inputMaxHeight            = 8
+	inputMinHeight            = 1
+	footerRecentContextWindow = 15 * time.Second
+)
+
+const (
+	footerPlaceholderCompact = "Ask anything..."
+	footerPlaceholderBoxed   = "Ask anything... (⇧↵ newline · ^E expand · ^O editor · ^R history)"
 )
 
 var pastedTextTagPattern = regexp.MustCompile(`\[Pasted text #\d+ \+\d+ lines\]`)
@@ -71,6 +79,24 @@ type Footer struct {
 	historySearch       bool
 	historySearchQuery  string
 	historySearchResult string
+
+	projectDir      string
+	gitBranch       string
+	lspServers      []string
+	changedFiles    int
+	pinCount        int
+	queuedTurns     int
+	loopDetected    bool
+	inputTokens     int
+	outputTokens    int
+	contextSize     int
+	maxInputTokens  int
+	sessionCost     float64
+	subagentCost    float64
+	budgetWarn      bool
+	costSnapshot    *CostSnapshotPayload
+	lastTurnElapsed time.Duration
+	lastTurnAt      time.Time
 
 	expanded     bool
 	expandedMax  int
@@ -130,10 +156,10 @@ func (f *Footer) ResolvePastedText(text string) string {
 
 func NewFooter() Footer {
 	ta := textarea.New()
-	ta.Placeholder = "Ask anything... (⇧↵ newline · ^E expand · ^O editor · ^R history)"
+	ta.Placeholder = footerPlaceholderCompact
 	ta.ShowLineNumbers = false
 	ta.Prompt = "  "
-	ta.SetHeight(3)
+	ta.SetHeight(1)
 
 	km := textarea.DefaultKeyMap()
 	km.InsertNewline = key.NewBinding(
@@ -156,6 +182,7 @@ func NewFooter() Footer {
 func (f *Footer) SetSize(w int) {
 	f.boxed = false
 	f.width = w
+	f.updatePlaceholder()
 	f.updatePrompt()
 	f.input.SetWidth(w - 2)
 	f.syncInputHeight()
@@ -164,6 +191,7 @@ func (f *Footer) SetSize(w int) {
 func (f *Footer) SetBoxed(innerWidth int) {
 	f.boxed = true
 	f.boxWidth = innerWidth
+	f.updatePlaceholder()
 	f.updatePrompt()
 	f.input.SetWidth(innerWidth - 4)
 	f.syncInputHeight()
@@ -177,7 +205,11 @@ func (f *Footer) syncInputHeight() {
 			maxH = inputMaxHeight
 		}
 	}
-	h := max(min(f.visualLineCount(), maxH), 3)
+	minH := inputMinHeight
+	if f.boxed {
+		minH = 3
+	}
+	h := max(min(f.visualLineCount(), maxH), minH)
 	if f.expanded && h < maxH {
 		h = maxH
 	}
@@ -216,6 +248,48 @@ func (f *Footer) SetPendingAttachments(atts []Attachment) {
 	f.syncInputHeight()
 }
 
+func (f *Footer) SetProjectDir(dir string) { f.projectDir = formatProjectDir(dir) }
+
+func (f *Footer) SetGitBranch(branch string) { f.gitBranch = strings.TrimSpace(branch) }
+
+func (f *Footer) SetLSPServers(names []string) { f.lspServers = append([]string(nil), names...) }
+
+func (f *Footer) SetChangedFiles(n int) { f.changedFiles = n }
+
+func (f *Footer) SetPinCount(n int) { f.pinCount = n }
+
+func (f *Footer) SetQueuedTurns(n int) { f.queuedTurns = n }
+
+func (f *Footer) SetLoopDetected(v bool) { f.loopDetected = v }
+
+func formatProjectDir(dir string) string {
+	dir = strings.TrimSpace(dir)
+	if dir == "" {
+		return ""
+	}
+	if strings.HasPrefix(dir, "~") {
+		return filepath.ToSlash(dir)
+	}
+	cleaned := filepath.Clean(dir)
+	home, err := os.UserHomeDir()
+	if err == nil && home != "" {
+		rel, relErr := filepath.Rel(home, cleaned)
+		if relErr == nil {
+			switch rel {
+			case ".":
+				return "~"
+			case "..":
+				// Keep the absolute path below.
+			default:
+				if !strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+					return filepath.ToSlash(filepath.Join("~", rel))
+				}
+			}
+		}
+	}
+	return filepath.ToSlash(cleaned)
+}
+
 func (f *Footer) SetStreaming(streaming bool) {
 	f.streaming = streaming
 	if streaming {
@@ -223,6 +297,10 @@ func (f *Footer) SetStreaming(streaming bool) {
 			f.streamStartTime = time.Now()
 		}
 	} else {
+		if !f.streamStartTime.IsZero() {
+			f.lastTurnElapsed = time.Since(f.streamStartTime).Truncate(time.Second)
+			f.lastTurnAt = time.Now()
+		}
 		f.animCol = 0
 		f.toolLoopStep = 0
 		f.compacting = false
@@ -234,6 +312,22 @@ func (f *Footer) SetCompacting(b bool)  { f.compacting = b }
 func (f *Footer) SetToolLoopStep(n int) { f.toolLoopStep = n }
 
 func (f *Footer) SetErrorFlash(on bool) { f.errorFlash = on }
+
+func (f *Footer) SetTokens(inputTokens, outputTokens, contextSize, maxInputTokens int) {
+	f.inputTokens = inputTokens
+	f.outputTokens = outputTokens
+	f.contextSize = contextSize
+	f.maxInputTokens = maxInputTokens
+}
+
+func (f *Footer) SetSessionCost(cost, subagentCost float64) {
+	f.sessionCost = cost
+	f.subagentCost = subagentCost
+}
+
+func (f *Footer) SetBudgetWarning(v bool) { f.budgetWarn = v }
+
+func (f *Footer) SetCostSnapshot(snap *CostSnapshotPayload) { f.costSnapshot = snap }
 
 func (f *Footer) AdvanceAnim() {
 	if f.streaming {
@@ -265,6 +359,14 @@ func (f *Footer) updatePrompt() {
 		}
 		return strings.Repeat(" ", promptWidth)
 	})
+}
+
+func (f *Footer) updatePlaceholder() {
+	if f.boxed {
+		f.input.Placeholder = footerPlaceholderBoxed
+		return
+	}
+	f.input.Placeholder = footerPlaceholderCompact
 }
 
 func (f Footer) protectedTokens() []protectedToken {
@@ -374,11 +476,14 @@ func (f Footer) Height() int {
 
 func (f Footer) fullWidthHeight() int {
 	lines := max(min(f.input.Height(), inputMaxHeight), inputMinHeight)
-	h := 1 + lines
-	if f.streaming {
+	h := lines
+	if f.hasContextRow() {
 		h++
 	}
 	if f.historySearch {
+		h++
+	}
+	if f.hasInfoRow() {
 		h++
 	}
 	return h
@@ -388,6 +493,21 @@ func (f Footer) boxedHeight() int {
 	lines := max(min(f.input.Height(), inputMaxHeight), inputMinHeight)
 	h := 2 + lines
 	return h
+}
+
+func (f Footer) hasContextRow() bool {
+	return !f.boxed && (f.streaming || f.showRecentContext())
+}
+
+func (f Footer) hasInfoRow() bool {
+	return !f.boxed
+}
+
+func (f Footer) showRecentContext() bool {
+	if f.lastTurnAt.IsZero() || len(f.contextStats()) == 0 {
+		return false
+	}
+	return time.Since(f.lastTurnAt) <= footerRecentContextWindow
 }
 
 func (f Footer) Update(msg tea.Msg) (Footer, tea.Cmd) {

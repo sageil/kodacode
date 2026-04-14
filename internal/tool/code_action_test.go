@@ -16,9 +16,13 @@ import (
 type fakeCodeActionServer struct {
 	actions []lsp.CodeAction
 	err     error
+	run     func(context.Context, string, lsp.Range, []string) ([]lsp.CodeAction, error)
 }
 
-func (f fakeCodeActionServer) CodeActions(context.Context, string, lsp.Range, []string) ([]lsp.CodeAction, error) {
+func (f fakeCodeActionServer) CodeActions(ctx context.Context, path string, rng lsp.Range, only []string) ([]lsp.CodeAction, error) {
+	if f.run != nil {
+		return f.run(ctx, path, rng, only)
+	}
 	return f.actions, f.err
 }
 
@@ -75,6 +79,66 @@ func TestCodeActionTool_AppliesWorkspaceEdits(t *testing.T) {
 	}
 	if !slices.Equal(notified, []string{resolvePathAllowMissing(path)}) {
 		t.Fatalf("unexpected notify paths: %v", notified)
+	}
+}
+
+func TestCodeActionTool_FallsBackToNearestSymbolRangeWhenCharacterDrifts(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "main.ts")
+	if err := os.WriteFile(path, []byte("const foo = oldName;\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var ranges []lsp.Range
+	tl := newCodeActionTool(
+		func(context.Context, string, string) (codeActionServer, error) {
+			return fakeCodeActionServer{run: func(_ context.Context, _ string, rng lsp.Range, _ []string) ([]lsp.CodeAction, error) {
+				ranges = append(ranges, rng)
+				cursor := lsp.Range{
+					Start: lsp.Position{Line: 0, Character: 18},
+					End:   lsp.Position{Line: 0, Character: 18},
+				}
+				token := lsp.Range{
+					Start: lsp.Position{Line: 0, Character: 12},
+					End:   lsp.Position{Line: 0, Character: 19},
+				}
+				if rng == cursor || rng == token {
+					return []lsp.CodeAction{{
+						Title: "Rename locally",
+						Kind:  "quickfix",
+						Edit: &lsp.WorkspaceEdit{
+							Changes: map[string][]lsp.TextEdit{
+								lsp.FileURI(path): {{
+									Range:   lsp.Range{Start: lsp.Position{Line: 0, Character: 12}, End: lsp.Position{Line: 0, Character: 19}},
+									NewText: "newName",
+								}},
+							},
+						},
+					}}, nil
+				}
+				return nil, nil
+			}}, nil
+		},
+		nil,
+		nil,
+	)
+
+	res, err := tl.Execute(t.Context(), ExecutionContext{WorkDir: dir}, []byte(`{"filePath":"`+path+`","startLine":1,"startCharacter":19,"endLine":1,"endCharacter":20,"title":"Rename locally"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res == nil || res.ErrorCode != "" {
+		t.Fatalf("unexpected result: %#v", res)
+	}
+	if len(ranges) < 2 {
+		t.Fatalf("expected fallback query, got %v", ranges)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != "const foo = newName;\n" {
+		t.Fatalf("unexpected content: %q", data)
 	}
 }
 

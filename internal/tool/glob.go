@@ -2,7 +2,6 @@ package tool
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io/fs"
 	"os"
@@ -40,8 +39,11 @@ func executeGlob(ctx context.Context, ectx ExecutionContext, args []byte) (*Resu
 		Pattern string `json:"pattern"`
 		Path    string `json:"path"`
 	}
-	if err := json.Unmarshal(args, &params); err != nil {
-		return nil, fmt.Errorf("invalid parameters: %w", err)
+	if err := flexUnmarshal(args, &params); err != nil {
+		return ErrorResult(ErrCodeInvalidArgs, fmt.Sprintf("glob: invalid arguments: %v", err), false), nil
+	}
+	if strings.TrimSpace(params.Pattern) == "" {
+		return ErrorResult(ErrCodeInvalidArgs, "glob: pattern is required", false), nil
 	}
 
 	root := params.Path

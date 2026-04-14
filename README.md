@@ -14,20 +14,31 @@
 
 </div>
 
+
+## Turns AI from "suggestion generator" into "work executor"
+
 ## How It Works
+The built‑in `engineer` agent is designed for broad or high‑impact work.
+Instead of editing immediately, it deliberately slows down to reduce risk:
 
-You describe what you want. KodaCode reads your code, runs commands, edits files, and iterates until the task is done. It operates inside a sandbox confined to your project directory, asks permission before destructive actions, and tracks costs so there are no surprises.
+- Explores the repository to understand context
+- Produces a structured execution plan
+- Asks for approval before making changes
+- Executes work in verified steps
+- Reviews results against explicit acceptance criteria
+## Agents ##
+- builder Default, project path sandboxed agent for development work
+- advisor Read-only research and advisory agent
+- [More Agents](https://kodacode.dev/features/agents/)
+## Features ##
 
-## Key Features
+- [Sandbox by default](https://kodacode.dev/features/sandbox/)
+- [Model Routing](https://kodacode.dev/features/model-routing/)
+- [Semantic Code Search](https://kodacode.dev/features/search/)
+- [Cost Tracking](https://kodacode.dev/features/cost-tracking/)
+- [Project Memory](https://kodacode.dev/features/memory/)
+- [Context Management](https://kodacode.dev/features/context/)
 
-- **Multi-provider**: OpenAI, Anthropic, Google, and 15+ OpenAI-compatible providers (Groq, DeepSeek, Mistral, Ollama, and more), with mid-session switching
-- **20+ built-in tools**: File ops, shell, code search, LSP actions, symbol rename, git, and more
-- **Agent system**: Specialized agents (explorer, planner, reviewer, refactor) that the model delegates to automatically
-- **Sandboxed execution**: Every tool call is confined to your project. Path escapes and external access require explicit permission
-- **Session management**: Conversation history, context compaction, and time-travel snapshots
-- **Background tasks**: Run long commands in the background; results are delivered back to the model automatically
-- **Cost tracking**: Live per-session cost display with configurable budget caps
-- **Extensible**: MCP servers, custom agents, overridable prompts, and custom themes
 
 ## Install
 

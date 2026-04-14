@@ -49,6 +49,59 @@ func TestBuildBackgroundAutoReactPromptHandlesFailuresWithoutOutput(t *testing.T
 	}
 }
 
+func TestHandleSSEEvent_ReasoningDoesNotCreateTranscriptMessages(t *testing.T) {
+	app := NewApp("http://localhost:0", nil)
+	app.route = routeSession
+	app.ready = true
+	app.sessionID = "sess-1"
+	app.width = 100
+	app.height = 30
+
+	payload, err := json.Marshal(SSEDeltaPayload{Content: "private reasoning"})
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
+
+	updated, _ := app.handleSSEEvent(SSEEventMsg{
+		SessionID: "sess-1",
+		Type:      "reasoning_delta",
+		Data:      payload,
+	})
+	app = updated.(App)
+
+	if got := len(app.session.msgs.messages); got != 0 {
+		t.Fatalf("reasoning_delta should not create transcript messages, got %d", got)
+	}
+
+	updated, _ = app.handleSSEEvent(SSEEventMsg{
+		SessionID: "sess-1",
+		Type:      "reasoning_done",
+	})
+	app = updated.(App)
+
+	if got := len(app.session.msgs.messages); got != 0 {
+		t.Fatalf("reasoning_done should not create transcript messages, got %d", got)
+	}
+
+	textPayload, err := json.Marshal(SSEDeltaPayload{Content: "Visible reply"})
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
+	updated, _ = app.handleSSEEvent(SSEEventMsg{
+		SessionID: "sess-1",
+		Type:      "delta",
+		Data:      textPayload,
+	})
+	app = updated.(App)
+
+	if got := len(app.session.msgs.messages); got != 1 {
+		t.Fatalf("delta should create one transcript message, got %d", got)
+	}
+	if got := app.session.msgs.messages[0].Content; got != "Visible reply" {
+		t.Fatalf("assistant content = %q, want %q", got, "Visible reply")
+	}
+}
+
 func TestHandleSSEEvent_SubagentToolEndRefreshesTaskPanel(t *testing.T) {
 	app := NewApp("http://localhost:0", nil)
 	app.route = routeSession
@@ -133,5 +186,37 @@ func TestHandleSSEEvent_TaskSyncRefreshesTaskPanel(t *testing.T) {
 	}
 	if got := app.session.taskPanel.tasks[0].Status; got != "in_progress" {
 		t.Fatalf("task status = %q, want %q", got, "in_progress")
+	}
+}
+
+func TestHandleSSEEvent_RetryUsesRetryBannerNotErrorBanner(t *testing.T) {
+	app := NewApp("http://localhost:0", nil)
+	app.route = routeSession
+	app.ready = true
+	app.sessionID = "sess-1"
+	app.width = 100
+	app.height = 30
+
+	payload, err := json.Marshal(struct {
+		Message string `json:"message"`
+	}{
+		Message: "Provider rate limited the request — retrying in 37s (retry 1/5)",
+	})
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
+
+	updated, _ := app.handleSSEEvent(SSEEventMsg{
+		SessionID: "sess-1",
+		Type:      "retry",
+		Data:      payload,
+	})
+	app = updated.(App)
+
+	if app.errorBanner != "" {
+		t.Fatalf("errorBanner = %q, want empty", app.errorBanner)
+	}
+	if app.retryBanner != "Provider rate limited the request — retrying in 37s (retry 1/5)" {
+		t.Fatalf("retryBanner = %q", app.retryBanner)
 	}
 }
