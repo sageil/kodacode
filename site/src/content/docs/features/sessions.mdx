@@ -1,0 +1,125 @@
+---
+title: Sessions
+description: Workspace-rooted persistence, resume flow, and replayable state
+---
+
+Sessions are persisted per workspace in an append-only SQLite-backed runtime store.
+
+## Storage
+
+By default the database lives at:
+
+- `$XDG_DATA_HOME/kodacode/kodacode.db`, or
+- `~/.local/share/kodacode/kodacode.db`
+
+Override that with `sessions.db_path`.
+
+The same database also stores derived session artifacts such as large tool
+results and background execution logs.
+
+The search index is separate and defaults to `$XDG_STATE_HOME/kodacode/search`
+or `~/.local/state/kodacode/search`.
+
+## Retention and deletion
+
+`retention.expiry_days` does not auto-delete durable session history. It only
+expires derived artifacts and cache data:
+
+- tool-result blobs in `kodacode.db`
+- background execution logs in `kodacode.db`
+- persisted search-cache files on disk
+- app log files
+
+Session removal is explicit. Open `/sessions` when you want to inspect, switch,
+delete, or purge stored sessions. That delete path removes the session event
+history and the related derived artifacts together.
+
+## Easy example
+
+This is a good default for one developer who wants session persistence and a
+clear warning before spending too much in one conversation:
+
+```yaml
+sessions:
+  budget: 5           # default: 0 (no limit)
+  budget_warn: 0.8    # default: 0 (no warning)
+  max_provider_requests_per_turn: 32  # default: 32
+```
+
+What you get:
+
+- the session can be resumed later
+- you get warned when estimated spend reaches 80% of the session budget
+- one turn cannot keep looping forever
+
+## Advanced example
+
+This is a better fit for a heavy repo where sessions stay open for a long time
+and you want both long-context control and cross-session cost control:
+
+```yaml
+sessions:
+  db_path: /Users/you/.local/share/kodacode/monorepo.db
+  budget: 20                        # default: 0 (no limit)
+  budget_warn: 0.75                 # default: 0 (no warning)
+  total_budget: 150                 # default: 0 (no limit)
+  total_budget_warn: 0.8            # default: 0 (no warning)
+  compaction_threshold: 0.8         # default: 0.8
+  compaction_target_threshold: 0.60 # default: 0.60
+  max_provider_requests_per_turn: 32            # default: 32
+  max_output_continuations: 1       # default: 1, max: 2
+  max_retries: 2                    # default: 2
+```
+
+Why this helps:
+
+- one repo can keep its own session database
+- per-session and cross-session budgets keep costs legible over time
+- history-summary compaction keeps long sessions usable instead of letting prompt replay grow unchecked
+- provider request caps and retry limits cut off wasteful turn churn
+
+## Resume behavior
+
+KodaCode can reopen the latest workspace session instead of starting over:
+
+```bash
+kodacode --resume "continue from the previous session"
+```
+
+If the previous session is blocked on a permission request, resume continues that same turn and approval flow instead of inventing a fresh state.
+
+## Session controls
+
+Useful `config.yaml` keys under `sessions` include:
+
+- `db_path`: where the SQLite event log lives; default `~/.local/share/kodacode/kodacode.db`
+- `budget`: cost ceiling for one session in USD; default `0` (no limit)
+- `budget_warn`: fraction of `budget` at which to warn (0–1); default `0` (no warning)
+- `total_budget`: cost ceiling across all stored sessions in USD; default `0` (no limit)
+- `total_budget_warn`: fraction of `total_budget` at which to warn (0–1); default `0` (no warning)
+- `response_style`: `default` or `terse`; `terse` reduces ordinary model reply length and output token cost; default `terse`
+- `max_provider_requests_per_turn`: maximum provider requests in one turn; `-1` removes the cap; default `32`
+- `max_output_continuations`: automatically continue clipped provider output only on explicit length stops; `0` disables it; maximum `2`; default `1`
+- `compaction_threshold`: fraction of context limit at which older replayed history starts rebuilding into the durable `History Summary`; default `0.8`
+- `compaction_target_threshold`: acceptance ceiling for that history-summary pass; must be lower than `compaction_threshold`; default `0.60`
+- `max_retries`: provider retry attempts per turn; default `2`
+
+## Why these settings matter
+
+The advantage of session configuration is not just persistence.
+
+- budgets help keep experimentation affordable
+- warnings surface problems before a turn or a week of sessions gets expensive
+- history-summary compaction helps long-running sessions stay useful instead of degrading into context overflow
+- round caps and stall detection keep the runtime honest when a model stops making progress
+- a custom `db_path` is useful when you want one repo or environment to keep its own durable history
+
+## TUI session commands
+
+- `/sessions`: open the workspace session manager to resume, switch, delete, or purge sessions
+- `/compact`: rebuild older session history into the durable `History Summary` now
+- `/new`: start a new session
+- `/history`: search recent prompts
+- `/restore [turn-number]`: restore writes from one turn
+
+The important design choice is that session state is reconstructed from events, not from hidden UI-local state.

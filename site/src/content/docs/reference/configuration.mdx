@@ -1,0 +1,804 @@
+---
+title: Configuration
+description: The current config.yaml surface used by kodacode
+---
+
+KodaCode keeps runtime configuration in `~/.config/kodacode/config.yaml` and credentials in `~/.config/kodacode/auth.yaml`.
+
+This page documents the current persisted `config.yaml` surface. If a key is
+not listed here, current releases do not persist or apply it from
+`config.yaml`.
+
+The bootstrapped `config.yaml` includes a `yaml-language-server` schema comment
+that points at the published schema in `schema/config.schema.json`, so editors
+with YAML schema support can validate keys as you type.
+
+One important omission is intentional: current releases do not load a
+top-level `lsp:` block from `config.yaml`. Language-server defaults and project
+discovery are runtime-managed today. See
+[Code Intelligence & LSP](/features/lsp/).
+
+## Storage locations
+
+KodaCode uses separate config, data, and state roots:
+
+- config root: `$XDG_CONFIG_HOME/kodacode` or `~/.config/kodacode`
+- data root: `$XDG_DATA_HOME/kodacode` or `~/.local/share/kodacode`
+- state root: `$XDG_STATE_HOME/kodacode` or `~/.local/state/kodacode`
+
+Important default files and directories:
+
+- `config.yaml`: runtime configuration
+- `auth.yaml`: provider credentials and OAuth state
+- `AGENTS.md`: optional global instructions file loaded from the config root
+- `prompts/`: optional prompt overrides in the config root
+- `kodacode.db`: main SQLite-backed session, event, and artifact store in the data root
+- `models-cache.json`: model catalog cache in the data root
+- `ops.log`: standard runtime log in the data root
+- `debug.log`: verbose debug log in the data root when `logging.debug: true`
+- `search/`: default hybrid search index root in the state root
+
+Current releases document the SQLite-backed runtime storage layout above.
+
+## Easy example
+
+This is a good starting point for one person working in the TUI with one main
+model:
+
+```yaml
+version: 1
+
+providers:
+  - id: openai
+  - id: anthropic
+
+model:
+  primary: openai/gpt-5
+
+utility_model: openai/gpt-5-mini
+
+sessions:
+  budget: 5                 # default: 0 (no limit)
+  budget_warn: 0.8          # default: 0 (no warning)
+  response_style: terse     # default: terse
+
+execution:
+  permission_mode: auto     # default: auto
+  network: disabled         # default: disabled
+
+permissions:
+  external_directory:
+    "*": ask
+    "/Users/you/src/personal/**": allow
+  bash:
+    "*": ask
+    "git status*": allow
+  web_fetch:
+    "*": ask
+    "https://docs.go101.org/**": allow
+  network_target:
+    "*": ask
+    "api.github.com": allow
+
+tui:
+  theme: ayu-dark
+  # display_turns: 6
+```
+
+Why this works well:
+
+- `model.primary` gives you one clear default route
+- `utility_model` keeps runtime utility text work cheaper
+- `sessions.budget` and `budget_warn` make cost visible before it becomes a surprise
+- `sessions.response_style` defaults to `terse`, which trims normal model prose without affecting safety-critical explanations
+- `execution.network: disabled` keeps command-backed tools conservative by default
+- `permissions` lets runtime default repeated safe cases to `allow`, `ask`, or `deny` without moving permission ownership into prompts
+
+## OpenAI account types
+
+KodaCode keeps OpenAI Platform API access and ChatGPT/Codex OAuth access as
+separate provider routes:
+
+| Provider ID | Account type | Example model ref |
+| --- | --- | --- |
+| `openai` | OpenAI Platform API key | `openai/gpt-5` |
+| `openai-codex` | ChatGPT/Codex OAuth account | `openai-codex/gpt-5` |
+
+The TUI `/connect` OpenAI OAuth flow configures the ChatGPT/Codex account
+route. Use `openai-codex/...` for models selected through that account.
+
+If both account types are available, both routes can be connected at the same
+time. If only ChatGPT/Codex OAuth is available, stored `openai/...` model refs
+are normalized to `openai-codex/...` at runtime so older selections do not fail
+with `provider not configured`.
+
+The `openai-codex` model list comes from the ChatGPT/Codex account endpoint.
+`models.dev` currently publishes OpenAI metadata under `openai`; KodaCode uses
+that metadata only to enrich matching `openai-codex` model IDs with context,
+output, capability, and cost information. It does not make Platform-only models
+available through `openai-codex`.
+
+## Advanced example
+
+This is a better fit for a longer-running workspace where you want stronger
+session controls, hybrid search, and a local compatible provider:
+
+```yaml
+version: 1
+
+providers:
+  - id: openai
+    prompt_cache_retention: 24h     # optional OpenAI prompt cache retention
+    responses_store: false          # default: false
+    encrypted_reasoning_replay: true # default: true
+  - id: anthropic
+  - id: local
+    base_url: http://localhost:11434/v1
+
+model:
+  primary: openai/gpt-5
+
+utility_model: openai/gpt-5-mini
+utility_model_timeout_seconds: 20   # default: 0 (no timeout)
+utility_model_retry_attempts: 1     # default: 1
+utility_model_retry_after_max_seconds: 5  # default: 5
+
+model_overrides:
+  - ref: local/qwen2.5-coder-32b-instruct
+    name: Local Qwen Coder
+    context_size: 32768
+    max_output_tokens: 8192
+    default_output_tokens: 4096
+    tool_calls: true
+    cost_input: 0
+    cost_output: 0
+
+output_budgets:
+  session_title: 128
+  utility_text: 2048
+  review: 4096
+  agent_turn: 8192
+  agent_turn_thinking: 16000
+  workspace_compress: 1200
+  session_compaction: 2000
+
+sessions:
+  db_path: /Users/you/.local/share/kodacode/work.db
+  budget: 15                        # default: 0 (no limit)
+  budget_warn: 0.75                 # default: 0 (no warning)
+  total_budget: 100                 # default: 0 (no limit)
+  total_budget_warn: 0.8            # default: 0 (no warning)
+  response_style: terse             # default: terse
+  compaction_threshold: 0.8         # default: 0.8
+  compaction_target_threshold: 0.60 # default: 0.60
+  max_provider_requests_per_turn: 32            # default: 32
+  max_output_continuations: 1       # default: 1, max: 2
+  max_retries: 2                    # default: 2
+
+search:
+  skip_dirs:
+    - coverage
+    - .next
+  embeddings_model: openai/text-embedding-3-small
+  embeddings_dimensions: 1536
+  prewarm_embeddings: true          # default: false
+
+context_packet:
+  enabled_sections:                 # default: []
+    - repo
+    - git
+    - git_dirty_summary
+    - diagnostics
+
+model_cache:
+  expiry_days: 7                    # default: 7
+
+retention:
+  expiry_days: 14
+
+logging:
+  debug: true                       # default: false
+
+execution:
+  permission_mode: auto             # default: auto
+  network: disabled                 # default: disabled
+
+permissions:
+  external_directory:
+    "*": ask
+    "/Users/you/src/personal/**": allow
+  bash:
+    "*": ask
+    "git status*": allow
+    "git diff*": allow
+    "git commit*": deny
+  web_fetch:
+    "*": ask
+    "https://docs.go101.org/**": allow
+  network_target:
+    "*": ask
+    "api.github.com": allow
+    "package registries": ask
+
+tui:
+  theme: ayu-dark
+  display_turns: 6
+```
+
+Why you would reach for this:
+
+- a local compatible provider gives you a low-cost fallback path
+- `model_overrides` fills in missing metadata so cost display and routing stay useful
+- `output_budgets` keeps requested output tokens below provider ceilings while leaving room for explicit per-model overrides
+- cross-session budgets help when you work in the same repo over many days
+- leaving `response_style` unset keeps the default `terse` behavior; set it to `default` only when you want fuller ordinary narration
+- compaction thresholds keep long sessions usable without hiding what changed
+- debug logging gives you a real trail when provider routing or tool execution needs investigation
+- `permissions` reduces repeat approval churn while keeping the runtime as the permission authority
+- `search.prewarm_embeddings: true` spends background work up front so hybrid search can feel faster in active workspaces
+- `search.skip_dirs` adds extra exact directory names to ignore while keeping built-in skips for `.git`, `node_modules`, and `vendor`
+
+## Search embedding examples
+
+Two good example embedding routes are:
+
+- `openai/text-embedding-3-small`
+- `nomic-embed-text-v1.5` through either Ollama or LM Studio
+
+Complete search example:
+
+```yaml
+version: 1
+
+providers:
+  - id: openai
+
+search:
+  index_dir: /Users/you/.local/state/kodacode/search
+  skip_dirs:
+    - coverage
+    - dist
+    - .next
+  embeddings_model: openai/text-embedding-3-small
+  embeddings_dimensions: 1536
+  prewarm_embeddings: true
+```
+
+OpenAI:
+
+```yaml
+providers:
+  - id: openai
+
+search:
+  skip_dirs:
+    - coverage
+    - .next
+  embeddings_model: openai/text-embedding-3-small
+  embeddings_dimensions: 1536
+  prewarm_embeddings: true
+```
+
+Ollama:
+
+```yaml
+providers:
+  - id: ollama
+    base_url: http://localhost:11434/v1
+
+search:
+  embeddings_model: ollama/nomic-embed-text-v1.5
+  # Omit embeddings_dimensions unless your local provider requires it.
+  prewarm_embeddings: true
+```
+
+LM Studio:
+
+```yaml
+providers:
+  - id: lmstudio
+    base_url: http://localhost:1234/v1
+
+search:
+  embeddings_model: lmstudio/nomic-embed-text-v1.5
+  # Omit embeddings_dimensions unless your local provider requires it.
+  prewarm_embeddings: true
+```
+
+The provider prefix in `search.embeddings_model` must match the provider ID you
+configured above. `embeddings_dimensions` is useful when the provider expects an
+explicit width; for `text-embedding-3-small` that is `1536`. For local
+OpenAI-compatible models such as Ollama or LM Studio, leave
+`embeddings_dimensions` unset unless the provider or model explicitly requires a
+fixed width.
+
+`prewarm_embeddings` is optional and defaults to `false`. When you set it to
+`true`, `kodacode` will build and refresh file embedding caches in the
+background for tracked workspaces. It requires `search.embeddings_model`.
+
+`skip_dirs` is optional. It adds extra exact directory names to skip during
+lexical traversal, hybrid indexing, and background refresh. Built-in skips for
+`.git`, `node_modules`, and `vendor` always apply.
+
+If you do not set `search.index_dir`, the default index location is
+`$XDG_STATE_HOME/kodacode/search` or `~/.local/state/kodacode/search`.
+
+Hybrid ranking uses fixed internal reciprocal-rank fusion and simple path-aware
+adjustments so source files tend to rank above docs, tests, and generated
+paths. Those ranking details are not part of the public config surface.
+
+The public search config surface is intentionally small:
+
+- `search.index_dir`
+- `search.skip_dirs`
+- `search.embeddings_model`
+- `search.embeddings_dimensions`
+- `search.prewarm_embeddings`
+
+## Web search
+
+`web_search` is a separate runtime capability for query-based web discovery. It
+is not configured through the top-level `providers:` block.
+
+Keep these boundaries in mind:
+
+- `providers:` configures model and embedding providers
+- `web_search.providers:` configures web-search backends such as Exa and Parallel
+- `web_fetch` remains the direct-URL retrieval tool
+
+`web_search` is only registered when runtime has at least one valid
+`web_search` provider plus matching auth. Auth alone does not enable it.
+
+Current built-in `web_search` backends:
+
+- `exa`
+- `parallel`
+
+Provider requirements:
+
+- each configured `web_search.providers` entry needs a `kind`
+- supported kinds are `exa` and `parallel`
+- `base_url` is optional
+- `timeout_ms` is optional
+- if exactly one provider is configured, `default_provider` may be omitted
+- if more than one provider is configured, `default_provider` is required
+- every configured provider needs an API key at startup, even if it is not the default provider
+
+Default backend values when you omit them:
+
+- Exa `base_url`: `https://api.exa.ai`
+- Parallel `base_url`: `https://api.parallel.ai`
+- `timeout_ms`: `15000`
+
+Single-provider example:
+
+```yaml
+web_search:
+  providers:
+    exa:
+      kind: exa
+```
+
+Two-provider example with Exa as the default:
+
+```yaml
+web_search:
+  default_provider: exa
+  providers:
+    exa:
+      kind: exa
+      base_url: https://api.exa.ai
+    parallel:
+      kind: parallel
+      base_url: https://api.parallel.ai
+```
+
+Current multi-provider behavior is runtime-owned and simple: `kodacode` always
+uses `web_search.default_provider`. The model does not choose between Exa and
+Parallel per call.
+
+One subtle but important rule: auth lookup uses the provider ID key under
+`web_search.providers`, not the vendor kind. For example:
+
+```yaml
+web_search:
+  providers:
+    research:
+      kind: exa
+```
+
+That config expects an auth entry named `research`, not `exa`.
+
+## Top-level config areas
+
+- `providers`: provider IDs plus optional base URLs; credentials stay in `auth.yaml`
+- `web_search`: query-based web discovery backends; credentials also stay in `auth.yaml`
+- `model`: primary model selection
+- `model_overrides`: local model metadata and pricing overrides
+- `output_budgets`: default requested output-token budgets by runtime role; provider/model max tokens remain hard ceilings
+- `utility_model`: cheaper route for runtime utility text work; unset by default
+- `utility_model_timeout_seconds`: timeout in seconds for utility-model requests; default `0` (no timeout)
+- `utility_model_retry_attempts`: retries allowed after the initial utility request attempt; default `1`
+- `utility_model_retry_after_max_seconds`: maximum provider backoff delay accepted before utility falls back; default `5`
+- `mcp`: MCP server configuration
+- `workflow`: review mode and optional review model; default `review_mode: manual`
+- `search`: search index path, extra skipped directories, embedding model settings, and optional background cache prewarm
+- `sessions`: persistence, budgets, terse/default response style, compaction, retries, turn limits
+- `execution`: permission mode (`default: auto`), network policy (`default: disabled`), and optional shell defaults for command-backed tools
+- `permissions`: runtime-owned default approval policy for external directories, bash previews, web fetch URLs, and network targets
+- `model_cache`: cloud catalog cache expiry; default `expiry_days: 7`
+- `retention`: unified expiry policy for derived DB artifacts, search cache files, and app logs; default `expiry_days: 0`
+- `logging`: log directory and debug logging
+- `tui`: current theme selection and optional transcript display limit
+
+There is currently no persisted top-level `lsp` config area.
+
+## OpenAI Responses state
+
+The OpenAI Platform provider may opt into longer-lived prompt cache retention
+and choose how Responses API state is handled:
+
+```yaml
+providers:
+  - id: openai
+    prompt_cache_retention: 24h
+    responses_store: false
+    encrypted_reasoning_replay: true
+```
+
+`prompt_cache_retention` allowed values are `in_memory` and `24h`. Leave the
+setting unset to use the provider default.
+
+`responses_store` defaults to `false`, keeping OpenAI Responses requests
+stateless and locally replayable. With `responses_store: false`,
+`encrypted_reasoning_replay` defaults to `true`; KodaCode requests
+`reasoning.encrypted_content`, stores the returned encrypted reasoning item in
+the local event log, and replays it in later tool-loop requests. Set
+`encrypted_reasoning_replay: false` only if you do not want encrypted reasoning
+items requested, persisted, or replayed locally. Set `responses_store: true`
+only when OpenAI-managed response storage is acceptable for your workspace.
+
+Credentials still stay in `auth.yaml`.
+
+## QwenCloud model overrides
+
+QwenCloud is OpenAI-compatible, but current metadata sources are incomplete for
+automatic capability detection:
+
+- `models.dev` does not currently publish a QwenCloud provider catalog
+- QwenCloud's OpenAI-compatible `/models` endpoint returns model IDs but not
+  capability metadata such as context size, max output, thinking budget, or
+  tool-call support
+
+Use `model_overrides` for the QwenCloud models you rely on:
+
+```yaml
+providers:
+  - id: qwencloud
+    base_url: https://dashscope-intl.aliyuncs.com/compatible-mode/v1
+
+model_overrides:
+  - ref: qwencloud/qwen3.7-max
+    name: Qwen3.7 Max
+    context_size: 1000000
+    max_input_tokens: 1000000
+    max_output_tokens: 64000
+    default_output_tokens: 16000
+    reasoning: true
+    tool_calls: true
+    vision: true
+
+  - ref: qwencloud/qwen3.6-plus
+    name: Qwen3.6 Plus
+    context_size: 1000000
+    max_input_tokens: 1000000
+    max_output_tokens: 64000
+    default_output_tokens: 16000
+    reasoning: true
+    tool_calls: true
+    vision: true
+
+  - ref: qwencloud/qwen3.6-flash
+    name: Qwen3.6 Flash
+    context_size: 1000000
+    max_input_tokens: 1000000
+    max_output_tokens: 64000
+    default_output_tokens: 16000
+    reasoning: true
+    tool_calls: true
+    vision: true
+```
+
+QwenCloud documents thinking budget separately from visible max output. Keep
+`max_output_tokens` set to the documented visible output ceiling and do not add
+thinking budget to it.
+
+## Output budgets
+
+Provider catalogs expose hard model ceilings such as context size and maximum
+output tokens. KodaCode does not treat those ceilings as ordinary defaults.
+Instead, `output_budgets` controls the requested output-token budget by runtime
+role, and each request is still clamped to the selected model's provider or
+`model_overrides.max_output_tokens` ceiling:
+
+```yaml
+output_budgets:
+  session_title: 128          # default: 128
+  utility_text: 2048          # default: 2048
+  review: 4096                # default: 4096
+  agent_turn: 8192            # default: 8192
+  agent_turn_thinking: 16000  # default: 16000
+  workspace_compress: 1200    # default: 1200
+  session_compaction: 2000    # default: 2000
+```
+
+Use `model_overrides.default_output_tokens` when one model needs a different
+ordinary agent-turn budget:
+
+```yaml
+model_overrides:
+  - ref: anthropic/claude-sonnet-4-6
+    max_output_tokens: 64000       # hard ceiling
+    default_output_tokens: 12000   # ordinary agent turn request
+```
+
+If a provider reports a lower max output limit than the configured budget,
+KodaCode requests the lower provider limit. Anthropic max-token retries may
+expand to the selected model's hard ceiling after a provider response proves the
+initial budget was too small.
+
+## Granular permission policy
+
+The optional top-level `permissions` block lets runtime default certain actions
+to `allow`, `ask`, or `deny` without replacing durable approvals.
+
+Supported subjects today:
+
+- `external_directory`: resolved absolute paths outside the workspace and any
+  already-granted roots
+- `bash`: normalized command preview strings
+- `web_fetch`: canonical request URLs
+- `network_target`: normalized hosts, command-scoped targets, and symbolic
+  targets such as `external network`, `package registries`, and `git remotes`
+
+`web_search` is intentionally not a granular permission subject. If you enable
+it, the configured backend plus matching auth is the approval surface, and
+calls do not create per-query approval prompts.
+
+Example:
+
+```yaml
+permissions:
+  external_directory:
+    "*": ask
+    "/Users/you/src/personal/**": allow
+    "/tmp/**": deny
+
+  bash:
+    "*": ask
+    "git status*": allow
+    "git diff*": allow
+    "git commit*": deny
+
+  web_fetch:
+    "*": ask
+    "https://docs.go101.org/**": allow
+
+  network_target:
+    "*": ask
+    "api.github.com": allow
+    "registry.npmjs.org": deny
+```
+
+How runtime evaluates these rules:
+
+- rule order matters within each subject; the last matching rule wins
+- when multiple subjects apply to one action, runtime combines them by
+  `deny` > `ask` > `allow`
+- `allow` skips the extra approval prompt for that concern
+- `ask` uses the normal durable approval flow
+- `deny` blocks immediately with an explicit runtime error
+- explicit session approvals and session grants still remain durable state
+- `permissions` is evaluated only in `auto` and `read_only`
+- `full_access` bypasses routine approval prompts and granular permission rules
+
+The practical use is to keep workspace-first defaults while removing repeated
+prompts for cases you have already decided are fine.
+
+## Session settings explained
+
+The `sessions` block is where you trade off cost, persistence, and long-turn
+behavior.
+
+- `db_path`: move the event log database if you want a custom storage location; default is `~/.local/share/kodacode/kodacode.db`
+- `budget`: cap estimated spend for one session; default `0` (no limit)
+- `budget_warn`: fraction of `budget` at which a warning is shown; default `0` (no warning); requires `budget > 0`
+- `total_budget`: cap estimated spend across all stored sessions; default `0` (no limit)
+- `total_budget_warn`: fraction of `total_budget` at which a warning is shown; default `0` (no warning); requires `total_budget > 0`
+- `response_style`: `default` or `terse`; default `terse`
+- `compaction_threshold`: start rebuilding older session history into the durable `History Summary` when replayed context reaches this fraction of the context limit; default `0.8`
+- `compaction_target_threshold`: accept any history-summary candidate at or below this fraction so the session gets breathing room; must be lower than `compaction_threshold`; default `0.60`
+- `max_provider_requests_per_turn`: stop one turn from making provider requests forever; use `-1` to remove the cap entirely; default `32`
+- `max_output_continuations`: automatically continue once when a provider explicitly reports an output-length stop; use `0` to disable; maximum `2`; default `1`
+- `max_retries`: limit provider retry attempts when a route is flaky; default `2`
+
+The practical advantage of these settings is that `kodacode` can stay useful in
+long-lived workspaces without silently running up cost or letting one bad turn
+spin forever.
+
+The related default storage layout is:
+
+- runtime database: `$XDG_DATA_HOME/kodacode/kodacode.db` or `~/.local/share/kodacode/kodacode.db`
+- model catalog cache: `$XDG_DATA_HOME/kodacode/models-cache.json`
+- search index: `$XDG_STATE_HOME/kodacode/search` or `~/.local/state/kodacode/search`
+
+## Context packet settings
+
+The `context_packet` block controls disabled-by-default deterministic context
+that runtime can add before a provider request. It is meant for small,
+inspectable summaries that reduce avoidable discovery calls without dumping the
+repository into the prompt or repeating stable metadata every turn.
+
+- `enabled_sections`: list of bounded runtime sections to inject; default `[]`
+- supported section keys: `repo`, `git`, `git_dirty_summary`, `diagnostics`
+
+The current sections only include repository metadata, branch/change counts,
+at most 20 changed-file entries, and a diagnostics summary for at most three
+changed files when the user request is diagnostics-related. They never include
+file contents or patch hunks.
+
+Section refresh is intentionally conservative:
+
+- `repo` is sent on the first session turn, then only if its deterministic
+  content changes.
+- `git` and `git_dirty_summary` are sent on the first session turn, when their
+  deterministic content changes, or when the user asks for current Git/worktree
+  state.
+- `diagnostics` is collected only for bounded changed files when the user asks
+  about failures, diagnostics, compile/typecheck/lint issues, or tests.
+- runtime continuation turns do not re-inject the packet.
+
+If the assembled provider request is already under input pressure, kodacode
+omits the packet and records the omitted token estimate in usage details.
+
+## Workflow settings
+
+The `workflow` block controls runtime review behavior for the structured
+`engineer` and `reviewer` path:
+
+```yaml
+workflow:
+  review_mode: manual       # off | manual | auto; default: manual
+  review_model:
+    primary: openai/gpt-5-mini
+```
+
+- `off`: no review pass is ever triggered
+- `manual`: review remains agent-driven; `engineer` can still delegate to
+  `reviewer`, but runtime does not inject a follow-up review turn automatically
+- `auto`: after an `engineer` turn completes, runtime starts a reviewer turn
+  only when all current tasks are already completed and at least one completed
+  task still lacks a durable review outcome
+
+`review_model` is optional. When set, the review turn uses that model instead of the session primary. A cheaper model here reduces the cost of review passes without affecting agent turns.
+
+## Execution settings
+
+The `execution` block sets runtime defaults for command-backed tools such as
+`bash` and `test`:
+
+- `permission_mode`: `auto`, `read_only`, or `full_access`; default `auto`
+- `network`: `disabled` or `enabled`; default `disabled`
+- `allow_login_shell`: whether shell-backed executions may honor `login: true`;
+  default `false`
+- `shell_program`: optional shell path override; when unset, runtime falls back
+  to the platform default shell resolution
+
+Example:
+
+```yaml
+execution:
+  permission_mode: auto
+  network: disabled
+  allow_login_shell: false
+  shell_program: /bin/zsh
+```
+
+## Logging settings
+
+The `logging` block controls where runtime logs are written and whether the
+debug log is enabled:
+
+- `dir`: log directory; defaults to `$XDG_DATA_HOME/kodacode` or
+  `~/.local/share/kodacode`
+- `debug`: enable verbose debug logging; default `false`
+
+When logging is enabled, current releases write:
+
+- `ops.log`: normal operations log
+- `debug.log`: verbose debug log when `debug: true`
+
+Example:
+
+```yaml
+logging:
+  dir: /Users/you/.local/share/kodacode
+  debug: true
+```
+
+## Retention settings
+
+The `retention` block controls one expiry policy surface for derived runtime
+artifacts:
+
+- `expiry_days`: remove old tool-result blobs and background logs from
+  `kodacode.db`, remove old persisted search-cache files, and remove old app
+  log files; default `0` (disabled)
+
+This policy does not prune durable session history in `session_events`.
+
+Session deletion is explicit. Use `/sessions` when you want to remove or purge
+stored sessions themselves.
+
+Retention is applied during runtime startup. Search-cache cleanup is file-based
+and uses persisted file modification times because the search cache still lives
+on disk instead of inside `kodacode.db`.
+
+Example:
+
+```yaml
+retention:
+  expiry_days: 14
+```
+
+## Credentials
+
+`config.yaml` is intentionally not the secret store. Provider credentials and OAuth state live in `auth.yaml`.
+
+You can populate those credentials through the TUI with `/connect`, or by editing `auth.yaml` directly if you want fully manual control.
+
+For `web_search`, the auth entry key must match the provider ID you used under
+`web_search.providers`.
+
+Example:
+
+```yaml
+exa:
+  type: api
+  access: YOUR_EXA_API_KEY
+
+parallel:
+  type: api
+  access: YOUR_PARALLEL_API_KEY
+```
+
+This pairs with:
+
+```yaml
+web_search:
+  default_provider: exa
+  providers:
+    exa:
+      kind: exa
+    parallel:
+      kind: parallel
+```
+
+If you use custom provider IDs, the auth keys must match those custom IDs:
+
+```yaml
+research:
+  type: api
+  access: YOUR_EXA_API_KEY
+```
+
+paired with:
+
+```yaml
+web_search:
+  providers:
+    research:
+      kind: exa
+```
+
+Top-level `providers:` entries are not required just to enable `web_search`.

@@ -1,0 +1,280 @@
+---
+title: Navigation Keys
+description: Verified navigation keys and vi-style movement from the current KodaCode TUI
+---
+
+KodaCode is easiest to learn if you think in terms of **focus**:
+
+- the **transcript** for reading and replaying work
+- the **inspector** for details, tools, and tasks
+- the **composer** for typing prompts
+- **dialogs** for sessions, models, trust, and detailed views
+
+If you get lost, `Ctrl+]` returns focus to the transcript.
+
+## Global navigation
+
+These work outside the composer and apply across the normal TUI:
+
+| Key | Action |
+| --- | --- |
+| `Tab` / `Shift+Tab` | Cycle through available agents |
+| `1` | Focus the transcript |
+| `2` | Focus the inspector; in wide layout this also opens the drawer |
+| `3` | Focus the composer |
+| `4` | Also focuses the composer |
+| `Ctrl+]` | Return focus to the transcript |
+| `Ctrl+\` | Toggle the drawer |
+| `Ctrl+S` | Open sessions |
+| `Ctrl+O` | Also open sessions |
+| `Ctrl+N` | Start a new session |
+| `Ctrl+P` or `/` | Open the command palette |
+| `s` | Toggle the session rail |
+| `i` | Enter insert mode and move focus to the composer |
+| `Ctrl+C` | Quit |
+
+When a turn is actively running, `Esc` requests cancellation.
+
+## Transcript
+
+Use the transcript when you want to read what happened, browse tool activity, or move across delegated work:
+
+| Key | Action |
+| --- | --- |
+| `Left` / `Right` | Move the transcript text cursor by character |
+| `Up` / `Down` | Scroll the transcript |
+| `PgUp` / `PgDn` | Page through the transcript |
+| `Ctrl+U` / `Ctrl+D` | Also page up or down |
+| `Home` / `End` | Jump to the top or bottom |
+| `0` / `$` | Jump to the start or end of the current transcript line |
+| `j` / `k` | Move between visible tool calls |
+| `{` / `]` | Move between visible handoffs |
+| `Enter` | Open a selected child session |
+| `Backspace` | Return to the parent session |
+| `r` | Reuse the selected handoff result |
+| `v` | Start visual transcript selection from the current text cursor |
+| `Left click` | Focus the transcript, place the text cursor, and start visual selection |
+
+`j` and `k` are selection keys here, not scroll keys.
+
+## Inspector
+
+The inspector has three tabs: `Details`, `Tools`, and `Tasks`.
+
+### Tabs and scrolling
+
+| Key | Action |
+| --- | --- |
+| `h` / `l` | Move left or right between inspector tabs |
+| `Left` / `Right` | Also switch tabs |
+| `Up` / `Down` | Scroll the inspector |
+| `PgUp` / `PgDn` | Page through the inspector |
+| `Ctrl+U` / `Ctrl+D` | Also page up or down |
+| `Home` / `End` | Jump to the top or bottom of the inspector viewport |
+
+### Tools tab
+
+| Key | Action |
+| --- | --- |
+| `j` / `k` | Move between visible tool entries |
+| `Enter` | Open the selected tool detail dialog |
+
+### Tasks tab
+
+| Key | Action |
+| --- | --- |
+| `j` / `k` | Move between visible tasks |
+| `Enter` | Open the selected task detail dialog |
+
+## Composer
+
+The composer is the prompt input area.
+
+| Key | Action |
+| --- | --- |
+| `Enter` | Submit the current prompt |
+| `Shift+Enter` | Insert a new line |
+| `Up` | Recall the previous prompt inline |
+| `Down` | Move forward through recalled prompts and restore the current draft when you reach the end |
+| `Ctrl+R` | Open the searchable composer history popup |
+| `Ctrl+E` | Open the current draft in `$VISUAL`, then `$EDITOR`, then `vim` |
+| `PgUp` / `PgDn` | Scroll the transcript while staying in composer flow |
+
+Inline `Up` / `Down` recall is meant for normal single-line prompt recall.
+Once recall is active, `Down` walks back toward the current draft. For broader
+history search, use `Ctrl+R` or `/history`.
+
+The composer keeps a fixed input viewport height. Longer drafts stay in the
+composer and scroll instead of expanding the pane indefinitely.
+
+Composer prefixes:
+
+| Prefix | Action |
+| --- | --- |
+| `/` | Open slash-command completion when typed in the composer |
+| `@` | Search workspace paths and insert a focus-path token |
+| `$` | Search skills and insert a skill mention |
+| `!` | Run a one-line local shell command as a user action |
+
+Focus-path tokens are submitted as a `Focus paths:` block before the user
+request. Skill mentions select explicit skills for the turn.
+
+### Composer popups
+
+Composer history, slash-command, skill, and path popups use:
+
+| Key | Action |
+| --- | --- |
+| `Up` / `Down` | Move through popup entries |
+| `Enter` | Apply the selected entry |
+| `Esc` | Close the popup |
+
+## Command palette and management dialogs
+
+The command palette, theme picker, sessions dialog, and provider dialog share the same basic navigation model.
+
+### Root palette
+
+| Key | Action |
+| --- | --- |
+| `Up` / `Down` | Move through entries |
+| `Enter` | Open or apply the selected entry |
+| `Esc` | Close the palette |
+| `Ctrl+R` | Refresh model catalog entries when available |
+
+### Theme, sessions, and provider dialogs
+
+| Key | Action |
+| --- | --- |
+| `Up` / `Down` | Move through list entries |
+| `Tab` / `Shift+Tab` | Move between fields and buttons |
+| `Left` / `Right` | Move between buttons when button focus is active |
+| `Enter` | Confirm the current action |
+| `Esc` | Go back or close |
+
+Extra shortcuts in specific dialogs:
+
+- Sessions list: `Ctrl+D` deletes the selected session.
+- Sessions list: `Ctrl+P` opens purge mode.
+- Provider list: `Ctrl+D` removes the selected provider.
+
+## Approvals and questions
+
+Question prompts and permission prompts support both numeric shortcuts and vi-style movement.
+
+| Key | Action |
+| --- | --- |
+| `Up` / `Down` | Move between choices |
+| `j` / `k` | Also move between choices |
+| `Enter` | Confirm the current choice |
+| `1` through `9` | Quick-select question answers when those choices exist |
+| `1` through `5` | Quick-select permission or approval actions when those choices exist |
+
+The exact number of approval choices depends on the permission or execution request.
+
+## Detail dialogs
+
+Tool detail, task detail, cost, and trace dialogs all use the same navigation:
+
+| Key | Action |
+| --- | --- |
+| `q`, `Esc`, or `Ctrl+C` | Close the dialog |
+| `Up` / `Down` | Scroll line by line |
+| `j` / `k` | Also scroll line by line |
+| `PgUp` / `PgDn` | Page up or down |
+| `Ctrl+U` / `Ctrl+D` | Also page up or down |
+| `g` / `G` | Jump to the top or bottom |
+| `Home` / `End` | Also jump to the top or bottom |
+
+## Trust screens
+
+### Startup trust prompt
+
+This is the first-run prompt that asks what should be trusted before the main TUI opens.
+
+| Key | Action |
+| --- | --- |
+| `Up` / `Down` | Move between trust rows |
+| `j` / `k` | Also move between trust rows |
+| `Tab` / `Shift+Tab` | Also move between trust rows |
+| `Space` or `x` | Toggle the current trust row |
+| `Enter` | Continue |
+| `Esc` or `Ctrl+C` | Cancel and quit |
+
+### Trust manager
+
+This is the in-app trust dialog opened from the command palette.
+
+| Key | Action |
+| --- | --- |
+| `Up` / `Down` | Move between trust entries |
+| `j` / `k` | Also move between trust entries |
+| `g` / `G` | Jump to the first or last entry |
+| `Home` / `End` | Also jump to the first or last entry |
+| `r` | Revoke the selected trust entry |
+| `a` | Revoke workspace trust |
+| `A` | Revoke all trust |
+| `Enter` or `y` | Confirm a revoke action |
+| `Esc` or `n` | Cancel a revoke action |
+| `q` or `Ctrl+C` | Close the dialog |
+
+## Copy and Paste
+
+KodaCode uses the **system clipboard** for all copy and paste operations. There is no internal clipboard. Text copied inside KodaCode is immediately available to other applications, and text copied outside KodaCode can be pasted into the composer.
+
+### Copying from the transcript
+
+Transcript copy works from the transcript content layer, so copied text excludes TUI borders, rails, and panel chrome.
+
+Start a selection in either of these ways:
+
+- Press `v` while the transcript is focused to begin selection at the current text cursor position.
+- Left-click inside the transcript to place the cursor and immediately enter selection mode.
+
+While visual selection is active:
+
+| Key | Action |
+| --- | --- |
+| `y` | Copy the selection to the system clipboard |
+| `Esc` or `v` | Cancel visual selection |
+| `Left` / `Right` or `h` / `l` | Extend the selection endpoint by character |
+| `Up` / `Down` or `j` / `k` | Extend the selection endpoint by line |
+| `PgUp` / `PgDn` or `Ctrl+U` / `Ctrl+D` | Page the selection endpoint up or down |
+| `Home` / `End` or `g` / `G` | Jump the selection endpoint to the top or bottom |
+| `0` / `$` | Jump the selection endpoint to the start or end of the current line |
+| `Left click` | Move the selection endpoint to the clicked position |
+
+A second click inside the transcript extends or resets the selection endpoint at the clicked position.
+
+### Pasting into the composer
+
+| Key | Action |
+| --- | --- |
+| `Ctrl+V` | Paste from the system clipboard at the current cursor position |
+
+Paste works in the composer only. Short text is inserted at the cursor; the
+composer wraps long content automatically. Pasted text with at least two
+newlines is stored behind a compact `[Pasted text #N +M lines]` token and
+expanded again when you submit the turn. Pasting a path to a PNG, JPEG, GIF, or
+WebP file creates an image attachment token instead of inserting the path.
+Longer drafts stay in a fixed-height composer viewport and scroll in place.
+
+### Platform clipboard requirements
+
+| Platform | Requirement |
+| --- | --- |
+| macOS | Uses `pbcopy` / `pbpaste`, available by default |
+| Linux (Wayland) | Requires `wl-copy` / `wl-paste` |
+| Linux (X11) | Requires `xclip` or `xsel` |
+
+Typing `v` in the composer inserts the character `v`; visual selection only activates when transcript focus is active.
+
+## Vi-style keys
+
+If you prefer vi-style movement, these are the main bindings to remember:
+
+- `h` / `l`: switch inspector tabs
+- `j` / `k`: move through tools, tasks, trust rows, approvals, and transcript tool selections
+- `g` / `G`: jump to the top or bottom in detail and trust dialogs
+
+One important limitation: the **command palette itself uses arrow keys**, not `j` / `k`.

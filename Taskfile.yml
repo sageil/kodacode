@@ -1,0 +1,61 @@
+version: "3"
+
+tasks:
+  build:
+    desc: Build the kodacode binary
+    cmds:
+      - task: gofmt
+      - mkdir -p bin
+      - go build -ldflags "-s -w -X main.version={{.VERSION}} -X main.commit={{.COMMIT}} -X main.date={{.DATE}}" -o bin/kodacode ./cmd/kodacode
+    vars:
+      VERSION:
+        sh: git describe --tags --always --dirty 2>/dev/null || echo dev
+      COMMIT:
+        sh: git rev-parse --short HEAD 2>/dev/null || echo none
+      DATE:
+        sh: date -u +%Y-%m-%dT%H:%M:%SZ
+
+  gofmt:
+    desc: Format Go files
+    cmds:
+      - find . -name '*.go' -not -path './bin/*' -print0 | xargs -0 gofmt -w
+
+  test:
+    desc: Run all tests
+    cmds:
+      - task: gofmt
+      - go test ./...
+
+  lint:
+    desc: Run golangci-lint
+    cmds:
+      - task: gofmt
+      - task: lint:tool
+      - ./.tmp/bin/golangci-lint run --config .golangci.yml
+
+  lint:tool:
+    desc: Build the pinned golangci-lint binary
+    dir: tools/golangci-lint
+    cmds:
+      - mkdir -p ../../.tmp/bin
+      - go build -o ../../.tmp/bin/golangci-lint github.com/golangci/golangci-lint/v2/cmd/golangci-lint
+
+  clean:
+    desc: Clean build artifacts
+    cmds:
+      - rm -rf bin/ dist/
+
+  release-check:
+    desc: Validate goreleaser config
+    cmds:
+      - goreleaser check
+
+  release-snapshot:
+    desc: Build a local release snapshot (no publish)
+    cmds:
+      - goreleaser release --snapshot --clean
+
+  default:
+    desc: Build the project
+    cmds:
+      - task: build

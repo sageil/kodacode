@@ -1,0 +1,132 @@
+package tui
+
+import (
+	"strings"
+
+	"github.com/sageil/kodacode/internal/events"
+)
+
+type transcriptSection struct {
+	content        string
+	toolRefs       []sessionToolCallRef
+	selectionLines []transcriptSelectionLine
+}
+
+type transcriptRender struct {
+	content        string
+	toolLines      map[sessionToolCallRef]int
+	selectionLines []transcriptSelectionLine
+}
+
+type transcriptSelectionLine struct {
+	text            string
+	prefixGraphemes int
+	graphemeCount   int
+}
+
+type transcriptLayoutChunkKind string
+
+const (
+	transcriptLayoutChunkTurn                transcriptLayoutChunkKind = "turn"
+	transcriptLayoutChunkDraft               transcriptLayoutChunkKind = "draft"
+	transcriptLayoutChunkDelegatedPermission transcriptLayoutChunkKind = "delegated_permission"
+)
+
+type transcriptLayoutChunk struct {
+	kind     transcriptLayoutChunkKind
+	turnID   string
+	rendered transcriptRender
+}
+
+type transcriptLayout struct {
+	width         int
+	wide          bool
+	turnSeparator transcriptRender
+	chunks        []transcriptLayoutChunk
+	turnIndices   map[string]int
+}
+
+type transcriptLayoutRender struct {
+	layout   transcriptLayout
+	rendered transcriptRender
+}
+
+const transcriptBottomPadding = "\n\n"
+const userPromptRailGlyph = "▌"
+const userPromptInnerPadding = "  "
+
+func renderTranscriptMessages(m Model, state events.SessionState, width int) transcriptRender {
+	return renderTranscriptLayout(m, state, width).rendered
+}
+
+func renderTranscriptLayout(m Model, state events.SessionState, width int) transcriptLayoutRender {
+	layout := transcriptLayout{
+		width:       max(width, 1),
+		wide:        isWideShell(m),
+		turnIndices: make(map[string]int),
+	}
+	if !layout.wide {
+		layout.turnSeparator = transcriptRender{
+			content:        renderTurnSeparator(m, width),
+			selectionLines: []transcriptSelectionLine{{}},
+		}
+	}
+
+	turnIDs := visibleTranscriptTurnIDs(m, state)
+	for i, turnID := range turnIDs {
+		turn := state.Turns[turnID]
+		if turn == nil {
+			continue
+		}
+		options := transcriptTurnRenderOptions{}
+		if i+1 < len(turnIDs) && shouldSuppressHistoryCompactionBeforeContinuation(state, turnID, turnIDs[i+1]) {
+			options.suppressHistoryCompaction = true
+		}
+		layout.turnIndices[turnID] = len(layout.chunks)
+		layout.chunks = append(layout.chunks, transcriptLayoutChunk{
+			kind:     transcriptLayoutChunkTurn,
+			turnID:   turnID,
+			rendered: cachedTurnTranscriptRender(m, state, turnID, turn, width, options),
+		})
+	}
+
+	if draftSections := renderDraftTurnSections(m, state, width); len(draftSections) > 0 {
+		layout.chunks = append(layout.chunks, transcriptLayoutChunk{
+			kind:     transcriptLayoutChunkDraft,
+			rendered: buildTranscriptChunk(draftSections),
+		})
+	}
+
+	if handoff := m.pendingDelegatedPermission(); handoff != nil {
+		layout.chunks = append(layout.chunks, transcriptLayoutChunk{
+			kind: transcriptLayoutChunkDelegatedPermission,
+			rendered: transcriptRender{content: renderSystemSection(
+				m,
+				"Delegated child waiting on approval",
+				"A delegated child turn is blocked on permission. Resolve the approval prompt in this transcript to continue.",
+				width,
+			)},
+		})
+	}
+	return transcriptLayoutRender{layout: layout, rendered: layout.rendered()}
+}
+
+func shouldSuppressHistoryCompactionBeforeContinuation(state events.SessionState, turnID, nextTurnID string) bool {
+	turnID = strings.TrimSpace(turnID)
+	nextTurnID = strings.TrimSpace(nextTurnID)
+	if turnID == "" || nextTurnID == "" {
+		return false
+	}
+	turn := state.Turns[turnID]
+	next := state.Turns[nextTurnID]
+	if turn == nil || next == nil || next.ContinuationStart == nil || next.Continuation == nil {
+		return false
+	}
+	if strings.TrimSpace(next.ContinuationStart.PreviousTurnID) != turnID {
+		return false
+	}
+	if strings.TrimSpace(historyCompactionSummaryText(next.Continuation)) == "" {
+		return false
+	}
+	return turnHasHistoryCompactionTranscriptEntry(turn) || effectiveTurnHistoryContinuation(state, turnID, turn) != nil
+}

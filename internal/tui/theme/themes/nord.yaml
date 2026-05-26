@@ -1,0 +1,48 @@
+name: nord
+syntax_style: nord
+
+palette:
+  primary: "#81a1c1"
+  secondary: "#88c0d0"
+  surface: "#2e3440"
+  overlay: "#3b4252"
+  text: "#eceff4"
+  subtext: "#4c566a"
+  error: "#bf616a"
+  warning: "#ebcb8b"
+  success: "#a3be8c"
+  thinking: "#b48ead"
+
+tones:
+  bg: "#2e3440"
+  bg-alt: "#242933"
+  panel: "#3b4252"
+  panel-alt: "#434c5e"
+  line: "#4c566a"
+  line-strong: "#616e88"
+  soft: "#6e7c95"
+
+components:
+  panel:
+    bg: panel
+    fg: text
+    border: rounded
+    border-color: line
+    padding: [0, 1]
+  permission:
+    bg: panel-alt
+    fg: text
+    border: rounded
+    border-color: primary
+    padding: [0, 1]
+  selection:
+    bg: primary
+    fg: surface
+  hint:
+    fg: subtext
+  status-running:
+    fg: warning
+  status-done:
+    fg: success
+  status-error:
+    fg: error

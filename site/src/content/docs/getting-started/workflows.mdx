@@ -1,0 +1,131 @@
+---
+title: Common Workflows
+description: Practical paths for first-time setup, daily coding, resume, review, and repo exploration
+---
+
+This page is the shortest path from "I installed KodaCode" to "I know which flow to use."
+
+## Choose a path
+
+Use the workflow that matches your current job:
+
+- First-time setup: install, connect a provider, choose a model, and create workspace instructions
+- Daily coding session: open a repo, ask for implementation work, and inspect what happened
+- Resume paused work: continue an existing workspace session instead of starting over
+- Review a change: use a read-focused agent and inspect the turn trace before trusting the result
+- Explore a repo safely: inspect architecture or answer questions without editing files
+
+## First-time setup
+
+Use this once per machine, then repeat only when you add providers or want to change defaults.
+
+1. Install KodaCode from [Installation](/getting-started/installation/).
+2. Run `kodacode` inside the repository you want to work in.
+3. Use `/connect` to configure a provider.
+4. Use `/model` to choose the model you want for turns.
+5. Use `/init` to create workspace instructions.
+6. Ask for a small concrete task first, such as "summarize this repo" or "explain the build entrypoint."
+
+Why this order works:
+
+- `/connect` and `/model` establish a working route before you ask for real work
+- `/init` gives the workspace an instruction file before longer sessions start accumulating assumptions
+- a small first task lets you verify tool access, approvals, and output quality without committing to a big change
+
+## Daily coding session
+
+This is the normal implementation path when you already know the repo you want to work in.
+
+1. `cd` into the repository and run `kodacode`.
+2. Pick the right agent with `Tab`.
+3. State the task in one sentence with the expected outcome.
+4. Let the runtime inspect files, call tools, and stop for approvals when required.
+5. Use `/trace` to inspect one turn if you want to confirm what the agent actually did.
+6. Use `/cost` if you want to check spend and token savings before continuing.
+
+Good prompts for this flow:
+
+- "Fix the failing search cache invalidation test and explain the root cause."
+- "Add a docs page for session resume behavior and link it from quick start."
+- "Review the current implementation and point out the highest-risk regression."
+
+Related pages:
+
+- [Agents](/features/agents/)
+- [Project Memory & Instructions](/features/project-memory/)
+- [Built-in Tools](/features/tools/)
+- [Sandbox & Permissions](/features/sandbox/)
+
+## Resume paused work
+
+Use resume when the previous session already contains useful repo context, approvals, or partially completed work.
+
+```bash
+kodacode --resume "continue the refactor and keep the same constraints"
+```
+
+Resume is better than starting fresh when:
+
+- the earlier session already explored the codebase
+- the runtime stopped at a permission prompt and you want to resolve that exact turn
+- the existing trace or cost history still matters
+
+Related pages:
+
+- [Quick Start](/getting-started/quick-start/)
+- [Sessions](/features/sessions/)
+- [Context Management](/features/context/)
+
+## Review a change
+
+Use this flow when you want verification, risk assessment, or acceptance checks instead of direct implementation.
+
+1. Switch to the `reviewer` agent with `Tab`.
+2. Ask for a review, acceptance check, or regression pass.
+3. Read the findings first.
+4. Open `/trace` if you want to verify which files and tools informed the review.
+
+Good prompts for this flow:
+
+- "Review the current branch for behavioural regressions."
+- "Check whether the new config loader has missing edge-case coverage."
+- "Validate the docs change against the current command surface."
+
+Related pages:
+
+- [Agents](/features/agents/)
+- [Sessions](/features/sessions/)
+- [Navigation Keys](/reference/navigation/)
+
+## Explore a repo safely
+
+Use this when you want analysis without file edits.
+
+1. Switch to `planner` for read-only repository analysis.
+2. Ask for architecture, ownership, or implementation planning.
+3. Follow links into the code or docs once you know the right area.
+
+If `web_search` is configured, `planner` can also bring in external references
+without switching to an execution-oriented agent.
+
+Good prompts for this flow:
+
+- "Map the runtime flow for workspace initialization."
+- "Explain how permissions are evaluated end to end."
+- "Plan the cleanest way to simplify this tool contract."
+
+Related pages:
+
+- [Introduction](/getting-started/introduction/)
+- [Overview](/architecture/overview/)
+- [Built-in Tools](/features/tools/)
+
+## When to leave this page
+
+Once you know your flow, the next useful pages are usually:
+
+- [Quick Start](/getting-started/quick-start/) for the first interactive session
+- [Project Memory & Instructions](/features/project-memory/) for durable repo guidance and saved project facts
+- [Budgets](/features/budgets/) for hard spending guardrails
+- [Configuration](/reference/configuration/) for defaults and policy
+- [Slash Commands](/reference/commands/) for the composer command surface

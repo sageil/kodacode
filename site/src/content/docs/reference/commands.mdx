@@ -1,0 +1,100 @@
+---
+title: Composer Commands
+description: Slash commands and direct composer actions available from the TUI
+---
+
+KodaCode exposes a small runtime-owned command surface from the composer.
+Most entries are slash commands. The `!<command>` form is a direct composer
+action for local shell execution. These commands change session state, open
+management dialogs, inspect durable runtime data, or start an explicit user
+execution turn. They are not prompt tricks; they call explicit product
+behavior.
+
+## At a glance
+
+| Command | Use it for | Notes |
+| --- | --- | --- |
+| `/palette` | Open the root command palette | Good starting point when you do not remember a shortcut |
+| `/sessions` | Manage workspace sessions | Resume, switch, inspect, delete, or purge existing sessions |
+| `/init` | Create workspace instruction files | Writes `AGENTS.md` only when missing, and may also create `CLAUDE.md` for Anthropic routes; see [Project Memory & Instructions](/features/project-memory/) |
+| `/compress` | Compress workspace instructions and project memory | Rewrites existing `AGENTS.md` and `.kodacode/memories/*.md` through the utility-model path |
+| `/compact` | Rebuild the saved history summary now | Uses the same history-compaction path as automatic runtime compaction |
+| `/new` | Start a new session | Leaves the current session intact |
+| `/history` | Search recent prompts | Opens the same searchable history surface as `Ctrl+R`; separate from inline `Up` / `Down` recall |
+| `/review [instructions]` | Run a one-off runtime review | Uses the `reviewer` agent path, defaults to current workspace changes, and leaves your selected agent unchanged |
+| `!<command>` | Run a local shell command from the composer | User-initiated execution path; uses the same runtime execution, approval, and event model |
+| `/model` | Switch model | Changes the active model route |
+| `/utility-model` | Select utility model | Sets or unsets the cheaper utility route used for runtime text work |
+| `/reviewer-model` | Select reviewer model | Sets or unsets the reviewer route used by review turns |
+| `/variant` | Choose provider reasoning effort | Availability depends on the selected model and tool setup |
+| `/thinking` | Toggle provider thinking output | Availability depends on provider support |
+| `/theme` | Switch theme | TUI-only presentation setting |
+| `/connect` | Connect or configure a provider | Fastest path to initial provider setup |
+| `/trust` | Manage trust for the current workspace | Covers workspace trust and MCP trust entries |
+| `/cost` | Inspect session cost | Shows spend, savings, and cache/cost detail |
+| `/trace [turn-number]` | Inspect one turn | Open without an argument to choose interactively when supported |
+| `/restore [turn-number]` | Restore writes from one turn in the current session | Open the session that owns the turn first |
+| `/quit` | Exit KodaCode | Ends the current app process |
+
+## Session and navigation
+
+- `/palette`: open the command palette
+- `/sessions`: manage workspace sessions, including delete and purge actions
+- `/init`: create workspace instruction files
+- `/compress`: compress `AGENTS.md` and project memory
+- `/compact`: rebuild older session history into the durable `History Summary` artifact now
+- `/new`: start a new session
+- `/history`: search recent prompts through the searchable history popup
+- `/review [instructions]`: run a focused runtime-owned review of the current workspace changes
+
+Use this group when you want to move between sessions, inspect prior work, or prepare the current session before another turn.
+
+`/compact` only affects durable session history. It calls the same history-compaction path used by automatic compaction instead of creating a separate manual workflow.
+
+`/review` is the exception in this group: it is a repository-work command, but it lives beside session controls because it is an explicit TUI action rather than a prompt convention. It starts a one-off runtime-owned review, defaults to the current workspace changes, uses the configured review model when available, and leaves your selected default agent unchanged for later turns. Review behavior is guided by the active `reviewer` agent definition, so you can tune it with a global or project-local `reviewer.md` override while runtime keeps the review scope and structured output contract authoritative.
+
+`!<command>` is not a slash command, but it shares the composer command path.
+It starts a normal local shell execution turn from the user instead of asking
+the model to call `bash`. The same workspace, network, approval, and trace
+contracts still apply.
+
+## Model and provider control
+
+- `/model`: switch model
+- `/utility-model`: select the utility model, or unset it from the command palette
+- `/reviewer-model`: select the reviewer model, or unset it from the command palette
+- `/variant`: choose provider reasoning effort when supported
+- `/thinking`: show or hide the reasoning transcript in the TUI
+- `/theme`: switch theme
+- `/connect`: connect or configure a provider
+- `/trust`: manage trust for the current workspace and configured MCP servers
+
+Use this group when you are still shaping the environment the agent runs in rather than asking for repository work directly.
+
+## Inspection
+
+- `/cost`: inspect session cost
+- `/trace [turn-number]`: inspect one turn
+- `/restore [turn-number]`: restore writes from one turn in the current session
+- `/quit`: exit KodaCode
+
+`/trace` and `/restore` are the two commands most closely tied to KodaCode's event-first design:
+
+- `/trace` answers "what actually happened in this turn?"
+- `/restore` answers "bring back the writes from that turn"
+
+The turn number for `/restore` is resolved against the currently open session only. If you want to restore writes from an older session, open that session first and then run `/restore`.
+
+Availability is runtime-aware. For example, `/variant` is hidden when the current model and tool setup do not support provider reasoning controls.
+
+## Suggested learning order
+
+If you are new, learn these first:
+
+1. `/connect`
+2. `/model`
+3. `/sessions`
+4. `/trace`
+5. `/cost`
+
+Then add `/init`, `/compress`, `/compact`, and `/restore` once you are working on longer-lived repos.

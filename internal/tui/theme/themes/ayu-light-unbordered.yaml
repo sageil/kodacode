@@ -1,0 +1,48 @@
+name: ayu-light-unbordered
+syntax_style: ayu-light
+
+palette:
+  primary: "#f29718"
+  secondary: "#55b4d4"
+  surface: "#f8f9fa"
+  overlay: "#fafafa"
+  text: "#5c6166"
+  subtext: "#828e9f"
+  error: "#e65050"
+  warning: "#eba400"
+  success: "#6cbf43"
+  thinking: "#a37acc"
+
+tones:
+  bg: "#f8f9fa"
+  bg-alt: "#f8f9fa"
+  panel: "#fafafa"
+  panel-alt: "#fafafa"
+  line: "#f8f9fa"
+  line-strong: "#e7eaee"
+  soft: "#828e9f"
+
+components:
+  panel:
+    bg: panel
+    fg: text
+    border: rounded
+    border-color: line
+    padding: [0, 1]
+  permission:
+    bg: panel-alt
+    fg: text
+    border: rounded
+    border-color: primary
+    padding: [0, 1]
+  selection:
+    bg: primary
+    fg: surface
+  hint:
+    fg: subtext
+  status-running:
+    fg: warning
+  status-done:
+    fg: success
+  status-error:
+    fg: error

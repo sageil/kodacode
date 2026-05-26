@@ -1,0 +1,175 @@
+---
+title: Sandbox & Permissions
+description: Workspace trust, approval flow, permission policy, and execution modes in KodaCode
+---
+
+KodaCode starts from a simple rule: the current working directory is the default authority. Tools resolve relative paths from the workspace root, and anything outside that boundary requires explicit approval.
+
+## Trust
+
+Before the main TUI opens, KodaCode checks whether the workspace and any configured MCP servers are trusted. If they are not, a startup prompt appears.
+
+### Startup trust prompt
+
+The startup prompt lists the workspace root and each MCP server (name, type, command, and environment variable keys). Available choices:
+
+1. Trust workspace and all listed MCP servers
+2. Trust workspace only
+3. Trust all listed MCP servers only
+4. Continue without trusting listed MCP servers
+5. Cancel
+
+Use `Up`/`Down` or `j`/`k` to move between rows, `Space` or `x` to toggle individual entries, and `Enter` to confirm.
+
+### MCP server fingerprinting
+
+Each MCP server trust decision is stored per workspace root and per server fingerprint. The fingerprint is a SHA-256 hash of the server type, command, arguments, and environment variable keys. Changing any of those values invalidates the existing trust entry and triggers the prompt again.
+
+### Revoking trust
+
+Open the trust manager from the command palette (`Ctrl+P`) to review and revoke existing decisions. Available actions inside the trust manager:
+
+| Key | Action |
+| --- | --- |
+| `r` | Revoke the selected trust entry |
+| `a` | Revoke all trust entries for this workspace |
+| `A` | Revoke all trust entries globally |
+| `Enter` or `y` | Confirm a revoke |
+| `Esc` or `n` | Cancel |
+
+Trust decisions are stored in a local SQLite database and scoped per workspace root.
+
+## Runtime approval flow
+
+When a tool requests access outside its default authority, KodaCode surfaces a durable approval prompt. The tool is paused until a decision is made.
+
+### Path and network approvals
+
+These cover filesystem access outside the workspace and network target access:
+
+1. Allow once
+2. Allow for session duration
+3. Deny
+
+### Execution approvals
+
+Command-backed tools show a base set of choices:
+
+1. Allow once
+2. Allow for session duration
+3. Deny
+
+Depending on the request, runtime can add extra choices after those:
+
+- Allow with network enabled
+- Allow with execution policy amendment
+
+The "allow for session duration" choice creates a session grant keyed by
+command prefix. Subsequent commands that match the same prefix are approved
+without another prompt.
+
+### Approval persistence
+
+Decisions made during a session are stored in session state and survive across turns. The same approval is not asked twice within one session. Grants are also replayed correctly when a session is resumed.
+
+If an identical execution (same command, working directory, and policies) is requested more than once in the same turn, the runtime reuses the earlier approval rather than prompting again.
+
+## Permission policy
+
+`permissions` rules in `config.yaml` let you pre-declare approval decisions so the runtime does not need to ask at all. Rules are evaluated only in `auto` and `read_only` modes; `full_access` bypasses them.
+
+### Subjects
+
+| Subject | What it covers |
+| --- | --- |
+| `external_directory` | Filesystem access outside the workspace root |
+| `bash` | Command execution |
+| `web_fetch` | HTTP/HTTPS requests made by the `web_fetch` tool |
+| `network_target` | Network targets declared by command execution |
+
+### Actions
+
+| Action | Effect |
+| --- | --- |
+| `allow` | Skip the approval prompt for this pattern |
+| `ask` | Use the normal durable approval flow |
+| `deny` | Block immediately with an explicit runtime error |
+
+### Pattern matching
+
+Each subject maps glob patterns to actions. Rules are evaluated in order and the last matching rule wins. Wildcards: `*` matches any sequence of characters, `?` matches a single character. Subject values are normalized before matching (paths are cleaned, text is trimmed, hostnames are lowercased).
+
+```yaml
+permissions:
+  external_directory:
+    "/Users/you/src/shared/**": allow
+    "/tmp/**": deny
+    "*": ask
+
+  bash:
+    "git status*": allow
+    "git diff*": allow
+    "git commit*": ask
+    "*": ask
+
+  web_fetch:
+    "https://docs.example.com/**": allow
+
+  network_target:
+    "registry.npmjs.org": allow
+    "api.internal.example.com": deny
+```
+
+### Combining subjects
+
+When multiple subjects apply to one action, the runtime combines them by taking the most restrictive result: `deny` beats `ask`, `ask` beats `allow`.
+
+## Execution modes
+
+`execution.permission_mode` sets the baseline posture for a session:
+
+| Mode | Behaviour |
+| --- | --- |
+| `auto` | Normal approval flow; permission policy and session grants apply (default) |
+| `read_only` | Approval required for all filesystem writes and external directory access |
+| `full_access` | Skips granular permission policy checks and routine approval prompts |
+
+In `full_access`, the tool surface (`AllowTools`/`DisallowedTools`) still applies, but the runtime does not stop on policy rules or ordinary approval prompts.
+
+## Network policy
+
+`execution.network` controls the default network posture for command execution:
+
+| Value | Behaviour |
+| --- | --- |
+| `disabled` | Network access requires per-action approval (default) |
+| `enabled` | Network access is allowed globally |
+
+At the execution level, network targets can be explicit hostnames, command-scoped targets, or symbolic targets such as `external network`, `package registries`, and `git remotes`. When a command requests network access, the runtime shows the specific targets being requested in the approval prompt.
+
+## Execution contract
+
+Before a command-backed tool runs, KodaCode records and displays the full declared execution contract:
+
+- Command
+- Working directory
+- Workspace read/write mode
+- Protected paths
+- Environment overrides
+- Timeout
+- Output limit
+- Network policy
+
+The approval prompt shows this contract so the decision is made with full context. The contract is also stored in the session log for later inspection via `/trace`.
+
+## Permission evaluation order
+
+When a tool requests access to a resource, the runtime evaluates in this order:
+
+1. Session posture (`permission_mode`)
+2. Existing session grants from earlier approvals
+3. Configured `permissions` policy rules
+4. Built-in runtime defaults
+5. Interactive approval prompt
+
+The agent tool surface (`allow_tools`/`disallow_tools` in agent frontmatter) is a separate layer that controls which tools an agent is offered at all. It runs before this flow and is covered in the [Agents](/features/agents/) documentation.

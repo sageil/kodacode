@@ -1,0 +1,14 @@
+---
+// Preformatted repo-discovery card to avoid MDX parsing issues.
+---
+
+<div class="bento-card wide">
+  <h3><span class="card-accent" style="background:#f9e2af;"></span>Repo Search</h3>
+  <p>Use `search` for file contents and `locate` for paths or glob matches. The split keeps each tool contract narrow and explicit.</p>
+  <pre class="card-visual" set:html={`<span style="color:#a6e3a1">▸</span> search query=<span style="color:#f9e2af">"authentication middleware"</span> path="." mode="lexical"
+  internal/middleware/auth.go:45  ValidateJWT
+  internal/auth/session.go:12     NewAuthMiddleware
+
+<span style="color:#a6e3a1">▸</span> locate query=<span style="color:#f9e2af">"internal/auth/**/*.ts"</span> path="."
+  internal/auth/authentication.ts`} />
+</div>

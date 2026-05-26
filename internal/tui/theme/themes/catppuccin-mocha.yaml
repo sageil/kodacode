@@ -1,0 +1,48 @@
+name: catppuccin-mocha
+syntax_style: catppuccin-mocha
+
+palette:
+  primary: "#cba6f7"
+  secondary: "#89b4fa"
+  surface: "#1e1e2e"
+  overlay: "#313244"
+  text: "#cdd6f4"
+  subtext: "#a6adc8"
+  error: "#f38ba8"
+  warning: "#f9e2af"
+  success: "#a6e3a1"
+  thinking: "#b4befe"
+
+tones:
+  bg: "#1e1e2e"
+  bg-alt: "#181825"
+  panel: "#313244"
+  panel-alt: "#45475a"
+  line: "#45475a"
+  line-strong: "#585b70"
+  soft: "#7f849c"
+
+components:
+  panel:
+    bg: panel
+    fg: text
+    border: rounded
+    border-color: line
+    padding: [0, 1]
+  permission:
+    bg: panel-alt
+    fg: text
+    border: rounded
+    border-color: primary
+    padding: [0, 1]
+  selection:
+    bg: primary
+    fg: surface
+  hint:
+    fg: subtext
+  status-running:
+    fg: warning
+  status-done:
+    fg: success
+  status-error:
+    fg: error

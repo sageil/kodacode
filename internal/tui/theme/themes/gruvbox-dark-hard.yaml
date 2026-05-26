@@ -1,0 +1,48 @@
+name: gruvbox-dark-hard
+syntax_style: gruvbox-dark-hard
+
+palette:
+  primary: "#689d6a"
+  secondary: "#83a598"
+  surface: "#1d2021"
+  overlay: "#3c3836"
+  text: "#ebdbb2"
+  subtext: "#a89984"
+  error: "#fb4934"
+  warning: "#fabd2f"
+  success: "#b8bb26"
+  thinking: "#d3869b"
+
+tones:
+  bg: "#1d2021"
+  bg-alt: "#141617"
+  panel: "#282828"
+  panel-alt: "#3c3836"
+  line: "#504945"
+  line-strong: "#665c54"
+  soft: "#928374"
+
+components:
+  panel:
+    bg: panel
+    fg: text
+    border: rounded
+    border-color: line
+    padding: [0, 1]
+  permission:
+    bg: panel-alt
+    fg: text
+    border: rounded
+    border-color: primary
+    padding: [0, 1]
+  selection:
+    bg: primary
+    fg: surface
+  hint:
+    fg: subtext
+  status-running:
+    fg: warning
+  status-done:
+    fg: success
+  status-error:
+    fg: error

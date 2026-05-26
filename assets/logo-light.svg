@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 620 200" width="620" height="200">
+  <defs>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@700');
+      .logo-text { font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'SF Mono', monospace; font-size: 16px; font-weight: 700; fill: #7c3aed; }
+      .tagline { font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'SF Mono', monospace; font-size: 13px; fill: #6366f1; }
+    </style>
+  </defs>
+  <rect width="620" height="200" rx="12" fill="#f8f8fc"/>
+  <text class="logo-text" xml:space="preserve">
+    <tspan x="40" dy="50">  _  __         _          ____          _</tspan>
+    <tspan x="40" dy="22"> | |/ /___   __| | __ _   / ___|___   __| | ___</tspan>
+    <tspan x="40" dy="22"> | ' // _ \ / _` |/ _` | | |   / _ \ / _` |/ _ \</tspan>
+    <tspan x="40" dy="22"> | . \ (_) | (_| | (_| | | |__| (_) | (_| |  __/</tspan>
+    <tspan x="40" dy="22"> |_|\_\___/ \__,_|\__,_|  \____\___/ \__,_|\___|</tspan>
+  </text>
+  <text class="tagline" x="310" y="175" text-anchor="middle">The composable AI coding agent for your terminal</text>
+</svg>

@@ -1,0 +1,6 @@
+# Provider credentials and OAuth state live here.
+#
+# Example:
+# openai:
+#   type: api
+#   access: "sk-..."

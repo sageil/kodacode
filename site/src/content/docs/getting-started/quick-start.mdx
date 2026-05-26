@@ -1,0 +1,159 @@
+---
+title: Quick Start
+description: Start a session, choose a model, and work inside the TUI
+---
+
+## First session in five minutes
+
+If you only want the shortest working path:
+
+1. Run `kodacode` in the repository you want to work in.
+2. Use `/connect` if you have not configured a provider yet.
+3. Use `/model` to choose a model.
+4. Use `/init` to create workspace instructions.
+5. Ask for one concrete task.
+
+That is enough to get a useful session running without touching `config.yaml` first.
+
+## Start the app
+
+Run `kodacode` in the repository or directory you want to work in:
+
+```bash
+kodacode
+```
+
+KodaCode roots the session at the current working directory. That directory is the default filesystem authority for tools and command execution.
+
+Once the TUI opens, the fastest path to a working session:
+
+- `/connect`: configure provider credentials
+- `/model`: choose a model
+- `Tab`: cycle through available agents
+- `/init`: create workspace instructions for the current repo
+
+Useful composer shortcuts early on:
+
+- `Up` / `Down`: recall recent prompts inline
+- `Ctrl+R`: open searchable prompt history
+- `Ctrl+E`: open the current draft in your default editor
+
+## Pick a model
+
+You can set a default route in `~/.config/kodacode/config.yaml`:
+
+```yaml
+version: 1
+
+providers:
+  - id: openai
+  - id: anthropic
+
+model:
+  primary: openai/gpt-5
+
+utility_model: openai/gpt-5-mini  # unset by default; cheaper background tasks
+```
+
+Or choose a model inside the TUI with `/model`.
+
+OpenAI has two route prefixes:
+
+- Use `openai/...` for an OpenAI Platform API key.
+- Use `openai-codex/...` for a ChatGPT/Codex account connected with
+  the OpenAI OAuth flow in `/connect`.
+
+For example, after ChatGPT/Codex OAuth login, choose
+`openai-codex/gpt-5` rather than `openai/gpt-5`.
+
+## Ask the first task
+
+After the TUI is ready, start with a task that proves the session can reason over the repo:
+
+- "Summarize this repository and point out the highest-risk area."
+- "Explain how session resume works in this codebase."
+- "Review the current branch for regressions."
+
+For the first turn, smaller is better than broader. You want to verify:
+
+- the selected model behaves the way you expect
+- the runtime can read the repo you intended
+- the current agent is appropriate for the task
+- approval prompts and tool output make sense
+
+## What to expect during a turn
+
+While a turn runs, KodaCode may:
+
+- inspect files and search the repo
+- run built-in tools
+- stop for permission when a command, network target, or external path needs approval
+- persist a trace you can inspect later
+
+The right drawer shows tool and task activity. Use `/trace` if you want the full turn contract and event detail after the turn completes.
+
+## Resume existing work
+
+Resume a workspace session and continue with its existing context, tool state,
+and approval history:
+
+```bash
+kodacode --resume "continue the refactor and keep the same constraints"
+```
+
+This is better than starting over when:
+
+- the previous session already explored the repo
+- the session has useful cost and trace history
+- the last turn stopped for permission and you want to resolve that exact turn
+
+## Useful commands
+
+Once you are in a session:
+
+- `/cost`: inspect accumulated spend and token savings
+- `/trace`: inspect one turn in detail
+- `/sessions`: manage and switch workspace sessions
+- `/compact`: rebuild the saved history summary now
+- `/trust`: manage workspace and MCP trust
+- `/theme`: switch TUI theme
+
+For the full command list, see [Slash Commands](/reference/commands/). For the full key map, see [Navigation](/reference/navigation/).
+
+## One-shot CLI use
+
+If stdin/stdout are not interactive terminals, `kodacode` uses the plain CLI path:
+
+```bash
+kodacode "summarize this repository"
+```
+
+That makes it usable in scripts and pipelines without the TUI.
+
+The startup argument parser is shared by the TUI and plain CLI:
+
+```bash
+kodacode [--resume] [--add-dir <path>] [--skill <id>] [workspace] [prompt...]
+```
+
+Useful forms:
+
+- `kodacode path/to/repo`: open that workspace instead of the current directory
+- `kodacode --add-dir ../shared "inspect both repos"`: grant an additional workspace root
+- `kodacode --skill migration "update the schema"`: mention a skill for the first turn
+- `kodacode -- --literal-prompt-starts-with-dashes`: stop option parsing
+
+Inside the TUI composer, prefix a single-line command with `!` to run it as a
+user shell action through the same runtime execution and approval system:
+
+```text
+!go test ./...
+```
+
+## Next reads
+
+- [Common Workflows](/getting-started/workflows/)
+- [Agents](/features/agents/)
+- [Project Memory & Instructions](/features/project-memory/)
+- [Budgets](/features/budgets/)
+- [Sandbox & Permissions](/features/sandbox/)

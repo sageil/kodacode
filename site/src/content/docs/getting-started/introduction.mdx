@@ -1,0 +1,76 @@
+---
+title: Introduction
+description: What KodaCode is and how the current product is organized
+---
+
+KodaCode is a terminal coding agent with runtime-owned workflow, replayable session state, and workspace-scoped default authority. The important design choice is that orchestration, permissions, tool execution, and prompt assembly live in code and durable events instead of hidden prompt behavior.
+
+## Start here
+
+If you are new to KodaCode, read in this order:
+
+1. [Installation](/getting-started/installation/)
+2. [Quick Start](/getting-started/quick-start/)
+3. [Common Workflows](/getting-started/workflows/)
+
+Then go deeper based on what you need:
+
+- [Agents](/features/agents/) if you want to understand `builder`, `engineer`, `reviewer`, or custom agents
+- [Project Memory & Instructions](/features/project-memory/) if you want the exact difference between repo instructions, global instructions, and explicit saved memory
+- [Sandbox & Permissions](/features/sandbox/) if you care about trust, approvals, and external access
+- [Sessions](/features/sessions/) if you want resume, replay, and persistence behavior
+- [Budgets](/features/budgets/) and [Cost Tracking & Optimization](/features/cost-tracking/) if you care about spend guardrails and cost reduction
+- [Configuration](/reference/configuration/) if you want to set defaults for models, budgets, permissions, or search
+
+## What KodaCode optimizes for
+
+KodaCode is a better fit when you care about:
+
+- tools and approvals being explicit instead of implied
+- session replay and trace inspection after a turn finishes
+- workspace-first filesystem authority
+- model routing, budgets, and token cost being part of the product surface
+
+It is less interested in hiding runtime decisions behind a polished illusion. If a tool ran, an approval blocked, or context was compacted, that should stay inspectable.
+
+## Built-in agents
+
+KodaCode ships four built-in agents:
+
+- `builder`: the default direct-execution coding agent
+- `engineer`: a structured execution agent with task tracking and delegation
+- `reviewer`: a read-focused agent for acceptance checks and review passes
+- `planner`: a read-only agent for repository analysis, design exploration, and implementation planning
+
+## How a turn works
+
+1. Your prompt is compiled from explicit runtime fragments.
+2. The selected model streams text and tool-call declarations.
+3. The runtime checks path, execution, and network boundaries before any tool runs.
+4. Tool lifecycle events, approvals, and final assistant text are persisted to the session log.
+5. The TUI renders from those same events, so replay and live state stay consistent.
+
+## Core ideas
+
+- Runtime authority: permissions, workflow, and tool execution stay in code, not agent improvisation
+- Events first: the same turn state drives live rendering, resume, and later inspection
+- Workspace-first authority: the current working directory is the default boundary for tool access
+- Prompt visibility: compaction, workflow, and routing decisions are artifacts you can inspect
+
+## What you can do
+
+- Choose one primary model for turns and a separate utility model for background work
+- Assign a cheaper utility model for background tasks like title generation and compaction
+- Set per-session and cross-session spending budgets with warning thresholds
+- Use `response_style: default` only if you want to opt out of the default terse reply style
+- Let the runtime compact long session history automatically to keep context usable
+- Search, read, patch, test, and inspect Git state with built-in tools
+- Resume workspace sessions from persisted SQLite-backed history
+- Inspect per-turn cost, token savings, and cache activity from inside the TUI
+- Extend the tool surface through MCP under the same permission model
+
+## Where to go next
+
+- [Quick Start](/getting-started/quick-start/) for the first interactive session
+- [Common Workflows](/getting-started/workflows/) for task-oriented usage paths
+- [Overview](/architecture/overview/) for the system-level design boundaries

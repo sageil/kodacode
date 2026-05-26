@@ -1,0 +1,1 @@
+Overrides can shadow built-ins. Agent precedence is built-in < `~/.config/kodacode/agents` < `.kodacode/agents`, and provider prompt precedence is per-model override, then per-provider override, then built-in.

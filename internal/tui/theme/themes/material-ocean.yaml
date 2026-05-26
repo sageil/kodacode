@@ -1,0 +1,48 @@
+name: material-ocean
+syntax_style: nord
+
+palette:
+  primary: "#81a1c1"
+  secondary: "#88c0d0"
+  surface: "#0f111a"
+  overlay: "#1e2132"
+  text: "#e5e9f0"
+  subtext: "#6b7d9c"
+  error: "#bf616a"
+  warning: "#ebcb8b"
+  success: "#a3be8c"
+  thinking: "#c792ea"
+
+tones:
+  bg: "#0f111a"
+  bg-alt: "#090b10"
+  panel: "#1e2132"
+  panel-alt: "#2e3348"
+  line: "#3b4261"
+  line-strong: "#6b7d9c"
+  soft: "#7c8eac"
+
+components:
+  panel:
+    bg: panel
+    fg: text
+    border: rounded
+    border-color: line
+    padding: [0, 1]
+  permission:
+    bg: panel-alt
+    fg: text
+    border: rounded
+    border-color: primary
+    padding: [0, 1]
+  selection:
+    bg: primary
+    fg: surface
+  hint:
+    fg: subtext
+  status-running:
+    fg: warning
+  status-done:
+    fg: success
+  status-error:
+    fg: error

@@ -1,0 +1,48 @@
+name: ayu-mirage
+syntax_style: ayu-mirage
+
+palette:
+  primary: "#ffcc66"
+  secondary: "#5ccfe6"
+  surface: "#242936"
+  overlay: "#282e3b"
+  text: "#cccac2"
+  subtext: "#707a8c"
+  error: "#ff6666"
+  warning: "#ffcd66"
+  success: "#87d96c"
+  thinking: "#dfbfff"
+
+tones:
+  bg: "#242936"
+  bg-alt: "#1f2430"
+  panel: "#282e3b"
+  panel-alt: "#282e3b"
+  line: "#171b24"
+  line-strong: "#707a8c"
+  soft: "#808999"
+
+components:
+  panel:
+    bg: panel
+    fg: text
+    border: rounded
+    border-color: line
+    padding: [0, 1]
+  permission:
+    bg: panel-alt
+    fg: text
+    border: rounded
+    border-color: primary
+    padding: [0, 1]
+  selection:
+    bg: primary
+    fg: surface
+  hint:
+    fg: subtext
+  status-running:
+    fg: warning
+  status-done:
+    fg: success
+  status-error:
+    fg: error

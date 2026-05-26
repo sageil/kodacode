@@ -1,0 +1,32 @@
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+  modules-download-mode: readonly
+
+linters:
+  default: none
+  enable:
+    - bodyclose
+    - copyloopvar
+    - errcheck
+    - gocyclo
+    - govet
+    - ineffassign
+    - revive
+    - staticcheck
+    - unused
+  settings:
+    gocyclo:
+      min-complexity: 80
+    revive:
+      enable-default-rules: false
+      rules:
+        - name: constant-logical-expr
+        - name: empty-block
+        - name: identical-branches
+        - name: package-comments
+        - name: range-val-address
+        - name: range-val-in-closure
+        - name: unreachable-code

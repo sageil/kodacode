@@ -1,0 +1,48 @@
+name: coolnight
+syntax_style: dracula
+
+palette:
+  primary: "#47ff9c"
+  secondary: "#24eaf7"
+  surface: "#08101c"
+  overlay: "#0d2137"
+  text: "#cbe0f0"
+  subtext: "#5a7a96"
+  error: "#e52e2e"
+  warning: "#ffe073"
+  success: "#44ffb1"
+  thinking: "#a78bfa"
+
+tones:
+  bg: "#08101c"
+  bg-alt: "#0b1624"
+  panel: "#0d2137"
+  panel-alt: "#214969"
+  line: "#16314d"
+  line-strong: "#5a7a96"
+  soft: "#7897b4"
+
+components:
+  panel:
+    bg: panel
+    fg: text
+    border: rounded
+    border-color: line
+    padding: [0, 1]
+  permission:
+    bg: panel-alt
+    fg: text
+    border: rounded
+    border-color: primary
+    padding: [0, 1]
+  selection:
+    bg: primary
+    fg: surface
+  hint:
+    fg: subtext
+  status-running:
+    fg: warning
+  status-done:
+    fg: success
+  status-error:
+    fg: error

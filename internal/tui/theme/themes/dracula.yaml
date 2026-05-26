@@ -1,0 +1,48 @@
+name: dracula
+syntax_style: dracula
+
+palette:
+  primary: "#bd93f9"
+  secondary: "#8be9fd"
+  surface: "#282a36"
+  overlay: "#44475a"
+  text: "#f8f8f2"
+  subtext: "#6272a4"
+  error: "#ff5555"
+  warning: "#ffb86c"
+  success: "#50fa7b"
+  thinking: "#caa9fa"
+
+tones:
+  bg: "#282a36"
+  bg-alt: "#21222c"
+  panel: "#44475a"
+  panel-alt: "#4d5370"
+  line: "#4d5370"
+  line-strong: "#6272a4"
+  soft: "#7c86b8"
+
+components:
+  panel:
+    bg: panel
+    fg: text
+    border: rounded
+    border-color: line
+    padding: [0, 1]
+  permission:
+    bg: panel-alt
+    fg: text
+    border: rounded
+    border-color: primary
+    padding: [0, 1]
+  selection:
+    bg: primary
+    fg: surface
+  hint:
+    fg: subtext
+  status-running:
+    fg: warning
+  status-done:
+    fg: success
+  status-error:
+    fg: error

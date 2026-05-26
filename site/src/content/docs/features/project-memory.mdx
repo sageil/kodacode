@@ -1,0 +1,185 @@
+---
+title: Project Memory & Instructions
+description: Global instructions, repo instructions, and explicit project memory in KodaCode
+---
+
+KodaCode has a real durable memory surface. It is not one feature hiding behind one file.
+
+There are three different layers:
+
+| Layer | Scope | Stored at | Best for |
+| --- | --- | --- | --- |
+| Global instructions | All repos on one machine | `~/.config/kodacode/AGENTS.md` | Personal defaults and durable cross-project rules |
+| Project instructions | One repository | `<workspace>/AGENTS.md` | Repo policy, architecture constraints, and contributor guidance |
+| Project memory | One repository | `<workspace>/.kodacode/memories/*.md` | Durable facts, decisions, and non-obvious context worth carrying across sessions |
+
+The important distinction is that `AGENTS.md` is curated instruction text, while project memory is an explicit runtime-managed store.
+
+## Project instructions
+
+Project instructions live at the workspace root in `AGENTS.md`.
+
+Use them for:
+
+- what the repository does
+- build, test, and lint expectations
+- ownership boundaries
+- architectural rules that should apply every turn
+
+`/init` creates `AGENTS.md` when one does not already exist. When a usable
+utility or selected model is available, runtime generates concise
+repo-specific instructions from bounded repository context; otherwise it falls
+back to a small template. If the selected model route is Anthropic, `/init`
+also creates `CLAUDE.md` as a pointer back to `AGENTS.md`.
+
+`/compress` rewrites the existing workspace `AGENTS.md` through the utility-model path to remove repetition and shrink prompt cost without hiding the file from humans.
+
+## Global instructions
+
+Global instructions live at `~/.config/kodacode/AGENTS.md`.
+
+Use them for:
+
+- your preferred working style
+- durable safety or review expectations
+- conventions you want applied across many repositories
+
+This layer is useful when you want one machine-local policy without copying the same instructions into every repo.
+
+## Explicit project memory
+
+Project memory is a separate runtime feature backed by files under:
+
+```text
+.kodacode/memories/
+```
+
+The built-in `memory` tool manages this store. It supports three actions:
+
+- `save`
+- `list`
+- `delete`
+
+Use project memory for:
+
+- architectural decisions that should survive across sessions
+- facts about the codebase that are easy to forget
+- non-obvious constraints discovered during implementation or debugging
+
+Do not use it as a dump for temporary task notes. If the information will be stale in a day or two, it probably belongs in the current session, not in durable project memory.
+
+`/compress` also rewrites existing project memory entries when it can make them shorter without dropping substantive facts. This is a durable optimization step, not transient prompt compaction.
+
+## How project memory is stored
+
+Each saved memory becomes its own Markdown file inside `.kodacode/memories/`.
+
+The runtime:
+
+- assigns a timestamp-based ID
+- stores the content as a normal file inside the workspace
+- lists saved memories back through the `memory` tool
+- injects saved memory into future turns as a prompt fragment when present
+
+Current limits:
+
+- one memory entry can contain up to 2000 characters
+- the prompt-injected project memory fragment is capped at 4000 characters total
+
+That means project memory is durable, but still bounded so it does not quietly take over the prompt.
+
+## Why the limits are small
+
+The 2000-character entry limit is not just a storage choice. Project memory is injected into future turns as a prompt fragment, so every saved entry has an ongoing token cost.
+
+The limits are there to keep project memory useful without turning it into a hidden prompt dump:
+
+- the 2000-character per-entry cap keeps each memory item summary-sized and reviewable
+- the 4000-character total injection cap keeps all project memory from crowding out the rest of the turn context
+- the small size pushes large reports, plans, and one-off task writeups back into normal workspace files where they belong
+
+In other words, project memory is for durable facts and decisions, not for storing full deliverables.
+
+## Large artifacts: use a file plus a summary memory
+
+If you generate something long, such as:
+
+- a performance review
+- an implementation plan
+- a migration checklist
+- a design writeup
+
+do not try to save the full artifact as project memory.
+
+Instead:
+
+1. save the full content in a normal workspace file
+2. save a short project memory entry with the durable takeaway and the file path
+
+Good project memory example:
+
+```md
+Performance optimization plan stored in docs/performance-plan.md.
+Durable takeaways: API hot paths are project list aggregation and dashboard queries; avoid reintroducing N+1 reads; prefer cached summary endpoints for dashboard cards.
+```
+
+Bad project memory example:
+
+```md
+Full 4-page performance review with phase-by-phase implementation detail, temporary findings, and one-off task notes...
+```
+
+## Durable compression
+
+KodaCode has two different cost-cutting layers here:
+
+- prompt compaction: runtime compacts provider-facing fragments at turn time
+- durable compression: `/compress` rewrites the workspace-owned source files themselves
+
+That distinction matters. Prompt compaction lowers tokens for one request shape. `/compress` lowers the steady-state size of the actual durable inputs that future turns load from disk.
+
+## What gets loaded into a turn
+
+For durable user and repository guidance, the current prompt assembly order is:
+
+1. Global instructions
+2. Project instructions
+3. Project memory
+4. Available skill metadata and any explicitly mentioned skills
+
+Those sit alongside built-in runtime policy, the selected agent prompt, workspace metadata, and execution environment metadata.
+
+The important point is that project memory is not hidden inside session text. It is loaded explicitly as its own prompt fragment.
+
+## Use this, not that
+
+Use `AGENTS.md` when:
+
+- the rule should apply to the repo as a standing policy
+- you want humans and agents to read the same contributor guidance
+- the content is organized, reviewed, and intentionally maintained
+
+Use project memory when:
+
+- the fact was discovered during work
+- the note is durable but small
+- the information is worth carrying forward without editing the repo instructions file immediately
+
+Do not use project memory when:
+
+- the content is a large report or plan
+- the note is mostly temporary task progress
+- the same information belongs in a checked-in design doc or repo policy file instead
+
+Use skills when:
+
+- you want reusable workflow instructions
+- the behavior should be invoked per turn with `$name` / `${name}` instead of always-on for the repo
+- you want optional guidance that does not permanently bloat every prompt
+
+## Related features
+
+- [Agents](/features/agents/)
+- [Built-in Tools](/features/tools/)
+- [Context Management](/features/context/)
+- [Slash Commands](/reference/commands/)

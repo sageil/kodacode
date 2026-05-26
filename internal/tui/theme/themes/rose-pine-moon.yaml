@@ -1,0 +1,48 @@
+name: rose-pine-moon
+syntax_style: rose-pine-moon
+
+palette:
+  primary: "#c4a7e7"
+  secondary: "#9ccfd8"
+  surface: "#232136"
+  overlay: "#2a273f"
+  text: "#e0def4"
+  subtext: "#908caa"
+  error: "#eb6f92"
+  warning: "#f6c177"
+  success: "#9ccfd8"
+  thinking: "#c4a7e7"
+
+tones:
+  bg: "#232136"
+  bg-alt: "#1f1d2e"
+  panel: "#2a273f"
+  panel-alt: "#393552"
+  line: "#44415a"
+  line-strong: "#56526e"
+  soft: "#6e6a86"
+
+components:
+  panel:
+    bg: panel
+    fg: text
+    border: rounded
+    border-color: line
+    padding: [0, 1]
+  permission:
+    bg: panel-alt
+    fg: text
+    border: rounded
+    border-color: primary
+    padding: [0, 1]
+  selection:
+    bg: primary
+    fg: surface
+  hint:
+    fg: subtext
+  status-running:
+    fg: warning
+  status-done:
+    fg: success
+  status-error:
+    fg: error

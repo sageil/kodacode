@@ -1,0 +1,69 @@
+---
+title: Installation
+description: How to install KodaCode on macOS and Linux
+---
+
+## Quick install
+
+### macOS / Linux
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/sageil/kodacode/main/install.sh | sh
+```
+
+That installs `kodacode` to `/usr/local/bin/kodacode`.
+
+### Homebrew
+
+```bash
+brew tap sageil/tap
+brew install --cask kodacode
+```
+
+### Go install
+
+```bash
+go install github.com/sageil/kodacode/cmd/kodacode@latest
+```
+
+Requires Go 1.26+.
+
+This path installs only `kodacode`. Search is built into the app; no separate
+search binary is required.
+
+### From source
+
+```bash
+git clone https://github.com/sageil/kodacode.git
+cd kodacode
+task build
+mv bin/kodacode /usr/local/bin/
+```
+
+Requires Go 1.26+ and [Task](https://taskfile.dev).
+
+## Configuration and storage
+
+KodaCode keeps configuration and credentials separate:
+
+- `~/.config/kodacode/config.yaml`: model routing, budgets, search, execution policy, theme
+- `~/.config/kodacode/auth.yaml`: provider credentials and OAuth state
+
+By default it also writes runtime data to:
+
+- `~/.local/share/kodacode/kodacode.db`: SQLite session, event, tool-result, and background-log store
+- `~/.local/share/kodacode/models-cache.json`: model catalog cache
+- `~/.local/state/kodacode/search`: default search index
+
+If you use XDG overrides, those paths move under `XDG_CONFIG_HOME`,
+`XDG_DATA_HOME`, and `XDG_STATE_HOME` instead.
+
+The TUI can stage provider setup through `/connect`, or you can write those files manually.
+
+## Next steps
+
+After installation:
+
+1. Read [Quick Start](/getting-started/quick-start/) for the first session flow
+2. Use [Common Workflows](/getting-started/workflows/) to pick the right path for daily use
+3. Use [Configuration](/reference/configuration/) when you want durable defaults

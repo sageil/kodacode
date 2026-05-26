@@ -1,0 +1,124 @@
+---
+title: Budgets
+description: Session and cross-session spending limits, warnings, and stop behavior in KodaCode
+---
+
+Budgets are one of KodaCode's most opinionated user-facing features.
+
+They are not passive dashboards. They are runtime-enforced spending limits that can warn early and stop new turns before more model cost is incurred.
+
+## Two budget scopes
+
+KodaCode supports two separate limits under `sessions` in `config.yaml`:
+
+```yaml
+sessions:
+  budget: 5              # cap one session at $5
+  budget_warn: 0.8       # warn at 80% of budget
+  total_budget: 100      # cap all stored sessions at $100
+  total_budget_warn: 0.8 # warn at 80% of total_budget
+```
+
+| Setting | Scope | What it protects |
+| --- | --- | --- |
+| `budget` | One session | Prevent one long session from running away |
+| `total_budget` | All stored sessions | Prevent many sessions in the same database from quietly adding up |
+
+Warning thresholds are fractions between `0` and `1`.
+
+- `budget_warn: 0.8` means "warn when this session reaches 80% of its budget"
+- `total_budget_warn: 0.8` means "warn when all stored sessions together reach 80% of the total budget"
+
+## What happens at warn level
+
+When a warning threshold is crossed, KodaCode surfaces budget state in the TUI before the hard limit is reached.
+
+Examples of footer labels:
+
+- `budget 80%`
+- `total 80%`
+- `budget warn`
+- `total warn`
+
+The goal is to make cost pressure visible while you still have time to switch models, keep the default terse mode, summarize history, or stop the session deliberately.
+
+## What happens when a budget is hit
+
+When a session or cross-session budget is exceeded, KodaCode blocks the next turn before a provider call is made.
+
+That means:
+
+- no new model request is sent for that blocked turn
+- the turn fails explicitly
+- the stop is enforced by runtime, not left to prompt compliance
+
+The runtime distinguishes:
+
+- `Session budget reached`
+- `Cross-session budget reached`
+
+This is the main reason budgets deserve their own feature page: they are active execution controls, not just reporting.
+
+## Validation rules
+
+Budget settings are validated at startup:
+
+- `budget` and `total_budget` must be non-negative
+- `budget_warn` and `total_budget_warn` must be between `0` and `1`
+- a warning threshold requires its corresponding budget to be positive
+
+If the config is invalid, KodaCode rejects it instead of silently guessing.
+
+## Where budget state appears
+
+Budget state is visible in normal use:
+
+- the footer shows warning and hit state
+- `/cost` shows the accumulated session totals and savings
+- budget warning and exceeded messages include the current estimated spend and limit
+
+If some turns are missing pricing, the warning or exceeded message calls that out explicitly instead of pretending the estimate is complete.
+
+## How to choose numbers
+
+Good starting patterns:
+
+- solo usage, one repository at a time: set `budget` first
+- many sessions over days or weeks: add `total_budget`
+- cautious start: use warnings before hard limits feel comfortable
+
+Example:
+
+```yaml
+sessions:
+  budget: 3
+  budget_warn: 0.75
+  total_budget: 25
+  total_budget_warn: 0.8
+```
+
+This says:
+
+- warn when one session reaches about `$2.25`
+- stop that session at `$3`
+- warn when all stored sessions together reach `$20`
+- stop all further turns at `$25` total
+
+## Budgets vs cost reduction
+
+Budgets do not reduce cost by themselves. They are guardrails.
+
+If you want to spend less before a limit is reached, the main user-facing levers are:
+
+- `sessions.response_style: terse`
+- `utility_model` for runtime utility text work
+- compaction thresholds and `/compact`
+- `workflow.review_model` for cheaper review passes
+
+Those are covered in [Cost Tracking & Optimization](/features/cost-tracking/) and [Context Management](/features/context/).
+
+## Related pages
+
+- [Cost Tracking & Optimization](/features/cost-tracking/)
+- [Context Management](/features/context/)
+- [Configuration](/reference/configuration/)

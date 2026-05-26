@@ -1,0 +1,48 @@
+name: tokyo-night
+syntax_style: tokyonight-night
+
+palette:
+  primary: "#7aa2f7"
+  secondary: "#7dcfff"
+  surface: "#1a1b26"
+  overlay: "#24283b"
+  text: "#c0caf5"
+  subtext: "#a9b1d6"
+  error: "#f7768e"
+  warning: "#e0af68"
+  success: "#9ece6a"
+  thinking: "#bb9af7"
+
+tones:
+  bg: "#1a1b26"
+  bg-alt: "#15161e"
+  panel: "#1f2335"
+  panel-alt: "#24283b"
+  line: "#292e42"
+  line-strong: "#3b4261"
+  soft: "#565f89"
+
+components:
+  panel:
+    bg: panel
+    fg: text
+    border: rounded
+    border-color: line-strong
+    padding: [0, 1]
+  permission:
+    bg: panel-alt
+    fg: text
+    border: rounded
+    border-color: primary
+    padding: [0, 1]
+  selection:
+    bg: primary
+    fg: surface
+  hint:
+    fg: subtext
+  status-running:
+    fg: warning
+  status-done:
+    fg: success
+  status-error:
+    fg: error

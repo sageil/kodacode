@@ -1,0 +1,9 @@
+.DS_Store
+build/
+dist/
+.tmp/
+.kodacode/go-build-cache/
+bin/
+docs/
+.cache/
+.pnpm-store/

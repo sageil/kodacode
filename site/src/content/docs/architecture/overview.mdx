@@ -1,0 +1,37 @@
+---
+title: Overview
+description: High-level architecture and design boundaries
+---
+
+KodaCode is built around a few hard boundaries.
+
+## Runtime authority
+
+Workflow policy, permission gates, session state, and tool execution rules live in runtime code. Prompts can ask for work, but they do not get to redefine those boundaries.
+
+## Events first
+
+The system persists a durable event stream. Live UI updates and replay both come from those same events, which keeps the TUI honest and resumable.
+
+## Declaration is not execution
+
+A model emitting a tool call is not the same thing as the tool running. The runtime validates the request, checks permissions, declares the execution contract, and only then executes.
+
+## Prompt visibility
+
+Prompt assembly is explicit and inspectable. Pruning and compaction are runtime artifacts, not hidden provider behavior.
+
+## Workspace-first authority
+
+The working directory is the default filesystem scope. Anything outside it becomes an explicit approval decision rather than an implicit capability.
+
+## Main subsystems
+
+- `internal/provider`: provider clients and model streaming
+- `internal/events`: durable event model and replay
+- `internal/engine`: prompt preparation and compile boundary
+- `internal/tool`: tool contracts and execution context
+- `internal/app`: sessions, runtime services, execution, and turn orchestration
+- `internal/tui`: replay-driven Bubble Tea user interface
+
+The net effect is a simpler contract: runtime code owns orchestration, the UI renders emitted state, and replay stays a first-class part of the product instead of a debugging afterthought.

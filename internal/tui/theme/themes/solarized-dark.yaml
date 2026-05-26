@@ -1,0 +1,48 @@
+name: solarized-dark
+syntax_style: solarized-dark
+
+palette:
+  primary: "#268bd2"
+  secondary: "#2aa198"
+  surface: "#002b36"
+  overlay: "#073642"
+  text: "#839496"
+  subtext: "#586e75"
+  error: "#dc322f"
+  warning: "#b58900"
+  success: "#859900"
+  thinking: "#6c71c4"
+
+tones:
+  bg: "#002b36"
+  bg-alt: "#001f27"
+  panel: "#073642"
+  panel-alt: "#0a4757"
+  line: "#586e75"
+  line-strong: "#657b83"
+  soft: "#93a1a1"
+
+components:
+  panel:
+    bg: panel
+    fg: text
+    border: rounded
+    border-color: line
+    padding: [0, 1]
+  permission:
+    bg: panel-alt
+    fg: text
+    border: rounded
+    border-color: primary
+    padding: [0, 1]
+  selection:
+    bg: primary
+    fg: surface
+  hint:
+    fg: subtext
+  status-running:
+    fg: warning
+  status-done:
+    fg: success
+  status-error:
+    fg: error

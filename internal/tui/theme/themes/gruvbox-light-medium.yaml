@@ -1,0 +1,48 @@
+name: gruvbox-light-medium
+syntax_style: gruvbox-light-medium
+
+palette:
+  primary: "#689d6a"
+  secondary: "#076678"
+  surface: "#fbf1c7"
+  overlay: "#ebdbb2"
+  text: "#3c3836"
+  subtext: "#7c6f64"
+  error: "#9d0006"
+  warning: "#b57614"
+  success: "#79740e"
+  thinking: "#8f3f71"
+
+tones:
+  bg: "#fbf1c7"
+  bg-alt: "#ebdbb2"
+  panel: "#f2e5bc"
+  panel-alt: "#f9f5d7"
+  line: "#d5c4a1"
+  line-strong: "#bdae93"
+  soft: "#928374"
+
+components:
+  panel:
+    bg: panel
+    fg: text
+    border: rounded
+    border-color: line
+    padding: [0, 1]
+  permission:
+    bg: panel-alt
+    fg: text
+    border: rounded
+    border-color: primary
+    padding: [0, 1]
+  selection:
+    bg: primary
+    fg: surface
+  hint:
+    fg: subtext
+  status-running:
+    fg: warning
+  status-done:
+    fg: success
+  status-error:
+    fg: error

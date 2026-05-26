@@ -1,0 +1,41 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/sageil/kodacode/main/schema/config.schema.json
+# KodaCode configuration
+#
+# This file is created on first run so the runtime, prompts, agents, themes,
+# and data artifacts all have a stable user-owned home under ~/.config/kodacode
+# and ~/.local/share/kodacode.
+
+version: 1
+
+providers: []
+
+# Choose a primary route once you connect a provider.
+# model:
+#   primary: openai/gpt-5
+
+# Utility model used for cheaper background work.
+# utility_model: openai/gpt-5-mini
+# utility_model_retry_attempts: 1
+# utility_model_retry_after_max_seconds: 5
+
+execution:
+  permission_mode: auto
+  network: disabled
+
+tui:
+  theme: ayu-dark
+  # display_turns: 6
+
+# Optional examples:
+# logging:
+#   debug: true
+# retention:
+#   expiry_days: 14
+#
+# sessions:
+#   budget: 5
+#   budget_warn: 0.8
+#   # response_style defaults to terse; set default to opt out.
+#   # response_style: default
+#   # max_provider_requests_per_turn defaults to 32; set -1 to disable.
+#   # max_provider_requests_per_turn: 32

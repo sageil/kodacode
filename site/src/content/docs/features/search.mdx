@@ -1,0 +1,121 @@
+---
+title: Hybrid Search
+description: How KodaCode combines lexical and embedding-based search to find relevant code
+---
+
+The `search` tool uses a hybrid mode by default: it ranks chunk-level lexical and semantic evidence together, then merges the results by relevance. If embeddings are not configured, it falls back to lexical search automatically.
+
+## How it works
+
+When the model calls `search`, KodaCode:
+
+1. Splits files into chunks and keeps those chunk boundaries stable for hybrid ranking.
+2. Runs a chunk-aware lexical pass over the target path or glob.
+3. If an embedding model is configured, embeds the query and each chunk, then scores them by cosine similarity.
+4. Merges the two ranked chunk lists using reciprocal rank fusion, which combines rank position from each pass into a single relevance score.
+5. Applies fixed internal path-aware adjustments so source files tend to outrank docs, tests, mocks, and generated code.
+
+Visible output stays text-first:
+
+- lexical mode returns `path:line:snippet`
+- hybrid mode prefixes each result with `[lexical]`, `[semantic]`, or `[merged]`
+
+The runtime also stores structured search metadata for replay and the TUI
+inspector, including fallback notices, source mix, and match counts.
+
+## File chunking
+
+Files are split into chunks before embedding. The chunker detects declaration boundaries (functions, classes, types, and their preceding comments) and uses those as split points. Where no boundaries are found, it uses 40-line sliding windows.
+
+Chunks are cached on disk and revalidated against file modification time every 10 seconds. Only changed files are re-embedded.
+
+## Search modes
+
+| Mode | Behaviour |
+| --- | --- |
+| `hybrid` | Lexical and semantic combined (default when embeddings are configured) |
+| `lexical` | Text matching only |
+
+Regex search always uses lexical mode regardless of configuration.
+
+## Path and glob scope
+
+Use `"."` for workspace-wide search. If you want to narrow the scope, prefer a
+more specific `path` first, then add a simple glob when needed.
+
+Current glob behavior supports basename patterns and relative path patterns such
+as:
+
+- `*.go`
+- `internal/*.go`
+- `pkg/*_test.go`
+
+It does not use doublestar semantics. Patterns like `**/tests/**` are not part
+of the current search contract.
+
+## Configuration
+
+```yaml
+search:
+  skip_dirs: [coverage, .next]                     # optional extra directory names to ignore
+  embeddings_model: openai/text-embedding-3-small  # required for hybrid mode
+  embeddings_dimensions: 1536                       # optional; omit to use the model default
+  prewarm_embeddings: false                         # embed workspace files on session open
+  index_dir: ~/.local/state/kodacode/search         # cache location
+```
+
+`embeddings_model` uses the format `provider_id/model_id`. The provider must be configured with a valid API key and base URL. Any OpenAI-compatible embedding endpoint works.
+
+Setting `prewarm_embeddings: true` requires `embeddings_model` to be set; the config validator rejects the combination otherwise. Hybrid ranking also applies fixed internal path-aware adjustments so source files tend to rank above docs, tests, and generated paths without exposing more user-facing tuning.
+
+## Complete example
+
+This is a copy-pasteable example with every public search setting:
+
+```yaml
+version: 1
+
+providers:
+  - id: openai
+
+search:
+  index_dir: /Users/you/.local/state/kodacode/search
+  skip_dirs:
+    - coverage
+    - dist
+    - .next
+  embeddings_model: openai/text-embedding-3-small
+  embeddings_dimensions: 1536
+  prewarm_embeddings: true
+```
+
+Replace the provider and model with your own route if you use a local
+OpenAI-compatible server such as Ollama or LM Studio.
+
+## Scope limit
+
+Hybrid search operates on at most 800 chunks. If the search path or glob resolves to more than that, KodaCode falls back to lexical search and includes a notice in the result:
+
+```
+notice: semantic search scope is too large; narrow path or glob
+```
+
+For tracked workspaces, a cold broad fallback also schedules background index warming so later searches can use the cached chunk index without asking the user to trigger warmup manually.
+
+To stay within the limit immediately, pass a more specific `path` such as
+`internal/auth` or a simple glob like `*.go` or `internal/*.go` instead of the
+entire workspace root.
+
+## What gets skipped
+
+- Binary files (detected by null byte probe)
+- `.git`, `node_modules`, and `vendor` directories by default
+- Any extra directory names you add under `search.skip_dirs`
+
+`search.skip_dirs` entries are exact directory names, not globs or relative
+paths. For example, `coverage` skips any directory named `coverage` anywhere in
+the searched tree.
+
+## Graceful fallback
+
+Hybrid search never hard-fails. If embeddings are not configured, the embedding API returns an error, or the scope is too large, the tool returns lexical results with a notice explaining the downgrade. The model always gets something useful back.

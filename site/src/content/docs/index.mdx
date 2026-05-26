@@ -1,0 +1,136 @@
+---
+title: KodaCode
+description: Event-first coding agent for your terminal.
+template: splash
+hero:
+  tagline: |
+    <em>truly yours.</em>
+    <br/><br/>
+    <span class="hero-sub">An event-first coding agent for your terminal.</span>
+  actions:
+    - text: Get Started
+      link: /getting-started/introduction/
+      icon: right-arrow
+      variant: primary
+    - text: View on GitHub
+      link: https://github.com/sageil/kodacode
+      icon: external
+      variant: minimal
+---
+
+import TerminalDemo from '../../components/TerminalDemo.astro';
+import AgentCard from '../../components/AgentCard.astro';
+import ToolsCard from '../../components/ToolsCard.astro';
+import SearchCard from '../../components/SearchCard.astro';
+
+<div class="splash-section">
+<div class="bento-grid">
+
+<TerminalDemo />
+
+<AgentCard />
+
+<div class="bento-card">
+<h3><span class="card-accent" style="background:#f38ba8;"></span>Sandboxed</h3>
+<p>Filesystem authority starts at the working directory. External paths and network access surface as explicit approvals.</p>
+</div>
+
+<div class="bento-card">
+<h3><span class="card-accent" style="background:#89b4fa;"></span>Multi-provider</h3>
+<p>Route across native OpenAI, Anthropic, Google, NVIDIA, GitHub Copilot, DeepSeek, or compatible OpenAI-style provider presets.</p>
+</div>
+
+<ToolsCard />
+
+<SearchCard />
+
+<div class="bento-card">
+<h3><span class="card-accent" style="background:#f9e2af;"></span>Cost control</h3>
+<p>Budgets, terse replies, utility-model routing, compaction savings, and traceable turn cost inspection.</p>
+</div>
+
+<div class="bento-card">
+<h3><span class="card-accent" style="background:#89b4fa;"></span>LSP intelligence</h3>
+<p>Definitions, symbols, diagnostics, trace, refs, rename, and code actions are runtime tools, not editor-only integrations.</p>
+</div>
+
+<div class="bento-card">
+<h3><span class="card-accent" style="background:#fab387;"></span>Sessions & replay</h3>
+<p>Workspace sessions persist to SQLite, can be resumed later, and keep permission and tool state replayable instead of implicit.</p>
+</div>
+
+<div class="bento-card">
+<h3><span class="card-accent" style="background:#a6e3a1;"></span>Prompt visibility</h3>
+<p>Prompt assembly, pruning, compaction, and workflow decisions are emitted as durable runtime artifacts instead of hidden behavior.</p>
+</div>
+
+<div class="bento-card">
+<h3><span class="card-accent" style="background:#cba6f7;"></span>MCP ready</h3>
+<p>Use built-in tools and MCP servers side by side under the same runtime-owned permission model.</p>
+</div>
+
+<div class="bento-card">
+<h3><span class="card-accent" style="background:#f38ba8;"></span>Context management</h3>
+<p>Pruning and compaction are explicit session artifacts. Long conversations stay inspectable instead of silently rewritten.</p>
+</div>
+
+<div class="bento-card">
+<h3><span class="card-accent" style="background:#89b4fa;"></span>Model routing</h3>
+<p>Choose one primary model and a cheaper utility model for runtime utility text work such as title generation and compaction summaries.</p>
+</div>
+
+</div>
+</div>
+
+<hr class="splash-divider" />
+
+<div class="install-section">
+
+## Install
+
+<div class="install-grid">
+
+<div class="install-card">
+<div class="install-label">macOS / Linux</div>
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/sageil/kodacode/main/install.sh | sh
+```
+
+</div>
+
+<div class="install-card">
+<div class="install-label">Homebrew</div>
+
+```bash
+brew tap sageil/tap && brew install --cask kodacode
+```
+
+</div>
+
+<div class="install-card">
+<div class="install-label">Go</div>
+
+```bash
+go install github.com/sageil/kodacode/cmd/kodacode@latest
+```
+
+Search is built into the app. No separate search binary is required.
+
+</div>
+
+</div>
+
+Then run `kodacode` to start.
+
+</div>
+
+## Learn KodaCode
+
+If you want the docs to feel guided instead of encyclopedic, start here:
+
+- New to the product: [Introduction](/getting-started/introduction/) then [Quick Start](/getting-started/quick-start/)
+- Want task-oriented guidance: [Common Workflows](/getting-started/workflows/)
+- Need runtime concepts: [Agents](/features/agents/), [Project Memory & Instructions](/features/project-memory/), [Sandbox & Permissions](/features/sandbox/), [Code Intelligence & LSP](/features/lsp/), and [Sessions](/features/sessions/)
+- Need cost controls: [Budgets](/features/budgets/), [Cost Tracking & Optimization](/features/cost-tracking/), and [Context Management](/features/context/)
+- Need exact knobs and commands: [Configuration](/reference/configuration/), [Slash Commands](/reference/commands/), and [Navigation Keys](/reference/navigation/)

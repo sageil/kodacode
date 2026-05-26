@@ -1,0 +1,460 @@
+---
+title: Agents
+description: Builder, engineer, reviewer, planner, and custom agent definitions
+---
+
+KodaCode exposes agents as explicit runtime definitions, not prompt-only personas.
+The runtime also supports delegated child agents through the `delegate` tool, so
+subagent behavior uses a real runtime boundary. Agent markdown can still guide
+when delegation is appropriate, but child eligibility is decided by runtime
+mode checks rather than parent-side allow or deny lists.
+
+## Built-in agents
+
+KodaCode currently ships four built-in agents.
+
+Built-in agents:
+
+- `builder`
+- `engineer`
+- `reviewer`
+- `planner`
+
+`builder` and `engineer` are the common interactive choices. They now have a
+clear boundary: `builder` is the plain direct-execution agent, while
+`engineer` owns structured workflow tracking and child delegation. `reviewer`
+and `planner` are selectable and can also be delegated to.
+
+When `web_search` is configured at the runtime level, all built-in agents can
+use it. `builder` and `engineer` inherit it from the current turn surface, and
+`reviewer` and `planner` explicitly allow it in their built-in policies.
+
+### builder
+
+The default direct-execution agent. It is meant for normal coding work: inspect
+the code, make changes, run checks, and finish the task. It does not own
+workflow tracking or subagent delegation.
+
+Its policy is "all tools except `delegate`, `task_workflow`, and
+`task_review`." That includes the full code-intelligence surface, including
+read-only tools such as `symbols`, `definition`, `diagnostics`, `refs`, and
+`trace`, plus mutation tools such as `rename_symbol` and `code_action`.
+
+### engineer
+
+A structured execution agent with access to runtime task tools such as
+`task_workflow` and to the `delegate` tool. Use it when the work benefits from
+durable task state, planner/reviewer handoffs, or a more explicit execution
+workflow. Its intended boundary is: narrow local planning stays inline, but
+repository-scoped plans and architecture mapping should be handed to `planner`.
+
+Its policy is "all tools except `task_review`." That includes the full
+code-intelligence surface. `engineer` can use read-only semantic tools for
+impact analysis and can use `rename_symbol` or `code_action` when a
+language-server refactor or fix is safer than manual text edits.
+
+### reviewer
+
+A read-focused agent for review and acceptance checks. It has a narrower tool
+surface and does not own file-editing tools. When external verification helps,
+it can also use `web_search` and `web_fetch`.
+
+`reviewer` has read-only code-intelligence tools:
+
+- `symbols`
+- `definition`
+- `diagnostics`
+- `refs`
+- `trace`
+
+It does not have mutation code-intelligence tools such as `rename_symbol` or
+`code_action`.
+
+### planner
+
+A read-only planning agent for repository analysis and implementation planning.
+It is available in the runtime catalog, but it is usually more useful for
+analysis than direct implementation. It can use read tools, read-only
+code-intelligence tools, `question` for bounded user decisions, and
+`web_search` when that runtime capability is configured.
+
+Primary planner turns use a runtime-owned plan approval flow. The planner first
+shows the complete plan, then signals the `question` tool with the
+`planner_save_plan` purpose. Runtime records the visible plan and asks whether
+to save, apply, revise, or stop. Saving writes the accepted plan under
+`.kodacode/plans/`; applying continues with `engineer`; revising continues with
+`planner`.
+
+`planner` has the same read-only code-intelligence set as `reviewer`:
+
+- `symbols`
+- `definition`
+- `diagnostics`
+- `refs`
+- `trace`
+
+It does not have mutation tools, including `apply_patch`, `write`,
+`rename_symbol`, or `code_action`.
+
+## Workflow and review
+
+The structured workflow path is centered on `engineer` and `reviewer`.
+
+- `engineer` owns `task_workflow` and the main implementation session
+- `reviewer` owns `task_review` and records durable review outcomes
+- delegated reviewer sessions review the parent work session's tasks, not an
+  empty child-local task list
+
+The top-level `workflow` config controls whether runtime injects an automatic
+review turn:
+
+- `workflow.review_mode: off`: runtime never starts an automatic review turn
+- `workflow.review_mode: manual`: review stays agent-driven; `engineer` can
+  still delegate to `reviewer` when it decides a review boundary is useful
+- `workflow.review_mode: auto`: runtime starts a reviewer turn only after an
+  `engineer` turn completes, every current task is already completed, and at
+  least one completed task still lacks a review outcome
+
+`workflow.review_model` can route that automatic review turn to a cheaper model
+without changing the main implementation route.
+
+## Switching agents
+
+Inside the TUI:
+
+- `Tab` cycles forward through available agents
+- `Shift+Tab` cycles backward
+
+Available agents are resolved from the runtime catalog for the current workspace.
+
+## Custom agents
+
+You can define additional agents in markdown:
+
+- global: `~/.config/kodacode/agents/*.md`
+- project-local: `.kodacode/agents/*.md`
+
+The runtime resolves agents in this order:
+
+1. embedded built-ins
+2. global agents
+3. project-local agents
+
+That means:
+
+- a new global agent is added to the catalog
+- a global agent with the same ID as a built-in overrides the built-in
+- a project-local agent with the same ID overrides both global and built-in
+
+Agent definitions can narrow tools, provide model routes, and add prompt text,
+but the runtime still owns execution, permissions, and replay.
+
+### Agent file anatomy
+
+An agent markdown file has three parts:
+
+1. the filename, which becomes the agent ID
+2. an optional YAML frontmatter block
+3. the prompt body
+
+For example, `.kodacode/agents/delivery.md` creates an agent with the runtime
+ID `delivery`.
+
+### Frontmatter fields
+
+Agent markdown supports these frontmatter fields:
+
+- `description`
+- `model`
+- `mode`
+- `hidden`
+- `AllowTools`
+- `DisallowedTools`
+
+These are the complete supported keys. Older route keys such as
+`fallback_models` are not supported.
+
+### Full example
+
+This is a complete primary agent example that includes delegation guidance:
+
+```md
+---
+description: Delivery-focused engineer with planner and reviewer handoffs
+model: openai/gpt-5-mini
+mode: all
+AllowTools:
+  - read
+  - search
+  - symbols
+  - definition
+  - diagnostics
+  - refs
+  - trace
+  - apply_patch
+  - write
+  - bash
+  - git_diff
+  - delegate
+  - question
+  - task_workflow
+DisallowedTools:
+  - task_review
+---
+
+You are the delivery agent for this repository.
+
+<workflow>
+Own the main implementation from start to finish.
+
+When the task needs architecture mapping or repo-scoped planning before edits,
+delegate to `planner`.
+
+If the user explicitly asks for a plan, implementation sequence, architecture
+map, design exploration, or repo-scoped "what needs to change" analysis,
+delegate to `planner` unless the work is obviously limited to one or two
+files.
+
+When implementation is complete and you want an acceptance pass before
+finishing, delegate to `reviewer`.
+
+Use `task_workflow` when the work naturally breaks into durable steps.
+</workflow>
+
+<execution>
+Read the relevant code before editing.
+Prefer small, verifiable changes.
+Use `question` only when a real user decision is required.
+</execution>
+
+<delegation_examples>
+- Delegate to `planner` for: "Map the auth flow and identify the files that must change."
+- Delegate to `reviewer` for: "Review the patch for regressions and missing tests."
+</delegation_examples>
+```
+
+If you want a child-only helper that can be delegated to, make that agent
+`mode: subagent`:
+
+```md
+---
+description: Release notes writer
+mode: subagent
+AllowTools:
+  - read
+  - search
+  - git_diff
+  - write
+---
+
+You only prepare release notes and changelog updates.
+```
+
+### What each part does
+
+- Filename:
+  `delivery.md` becomes the runtime agent ID `delivery`. This is the ID the
+  TUI and the `delegate` tool use.
+- `description`:
+  short human-readable text for the picker and catalog.
+- `model`:
+  optional primary model override for this agent. If omitted, the turn uses the
+  session model.
+- `mode`:
+  decides whether the agent is selectable, delegatable, or both.
+- `hidden`:
+  removes the agent from the normal picker without deleting it from the
+  catalog.
+- `AllowTools`:
+  the explicit tool surface this agent gets.
+- `DisallowedTools`:
+  removes tools from the available surface.
+- Prompt body:
+  the actual behavior instructions sent to the model.
+
+The XML-like sections in the example such as `<workflow>` and `<execution>` are
+just prompt organization. Runtime does not parse them as structured config.
+They help the model read the prompt, but they do not grant tools, delegation
+rights, filesystem access, or network access by themselves.
+
+The delegation lines in the body are guidance, not enforcement. They tell the
+agent when it should use the `delegate` tool, but runtime still decides whether
+the child agent can actually be delegated to based on that child's `mode`.
+
+### Agent modes
+
+`mode` controls where an agent is allowed to appear:
+
+- `primary`: selectable in the normal agent picker, but not delegatable
+- `subagent`: delegatable and not shown in the normal picker
+- `all`: both selectable and delegatable
+
+If `mode` is omitted, runtime treats the agent as `primary`.
+
+`hidden: true` removes an agent from the normal picker even if its mode would
+otherwise make it selectable. Hidden agents can still be valid delegation
+targets when their mode is `subagent` or `all`.
+
+### Tool permission semantics
+
+`AllowTools` and `DisallowedTools` are evaluated by runtime, not by prompt
+convention.
+
+- If neither `AllowTools` nor `DisallowedTools` is set, the agent gets the full current turn tool surface.
+- If `AllowTools` is not set and `DisallowedTools` is set, the agent gets all current turn tools except the denied ones.
+- If `AllowTools` is set, the agent only gets the listed tools.
+- If both are set, runtime starts from `AllowTools` and then removes anything listed in `DisallowedTools`.
+- `AllowTools: []` means no tools at all. That is an explicit no-tool agent, not a fallback.
+- If `AllowTools` names a tool that is not registered in the current runtime surface, runtime drops it instead of treating the agent as invalid.
+
+Tool names are matched by exact runtime tool name. MCP tools also support the
+wildcard `mcp:*`.
+
+This tool surface is not the same thing as runtime permission policy:
+
+- `AllowTools` and `DisallowedTools` decide which tools exist in the turn
+- `execution.permission_mode` decides the runtime posture
+- top-level `config.yaml` `permissions` can default repeated actions to
+  `allow`, `ask`, or `deny`
+- session approvals and grants remain durable runtime state
+
+That separation is intentional. Agent markdown can narrow tool availability,
+but it does not grant filesystem, execution, or network authority by itself.
+
+### Delegation controls
+
+Delegation is runtime-owned.
+
+- the child must have `mode: subagent` or `mode: all`
+- if that mode allows delegation, any parent agent may delegate to it
+
+There is no separate parent-side allow or deny list for child agents.
+
+### Child model routing
+
+Delegated child turns can choose their own primary model.
+
+- If the child agent defines `model`, runtime uses that model for the child
+  turn.
+- If the child does not define `model`, runtime inherits the parent turn's
+  selected model.
+
+There is no fallback model chain in agent frontmatter or session routing.
+
+### Runtime behavior
+
+The `delegate` tool starts a child session and returns a durable handoff
+record. The record can be:
+
+- `completed`
+- `failed`
+- `pending_permission`
+- `pending_question`
+
+The parent transcript shows a delegation row for each child handoff. While the
+child is running, that row includes a lightweight live preview of the current
+activity, active tool, and latest short assistant snippet. The child session
+remains the canonical detailed transcript.
+
+Users normally interact with a primary agent. Subagents are expected to be
+chosen by that parent agent through markdown guidance and child `mode`, not by
+asking the user to manually pick a child helper.
+
+In the TUI:
+
+- `Enter` opens the selected child session
+- `Backspace` returns to the parent session
+- `r` reuses a completed child result in the parent context
+
+Examples:
+
+Unrestricted except a few tools:
+
+```md
+---
+description: Default coding agent minus workflow tools
+DisallowedTools:
+  - task_workflow
+  - task_review
+---
+
+You are a general coding agent.
+```
+
+Read-only review agent:
+
+```md
+---
+description: Read-only reviewer
+AllowTools:
+  - read
+  - search
+  - git_diff
+  - symbols
+  - definition
+  - diagnostics
+  - refs
+  - trace
+---
+
+You review code without modifying it.
+```
+
+No-tool reasoning agent:
+
+```md
+---
+description: Transcript-only reasoning agent
+AllowTools: []
+---
+
+You only reason over the prompt and prior transcript.
+Do not expect file, shell, network, or MCP access.
+```
+
+Deny all MCP tools while still allowing normal built-in tools:
+
+```md
+---
+description: Local-only coding agent
+DisallowedTools:
+  - mcp:*
+---
+
+You may use built-in local tools, but not MCP tools.
+```
+
+### Skills vs tools
+
+Skills are not themselves tools. Runtime lists available skills in the prompt
+using only each skill's `$name`, description, and `SKILL.md` path. Mention
+`$name` or `${name}` in the composer for explicit use. The `search_skills` and
+`skill` tools are normal tools, so an agent can be allowed or denied access to
+those names like any other tool.
+
+Skills do not declare their own allowed or disallowed tools. The running agent
+is the authority for what the turn can and cannot do.
+
+Skill directories:
+
+- Global skills: `$XDG_CONFIG_HOME/kodacode/skills` or `~/.config/kodacode/skills`
+- Project skills: `<workspace>/.kodacode/skills`
+
+### Cost and token usage
+
+Skills can reduce cost, but only when they replace larger always-on prompt
+instructions.
+
+- Available skill metadata keeps reusable workflow guidance discoverable without
+  loading full skill instructions into every turn.
+- Explicit `$name` / `${name}` mentions load that skill for the turn. Large
+  skill instructions still increase input tokens when loaded.
+- The `search_skills` and `skill` tools can avoid injecting a whole skill
+  catalog into the prompt by letting the agent discover one relevant skill or
+  load one relevant section on demand.
+- Those tools are still normal tool calls, so unnecessary skill discovery can
+  increase latency and total spend even if the prompt is smaller.
+
+If you want the most predictable cost shape, mention the exact `$skill` you want.
+If you want maximum flexibility with a larger skill catalog, the skill tools can
+trade some tool overhead for a smaller base prompt.

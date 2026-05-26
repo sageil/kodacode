@@ -1,0 +1,214 @@
+---
+title: Cost Tracking & Optimization
+description: Cost inspection, savings visibility, and the main user-facing ways to reduce spend
+---
+
+KodaCode does two separate things here:
+
+- it makes cost visible
+- it gives you a few explicit ways to reduce cost without hiding runtime behavior
+
+This page focuses on those user-facing optimization levers and on how to inspect what they actually saved.
+
+## Fastest ways to spend less
+
+These are the highest-leverage user-facing cost controls:
+
+| Control | What it changes | Best when |
+| --- | --- | --- |
+| default `sessions.response_style: terse` | Shorter ordinary assistant replies | You want less narration and lower output token cost |
+| `/compress` | Shrinks durable workspace prompt sources | Your `AGENTS.md` or project memory has become repetitive |
+| `utility_model` | Routes runtime utility text work to a cheaper model | You want to keep the main coding model but reduce background cost |
+| `output_budgets` | Caps the output tokens requested by role | Provider/model ceilings are much larger than your normal turn needs |
+| `compaction_threshold` and `/compact` | Summarizes older stored history so long sessions do not replay full history forever | You work in long-lived sessions |
+| `workflow.review_model` | Sends review passes to a cheaper model | You use `engineer` with review flow and do not need the full primary model for review |
+| `budget` and `total_budget` | Warns early and stops future turns | You want hard spending guardrails |
+
+One reason the product defaults to terse mode is that it is usually the cheapest and simplest output-side cost cut.
+
+## Terse mode
+
+`response_style: terse` reduces ordinary model reply length, which directly cuts output token cost for interactive sessions. This is already the default:
+
+```yaml
+sessions:
+  response_style: default  # set this only if you want fuller ordinary narration
+```
+
+This is the fastest user-facing cost cut because it does not change tools, routing, or the TUI. It just tells the model to keep ordinary prose brief.
+
+Terse mode does not shorten:
+
+- safety warnings
+- permission explanations
+- destructive-action confirmations
+- ambiguity clarifications that still need to be explicit
+
+For the full prompt-level behavior, see [Context Management](/features/context/).
+
+## Utility model routing
+
+`utility_model` routes background tasks to a cheaper model while keeping your primary route for real coding turns:
+
+```yaml
+utility_model: openai/gpt-5-mini
+utility_model_timeout_seconds: 20  # default: 0 (no timeout)
+utility_model_retry_attempts: 1    # default: 1
+utility_model_retry_after_max_seconds: 5  # default: 5
+```
+
+Tasks that use the utility model:
+
+- session title generation
+- workspace prompt-source compression via `/compress`
+- history summaries for long sessions
+
+These are tracked separately in the cost dialog so you can see what utility work costs versus agent turns.
+
+## Output budgets
+
+`output_budgets` separates normal requested output from provider hard ceilings.
+This matters for models that can emit very large responses: the provider ceiling
+is still available when needed, but ordinary turns do not ask for the maximum by
+default.
+
+```yaml
+output_budgets:
+  agent_turn: 8192
+  agent_turn_thinking: 16000
+  review: 4096
+  utility_text: 2048
+```
+
+For one model, use a model override:
+
+```yaml
+model_overrides:
+  - ref: anthropic/claude-sonnet-4-6
+    max_output_tokens: 64000
+    default_output_tokens: 12000
+```
+
+`max_output_tokens` is the ceiling. `default_output_tokens` is the ordinary
+agent-turn request, and KodaCode clamps it to the ceiling.
+
+## Review model
+
+If you use `engineer` workflow review, you can configure a cheaper review model without changing the main agent model:
+
+```yaml
+workflow:
+  review_mode: manual
+  review_model:
+    primary: openai/gpt-5-mini
+```
+
+This reduces the cost of review passes while keeping the main model for implementation turns.
+
+## History summaries and prompt savings
+
+Each time the runtime summarizes older stored session history, it records how many tokens were avoided on that turn compared to replaying the full history. The `/cost` dialog shows:
+
+- tokens saved by prompt compaction
+- tokens saved by replaying a history summary instead of full history
+- tokens saved by stripping tool descriptions and schemas from the prompt
+
+If model pricing is configured, these savings are also converted to an estimated dollar figure so you can see the cost of a long session versus what it would have cost without compaction.
+
+History summarization is one of KodaCode's more important cost controls because it reduces the cost of continuing long sessions without pretending the old turns never happened. The summary is durable and inspectable.
+
+This is separate from the header `ctx` meter. `ctx` shows the current shaped model request. History summarization maintains older stored turns for future continuity, so the TUI can show `Summarizing History` even when the current request is not near the model limit.
+
+## Durable workspace compression
+
+`/compress` rewrites workspace `AGENTS.md` and project memory entries through the same utility-model path used for other runtime text tasks. Unlike prompt compaction, this changes the durable source files on disk, so future turns start from smaller inputs instead of only receiving a provider-compacted rendering.
+
+Use it when:
+
+- repo instructions have accreted duplicated sections
+- project memory entries are factual but wordy
+- you want lower steady-state prompt cost for future sessions in this repo
+
+## Budget guardrails
+
+Budgets are not just reporting. They warn early and stop future turns once the limit is reached.
+
+Use them when you want a hard product-level boundary on spending, not just lower average cost.
+
+See [Budgets](/features/budgets/) for the full behaviour.
+
+## Cache pricing
+
+For providers that report cache activity, the cost dialog shows:
+
+- cache read tokens and cache write tokens broken out from regular input tokens
+- whether cache pricing was applied or was unavailable for each turn
+- estimated cache discount savings where cache pricing is known
+
+For OpenAI-compatible providers, cached tokens are reported as a subset of input tokens and are normalized accordingly.
+DeepSeek prompt-cache hit tokens are reported as cache reads. Anthropic cache creation tokens are reported as cache writes.
+Gemini cached-content tokens are reported as cache reads.
+
+## OpenAI reasoning replay
+
+For OpenAI Responses reasoning models, KodaCode defaults to stateless requests
+with `responses_store: false` and encrypted reasoning replay enabled. This adds
+`reasoning.encrypted_content` to eligible Responses requests, then stores and
+replays the returned encrypted reasoning item locally. That lets later tool-loop
+requests continue from the provider's encrypted reasoning state instead of
+making the model reconstruct it from visible transcript alone.
+
+```yaml
+providers:
+  - id: openai
+    responses_store: false
+    encrypted_reasoning_replay: true
+```
+
+Set `encrypted_reasoning_replay: false` to prevent KodaCode from requesting,
+persisting, or replaying encrypted OpenAI reasoning items.
+
+## Cost inspection
+
+Inside the TUI:
+
+- `/cost` opens the session cost dialog
+- `/trace [turn-number]` opens a per-turn detail view
+
+The cost dialog shows:
+
+- estimated session total (or a priced subtotal when some turns lack pricing)
+- token breakdown: input, output, cache read, cache write, reasoning
+- provider steps and call attempts
+- utility compaction cost separated from agent turn cost
+- provider-reported usage where available (fully or partially reported)
+- input token savings from compaction and tool schema stripping
+- estimated cache discounts where cache pricing was applied
+- the highest-cost turn and the highest-token turn without pricing
+
+This makes it possible to answer both:
+
+- "What did this session cost?"
+- "Which optimization actually saved money?"
+
+## Model pricing
+
+For the cost estimates to be useful, the runtime needs to know the model's input and output price. Built-in providers populate this from the remote model catalog. For local or custom providers, use `model_overrides`:
+
+```yaml
+model_overrides:
+  - ref: local/qwen2.5-coder-32b-instruct
+    name: Local Qwen Coder
+    context_size: 32768
+    tool_calls: true
+    cost_input: 0
+    cost_output: 0
+```
+
+Setting both costs to `0` means local turns appear in the cost dialog with zero estimated cost rather than missing pricing.
+
+## Related pages
+
+- [Budgets](/features/budgets/)
+- [Context Management](/features/context/)
+- [Configuration](/reference/configuration/)

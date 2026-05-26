@@ -1,0 +1,195 @@
+---
+title: Code Intelligence & LSP
+description: Runtime-owned language server defaults, discovery, and tool behavior
+---
+
+KodaCode owns its language-server integration in runtime code. It starts
+servers itself, routes requests by file type, and exposes the results through
+stable built-in tools instead of relying on editor-local integrations.
+
+Current code-intelligence tools:
+
+- `definition`
+- `symbols`
+- `diagnostics`
+- `trace`
+- `refs`
+- `rename_symbol`
+- `code_action`
+
+See [Built-in Tools](/features/tools/) for the broader tool surface. This page
+focuses on how the LSP layer itself works.
+
+## Agent access
+
+Code-intelligence access follows each agent's mutation boundary.
+
+`builder` and `engineer` can use the full code-intelligence surface:
+
+- `symbols`
+- `definition`
+- `diagnostics`
+- `refs`
+- `trace`
+- `rename_symbol`
+- `code_action`
+
+`reviewer` and `planner` can use only the read-only code-intelligence tools:
+
+- `symbols`
+- `definition`
+- `diagnostics`
+- `refs`
+- `trace`
+
+`rename_symbol` and `code_action` are intentionally absent from `reviewer` and
+`planner` because they can apply workspace edits.
+
+## Current configuration model
+
+Current releases do not load a persisted top-level `lsp:` block from
+`config.yaml`.
+
+The runtime constructs the active LSP set internally from:
+
+- built-in default server definitions
+- project-file discovery heuristics
+- the current workspace roots
+
+That means LSP behavior is user-visible, but not currently a public
+`config.yaml` surface. The [Configuration](/reference/configuration/) page
+documents only persisted keys, so you will not see `lsp` listed there.
+
+## Built-in default servers
+
+These servers are always part of the runtime default set before project
+discovery runs:
+
+| Server | Command | Startup details | File types |
+| --- | --- | --- | --- |
+| `gopls` | `gopls` | Sets `GOFLAGS=-mod=mod` | `.go` |
+| `vtsls` | `vtsls` | Starts with `--stdio`; runtime sends `maxTsServerMemory: 3072` in initialization options | `.ts`, `.tsx`, `.js`, `.jsx` |
+| `pyright` | `pyright-langserver` | Starts with `--stdio` | `.py`, `.pyi` |
+
+These defaults are currently compiled into the app.
+
+## Project discovery
+
+After loading the defaults, runtime scans the workspace root for known project
+markers and adds matching servers when their binaries are installed.
+
+Current discovery rules:
+
+| Project marker | Discovered server | Command | Startup details | File types |
+| --- | --- | --- | --- | --- |
+| `biome.json`, `biome.jsonc` | `biome` | `biome` | `lsp-proxy` | `.ts`, `.tsx`, `.js`, `.jsx`, `.json`, `.css` |
+| `Cargo.toml` | `rust-analyzer` | `rust-analyzer` | none | `.rs` |
+| `tailwind.config.js`, `tailwind.config.ts`, `tailwind.config.cjs`, `tailwind.config.mjs` | `tailwindcss` | `tailwindcss-language-server` | `--stdio` | `.css`, `.html`, `.tsx`, `.jsx` |
+
+Important details:
+
+- discovery only adds a server when its command resolves on the machine
+- discovery deduplicates by server name instead of creating duplicates
+- when a discovered server name already exists, runtime merges missing command,
+  args, extensions, env, and init options into the existing entry
+
+## How server commands are found
+
+Runtime resolves LSP commands with normal `PATH` lookup first, then falls back
+to a few common local binary directories:
+
+- `~/.local/share/nvim/mason/bin`
+- `~/.local/bin`
+- `/opt/homebrew/bin`
+- `/usr/local/bin`
+- `~/.npm-global/bin`
+- `$PNPM_HOME` when set, otherwise `~/.local/share/pnpm`
+
+If a command is still missing, KodaCode returns an install hint instead of
+silently failing. For example:
+
+- `gopls`: `go install golang.org/x/tools/gopls@latest`
+- `vtsls`: `npm install -g @vtsls/language-server`
+- `pyright`: `pip install pyright`
+- `rust-analyzer`: `rustup component add rust-analyzer`
+
+## When servers start
+
+Servers are started on demand.
+
+- file-position tools such as `definition`, `diagnostics`, `trace`, `refs`,
+  `rename_symbol`, and `code_action` pick a server from the file extension and
+  start it on first use
+- `symbols` is workspace-wide, so it eagerly starts all configured or
+  discovered servers for the workspace before merging symbol results
+- active server names appear in workspace status only after something has
+  actually started them
+
+Failed starts are cached for 30 seconds before runtime tries again. That keeps
+one missing or broken server from being respawned on every step.
+
+## Tool behavior details
+
+### Position-based lookups
+
+For file-position tools, runtime probes a few nearby character offsets around
+the requested line and character before giving up. This makes the tools more
+tolerant when the cursor lands just beside the target identifier.
+
+### Diagnostics
+
+`diagnostics` refreshes language-server diagnostics per file and preserves
+partial results.
+
+- default timeout is 15 seconds
+- one failing file does not force the whole batch to fail
+- the output can include per-file notices such as
+  `diagnostics unavailable: timed out waiting for diagnostics after 15s`
+
+After ordinary `write` and `apply_patch` mutations, runtime also syncs the
+changed file to the active server set. When the changed file has fresh
+diagnostics, KodaCode appends them to the mutation result automatically.
+
+### Trace and refs
+
+`trace` and `refs` degrade gracefully when the server does not support the
+relevant capability.
+
+- `trace` returns a notice instead of hard-failing when call hierarchy is unsupported
+- `refs` still returns references when possible, but reader or writer
+  classification depends on document-highlight support
+- when that classification is unavailable, the output says so explicitly
+
+### Rename and code actions
+
+`rename_symbol` and `code_action` apply workspace edits through the runtime,
+not by trusting the server blindly.
+
+- edits are constrained to the current workspace roots
+- versioned document edits are checked against tracked LSP document versions
+- command-only code actions are rejected; the tool only accepts actions that
+  produce workspace edits directly
+
+## Workspace boundaries
+
+Relative paths resolve from the current workspace. Multi-root sessions can use
+additional workspace roots, but LSP-backed mutations are still checked against
+the runtime's allowed workspace set before files are created, renamed, edited,
+or deleted.
+
+## Practical defaults
+
+What you can change today is mostly environmental rather than declarative:
+
+- install or remove supported language-server binaries
+- add or remove the discovery marker files in the repo
+- use the built-in LSP-backed tools from agents that allow them
+
+What you cannot currently do through persisted config is define a public
+`lsp:` block with custom servers or discovery settings.
+
+## Related pages
+
+- [Built-in Tools](/features/tools/)
+- [Agents](/features/agents/)
+- [Configuration](/reference/configuration/)

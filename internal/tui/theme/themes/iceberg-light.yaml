@@ -1,0 +1,48 @@
+name: iceberg-light
+syntax_style: iceberg-light
+
+palette:
+  primary: "#2d539e"
+  secondary: "#3f83a6"
+  surface: "#e8e9ec"
+  overlay: "#dcdfe7"
+  text: "#33374c"
+  subtext: "#8389a3"
+  error: "#cc517a"
+  warning: "#c57339"
+  success: "#668e3d"
+  thinking: "#7759b4"
+
+tones:
+  bg: "#e8e9ec"
+  bg-alt: "#cad0de"
+  panel: "#e8e9ec"
+  panel-alt: "#dcdfe7"
+  line: "#cbcfda"
+  line-strong: "#8389a3"
+  soft: "#9fa7bd"
+
+components:
+  panel:
+    bg: panel
+    fg: text
+    border: rounded
+    border-color: line
+    padding: [0, 1]
+  permission:
+    bg: panel-alt
+    fg: text
+    border: rounded
+    border-color: primary
+    padding: [0, 1]
+  selection:
+    bg: primary
+    fg: surface
+  hint:
+    fg: subtext
+  status-running:
+    fg: warning
+  status-done:
+    fg: success
+  status-error:
+    fg: error

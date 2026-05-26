@@ -1,0 +1,48 @@
+name: ayu-dark
+syntax_style: ayu-dark
+
+palette:
+  primary: "#e6b450"
+  secondary: "#39bae6"
+  surface: "#10141c"
+  overlay: "#141821"
+  text: "#bfbdb6"
+  subtext: "#5a6378"
+  error: "#d95757"
+  warning: "#ffb454"
+  success: "#70bf56"
+  thinking: "#d2a6ff"
+
+tones:
+  bg: "#10141c"
+  bg-alt: "#0d1017"
+  panel: "#141821"
+  panel-alt: "#161a24"
+  line: "#1b1f29"
+  line-strong: "#5a6378"
+  soft: "#697184"
+
+components:
+  panel:
+    bg: panel
+    fg: text
+    border: rounded
+    border-color: line
+    padding: [0, 1]
+  permission:
+    bg: panel-alt
+    fg: text
+    border: rounded
+    border-color: primary
+    padding: [0, 1]
+  selection:
+    bg: primary
+    fg: surface
+  hint:
+    fg: subtext
+  status-running:
+    fg: warning
+  status-done:
+    fg: success
+  status-error:
+    fg: error

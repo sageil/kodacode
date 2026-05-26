@@ -1,0 +1,48 @@
+name: one-dark-pro-night-flat
+syntax_style: one-dark-pro-night-flat
+
+palette:
+  primary: "#61afef"
+  secondary: "#56b6c2"
+  surface: "#16191d"
+  overlay: "#1e2227"
+  text: "#abb2bf"
+  subtext: "#7f848e"
+  error: "#e06c75"
+  warning: "#d19a66"
+  success: "#98c379"
+  thinking: "#c678dd"
+
+tones:
+  bg: "#16191d"
+  bg-alt: "#16191d"
+  panel: "#1e2227"
+  panel-alt: "#23272e"
+  line: "#3e4452"
+  line-strong: "#5c6370"
+  soft: "#7f848e"
+
+components:
+  panel:
+    bg: panel
+    fg: text
+    border: rounded
+    border-color: line
+    padding: [0, 1]
+  permission:
+    bg: panel-alt
+    fg: text
+    border: rounded
+    border-color: primary
+    padding: [0, 1]
+  selection:
+    bg: primary
+    fg: surface
+  hint:
+    fg: subtext
+  status-running:
+    fg: warning
+  status-done:
+    fg: success
+  status-error:
+    fg: error

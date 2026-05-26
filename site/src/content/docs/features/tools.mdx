@@ -1,0 +1,146 @@
+---
+title: Built-in Tools
+description: The current built-in tool surface in kodacode
+---
+
+KodaCode ships with a general-purpose built-in tool surface. The runtime keeps tool declarations separate from execution and permission policy.
+
+## Files and repo discovery
+
+- `read`
+- `write`
+- `apply_patch`
+- `mkdir`
+- `locate`
+- `search`
+
+Use `search` for file contents and `locate` for file and directory paths. Keeping those separate avoids overloaded schemas and makes fallback behavior easier to understand.
+
+`locate` is intentionally bounded and non-pageable. It returns one candidate path set per call, defaults `max_matches` to `200`, and clamps higher values to `200`. If a broad path query hits that limit, narrow `query` or `path`, raise `max_matches` when you are still below `200`, or switch to `search` when you need content-based narrowing before reading files.
+
+Use `apply_patch` for localized edits to existing files. It accepts a freeform
+structured patch with `*** Begin Patch`, file operation headers, changed lines,
+and `*** End Patch`. Runtime matches hunks against current file contents and
+records before/after mutations. Use `write` for new files or deliberate
+full-file rewrites only.
+
+## Code intelligence
+
+- `symbols`
+- `definition`
+- `diagnostics`
+- `trace`
+- `refs`
+- `rename_symbol`
+- `code_action`
+
+KodaCode treats language servers as runtime-owned infrastructure, not
+editor-local magic. Current releases build the active LSP set from built-in
+defaults plus project discovery; they do not expose a persisted public `lsp:`
+block in `config.yaml`.
+
+See [Code Intelligence & LSP](/features/lsp/) for the exact defaults,
+discovery rules, and startup behavior.
+
+Use the code-intel tools by question type:
+
+- `symbols`: you know a type, function, method, class, or exported name but not the file
+- `definition`: after `read`, a visible symbol needs its declaration or implementation
+- `diagnostics`: concrete source files need language-server diagnostics, especially after edits
+- `trace`: you want callers, callees, or a bounded call graph for a callable symbol
+- `refs`: you want workspace usages of a symbol, especially before behavior-changing edits
+
+`trace` and `refs` are intentionally separate. `trace` is an authoritative
+LSP-backed call-hierarchy tool. `refs` is for usage lookups, not call graphs.
+
+Use `search` when you need content matches or semantic ranking across code and
+text. Use `trace` or `refs` when the question is specifically about symbol
+relationships instead of matching file content.
+
+`rename_symbol` and `code_action` are the mutation side of this surface. Use
+them when the language server can perform a structured refactor or fix more
+safely than raw text edits.
+
+Agent access follows the agent's mutation boundary:
+
+- `builder` and `engineer` can use the full code-intelligence surface,
+  including `rename_symbol` and `code_action`
+- `reviewer` and `planner` can use read-only code-intelligence tools:
+  `symbols`, `definition`, `diagnostics`, `refs`, and `trace`
+
+## Execution and web
+
+- `bash`
+- `test`
+- `web_search`
+- `web_fetch`
+
+These run through the runtime-owned execution contract, so working directory, output capture, network policy, and approval handling are explicit.
+
+The two execution tools have different jobs:
+
+- `bash`: general command execution
+- `test`: one-shot test execution only; watch mode and dev-server style test commands are rejected
+- `web_search`: query-based web discovery through a configured search backend; use it to find candidate URLs first
+- `web_fetch`: direct URL retrieval when you already know the page you want to inspect
+
+`web_fetch` keeps its request timeout runtime-owned. The model provides the URL,
+method, headers, body, format, and optional selector, while runtime applies the
+default fetch timeout instead of exposing a per-call timeout knob.
+For very large text or HTML pages, runtime truncates the source response before
+formatting instead of failing immediately. Oversized JSON and binary responses
+still fail because truncation would not preserve a valid result.
+
+`web_search` is configuration-gated. It is only advertised when runtime has at
+least one valid `web_search` backend plus matching auth configured. It is not
+the same tool as `web_fetch`: `web_search` discovers candidate pages, while
+`web_fetch` reads one specific URL.
+
+The TUI also has a user-initiated local shell path: submit `!<command>` in the
+composer. That does not ask the model to call `bash`; it starts an execution
+turn directly from your input while still using the same workspace, network,
+approval, event, and trace contracts.
+
+## Git and workflow
+
+- `delegate`
+- `git_status`
+- `git_diff`
+- `git_show`
+- `task_workflow`
+- `task_review`
+
+The workflow tools are primarily relevant to the structured agent paths.
+
+Their responsibilities are intentionally separate:
+
+- `task_workflow`: create, list, update, block, and complete durable tasks
+- `task_review`: list tasks and record `pass`, `concern`, `fail`, or
+  `accepted` review outcomes without changing workflow status directly
+
+`delegate` starts a runtime-owned child agent handoff. It creates a child
+session, narrows the child tool surface through agent policy, and returns a
+durable handoff result instead of hiding orchestration in prompt text.
+
+In normal use, primary agents call `delegate` themselves when their markdown
+policy says a child boundary is the right tool. It is runtime plumbing for
+agent delegation, not something users should have to invoke manually.
+
+When a `reviewer` child uses `task_review`, runtime records that review against
+the parent work session's tasks rather than creating a separate child-session
+task list.
+
+## Knowledge and extension
+
+- `memory`
+- `question`
+- `skill`
+- `search_skills`
+
+`memory` is the runtime-owned durable store for explicit project memory entries. It is separate from `AGENTS.md` and separate from selected skills. Entries are intentionally small: each saved memory is capped at 2000 characters, and total prompt-injected project memory is capped separately. Use it for durable facts, decisions, and constraints, not for full reports or plans. For large artifacts, save a normal workspace file and keep only a short summary plus path in project memory. See [Project Memory & Instructions](/features/project-memory/).
+
+`question` is the runtime-owned blocking choice tool. It pauses the turn and
+waits for one user-selected answer instead of asking the model to guess when a
+real user decision is required.
+
+MCP servers extend the tool surface further, but they still sit under the same session and permission model.

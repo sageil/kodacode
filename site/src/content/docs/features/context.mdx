@@ -1,0 +1,162 @@
+---
+title: Context Management
+description: Request context, history summaries, response style, and how KodaCode keeps long sessions affordable
+---
+
+Long conversations get expensive fast. KodaCode addresses this through visible request context, automatic history summaries, configurable response length, and full visibility into what the model actually sees each turn.
+
+If you are looking for the main user-facing cost levers overall, combine this page with [Budgets](/features/budgets/) and [Cost Tracking & Optimization](/features/cost-tracking/).
+
+## Context vs history
+
+KodaCode uses these words for two different things:
+
+- `ctx` is the current provider request size. It is the prompt, tools, selected prior material, current turn, and summaries that are actually being sent to the model for this step.
+- `history` is the stored session record. It includes prior messages, tool calls, tool results, runtime notes, completed turns, and any durable summary already written.
+
+The header `ctx` meter is the source of truth for the current model request. It can be lower than the amount of raw stored history because the runtime may already have shaped, pruned, or summarized older material before sending the request.
+
+When the TUI says `Summarizing History`, KodaCode is maintaining stored session history for future continuity and cost control. That does not necessarily mean the current `ctx` meter is near the model limit.
+
+## One compaction control
+
+KodaCode uses one durable history-summary mechanism when stored session history gets large:
+
+- `History Summary`: the runtime rewrites completed prior turns into one durable summary artifact. Long-lived sessions carry this forward, and `/compact` rebuilds it.
+
+## Messages you will see
+
+| TUI message | Internal event | What it means | Durable? |
+| --- | --- | --- | --- |
+| `Summarizing History` | `context_compaction_started` | The runtime started rebuilding the saved summary of older stored turns. The current `ctx` meter may already be lower because request history has been shaped for this step. | Not yet |
+| `History Summary` | `session_history_continuation_updated` | The runtime finished rebuilding the saved summary, and the transcript shows the new card. | Yes |
+| `History summary update failed` | `context_compaction_failed` | The runtime could not finish rebuilding the summary, or the request still could not fit after history compaction. | No new summary |
+
+There is only one durable compaction card: `History Summary`.
+
+## History summary compaction
+
+When replayed stored session history grows past `compaction_threshold` (measured as a fraction of the model's context limit), the runtime replaces older turns with a compact summary that keeps what matters for continuity: the goal, decisions made, files touched, work in progress, blockers, and critical technical context.
+
+Compaction is always on. By default, older stored history starts summarizing at 80% of the model context window and aims to get under 60% again:
+
+```yaml
+sessions:
+  compaction_threshold: 0.8         # default: 0.8; start rebuilding older stored history at 80%
+  compaction_target_threshold: 0.60 # default: 0.60; accept any candidate at or below 60%
+```
+
+You can also trigger this manually from inside the TUI:
+
+```text
+/compact
+```
+
+`/compact` rebuilds the durable history summary through the same history-compaction path used automatically at runtime.
+
+## Why summarization can appear below 80% ctx
+
+The `ctx` meter and the history-summary trigger measure different stages of the same pipeline:
+
+- `ctx` shows the current shaped request that will be sent to the model.
+- history summarization is triggered by replay pressure from older stored session history before that history is reduced into a durable summary.
+
+This is why `Summarizing History` can appear while the header still shows a moderate `ctx` percentage. The runtime is reducing older stored turns so future requests can continue from an inspectable summary instead of repeatedly carrying or pruning the full raw transcript.
+
+## Why the percentage can drop a lot
+
+`compaction_target_threshold` is an acceptance ceiling, not an exact destination.
+
+After summarization, KodaCode keeps a compact summary instead of replaying the older raw turns it replaced. That means stored-history pressure can move from roughly 80% down to well below 60% in one step. A large drop is normal when the rebuilt summary is much smaller than the raw history it replaced.
+
+## Utility-model involvement
+
+KodaCode may use the configured utility model to improve the durable history summary, but the utility model is optional.
+
+- if the utility summary path is unavailable, runtime keeps the built-in runtime summary
+- if the utility request fails normally, compaction still completes with the runtime summary
+- only a narrower runtime failure path produces `History summary update failed`
+
+This is why a missing or flaky utility model does not usually break compaction entirely.
+
+## Response style
+
+`response_style` controls how verbose ordinary model replies are. The two values are `default` (no constraint) and `terse`, and `terse` is the default session posture.
+
+```yaml
+sessions:
+  response_style: terse   # default: terse
+```
+
+### How terse mode works
+
+Terse mode is implemented entirely at the prompt level. When `response_style: terse` is active, the runtime injects a short instruction fragment into the system prompt for every turn:
+
+```
+Response style: terse.
+- Keep ordinary model replies brief and direct.
+- Do not shorten safety, permission, destructive-action, or ambiguity clarifications.
+```
+
+This fragment is inserted after agent and skill prompts but before workspace and execution-environment context, so it applies consistently across all turns in the session.
+
+Nothing else changes. Terse mode does not alter:
+
+- the TUI layout or display
+- tool call behaviour or results
+- session logging or history
+- cost tracking (though shorter replies do produce fewer output tokens, which reduces cost indirectly)
+
+### What terse does and does not shorten
+
+The instruction targets **ordinary prose replies**: narration, summaries, and step-by-step explanations. The model is explicitly told not to shorten:
+
+- safety warnings
+- permission and approval explanations
+- destructive-action confirmations
+- clarification requests where ambiguity needs to be surfaced
+
+Structured output (tables, code blocks, lists of keys) is also unaffected.
+
+### Configuration
+
+`response_style` is set once at the session level and applied to every turn. There is no per-turn override and no runtime toggle. Changes require editing the config file and starting a new session.
+
+Valid values are `default` and `terse`. If you omit the field, the session defaults to `terse`. Any other value is rejected at startup with a validation error.
+
+## What the history summary keeps
+
+The durable history summary captures:
+
+- the stated goal and active constraints
+- completed steps and decisions made
+- work in progress and what is blocking it
+- file paths touched and their relevance
+- critical warnings that must not be forgotten
+
+That structure lets the model pick up where it left off instead of replaying every old turn verbatim.
+
+## Durable context artifacts
+
+The runtime emits explicit events for context operations:
+
+- `context_compaction_started`: history-summary rebuild started
+- `session_history_continuation_updated`: the new durable history summary was written
+- `context_compaction_failed`: history-summary rebuild failed
+- `prompt_compiled`: what was actually assembled for each turn
+- `context_pruned`: which turns were dropped before the prompt was built after summary insertion
+
+These are stored in the session log, so you can inspect what the model saw at any point rather than guessing why a session drifted.
+
+## Request Limits
+
+This setting limits wasteful turn churn:
+
+- `max_provider_requests_per_turn`: stops one turn from making provider requests forever
+
+## Inspection
+
+Use these TUI commands to check what happened:
+
+- `/cost`: session token totals, compaction savings, and cache activity
+- `/trace [turn-number]`: per-turn detail including history-summary compaction, token breakdown, and route attempts
