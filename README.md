@@ -61,9 +61,6 @@ brew tap sageil/tap && brew install --cask kodacode
 # Quick install
 curl -fsSL https://raw.githubusercontent.com/sageil/kodacode/main/install.sh | sh
 
-# Quick install linux
-curl -fsSL https://raw.githubusercontent.com/sageil/kodacode/main/install.sh | sh
-
 # Go
 go install github.com/sageil/kodacode/cmd/kodacode@latest
 ```
