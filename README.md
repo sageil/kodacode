@@ -1,9 +1,7 @@
 <div align="center">
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="assets/logo-banner.svg">
-  <source media="(prefers-color-scheme: light)" srcset="assets/logo-banner.svg">
-  <img alt="KodaCode" src="assets/logo-banner.svg" width="800">
+  <img alt="KodaCode" src="assets/kodacode-interface-tour.svg">
 </picture>
 
 [![Go](https://img.shields.io/badge/Go-1.25-00ADD8?logo=go&logoColor=white)](https://go.dev)

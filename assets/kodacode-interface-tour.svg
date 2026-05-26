@@ -1,0 +1,143 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000" role="img" aria-labelledby="title desc">
+  <title id="title">KodaCode interface tour</title>
+  <desc id="desc">Annotated KodaCode interface mockup with numbered labels for the status bar, work pane, diff, tools drawer, composer, and footer.</desc>
+  <defs>
+    <style>
+      .bg { fill: #0b0d13; }
+      .app { fill: #11131b; stroke: #3b435b; stroke-width: 2; }
+      .panel { fill: #151824; }
+      .panel2 { fill: #171a24; }
+      .line { stroke: #2c3348; stroke-width: 2; }
+      .frame { fill: #151824; stroke: #607095; stroke-width: 2; }
+      .text { fill: #d7d9e7; font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .mono { fill: #b8bed2; font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace; }
+      .muted { fill: #8b91a7; }
+      .blue { fill: #8aadf4; }
+      .accent { fill: #cba6f7; }
+      .green { fill: #a6da95; }
+      .gold { fill: #eed49f; }
+      .red-row { fill: #4a1f2a; }
+      .green-row { fill: #1f4229; }
+      .callout { fill: #cba6f7; stroke: #ffffff; stroke-width: 3; }
+      .callout-text { fill: #10121a; font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-weight: 800; font-size: 18px; text-anchor: middle; dominant-baseline: central; }
+      .label-title { fill: #cba6f7; font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-weight: 700; font-size: 18px; }
+      .label-body { fill: #b8bed2; font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 15px; }
+    </style>
+  </defs>
+
+  <rect class="bg" width="1600" height="1000"/>
+  <text class="text" x="42" y="46" font-size="30" font-weight="800">KodaCode Interface Tour</text>
+  <text class="muted text" x="42" y="78" font-size="17">Numbered callouts for the main areas users see during a turn.</text>
+
+  <rect class="app" x="40" y="110" width="1520" height="620" rx="10"/>
+
+  <rect class="panel" x="40" y="110" width="1520" height="58"/>
+  <line class="line" x1="40" y1="168" x2="1560" y2="168"/>
+  <rect x="58" y="127" width="86" height="28" rx="2" fill="#a5adcb"/>
+  <text x="101" y="146" text-anchor="middle" class="mono" fill="#171a24" font-size="14" font-weight="800">NORMAL</text>
+  <text class="mono blue" x="176" y="146" font-size="15" font-weight="700">KodaCode</text>
+  <text class="mono muted" x="263" y="146" font-size="15">Project Performance Review Optimization Recommendations</text>
+  <text class="mono blue" x="640" y="146" font-size="15">openai-codex/gpt-5.3-codex</text>
+  <text class="mono muted" x="895" y="146" font-size="15">medium · 400.0k · R T V</text>
+  <rect x="1120" y="128" width="102" height="20" rx="2" fill="#2a3041"/>
+  <rect x="1120" y="128" width="24" height="20" rx="2" fill="#8aadf4"/>
+  <text class="mono" x="1240" y="146" font-size="15">ctx 58.2k/272.0k 21%</text>
+  <text class="mono muted" x="1415" y="146" font-size="15">est.</text>
+  <text class="mono gold" x="1455" y="146" font-size="15">$0.5760</text>
+
+  <rect class="panel2" x="40" y="168" width="1148" height="472"/>
+  <rect class="frame" x="58" y="188" width="1112" height="412" rx="5"/>
+
+  <text class="mono muted" x="84" y="230" font-size="15">44</text>
+  <text class="mono muted" x="123" y="230" font-size="15">44</text>
+  <text class="mono muted" x="178" y="230" font-size="15">.sort({ createdAt: -1 })</text>
+  <text class="mono muted" x="84" y="256" font-size="15">45</text>
+  <text class="mono muted" x="123" y="256" font-size="15">45</text>
+  <text class="mono muted" x="178" y="256" font-size="15">.skip(skip)</text>
+  <rect class="red-row" x="58" y="266" width="1112" height="28"/>
+  <text class="mono" x="84" y="286" font-size="15" fill="#efb2bd">46</text>
+  <text class="mono" x="178" y="286" font-size="15" fill="#efb2bd">- .limit(limit);</text>
+  <rect class="green-row" x="58" y="294" width="1112" height="56"/>
+  <text class="mono" x="123" y="314" font-size="15" fill="#b7e7aa">46</text>
+  <text class="mono" x="178" y="314" font-size="15" fill="#b7e7aa">+ .limit(limit)</text>
+  <text class="mono" x="123" y="340" font-size="15" fill="#b7e7aa">47</text>
+  <text class="mono" x="178" y="340" font-size="15" fill="#b7e7aa">+ .lean();</text>
+
+  <text class="text blue" x="82" y="395" font-size="17" font-weight="700">Changed src/repositories/ProjectRepository.ts (+6 -3)</text>
+  <text class="mono muted" x="84" y="430" font-size="15">33</text>
+  <text class="mono muted" x="123" y="430" font-size="15">33</text>
+  <text class="mono muted" x="178" y="430" font-size="15">.sort({ updatedAt: -1 })</text>
+  <rect class="red-row" x="58" y="452" width="1112" height="28"/>
+  <text class="mono" x="84" y="472" font-size="15" fill="#efb2bd">35</text>
+  <text class="mono" x="178" y="472" font-size="15" fill="#efb2bd">- .limit(limit);</text>
+  <rect class="green-row" x="58" y="480" width="1112" height="56"/>
+  <text class="mono" x="123" y="500" font-size="15" fill="#b7e7aa">35</text>
+  <text class="mono" x="178" y="500" font-size="15" fill="#b7e7aa">+ .limit(limit)</text>
+  <text class="mono" x="123" y="526" font-size="15" fill="#b7e7aa">36</text>
+  <text class="mono" x="178" y="526" font-size="15" fill="#b7e7aa">+ .lean();</text>
+
+  <line class="line" x1="1188" y1="168" x2="1188" y2="640"/>
+  <rect class="panel2" x="1188" y="168" width="372" height="472"/>
+  <rect class="panel" x="1188" y="168" width="372" height="48"/>
+  <line class="line" x1="1308" y1="168" x2="1308" y2="216"/>
+  <line class="line" x1="1428" y1="168" x2="1428" y2="216"/>
+  <text class="mono muted" x="1236" y="198" font-size="15" text-anchor="middle">Details</text>
+  <text class="mono" x="1368" y="198" font-size="15" text-anchor="middle">Tools</text>
+  <text class="mono muted" x="1490" y="198" font-size="15" text-anchor="middle">Tasks</text>
+  <text class="text blue" x="1218" y="252" font-size="18" font-weight="800">Explored</text>
+  <text class="mono muted" x="1218" y="280" font-size="15">Locate workspace · 104 paths</text>
+  <text class="mono muted" x="1218" y="306" font-size="15">Read package.json, ProjectRepository.ts</text>
+  <text class="mono muted" x="1218" y="332" font-size="15">Search src for populate( · 40 matches</text>
+  <text class="mono muted" x="1218" y="358" font-size="15">Search src for lean() · 5 matches</text>
+  <text class="text blue" x="1218" y="410" font-size="18" font-weight="800">Changed</text>
+  <text class="mono muted" x="1218" y="438" font-size="15">Edited TaskRepository.ts</text>
+  <text class="mono muted" x="1218" y="464" font-size="15">Edited ProjectRepository.ts</text>
+
+  <rect class="panel" x="40" y="640" width="1520" height="90"/>
+  <line class="line" x1="40" y1="640" x2="1560" y2="640"/>
+  <text class="mono muted" x="58" y="672" font-size="16">-- Waiting for model (20s · esc to interrupt)</text>
+  <text class="mono muted" x="58" y="708" font-size="16">Ask kodacode...</text>
+  <text class="mono muted" x="58" y="752" font-size="15">builder · main · 3 roundtrips · 3 tools · search:warm · mode:auto</text>
+  <text class="mono" x="1455" y="752" font-size="15">? shortcuts</text>
+
+  <g>
+    <circle class="callout" cx="60" cy="126" r="16"/><text class="callout-text" x="60" y="126">1</text>
+    <circle class="callout" cx="202" cy="126" r="16"/><text class="callout-text" x="202" y="126">2</text>
+    <circle class="callout" cx="635" cy="126" r="16"/><text class="callout-text" x="635" y="126">3</text>
+    <circle class="callout" cx="1120" cy="126" r="16"/><text class="callout-text" x="1120" y="126">4</text>
+    <circle class="callout" cx="1450" cy="126" r="16"/><text class="callout-text" x="1450" y="126">5</text>
+    <circle class="callout" cx="72" cy="190" r="16"/><text class="callout-text" x="72" y="190">6</text>
+    <circle class="callout" cx="300" cy="280" r="16"/><text class="callout-text" x="300" y="280">7</text>
+    <circle class="callout" cx="1350" cy="190" r="16"/><text class="callout-text" x="1350" y="190">8</text>
+    <circle class="callout" cx="1230" cy="250" r="16"/><text class="callout-text" x="1230" y="250">9</text>
+    <circle class="callout" cx="70" cy="666" r="16"/><text class="callout-text" x="70" y="666">10</text>
+    <circle class="callout" cx="210" cy="704" r="16"/><text class="callout-text" x="210" y="704">11</text>
+    <circle class="callout" cx="1450" cy="704" r="16"/><text class="callout-text" x="1450" y="704">12</text>
+  </g>
+
+  <rect x="40" y="795" width="350" height="74" rx="8" fill="#141721" stroke="#2d3446"/>
+  <text class="label-title" x="60" y="825">1. Mode indicator</text>
+  <text class="label-body" x="60" y="852">Shows current input mode, such as NORMAL.</text>
+  <rect x="410" y="795" width="350" height="74" rx="8" fill="#141721" stroke="#2d3446"/>
+  <text class="label-title" x="430" y="825">2. Session title</text>
+  <text class="label-body" x="430" y="852">Names the active workspace session or task.</text>
+  <rect x="780" y="795" width="350" height="74" rx="8" fill="#141721" stroke="#2d3446"/>
+  <text class="label-title" x="800" y="825">3. Model route</text>
+  <text class="label-body" x="800" y="852">Provider and model used for the current turn.</text>
+  <rect x="1150" y="795" width="410" height="74" rx="8" fill="#141721" stroke="#2d3446"/>
+  <text class="label-title" x="1170" y="825">4-5. Context and cost</text>
+  <text class="label-body" x="1170" y="852">Prompt size, token movement, and estimated spend.</text>
+
+  <rect x="40" y="890" width="350" height="74" rx="8" fill="#141721" stroke="#2d3446"/>
+  <text class="label-title" x="60" y="920">6-7. Work pane and diff</text>
+  <text class="label-body" x="60" y="947">Main output area; red removes and green adds.</text>
+  <rect x="410" y="890" width="350" height="74" rx="8" fill="#141721" stroke="#2d3446"/>
+  <text class="label-title" x="430" y="920">8-9. Drawer and tools</text>
+  <text class="label-body" x="430" y="947">Tabs plus replayable tool activity timeline.</text>
+  <rect x="780" y="890" width="350" height="74" rx="8" fill="#141721" stroke="#2d3446"/>
+  <text class="label-title" x="800" y="920">10-11. Status and composer</text>
+  <text class="label-body" x="800" y="947">Turn state and where the next instruction goes.</text>
+  <rect x="1150" y="890" width="410" height="74" rx="8" fill="#141721" stroke="#2d3446"/>
+  <text class="label-title" x="1170" y="920">12. Shortcuts</text>
+  <text class="label-body" x="1170" y="947">Keyboard shortcut help entry point.</text>
+</svg>
