@@ -10,6 +10,10 @@ import (
 
 func splitWideViewCacheKey(m Model, state events.SessionState, layout shellLayout) uint64 {
 	layout = normalizeWideShellLayout(m, state, layout)
+	return splitWideViewCacheKeyForLayout(m, state, layout)
+}
+
+func splitWideViewCacheKeyForLayout(m Model, state events.SessionState, layout shellLayout) uint64 {
 	panelHeight := splitWidePanelHeight(layout)
 	leftWidth := layout.centerWidth
 	if !layout.showInspector {
@@ -30,9 +34,6 @@ func splitWideViewCacheKey(m Model, state events.SessionState, layout shellLayou
 	writeTranscriptSignatureString(hasher, string(m.chrome.focus))
 	writeTranscriptSignatureBool(hasher, m.transcriptView.visualActive)
 	writeTranscriptSignatureBool(hasher, m.shouldAnimateTranscriptActivity())
-	if m.shouldAnimateTranscriptActivity() {
-		writeTranscriptSignatureInt(hasher, m.animation.frame)
-	}
 	writeTranscriptSignatureString(hasher, shellModeName(m))
 	writeTranscriptSignatureString(hasher, shellSessionLabel(m, state))
 	writeTranscriptSignatureString(hasher, strings.TrimSpace(state.Title))

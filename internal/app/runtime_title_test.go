@@ -480,6 +480,7 @@ func TestRuntimeGenerateSessionTitleStopsWhenParentContextIsCanceled(t *testing.
 }
 
 func TestRuntimeSessionTitleLogsRawSSEForGitHubCopilot(t *testing.T) {
+	t.Setenv("KODACODE_LOG_RAW_SSE", "1")
 	logDir := t.TempDir()
 	logger, err := observability.New(observability.Config{Dir: logDir, DebugEnabled: true})
 	if err != nil {

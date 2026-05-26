@@ -10,10 +10,13 @@ import (
 )
 
 type surfaceBufferCache struct {
-	name   string
-	key    string
-	buffer *cellbuf.Buffer
-	rows   []string
+	name    string
+	key     string
+	content string
+	width   int
+	height  int
+	buffer  *cellbuf.Buffer
+	rows    []string
 }
 
 func newSurfaceBufferCache(name ...string) *surfaceBufferCache {
@@ -27,9 +30,16 @@ func newSurfaceBufferCache(name ...string) *surfaceBufferCache {
 func (c *surfaceBufferCache) surfaceFor(content string, width, height int) (*cellbuf.Buffer, []string) {
 	width = max(width, 1)
 	height = max(height, 1)
+	if c != nil && c.buffer != nil && c.width == width && c.height == height && c.content == content {
+		traceRenderCacheLookupStringKey(c.name, c.key, true, len(content), 0)
+		return c.buffer, c.rows
+	}
 	key := cachedSurfaceBufferKey(content, width, height)
 	if c != nil && c.key == key && c.buffer != nil {
 		traceRenderCacheLookupStringKey(c.name, key, true, len(content), 0)
+		c.content = content
+		c.width = width
+		c.height = height
 		return c.buffer, c.rows
 	}
 
@@ -49,6 +59,9 @@ func (c *surfaceBufferCache) surfaceFor(content string, width, height int) (*cel
 		return buf, rows
 	}
 	c.key = key
+	c.content = content
+	c.width = width
+	c.height = height
 	c.buffer = buf
 	c.rows = rows
 	return c.buffer, c.rows

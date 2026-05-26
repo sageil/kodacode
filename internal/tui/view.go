@@ -30,10 +30,14 @@ func renderModelSurface(m Model) (string, *tea.Cursor) {
 	layout := resolveShellLayout(m, state)
 	if m.dialog == nil && m.composerState.popupMode == composerPopupNone {
 		if !hasFooterNotice(m, state) {
+			if surface, ok := renderSplitWideAnimationSurface(m, state, layout); ok {
+				return renderDialogSurface(surface), composerCursorForSurface(m, state, layout)
+			}
 			return renderModelRootContent(m, state, layout), composerCursorForSurface(m, state, layout)
 		}
 		base, baseRows := renderModelRootSurfaceBase(m, state, layout)
 		surface := newOverlaySurface(base, baseRows)
+		drawSplitWideAnimationOverlay(surface, m, state, layout)
 		drawFooterNoticeOnSurface(surface, m, state, layout)
 		return renderDialogSurface(surface), composerCursorForSurface(m, state, layout)
 	}
@@ -41,6 +45,7 @@ func renderModelSurface(m Model) (string, *tea.Cursor) {
 	base, baseRows := renderModelRootSurfaceBase(m, state, layout)
 	if hasFooterNotice(m, state) {
 		surface := newOverlaySurface(base, baseRows)
+		drawSplitWideAnimationOverlay(surface, m, state, layout)
 		drawFooterNoticeOnSurface(surface, m, state, layout)
 		if m.dialog != nil {
 			area := resolveDialogRenderArea(m, state, layout)
@@ -59,7 +64,26 @@ func renderModelSurface(m Model) (string, *tea.Cursor) {
 	}
 	if m.dialog != nil {
 		area := resolveDialogRenderArea(m, state, layout)
+		if shouldOverlaySplitWideAnimation(m, state, layout) {
+			surface := newOverlaySurface(base, baseRows)
+			drawSplitWideAnimationOverlay(surface, m, state, layout)
+			cursor := renderDialogOnBuffer(surface, m.dialog, area)
+			return renderDialogSurface(surface), cursor
+		}
 		return renderDialogOverlaySurface(m, base, baseRows, area)
+	}
+	if shouldOverlaySplitWideAnimation(m, state, layout) {
+		surface := newOverlaySurface(base, baseRows)
+		drawSplitWideAnimationOverlay(surface, m, state, layout)
+		cursor := composerCursorForSurface(m, state, layout)
+		if cursor != nil {
+			width := composerPopupWidth(m, layout.totalWidth)
+			popup := renderComposerPopup(m, width)
+			if strings.TrimSpace(popup) != "" {
+				drawRenderedComposerPopupOnSurface(surface, popup, cursor)
+			}
+		}
+		return renderDialogSurface(surface), cursor
 	}
 	return renderComposerOverlaySurface(m, state, layout, base, baseRows)
 }
@@ -96,6 +120,39 @@ func renderModelRootContent(m Model, state events.SessionState, layout shellLayo
 	body := renderMainShell(m, state, layout)
 	footer := renderFooterBar(m, state, layout.totalWidth)
 	return renderToneBlock(m.theme, toneBG, max(m.width, 1), max(m.height, 1), header+"\n"+body+"\n"+footer)
+}
+
+func renderSplitWideAnimationSurface(m Model, state events.SessionState, layout shellLayout) (*overlaySurface, bool) {
+	if !shouldOverlaySplitWideAnimation(m, state, layout) {
+		return nil, false
+	}
+	base, baseRows := renderModelRootSurfaceBase(m, state, layout)
+	surface := newOverlaySurface(base, baseRows)
+	drawSplitWideAnimationOverlay(surface, m, state, layout)
+	return surface, true
+}
+
+func shouldOverlaySplitWideAnimation(m Model, state events.SessionState, layout shellLayout) bool {
+	_ = state
+	if !isWideShell(m) {
+		return false
+	}
+	if m.width <= 0 || m.height <= 0 {
+		return false
+	}
+	return m.shouldAnimateTranscriptActivity()
+}
+
+func drawSplitWideAnimationOverlay(surface dialogSurface, m Model, state events.SessionState, layout shellLayout) {
+	if surface == nil || !shouldOverlaySplitWideAnimation(m, state, layout) {
+		return
+	}
+	width := max(layout.totalWidth, 1)
+	drawBlockOnSurface(surface, renderHeaderDivider(m, width), 0, splitWideHeaderHeight()-1)
+	if activity, ok := composerActivityStripStateFor(m, state); ok && strings.TrimSpace(activity.Label) != "" {
+		footerTop := splitWideHeaderHeight() + splitWidePanelHeight(layout)
+		drawBlockOnSurface(surface, renderComposerActivityStrip(m, state, width, composerBorderColor(m, state)), 0, footerTop)
+	}
 }
 
 func renderModelBaseSurface(surface dialogSurface, m Model, state events.SessionState, layout shellLayout) *tea.Cursor {

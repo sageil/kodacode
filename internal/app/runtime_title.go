@@ -115,8 +115,12 @@ func (r *Runtime) sessionTitleRawSSEObserver(request provider.Request) provider.
 	if logger == nil || !logger.DebugEnabled() || provider.CanonicalProviderID(request.Model.ProviderID) != "github-copilot" {
 		return nil
 	}
+	mode := rawSSEFrameLogMode()
+	if mode == rawSSELogOff {
+		return nil
+	}
 	return func(frame provider.RawSSEFrame) {
-		logger.Debug("session title raw sse frame",
+		args := []any{
 			"session_id", request.SessionID,
 			"turn_id", request.TurnID,
 			"agent_id", request.AgentID,
@@ -126,8 +130,11 @@ func (r *Runtime) sessionTitleRawSSEObserver(request provider.Request) provider.
 			"sse_sequence", frame.Sequence,
 			"sse_event", frame.Event,
 			"sse_data_bytes", len(frame.Data),
-			"sse_data", string(frame.Data),
-		)
+		}
+		if mode == rawSSELogData {
+			args = append(args, "sse_data", string(frame.Data))
+		}
+		logger.Debug("session title raw sse frame", args...)
 	}
 }
 

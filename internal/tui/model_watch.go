@@ -126,9 +126,20 @@ func shouldBatchWatchEvent(event events.Event) bool {
 	case events.TypeAssistantPreviewDelta,
 		events.TypeAssistantPreviewReset,
 		events.TypeReasoningDelta,
+		events.TypeToolCallDeclared,
 		events.TypeToolCallDelta,
+		events.TypeToolExecStart,
 		events.TypeToolExecOutput,
+		events.TypeToolExecEnd,
+		events.TypeExecutionDeclared,
+		events.TypeExecutionStarted,
 		events.TypeExecutionOutput,
+		events.TypeExecutionBackgroundStarted,
+		events.TypeExecutionBackgroundObserved,
+		events.TypeExecutionBackgroundReady,
+		events.TypeExecutionBackgroundExited,
+		events.TypeExecutionBackgroundLost,
+		events.TypeAgentHandoffPreview,
 		events.TypeTurnWorkStateUpdated:
 		return true
 	default:

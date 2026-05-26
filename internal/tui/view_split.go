@@ -12,7 +12,7 @@ func renderSplitWideView(m Model, state events.SessionState, layout shellLayout)
 	if m.renderCache.splitWideView == nil {
 		return renderSplitWideViewUncached(m, state, layout)
 	}
-	return m.renderCache.splitWideView.renderedFor(splitWideViewCacheKey(m, state, layout), func() string {
+	return m.renderCache.splitWideView.renderedFor(splitWideViewCacheKeyForLayout(m, state, layout), func() string {
 		return renderSplitWideViewUncached(m, state, layout)
 	})
 }
@@ -21,7 +21,7 @@ func renderSplitWideViewUncached(m Model, state events.SessionState, layout shel
 	header := renderSplitWideHeader(m, state, layout.totalWidth)
 	footer := renderSplitWideFooter(m, state, layout.totalWidth)
 	body := renderSplitWideBody(m, state, layout)
-	return renderToneBlock(m.theme, toneBG, max(m.width, 1), max(m.height, 1), header+"\n"+body+"\n"+footer)
+	return renderPresizedToneBlock(m.theme, toneBG, max(m.width, 1), max(m.height, 1), header+"\n"+body+"\n"+footer)
 }
 
 func renderSplitWideBody(m Model, state events.SessionState, layout shellLayout) string {
@@ -59,14 +59,55 @@ func normalizeWideShellLayout(m Model, state events.SessionState, layout shellLa
 	if !isWideShell(m) {
 		return layout
 	}
-	headerHeight := lipgloss.Height(renderSplitWideHeader(m, state, layout.totalWidth))
-	footerHeight := lipgloss.Height(renderSplitWideFooter(m, state, layout.totalWidth))
+	headerHeight := splitWideHeaderHeight()
+	footerHeight := splitWideFooterHeight(m, state, layout.totalWidth)
 	bodyHeight := max(m.height-headerHeight-footerHeight, 1)
 	layout.contentHeight = bodyHeight
 	layout.mainHeight = bodyHeight
 	layout.transcriptHeight = bodyHeight
 	layout.inspectorHeight = bodyHeight
 	return layout
+}
+
+func splitWideHeaderHeight() int {
+	return 2
+}
+
+func splitWideFooterHeight(m Model, state events.SessionState, width int) int {
+	height := splitWideComposerHeight(m, state)
+	if splitWideFooterStatusVisible(m, state) {
+		height++
+	}
+	// renderFooterHintsLine always returns one line, either collapsed or expanded.
+	height++
+	return max(height, 1)
+}
+
+func splitWideComposerHeight(m Model, state events.SessionState) int {
+	height := splitWideComposerBodyHeight(m, state)
+	if activity, ok := composerActivityStripStateFor(m, state); ok && strings.TrimSpace(activity.Label) != "" {
+		height++
+	}
+	return max(height, 1)
+}
+
+func splitWideComposerBodyHeight(m Model, state events.SessionState) int {
+	disabledMessage := strings.TrimSpace(m.composerDisabledMessage(state))
+	disabled := disabledMessage != "" && !m.hasPendingInteraction()
+	switch {
+	case m.hasPendingInteraction():
+		return max(lipgloss.Height(composerBlockedMessage(m)), 1)
+	case disabled:
+		return max(lipgloss.Height(disabledMessage), 1)
+	default:
+		content := strings.TrimRight(m.composer.View(), "\n")
+		return max(lipgloss.Height(content), splitComposerMinHeight())
+	}
+}
+
+func splitWideFooterStatusVisible(m Model, state events.SessionState) bool {
+	metricsState, metricsTurnID, _ := effectiveStatusMetricsScope(m, state)
+	return len(footerStatusSegments(m, state)) > 0 || footerStatusMeta(metricsState, metricsTurnID) != ""
 }
 
 func compactTextParts(parts []string) []string {

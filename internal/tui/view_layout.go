@@ -168,14 +168,10 @@ func (r shellRects) mouseTargetAt(mouseX, mouseY int) mouseWheelTarget {
 
 func resolveShellLayout(m Model, state events.SessionState) shellLayout {
 	totalWidth := max(terminalWidth(m), 1)
-	mainHeight := mainShellHeight(m, state, totalWidth)
-	transcriptHeight := mainHeight
-	inspectorHeight := mainHeight
 	forcedInspector := m.hasPendingApproval()
 	showInspector := forcedInspector || m.chrome.inspectorOpen
 
-	switch {
-	case totalWidth >= 126:
+	if totalWidth >= 126 {
 		showInspector = forcedInspector || m.chrome.wideSidebarOpen
 		sidePanelWidth := 0
 		showSidePanel := false
@@ -186,10 +182,10 @@ func resolveShellLayout(m Model, state events.SessionState) shellLayout {
 			dividerCount = 1
 		}
 		sidePanelWidth, rightWidth, centerWidth := rebalanceShellWidths(totalWidth, dividerCount, 0, sidePanelWidth, rightWidth, showSidePanel, showInspector, 56)
-		contentH := max(mainHeight, 1)
+		contentH := max(m.height-splitWideHeaderHeight()-splitWideFooterHeight(m, state, totalWidth), 1)
 		return shellLayout{
 			totalWidth:       totalWidth,
-			mainHeight:       mainHeight,
+			mainHeight:       contentH,
 			transcriptHeight: contentH,
 			inspectorHeight:  contentH,
 			showSidePanel:    showSidePanel,
@@ -199,6 +195,13 @@ func resolveShellLayout(m Model, state events.SessionState) shellLayout {
 			rightWidth:       rightWidth,
 			contentHeight:    contentH,
 		}
+	}
+
+	mainHeight := mainShellHeight(m, state, totalWidth)
+	transcriptHeight := mainHeight
+	inspectorHeight := mainHeight
+
+	switch {
 	case totalWidth >= 92:
 		dividerCount := 0
 		rightWidth := 0

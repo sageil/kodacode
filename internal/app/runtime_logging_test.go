@@ -64,6 +64,108 @@ func TestRuntimeWritesOperationAndDebugLogs(t *testing.T) {
 	}
 }
 
+func TestTurnRunnerRawSSELoggingDisabledByDefault(t *testing.T) {
+	t.Setenv("KODACODE_LOG_RAW_SSE", "")
+	logDir := t.TempDir()
+	logger, err := observability.New(observability.Config{Dir: logDir, DebugEnabled: true})
+	if err != nil {
+		t.Fatalf("observability.New() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if closeErr := logger.Close(); closeErr != nil {
+			t.Fatalf("logger.Close() error = %v", closeErr)
+		}
+	})
+
+	runner := &TurnRunner{logger: logger}
+	observer := runner.providerRawSSEObserver(provider.Request{
+		SessionID: "session-1",
+		TurnID:    "turn-1",
+		AgentID:   "engineer",
+		Model:     provider.ModelRef{ProviderID: "github-copilot", ModelID: "gpt-4.1"},
+	}, 3)
+	if observer != nil {
+		t.Fatal("providerRawSSEObserver() != nil")
+	}
+}
+
+func TestTurnRunnerRawSSELoggingMetadataWhenEnabled(t *testing.T) {
+	t.Setenv("KODACODE_LOG_RAW_SSE", "metadata")
+	logDir := t.TempDir()
+	logger, err := observability.New(observability.Config{Dir: logDir, DebugEnabled: true})
+	if err != nil {
+		t.Fatalf("observability.New() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if closeErr := logger.Close(); closeErr != nil {
+			t.Fatalf("logger.Close() error = %v", closeErr)
+		}
+	})
+
+	runner := &TurnRunner{logger: logger}
+	observer := runner.providerRawSSEObserver(provider.Request{
+		SessionID: "session-1",
+		TurnID:    "turn-1",
+		AgentID:   "engineer",
+		Model:     provider.ModelRef{ProviderID: "github-copilot", ModelID: "gpt-4.1"},
+	}, 3)
+	if observer == nil {
+		t.Fatal("providerRawSSEObserver() = nil")
+	}
+	observer(provider.RawSSEFrame{
+		APIMode:  "chat_completions",
+		Sequence: 41,
+		Event:    "delta",
+		Data:     []byte(`{"sensitive":"payload"}`),
+	})
+
+	debugLog := readAppLogFile(t, filepath.Join(logDir, observability.DebugLogName))
+	if !strings.Contains(debugLog, "provider raw sse frame") ||
+		!strings.Contains(debugLog, "sse_sequence=41") ||
+		!strings.Contains(debugLog, "sse_data_bytes=23") {
+		t.Fatalf("debug log missing raw SSE summary fields: %q", debugLog)
+	}
+	if strings.Contains(debugLog, "sensitive") || strings.Contains(debugLog, "sse_data=") {
+		t.Fatalf("debug log included raw SSE frame data by default: %q", debugLog)
+	}
+}
+
+func TestTurnRunnerRawSSELoggingIncludesFrameDataWhenEnabled(t *testing.T) {
+	t.Setenv("KODACODE_LOG_RAW_SSE", "1")
+	logDir := t.TempDir()
+	logger, err := observability.New(observability.Config{Dir: logDir, DebugEnabled: true})
+	if err != nil {
+		t.Fatalf("observability.New() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if closeErr := logger.Close(); closeErr != nil {
+			t.Fatalf("logger.Close() error = %v", closeErr)
+		}
+	})
+
+	runner := &TurnRunner{logger: logger}
+	observer := runner.providerRawSSEObserver(provider.Request{
+		SessionID: "session-1",
+		TurnID:    "turn-1",
+		AgentID:   "engineer",
+		Model:     provider.ModelRef{ProviderID: "github-copilot", ModelID: "gpt-4.1"},
+	}, 3)
+	if observer == nil {
+		t.Fatal("providerRawSSEObserver() = nil")
+	}
+	observer(provider.RawSSEFrame{
+		APIMode:  "chat_completions",
+		Sequence: 41,
+		Event:    "delta",
+		Data:     []byte(`{"sensitive":"payload"}`),
+	})
+
+	debugLog := readAppLogFile(t, filepath.Join(logDir, observability.DebugLogName))
+	if !strings.Contains(debugLog, "sse_data=") || !strings.Contains(debugLog, "sensitive") {
+		t.Fatalf("debug log missing enabled raw SSE frame data: %q", debugLog)
+	}
+}
+
 func TestRuntimeDebugLogIncludesProviderRouteSelection(t *testing.T) {
 	logDir := t.TempDir()
 	logger, err := observability.New(observability.Config{Dir: logDir, DebugEnabled: true})

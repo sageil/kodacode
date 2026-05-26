@@ -1,6 +1,7 @@
 package app
 
 import (
+	"os"
 	"strings"
 
 	"github.com/sageil/kodacode/internal/events"
@@ -38,8 +39,12 @@ func (r *TurnRunner) providerRawSSEObserver(request provider.Request, providerRe
 	if r == nil || r.logger == nil || !r.logger.DebugEnabled() {
 		return nil
 	}
+	mode := rawSSEFrameLogMode()
+	if mode == rawSSELogOff {
+		return nil
+	}
 	return func(frame provider.RawSSEFrame) {
-		r.logger.Debug("provider raw sse frame",
+		args := []any{
 			"session_id", request.SessionID,
 			"turn_id", request.TurnID,
 			"agent_id", request.AgentID,
@@ -50,8 +55,30 @@ func (r *TurnRunner) providerRawSSEObserver(request provider.Request, providerRe
 			"sse_sequence", frame.Sequence,
 			"sse_event", frame.Event,
 			"sse_data_bytes", len(frame.Data),
-			"sse_data", string(frame.Data),
-		)
+		}
+		if mode == rawSSELogData {
+			args = append(args, "sse_data", string(frame.Data))
+		}
+		r.logger.Debug("provider raw sse frame", args...)
+	}
+}
+
+type rawSSELogMode uint8
+
+const (
+	rawSSELogOff rawSSELogMode = iota
+	rawSSELogMetadata
+	rawSSELogData
+)
+
+func rawSSEFrameLogMode() rawSSELogMode {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("KODACODE_LOG_RAW_SSE"))) {
+	case "1", "true", "yes", "on", "data", "full":
+		return rawSSELogData
+	case "metadata", "meta", "summary":
+		return rawSSELogMetadata
+	default:
+		return rawSSELogOff
 	}
 }
 

@@ -27,6 +27,31 @@ func renderToneBlock(th *theme.Theme, token string, width, height int, content s
 	return style.Render(content)
 }
 
+func renderPresizedToneBlock(th *theme.Theme, token string, width, height int, content string) string {
+	width = max(width, 1)
+	height = max(height, 1)
+	lines := strings.Split(cropBlockHeight(content, height), "\n")
+	for len(lines) < height {
+		lines = append(lines, strings.Repeat(" ", width))
+	}
+	content = strings.Join(lines, "\n")
+
+	bg := toneValue(th, token)
+	if strings.TrimSpace(bg) == "" {
+		return content
+	}
+	bgANSI := backgroundANSI(bg)
+	if bgANSI == "" {
+		return content
+	}
+	content = persistBackgroundANSI(content, bg)
+	lines = strings.Split(content, "\n")
+	for i, line := range lines {
+		lines[i] = bgANSI + line + "\x1b[0m"
+	}
+	return strings.Join(lines, "\n")
+}
+
 func lineTone(m Model) string {
 	return toneValue(m.theme, toneLine)
 }
