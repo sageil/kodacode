@@ -149,14 +149,10 @@ func renderLiveToolCallPreviewSections(m Model, state events.SessionState, turnI
 	rows := deriveTurnToolOutcomeRows(state, refs)
 	sections := make([]transcriptSection, 0, len(rows))
 	for _, row := range rows {
-		summary := strings.TrimSpace(renderLiveToolCallPreviewSection(m, state, row, width))
-		if summary == "" {
-			continue
+		previewRow := newLiveToolPreviewTranscriptRow(m, state, row, width)
+		if section, ok := previewRow.section(m); ok {
+			sections = append(sections, section)
 		}
-		sections = append(sections, transcriptSection{
-			content:  summary,
-			toolRefs: []sessionToolCallRef{row.Ref},
-		})
 	}
 	return sections
 }
@@ -169,22 +165,6 @@ func shouldRenderLiveToolCallPreview(turn *events.TurnState, call *events.ToolCa
 		return false
 	}
 	return toolCallVisibleInRuntime(turn, call)
-}
-
-func renderLiveToolCallPreviewSection(m Model, state events.SessionState, row toolOutcomeRow, width int) string {
-	if shellLayoutEnabled(m) {
-		_, call := sessionToolCall(state, row.Ref)
-		return renderShellToolOutcomeLine(m, state, row, call, width, selectedToolMatchesSession(m, state.SessionID, row.Ref))
-	}
-	title := strings.TrimSpace(row.Label)
-	if detail := strings.TrimSpace(row.Detail); detail != "" {
-		if title == "" {
-			title = detail
-		} else {
-			title += " · " + detail
-		}
-	}
-	return renderOutcomeSummaryTranscriptSection(m, title, "", row.Status, width)
 }
 
 func suppressContextLimitContinuationTranscriptEntry(turn *events.TurnState, entry events.TranscriptEntryState) bool {
