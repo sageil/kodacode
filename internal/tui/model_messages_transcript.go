@@ -193,20 +193,10 @@ func (m Model) buildVisibleTranscriptLayout(state events.SessionState, width int
 	turnIDs := visibleTranscriptTurnIDs(m, state)
 	previousCompatible := previous.width == width && previous.wide == wide && len(previous.chunks) > 0
 	if !previousCompatible {
-		return buildTranscriptLayout(m, state, width)
+		return m.buildInitialVisibleTranscriptLayout(state, width, turnIDs, wide)
 	}
 
-	layout := transcriptLayout{
-		width:       width,
-		wide:        wide,
-		turnIndices: make(map[string]int),
-	}
-	if !layout.wide {
-		layout.turnSeparator = transcriptRender{
-			content:        renderTurnSeparator(m, width),
-			selectionLines: []transcriptSelectionLine{{}},
-		}
-	}
+	layout := newTranscriptLayoutShell(m, width, wide)
 
 	window := transcriptViewportRenderWindow(m.messages.YOffset(), m.messages.Height())
 	line := 0
@@ -269,9 +259,6 @@ func (m Model) buildVisibleTranscriptLayout(state events.SessionState, width int
 		if !ok {
 			continue
 		}
-		if chunk.lineCount <= 0 {
-			continue
-		}
 		layout.turnIndices[turnID] = len(layout.chunks)
 		layout.chunks = append(layout.chunks, chunk)
 		appendChunkLineCount(chunk.lineCount)
@@ -296,6 +283,262 @@ func (m Model) buildVisibleTranscriptLayout(state events.SessionState, width int
 		})
 	}
 	return layout
+}
+
+func (m Model) buildInitialVisibleTranscriptLayout(state events.SessionState, width int, turnIDs []string, wide bool) transcriptLayout {
+	layout := newTranscriptLayoutShell(m, width, wide)
+	line := 0
+	index := 0
+	visibleTurnSeen := false
+	appendRenderedLineCount := func(rendered transcriptRender) {
+		if strings.TrimSpace(rendered.content) == "" {
+			return
+		}
+		if index > 0 {
+			line += 2
+		}
+		line += transcriptRenderLineCount(rendered)
+		index++
+	}
+	appendChunkLineCount := func(lineCount int) {
+		if lineCount <= 0 {
+			return
+		}
+		if index > 0 {
+			line += 2
+		}
+		line += lineCount
+		index++
+	}
+
+	type pendingTurnChunk struct {
+		ctx   transcriptTurnChunkLifecycle
+		chunk transcriptLayoutChunk
+	}
+	pending := make([]pendingTurnChunk, 0, len(turnIDs))
+	for i, turnID := range turnIDs {
+		turn := state.Turns[turnID]
+		if turn == nil {
+			continue
+		}
+		if visibleTurnSeen && !layout.wide && strings.TrimSpace(layout.turnSeparator.content) != "" {
+			appendRenderedLineCount(layout.turnSeparator)
+		}
+		visibleTurnSeen = true
+		start := line
+		if index > 0 {
+			start += 2
+		}
+		options := transcriptTurnRenderOptions{}
+		if i+1 < len(turnIDs) && shouldSuppressHistoryCompactionBeforeContinuation(state, turnID, turnIDs[i+1]) {
+			options.suppressHistoryCompaction = true
+		}
+		ctx := transcriptTurnChunkLifecycle{
+			state:   state,
+			turnID:  turnID,
+			turn:    turn,
+			width:   width,
+			options: options,
+			start:   start,
+		}
+		chunk := newTranscriptTurnLayoutChunk(m, ctx)
+		chunk.lineCount = estimatedTurnTranscriptLineCount(m, ctx)
+		if chunk.lineCount <= 0 && !transcriptTurnRetainsLifecycle(turn) {
+			continue
+		}
+		layout.turnIndices[turnID] = len(pending)
+		pending = append(pending, pendingTurnChunk{ctx: ctx, chunk: chunk})
+		appendChunkLineCount(chunk.lineCount)
+	}
+
+	window := initialTranscriptViewportRenderWindow(m, line)
+	layout.turnIndices = make(map[string]int, len(pending))
+	layout.chunks = make([]transcriptLayoutChunk, 0, len(pending))
+	for _, item := range pending {
+		item.ctx.window = window
+		chunk, ok := item.chunk.syncTurnLifecycle(m, item.ctx)
+		if !ok {
+			continue
+		}
+		layout.turnIndices[item.ctx.turnID] = len(layout.chunks)
+		layout.chunks = append(layout.chunks, chunk)
+	}
+
+	if draftSections := renderDraftTurnSections(m, state, width); len(draftSections) > 0 {
+		rendered := buildTranscriptChunk(draftSections)
+		layout.chunks = append(layout.chunks, transcriptLayoutChunk{
+			kind:      transcriptLayoutChunkDraft,
+			rendered:  rendered,
+			lineCount: transcriptRenderLineCount(rendered),
+		})
+	}
+
+	if handoff := m.pendingDelegatedPermission(); handoff != nil {
+		row := newDelegatedPermissionSystemRow(handoff, width)
+		rendered := row.render(m)
+		layout.chunks = append(layout.chunks, transcriptLayoutChunk{
+			kind:      transcriptLayoutChunkDelegatedPermission,
+			rendered:  rendered,
+			lineCount: transcriptRenderLineCount(rendered),
+		})
+	}
+	return layout
+}
+
+func newTranscriptLayoutShell(m Model, width int, wide bool) transcriptLayout {
+	layout := transcriptLayout{
+		width:       max(width, 1),
+		wide:        wide,
+		turnIndices: make(map[string]int),
+	}
+	if !layout.wide {
+		layout.turnSeparator = transcriptRender{
+			content:        renderTurnSeparator(m, width),
+			selectionLines: []transcriptSelectionLine{{}},
+		}
+	}
+	return layout
+}
+
+func initialTranscriptViewportRenderWindow(m Model, contentLineCount int) transcriptLineWindow {
+	height := max(m.messages.Height(), 1)
+	offset := max(m.messages.YOffset(), 0)
+	if m.messages.AtBottom() {
+		offset = max(contentLineCount-height, 0)
+	}
+	return transcriptViewportRenderWindow(offset, height)
+}
+
+func estimatedTurnTranscriptLineCount(m Model, ctx transcriptTurnChunkLifecycle) int {
+	if cached, ok := cachedTurnTranscriptRenderForKey(ctx.cacheKey(m)); ok {
+		return transcriptRenderLineCount(cached)
+	}
+	turn := ctx.turn
+	if turn == nil {
+		return 0
+	}
+	lines := 0
+	sections := 0
+	addSection := func(lineCount int) {
+		if lineCount <= 0 {
+			return
+		}
+		if sections > 0 {
+			lines += 2
+		}
+		lines += lineCount
+		sections++
+	}
+
+	toolRenderer := transcriptToolEntryRendererForModel(m)
+	for i := 0; i < len(turn.Transcript); i++ {
+		entry := turn.Transcript[i]
+		if suppressContextLimitContinuationTranscriptEntry(turn, entry) ||
+			suppressQuestionAnswerContinuationTranscriptEntry(ctx.state, turn, entry) {
+			continue
+		}
+		switch entry.Kind {
+		case events.TranscriptEntryUser:
+			addSection(estimatedUserTranscriptLineCount(m, entry.Text, ctx.width))
+		case events.TranscriptEntryAssistant, events.TranscriptEntryWorklog:
+			if entry.Kind == events.TranscriptEntryAssistant && suppressAssistantEntryForStructuredReview(turn, i) {
+				continue
+			}
+			if !isTurnContinuationTranscriptEntry(turn, entry) {
+				addSection(estimatedFallbackCompactionLineCount(m, ctx))
+			}
+			addSection(estimatedAssistantTranscriptLineCount(turn, entry.Text, ctx.width))
+			if isTurnContinuationTranscriptEntry(turn, entry) {
+				addSection(estimatedFallbackCompactionLineCount(m, ctx))
+			}
+		case events.TranscriptEntryCompaction:
+			if !ctx.options.suppressHistoryCompaction {
+				addSection(estimatedTranscriptBlockLineCount(entry.Text, ctx.width))
+			}
+		case events.TranscriptEntryReview, events.TranscriptEntryReasoning:
+			addSection(estimatedFallbackCompactionLineCount(m, ctx))
+			addSection(estimatedTranscriptBlockLineCount(entry.Text, ctx.width))
+		case events.TranscriptEntryTool:
+			addSection(estimatedFallbackCompactionLineCount(m, ctx))
+			if toolRenderer.BatchConsecutive() {
+				refs := make([]sessionToolCallRef, 0, 4)
+				for i < len(turn.Transcript) && turn.Transcript[i].Kind == events.TranscriptEntryTool {
+					callID := turn.Transcript[i].CallID
+					call := turn.ToolCalls[callID]
+					if toolRenderer.ShouldRenderCall(m, turn, callID, call) {
+						refs = append(refs, sessionToolCallRef{TurnID: ctx.turnID, CallID: callID})
+					}
+					i++
+				}
+				i--
+				addSection(estimatedToolRefsLineCount(m, ctx.state, refs))
+				continue
+			}
+			call := turn.ToolCalls[entry.CallID]
+			if toolRenderer.ShouldRenderCall(m, turn, entry.CallID, call) {
+				addSection(estimatedToolRefsLineCount(m, ctx.state, []sessionToolCallRef{{TurnID: ctx.turnID, CallID: entry.CallID}}))
+			}
+		}
+	}
+	addSection(estimatedAssistantTranscriptLineCount(turn, turn.StreamingText, ctx.width))
+	if turn.Status == events.TurnStatusRunning {
+		refs := make([]sessionToolCallRef, 0, len(turn.ToolCallOrder))
+		for _, callID := range orderedToolCallIDs(turn) {
+			call := turn.ToolCalls[callID]
+			if shouldRenderLiveToolCallPreview(turn, call) {
+				refs = append(refs, sessionToolCallRef{TurnID: ctx.turnID, CallID: callID})
+			}
+		}
+		addSection(estimatedToolRefsLineCount(m, ctx.state, filterPendingQuestionToolRefs(m, refs)))
+	}
+	if explicitSelectedHandoff(turn, strings.TrimSpace(m.selection.handoffID)) != nil {
+		addSection(estimatedTranscriptBlockLineCount(strings.TrimSpace(m.selection.handoffID), ctx.width))
+	}
+	return lines
+}
+
+func estimatedUserTranscriptLineCount(m Model, text string, width int) int {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return 0
+	}
+	return len(transcriptRailSelectionLines(m, text, width))
+}
+
+func estimatedAssistantTranscriptLineCount(turn *events.TurnState, text string, width int) int {
+	if isLocalShellTurn(turn) || strings.TrimSpace(text) == "" {
+		return 0
+	}
+	contentWidth := max(max(width, 1)-4, 1)
+	return len(wrapTranscriptText(strings.TrimRight(strings.TrimSpace(text), "\n"), contentWidth)) + 2
+}
+
+func estimatedTranscriptBlockLineCount(text string, width int) int {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return 0
+	}
+	return len(wrapTranscriptText(text, max(width, 1))) + 2
+}
+
+func estimatedFallbackCompactionLineCount(m Model, ctx transcriptTurnChunkLifecycle) int {
+	if ctx.options.suppressHistoryCompaction || ctx.turn == nil || turnHasHistoryCompactionTranscriptEntry(ctx.turn) {
+		return 0
+	}
+	if effectiveTurnHistoryContinuation(ctx.state, ctx.turnID, ctx.turn) == nil {
+		return 0
+	}
+	return estimatedTranscriptBlockLineCount(historyCompactionSummaryText(effectiveTurnHistoryContinuation(ctx.state, ctx.turnID, ctx.turn)), ctx.width)
+}
+
+func estimatedToolRefsLineCount(m Model, state events.SessionState, refs []sessionToolCallRef) int {
+	if len(refs) == 0 {
+		return 0
+	}
+	if shellLayoutEnabled(m) || isWideShell(m) {
+		return max(len(deriveTurnToolOutcomeRows(state, refs)), 0)
+	}
+	return max(len(refs)*3, 1)
 }
 
 type transcriptTurnChunkLifecycle struct {
@@ -338,7 +581,7 @@ func (chunk transcriptLayoutChunk) syncTurnLifecycle(m Model, ctx transcriptTurn
 	}
 	chunk.ensurePlaceholderLineCount()
 	chunk.rendered = stripTranscriptRenderContent(chunk.rendered)
-	return chunk, chunk.lineCount > 0
+	return chunk, chunk.lineCount > 0 || transcriptTurnRetainsLifecycle(ctx.turn)
 }
 
 func (chunk transcriptLayoutChunk) shouldRenderTurn(m Model, ctx transcriptTurnChunkLifecycle) bool {
@@ -350,12 +593,27 @@ func (chunk transcriptLayoutChunk) shouldRenderTurn(m Model, ctx transcriptTurnC
 func (chunk transcriptLayoutChunk) renderTurn(m Model, ctx transcriptTurnChunkLifecycle) (transcriptLayoutChunk, bool) {
 	rendered, cacheKey := cachedTurnTranscriptRenderWithKey(m, ctx.state, ctx.turnID, ctx.turn, ctx.width, ctx.options)
 	if strings.TrimSpace(rendered.content) == "" {
-		return chunk, false
+		chunk.rendered = transcriptRender{}
+		chunk.lineCount = 0
+		return chunk, transcriptTurnRetainsLifecycle(ctx.turn)
 	}
 	chunk.rendered = rendered
 	chunk.cacheKey = cacheKey
 	chunk.lineCount = transcriptRenderLineCount(rendered)
 	return chunk, true
+}
+
+func transcriptTurnRetainsLifecycle(turn *events.TurnState) bool {
+	if turn == nil {
+		return false
+	}
+	return len(turn.Transcript) > 0 ||
+		len(turn.ToolCallOrder) > 0 ||
+		strings.TrimSpace(turn.StreamingText) != "" ||
+		strings.TrimSpace(turn.UserText) != "" ||
+		turn.Continuation != nil ||
+		turn.ContinuationStart != nil ||
+		turn.Review != nil
 }
 
 func (chunk *transcriptLayoutChunk) ensurePlaceholderLineCount() {

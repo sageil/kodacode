@@ -18,10 +18,7 @@ func cachedTurnTranscriptRenderWithKey(m Model, state events.SessionState, turnI
 	}
 	key := turnTranscriptChunkCacheKeyWithOptions(m, state, turnID, turn, width, options)
 
-	turnTranscriptChunkCache.mu.Lock()
-	cached, ok := turnTranscriptChunkCache.cache.get(key)
-	turnTranscriptChunkCache.mu.Unlock()
-	if ok {
+	if cached, ok := cachedTurnTranscriptRenderForKey(key); ok {
 		return cached, key
 	}
 
@@ -31,6 +28,17 @@ func cachedTurnTranscriptRenderWithKey(m Model, state events.SessionState, turnI
 	turnTranscriptChunkCache.cache.put(key, rendered)
 	turnTranscriptChunkCache.mu.Unlock()
 	return rendered, key
+}
+
+func cachedTurnTranscriptRenderForKey(key string) (transcriptRender, bool) {
+	key = strings.TrimSpace(key)
+	if key == "" {
+		return transcriptRender{}, false
+	}
+	turnTranscriptChunkCache.mu.Lock()
+	cached, ok := turnTranscriptChunkCache.cache.get(key)
+	turnTranscriptChunkCache.mu.Unlock()
+	return cached, ok
 }
 
 func turnTranscriptChunkCacheKey(m Model, state events.SessionState, turnID string, turn *events.TurnState, width int) string {

@@ -638,6 +638,47 @@ func TestTranscriptSyncKeepsOffscreenTurnsAsVirtualPlaceholders(t *testing.T) {
 	}
 }
 
+func TestInitialTranscriptSyncDoesNotRenderOffscreenTurns(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context:       ctx,
+		Theme:         &defaultTheme,
+		SessionID:     "session-1",
+		TurnID:        "turn-4",
+		WorkspaceRoot: "/repo",
+	})
+	model.messages.SetSize(80, 5)
+
+	state := events.SessionState{
+		SessionID:     "session-1",
+		WorkspaceRoot: "/repo",
+		TurnOrder:     []string{"turn-1", "turn-2", "turn-3", "turn-4"},
+		Turns: map[string]*events.TurnState{
+			"turn-1": {TurnID: "turn-1", Transcript: []events.TranscriptEntryState{{Kind: events.TranscriptEntryAssistant, Text: numberedLines("cold-hidden", 30)}}},
+			"turn-2": {TurnID: "turn-2", Transcript: []events.TranscriptEntryState{{Kind: events.TranscriptEntryAssistant, Text: numberedLines("middle-a", 30)}}},
+			"turn-3": {TurnID: "turn-3", Transcript: []events.TranscriptEntryState{{Kind: events.TranscriptEntryAssistant, Text: numberedLines("middle-b", 30)}}},
+			"turn-4": {TurnID: "turn-4", Transcript: []events.TranscriptEntryState{{Kind: events.TranscriptEntryAssistant, Text: numberedLines("cold-bottom", 30)}}},
+		},
+	}
+	model.projector = events.NewProjectorFromSnapshot(state)
+	model.syncTranscriptStructureWithState(state)
+
+	topChunk := model.transcriptView.layout.chunks[model.transcriptView.layout.turnIndices["turn-1"]]
+	if topChunk.lineCount <= 0 {
+		t.Fatal("cold offscreen turn lineCount = 0, want placeholder geometry")
+	}
+	if strings.TrimSpace(topChunk.rendered.content) != "" {
+		t.Fatalf("cold offscreen turn rendered content during initial sync:\n%s", topChunk.rendered.content)
+	}
+	bottomChunk := model.transcriptView.layout.chunks[model.transcriptView.layout.turnIndices["turn-4"]]
+	if !strings.Contains(ansi.Strip(bottomChunk.rendered.content), "cold-bottom") {
+		t.Fatalf("cold bottom turn was not rendered for initial viewport:\n%s", ansi.Strip(bottomChunk.rendered.content))
+	}
+}
+
 func numberedLines(prefix string, count int) string {
 	lines := make([]string, 0, count)
 	for i := 0; i < count; i++ {
