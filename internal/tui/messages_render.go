@@ -61,6 +61,11 @@ func renderTranscriptMessages(m Model, state events.SessionState, width int) tra
 }
 
 func renderTranscriptLayout(m Model, state events.SessionState, width int) transcriptLayoutRender {
+	layout := buildTranscriptLayout(m, state, width)
+	return transcriptLayoutRender{layout: layout, rendered: layout.rendered()}
+}
+
+func buildTranscriptLayout(m Model, state events.SessionState, width int) transcriptLayout {
 	layout := transcriptLayout{
 		width:       max(width, 1),
 		wide:        isWideShell(m),
@@ -109,7 +114,7 @@ func renderTranscriptLayout(m Model, state events.SessionState, width int) trans
 			)},
 		})
 	}
-	return transcriptLayoutRender{layout: layout, rendered: layout.rendered()}
+	return layout
 }
 
 func shouldSuppressHistoryCompactionBeforeContinuation(state events.SessionState, turnID, nextTurnID string) bool {

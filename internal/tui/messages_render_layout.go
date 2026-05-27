@@ -181,6 +181,63 @@ func buildTranscriptFromChunks(chunks []transcriptRender) transcriptRender {
 	}
 }
 
+type virtualTranscriptContent struct {
+	chunks         []messagesVirtualChunk
+	toolLines      map[sessionToolCallRef]int
+	selectionLines []transcriptSelectionLine
+}
+
+func virtualTranscriptRender(layout transcriptLayout) virtualTranscriptContent {
+	out := virtualTranscriptContent{
+		toolLines:      make(map[sessionToolCallRef]int),
+		selectionLines: make([]transcriptSelectionLine, 0, len(layout.chunks)*4),
+	}
+	visibleTurnSeen := false
+	line := 0
+	index := 0
+	appendSeparator := func() {
+		out.chunks = append(out.chunks, messagesVirtualChunk{blankLines: 2})
+		out.selectionLines = append(out.selectionLines, transcriptSelectionLine{}, transcriptSelectionLine{})
+		line += 2
+	}
+	appendChunk := func(rendered transcriptRender) {
+		content := strings.TrimRight(rendered.content, "\n")
+		if strings.TrimSpace(content) == "" {
+			return
+		}
+		if index > 0 {
+			appendSeparator()
+		}
+		out.chunks = append(out.chunks, messagesVirtualChunk{content: content})
+		for ref, chunkLine := range rendered.toolLines {
+			out.toolLines[ref] = line + chunkLine
+		}
+		out.selectionLines = append(out.selectionLines, normalizedTranscriptSelectionLines(content, rendered.selectionLines)...)
+		line += transcriptRenderedLineCount(content)
+		index++
+	}
+	for _, chunk := range layout.chunks {
+		rendered := chunk.rendered
+		content := strings.TrimRight(rendered.content, "\n")
+		if strings.TrimSpace(content) == "" {
+			continue
+		}
+		rendered.content = content
+		if chunk.kind == transcriptLayoutChunkTurn {
+			if visibleTurnSeen && !layout.wide && strings.TrimSpace(layout.turnSeparator.content) != "" {
+				appendChunk(layout.turnSeparator)
+			}
+			visibleTurnSeen = true
+		}
+		appendChunk(rendered)
+	}
+	if index > 0 {
+		out.chunks = append(out.chunks, messagesVirtualChunk{blankLines: strings.Count(transcriptBottomPadding, "\n")})
+		out.selectionLines = append(out.selectionLines, transcriptSelectionLine{}, transcriptSelectionLine{})
+	}
+	return out
+}
+
 func contentWithBottomPadding(content string, addBottomPadding bool) string {
 	if !addBottomPadding {
 		return content

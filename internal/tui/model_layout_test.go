@@ -491,6 +491,50 @@ func TestKodaShellTranscriptBodyUsesVisibleViewportLines(t *testing.T) {
 	}
 }
 
+func TestShellLayoutSyncUsesVirtualTranscriptBacking(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context:       ctx,
+		Theme:         &defaultTheme,
+		Layout:        "shell",
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: "/repo",
+	})
+	state := events.SessionState{
+		SessionID:     "session-1",
+		WorkspaceRoot: "/repo",
+		TurnOrder:     []string{"turn-1"},
+		Turns: map[string]*events.TurnState{
+			"turn-1": {
+				TurnID: "turn-1",
+				Status: events.TurnStatusCompleted,
+				Transcript: []events.TranscriptEntryState{
+					{Kind: events.TranscriptEntryUser, Text: "first"},
+					{Kind: events.TranscriptEntryAssistant, Text: "second"},
+				},
+			},
+		},
+	}
+	model.projector = events.NewProjectorFromSnapshot(state)
+	modelIface, _ := model.Update(tea.WindowSizeMsg{Width: 96, Height: 24})
+	model = modelIface.(Model)
+
+	if model.messages.virtual == nil {
+		t.Fatal("shell layout messages virtual backing = nil")
+	}
+	if strings.TrimSpace(model.messages.raw) != "" {
+		t.Fatalf("shell layout stored raw transcript content: %q", model.messages.raw)
+	}
+	rendered := ansi.Strip(strings.Join(model.messages.VisibleLines(), "\n"))
+	if !strings.Contains(rendered, "first") || !strings.Contains(rendered, "second") {
+		t.Fatalf("virtual transcript backing missing rendered content:\n%s", rendered)
+	}
+}
+
 func TestShellLayoutWriteToolShowsSideBySideDiff(t *testing.T) {
 	defaultTheme := theme.StaticDefault()
 	ctx, cancel := context.WithCancel(context.TODO())

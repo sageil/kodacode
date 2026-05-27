@@ -12,8 +12,12 @@ func (m *Model) syncTranscriptStructureWithState(state events.SessionState) {
 		return
 	}
 	contentWidth := max(m.messages.Width(), 1)
-	layout := renderTranscriptLayout(*m, state, contentWidth)
-	m.applyTranscriptLayout(layout.layout, layout.rendered, m.messages.AtBottom())
+	layout := buildTranscriptLayout(*m, state, contentWidth)
+	if shellLayoutEnabled(*m) {
+		m.applyVirtualTranscriptLayout(layout, m.messages.AtBottom())
+		return
+	}
+	m.applyTranscriptLayout(layout, layout.rendered(), m.messages.AtBottom())
 }
 
 func (m *Model) applyTranscriptLayout(layout transcriptLayout, rendered transcriptRender, followBottom bool) {
@@ -21,6 +25,22 @@ func (m *Model) applyTranscriptLayout(layout transcriptLayout, rendered transcri
 		return
 	}
 	m.messages.Sync(rendered.content, followBottom)
+	m.syncTranscriptVisualState()
+	m.transcriptRefresh.deferred = false
+	m.transcriptRefresh.pending = false
+	m.transcriptRefresh.plan = transcriptRefreshPlan{}
+	m.transcriptRefresh.lastAt = time.Now()
+	m.transcriptView.toolLines = rendered.toolLines
+	m.transcriptView.selectionLines = rendered.selectionLines
+	m.transcriptView.layout = layout
+}
+
+func (m *Model) applyVirtualTranscriptLayout(layout transcriptLayout, followBottom bool) {
+	if m == nil {
+		return
+	}
+	rendered := virtualTranscriptRender(layout)
+	m.messages.SyncVirtualChunks(rendered.chunks, followBottom)
 	m.syncTranscriptVisualState()
 	m.transcriptRefresh.deferred = false
 	m.transcriptRefresh.pending = false
@@ -69,6 +89,10 @@ func (m *Model) applyTranscriptRefreshPlanWithState(state events.SessionState, p
 		if !ok {
 			m.err = ErrTranscriptIncrementalRefreshInvariant
 			return false
+		}
+		if shellLayoutEnabled(*m) {
+			m.applyVirtualTranscriptLayout(layout, m.messages.AtBottom())
+			return true
 		}
 		m.applyTranscriptLayout(layout, layout.rendered(), m.messages.AtBottom())
 		return true

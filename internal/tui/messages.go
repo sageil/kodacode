@@ -14,6 +14,7 @@ type Messages struct {
 	width    int
 	height   int
 	raw      string
+	virtual  *messagesVirtualContent
 	version  int64
 	bgTone   string
 	softWrap bool
@@ -44,6 +45,116 @@ type messagesViewCache struct {
 	rendered string
 	lines    []string
 	linesSet bool
+}
+
+type messagesVirtualChunk struct {
+	content    string
+	blankLines int
+}
+
+type messagesVirtualContent struct {
+	chunks     []messagesVirtualChunk
+	startLines []int
+	totalLines int
+}
+
+func newMessagesVirtualContent(chunks []messagesVirtualChunk) *messagesVirtualContent {
+	out := &messagesVirtualContent{
+		chunks:     make([]messagesVirtualChunk, 0, len(chunks)),
+		startLines: make([]int, 0, len(chunks)),
+	}
+	line := 0
+	for _, chunk := range chunks {
+		content := strings.TrimRight(chunk.content, "\n")
+		lineCount := virtualContentLineCount(content)
+		if chunk.blankLines > 0 {
+			content = ""
+			lineCount = chunk.blankLines
+		}
+		if lineCount <= 0 {
+			continue
+		}
+		out.startLines = append(out.startLines, line)
+		out.chunks = append(out.chunks, messagesVirtualChunk{content: content, blankLines: chunk.blankLines})
+		line += lineCount
+	}
+	out.totalLines = line
+	return out
+}
+
+func (v *messagesVirtualContent) equal(other *messagesVirtualContent) bool {
+	if v == nil || other == nil {
+		return v == other
+	}
+	if v.totalLines != other.totalLines || len(v.chunks) != len(other.chunks) {
+		return false
+	}
+	for i := range v.chunks {
+		if v.chunks[i].content != other.chunks[i].content || v.chunks[i].blankLines != other.chunks[i].blankLines {
+			return false
+		}
+	}
+	return true
+}
+
+func (v *messagesVirtualContent) placeholderContent() string {
+	if v == nil || v.totalLines <= 0 {
+		return ""
+	}
+	return strings.Repeat("\n", max(v.totalLines-1, 0))
+}
+
+func (v *messagesVirtualContent) allLines() []string {
+	if v == nil || v.totalLines <= 0 {
+		return nil
+	}
+	return v.visibleLines(0, v.totalLines)
+}
+
+func (v *messagesVirtualContent) visibleLines(offset, height int) []string {
+	if v == nil || height <= 0 {
+		return nil
+	}
+	offset = max(offset, 0)
+	end := min(offset+height, max(v.totalLines, 0))
+	lines := make([]string, 0, max(end-offset, 0))
+	for i, chunk := range v.chunks {
+		start := v.startLines[i]
+		chunkLineCount := chunk.blankLines
+		if chunkLineCount <= 0 {
+			chunkLineCount = virtualContentLineCount(chunk.content)
+		}
+		chunkEnd := start + chunkLineCount
+		if chunkEnd <= offset {
+			continue
+		}
+		if start >= end {
+			break
+		}
+		from := max(offset-start, 0)
+		to := min(end-start, chunkLineCount)
+		if from < to {
+			if chunk.blankLines > 0 {
+				for i := 0; i < to-from; i++ {
+					lines = append(lines, "")
+				}
+			} else {
+				chunkLines := strings.Split(chunk.content, "\n")
+				lines = append(lines, chunkLines[from:to]...)
+			}
+		}
+	}
+	for len(lines) < height {
+		lines = append(lines, "")
+	}
+	return lines
+}
+
+func virtualContentLineCount(content string) int {
+	if strings.TrimSpace(content) == "" {
+		return 0
+	}
+	return strings.Count(strings.TrimRight(content, "\n"), "\n") + 1
 }
 
 func NewMessages(th *theme.Theme) Messages {
@@ -94,13 +205,29 @@ func (m *Messages) SetSize(width, height int) {
 }
 
 func (m *Messages) Sync(content string, follow bool) {
-	if content == m.raw {
+	wasVirtual := m.virtual != nil
+	m.virtual = nil
+	if content == m.raw && !wasVirtual {
 		if follow && !m.vp.AtBottom() {
 			m.vp.GotoBottom()
 		}
 		return
 	}
 	m.raw = content
+	m.version++
+	m.syncViewportContent(follow)
+}
+
+func (m *Messages) SyncVirtualChunks(chunks []messagesVirtualChunk, follow bool) {
+	virtual := newMessagesVirtualContent(chunks)
+	if m.virtual != nil && m.virtual.equal(virtual) {
+		if follow && !m.vp.AtBottom() {
+			m.vp.GotoBottom()
+		}
+		return
+	}
+	m.raw = ""
+	m.virtual = virtual
 	m.version++
 	m.syncViewportContent(follow)
 }
@@ -131,6 +258,9 @@ func (m Messages) VisibleLines() []string {
 }
 
 func (m Messages) RawLines() []string {
+	if m.virtual != nil {
+		return m.virtual.allLines()
+	}
 	if m.rawLinesCache != nil && m.rawLinesCache.valid && m.rawLinesCache.version == m.version {
 		return m.rawLinesCache.lines
 	}
@@ -196,6 +326,9 @@ func (m Messages) ContentVersion() int64 {
 }
 
 func (m Messages) TotalLineCount() int {
+	if m.virtual != nil {
+		return m.virtual.totalLines
+	}
 	return m.vp.TotalLineCount()
 }
 
@@ -221,7 +354,11 @@ func (m *Messages) syncViewportContent(follow bool) {
 	m.vp.SoftWrap = m.softWrap
 	m.vp.SetWidth(max(m.width, 1))
 	m.vp.SetHeight(max(m.height, 1))
-	m.vp.SetContent(m.raw)
+	if m.virtual != nil {
+		m.vp.SetContent(m.virtual.placeholderContent())
+	} else {
+		m.vp.SetContent(m.raw)
+	}
 	m.enforceHorizontalLock()
 	if follow || atBottom {
 		m.vp.GotoBottom()
@@ -250,18 +387,27 @@ func (m Messages) ensureRenderedViewState() messagesViewCache {
 	}
 
 	rendered := m.vp.View()
+	linesSet := false
+	var lines []string
+	if m.virtual != nil {
+		lines = m.virtual.visibleLines(m.vp.YOffset(), max(m.vp.Height(), 1))
+		rendered = strings.Join(lines, "\n")
+		linesSet = true
+	}
 	if m.viewCache != nil {
 		m.viewCache.state = state
 		m.viewCache.valid = true
 		m.viewCache.rendered = rendered
-		m.viewCache.lines = nil
-		m.viewCache.linesSet = false
+		m.viewCache.lines = lines
+		m.viewCache.linesSet = linesSet
 		return *m.viewCache
 	}
 	return messagesViewCache{
 		state:    state,
 		valid:    true,
 		rendered: rendered,
+		lines:    lines,
+		linesSet: linesSet,
 	}
 }
 
