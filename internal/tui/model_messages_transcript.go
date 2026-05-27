@@ -12,8 +12,10 @@ func (m *Model) syncTranscriptStructureWithState(state events.SessionState) {
 		return
 	}
 	contentWidth := max(m.messages.Width(), 1)
+	followBottom := m.messages.AtBottom()
 	layout := m.buildVisibleTranscriptLayout(state, contentWidth)
-	m.applyVirtualTranscriptLayout(layout, m.messages.AtBottom())
+	m.applyVirtualTranscriptLayout(layout, followBottom)
+	m.syncVisibleTranscriptChunksAfterViewportSettle(state, contentWidth, followBottom)
 }
 
 func (m *Model) applyTranscriptLayout(layout transcriptLayout, rendered transcriptRender, followBottom bool) {
@@ -53,14 +55,32 @@ func (m *Model) syncVisibleTranscriptChunksIfNeeded() {
 	}
 	state := m.projector.CurrentState()
 	contentWidth := max(m.messages.Width(), 1)
+	m.syncVisibleTranscriptChunksWithState(state, contentWidth, false)
+}
+
+func (m *Model) syncVisibleTranscriptChunksAfterViewportSettle(state events.SessionState, contentWidth int, followBottom bool) {
+	for i := 0; i < 4; i++ {
+		if !m.syncVisibleTranscriptChunksWithState(state, contentWidth, followBottom) {
+			return
+		}
+	}
+}
+
+func (m *Model) syncVisibleTranscriptChunksWithState(state events.SessionState, contentWidth int, followBottom bool) bool {
+	if m == nil || len(m.transcriptView.layout.chunks) == 0 {
+		return false
+	}
 	layout := m.buildVisibleTranscriptLayout(state, contentWidth)
 	if transcriptLayoutsEquivalentForVirtualContent(m.transcriptView.layout, layout) {
-		return
+		return false
 	}
 	offset := m.messages.YOffset()
-	m.applyVirtualTranscriptLayout(layout, false)
-	m.messages.GotoLine(offset)
-	m.syncTranscriptVisualState()
+	m.applyVirtualTranscriptLayout(layout, followBottom)
+	if !followBottom {
+		m.messages.GotoLine(offset)
+		m.syncTranscriptVisualState()
+	}
+	return true
 }
 
 func transcriptLayoutsEquivalentForVirtualContent(left, right transcriptLayout) bool {
