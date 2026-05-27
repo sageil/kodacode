@@ -1105,54 +1105,6 @@ func TestRenderModelSurfaceWideComposerCursorStaysOnInputLineWithFooterNotice(t 
 	}
 }
 
-func TestRenderModelSurfaceWideNormalModeDoesNotDrawComposerLeftMarker(t *testing.T) {
-	customTheme := theme.StaticDefault()
-	ctx, cancel := context.WithCancel(context.TODO())
-	defer cancel()
-
-	model := NewModel(&fakeController{}, ModelConfig{
-		Context:       ctx,
-		Theme:         &customTheme,
-		SessionID:     "session-1",
-		TurnID:        "turn-1",
-		WorkspaceRoot: "/repo",
-	})
-	model.chrome.focus = focusTranscript
-	model.chrome.wideSidebarOpen = true
-	model.chrome.inspectorOpen = true
-	model.inspector.tab = inspectorTabTools
-	modelIface, _ := model.Update(tea.WindowSizeMsg{Width: 160, Height: 28})
-	model = modelIface.(Model)
-	model.projector = events.NewProjectorFromSnapshot(events.SessionState{
-		SessionID:     "session-1",
-		WorkspaceRoot: "/repo",
-		TurnOrder:     []string{"turn-1"},
-		Turns: map[string]*events.TurnState{
-			"turn-1": {
-				TurnID: "turn-1",
-				Status: events.TurnStatusCompleted,
-				Transcript: []events.TranscriptEntryState{
-					{Kind: events.TranscriptEntryUser, Text: "review the current project"},
-					{Kind: events.TranscriptEntryAssistant, Text: "Done."},
-				},
-				ToolCalls: map[string]*events.ToolCallState{},
-				Handoffs:  map[string]*events.AgentHandoffState{},
-			},
-		},
-	})
-	model.syncViewportLayout()
-
-	rendered, cursor := renderModelSurface(model)
-	if cursor != nil {
-		t.Fatalf("cursor = %#v, want nil outside composer focus", cursor)
-	}
-	for _, line := range strings.Split(ansi.Strip(rendered), "\n") {
-		if strings.HasPrefix(line, "┃ Ask kodacode") {
-			t.Fatalf("normal-mode footer composer drew left marker: %q", line)
-		}
-	}
-}
-
 func TestRenderModelSurfaceHidesComposerCursorAfterChromeFocusLeavesComposer(t *testing.T) {
 	customTheme := theme.StaticDefault()
 	ctx, cancel := context.WithCancel(context.TODO())

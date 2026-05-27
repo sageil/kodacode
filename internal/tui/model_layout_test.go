@@ -1475,13 +1475,15 @@ func TestRenderSplitTranscriptPaneDropsBordersAndScrollbarWhenDrawerHidden(t *te
 		t.Fatalf("layout.showInspector = false, want true")
 	}
 	visible := ansi.Strip(renderSplitTranscriptPane(model, layout.centerWidth, splitWidePanelHeight(layout)))
-	for _, wanted := range []string{
+	for _, unwanted := range []string{
 		lipgloss.RoundedBorder().TopLeft,
 		lipgloss.RoundedBorder().TopRight,
+		lipgloss.RoundedBorder().BottomLeft,
+		lipgloss.RoundedBorder().BottomRight,
 		"│",
 	} {
-		if !strings.Contains(visible, wanted) {
-			t.Fatalf("visible transcript missing %q:\n%s", wanted, visible)
+		if strings.Contains(visible, unwanted) {
+			t.Fatalf("visible transcript unexpectedly contains %q:\n%s", unwanted, visible)
 		}
 	}
 	expectedVisibleWidth := transcriptViewportWidth(max(layout.centerWidth-4, 1))

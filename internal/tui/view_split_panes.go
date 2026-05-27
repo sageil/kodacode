@@ -39,7 +39,7 @@ func renderSplitTranscriptPaneUncached(m Model, state events.SessionState, width
 		return renderToneBlock(m.theme, transcriptTone, max(width, 1), max(height, 1), body)
 	}
 	body = renderSplitTranscriptContent(max(height-2, 1), body, activity)
-	return renderSplitPane(m, "", m.messages.ScrollSummary(), body, width, height, transcriptTone, m.chrome.focus == focusTranscript)
+	return renderSplitPaneWithBorder(m, "", m.messages.ScrollSummary(), body, width, height, transcriptTone, m.chrome.focus == focusTranscript, hiddenSplitPaneBorder())
 }
 
 func renderSplitTranscriptContent(height int, body, activity string) string {
@@ -83,12 +83,16 @@ func renderSplitRightColumn(m Model, state events.SessionState, width, height in
 }
 
 func renderSplitPane(m Model, title, meta, body string, width, height int, surfaceTone string, focused bool) string {
+	return renderSplitPaneWithBorder(m, title, meta, body, width, height, surfaceTone, focused, lipgloss.RoundedBorder())
+}
+
+func renderSplitPaneWithBorder(m Model, title, meta, body string, width, height int, surfaceTone string, focused bool, border lipgloss.Border) string {
 	borderColor := lineTone(m)
 	if focused {
 		borderColor = colorFor(m.theme, "primary", "#7cc7ff")
 	}
 	style := toneFillStyle(m.theme, surfaceTone).
-		Border(lipgloss.RoundedBorder()).
+		Border(border).
 		BorderForeground(lipgloss.Color(borderColor)).
 		Padding(0, 1)
 
@@ -107,6 +111,19 @@ func renderSplitPane(m Model, title, meta, body string, width, height int, surfa
 		content += body
 	}
 	return style.Render(renderToneBlock(m.theme, surfaceTone, contentWidth, contentHeight, content))
+}
+
+func hiddenSplitPaneBorder() lipgloss.Border {
+	return lipgloss.Border{
+		Top:         " ",
+		Bottom:      " ",
+		Left:        " ",
+		Right:       " ",
+		TopLeft:     " ",
+		TopRight:    " ",
+		BottomLeft:  " ",
+		BottomRight: " ",
+	}
 }
 
 func renderSplitPaneHeader(m Model, title, meta string, width int) string {
