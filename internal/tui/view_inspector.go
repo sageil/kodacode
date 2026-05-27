@@ -30,21 +30,6 @@ func renderWideInspectorBody(m Model, state events.SessionState, width int) stri
 	}
 }
 
-func toolStatusSymbol(status string) string {
-	switch status {
-	case "done":
-		return "✓"
-	case "running":
-		return "●"
-	case "blocked":
-		return "!"
-	case "error":
-		return "✗"
-	default:
-		return "○"
-	}
-}
-
 func renderInspectorPane(m Model, state events.SessionState, width int) string {
 	tabs := renderInspectorTabs(m, width)
 	return tabs + "\n\n" + m.inspector.body.View()
