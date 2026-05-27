@@ -928,8 +928,8 @@ func TestLoadTUISettingsWithSourcesNormalizesNegativeDisplayTurns(t *testing.T) 
 	if settings.DisplayTurns != 0 {
 		t.Fatalf("display turns = %d, want 0", settings.DisplayTurns)
 	}
-	if settings.TerminalIcons != "unicode" {
-		t.Fatalf("terminal icons = %q, want unicode", settings.TerminalIcons)
+	if settings.TerminalIcons != "auto" {
+		t.Fatalf("terminal icons = %q, want auto", settings.TerminalIcons)
 	}
 	if !settings.ShellToolCalls {
 		t.Fatal("shell tool calls should default to true")

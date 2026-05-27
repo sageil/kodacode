@@ -125,8 +125,10 @@ func normalizedTUITerminalIcons(value string) string {
 	switch strings.ToLower(strings.TrimSpace(value)) {
 	case "ascii":
 		return "ascii"
-	default:
+	case "unicode":
 		return "unicode"
+	default:
+		return "auto"
 	}
 }
 

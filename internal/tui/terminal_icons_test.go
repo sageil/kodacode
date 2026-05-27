@@ -52,8 +52,9 @@ func TestTerminalSafeGlyphFallsBackForWideOrEmptyGlyphs(t *testing.T) {
 }
 
 func TestTerminalIconProfilesUseUnicodeByDefaultAndASCIIWhenConfigured(t *testing.T) {
-	if got := terminalIconProfileForMode("").Icon(terminalIconPromptRail); got != "▌" {
-		t.Fatalf("default prompt rail = %q, want unicode rail", got)
+	env := func(string) string { return "" }
+	if got := terminalIconProfileForModeWithEnv("", env).Icon(terminalIconPromptRail); got != "▌" {
+		t.Fatalf("default auto prompt rail = %q, want unicode rail", got)
 	}
 	if got := terminalIconProfileForMode("unknown").Name; got != "unicode" {
 		t.Fatalf("unknown icon profile = %q, want unicode", got)
@@ -63,5 +64,41 @@ func TestTerminalIconProfilesUseUnicodeByDefaultAndASCIIWhenConfigured(t *testin
 	}
 	if got := terminalIconProfileForMode("ascii").ToolStatusSymbol("done"); got != "*" {
 		t.Fatalf("ascii done status = %q, want *", got)
+	}
+}
+
+func TestTerminalIconProfileAutoDetectsCapabilities(t *testing.T) {
+	dumbEnv := func(key string) string {
+		switch key {
+		case "TERM":
+			return "dumb"
+		case "LANG":
+			return "en_US.UTF-8"
+		default:
+			return ""
+		}
+	}
+	if got := terminalIconProfileForModeWithEnv("auto", dumbEnv).Name; got != "ascii" {
+		t.Fatalf("dumb terminal icon profile = %q, want ascii", got)
+	}
+
+	utf8Env := func(key string) string {
+		if key == "LANG" {
+			return "en_US.UTF-8"
+		}
+		return ""
+	}
+	if got := terminalIconProfileForModeWithEnv("auto", utf8Env).Name; got != "unicode" {
+		t.Fatalf("utf8 locale icon profile = %q, want unicode", got)
+	}
+
+	legacyLocaleEnv := func(key string) string {
+		if key == "LANG" {
+			return "C"
+		}
+		return ""
+	}
+	if got := terminalIconProfileForModeWithEnv("auto", legacyLocaleEnv).Name; got != "ascii" {
+		t.Fatalf("legacy locale icon profile = %q, want ascii", got)
 	}
 }

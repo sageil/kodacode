@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"os"
 	"strings"
 
 	"github.com/charmbracelet/x/ansi"
@@ -51,16 +52,92 @@ var asciiTerminalIconProfile = terminalIconProfile{
 }
 
 func terminalIconProfileForMode(mode string) terminalIconProfile {
+	return terminalIconProfileForModeWithEnv(mode, os.Getenv)
+}
+
+func terminalIconProfileForModeWithEnv(mode string, getenv func(string) string) terminalIconProfile {
 	switch strings.ToLower(strings.TrimSpace(mode)) {
 	case "ascii":
 		return asciiTerminalIconProfile
+	case "unicode":
+		return defaultTerminalIconProfile
+	case "", "auto":
+		return detectTerminalIconProfile(getenv)
 	default:
 		return defaultTerminalIconProfile
 	}
 }
 
 func normalizedTerminalIconMode(mode string) string {
-	return terminalIconProfileForMode(mode).Name
+	switch strings.ToLower(strings.TrimSpace(mode)) {
+	case "ascii":
+		return "ascii"
+	case "unicode":
+		return "unicode"
+	default:
+		return "auto"
+	}
+}
+
+func detectTerminalIconProfile(getenv func(string) string) terminalIconProfile {
+	if getenv == nil {
+		getenv = os.Getenv
+	}
+	if terminalEnvKnownASCIIOnly(getenv) {
+		return asciiTerminalIconProfile
+	}
+	if terminalEnvLocaleSupportsUnicode(getenv) {
+		return defaultTerminalIconProfile
+	}
+	if terminalEnvKnownUnicode(getenv) {
+		return defaultTerminalIconProfile
+	}
+	if terminalEnvLocaleConfigured(getenv) {
+		return asciiTerminalIconProfile
+	}
+	return defaultTerminalIconProfile
+}
+
+func terminalEnvKnownASCIIOnly(getenv func(string) string) bool {
+	switch strings.ToLower(strings.TrimSpace(getenv("TERM"))) {
+	case "dumb", "ansi", "vt100", "vt220", "cons25":
+		return true
+	default:
+		return false
+	}
+}
+
+func terminalEnvLocaleSupportsUnicode(getenv func(string) string) bool {
+	for _, key := range []string{"LC_ALL", "LC_CTYPE", "LANG"} {
+		value := strings.ToUpper(strings.TrimSpace(getenv(key)))
+		if strings.Contains(value, "UTF-8") || strings.Contains(value, "UTF8") {
+			return true
+		}
+	}
+	return false
+}
+
+func terminalEnvLocaleConfigured(getenv func(string) string) bool {
+	for _, key := range []string{"LC_ALL", "LC_CTYPE", "LANG"} {
+		if strings.TrimSpace(getenv(key)) != "" {
+			return true
+		}
+	}
+	return false
+}
+
+func terminalEnvKnownUnicode(getenv func(string) string) bool {
+	if strings.TrimSpace(getenv("WT_SESSION")) != "" ||
+		strings.TrimSpace(getenv("KITTY_WINDOW_ID")) != "" ||
+		strings.TrimSpace(getenv("WEZTERM_EXECUTABLE")) != "" {
+		return true
+	}
+	switch strings.ToLower(strings.TrimSpace(getenv("TERM_PROGRAM"))) {
+	case "apple_terminal", "iterm.app", "vscode", "wezterm", "kitty", "ghostty", "warpterminal":
+		return true
+	default:
+		return false
+	}
 }
 
 func (profile terminalIconProfile) CacheKey() string {
