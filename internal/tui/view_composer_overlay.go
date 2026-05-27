@@ -19,7 +19,8 @@ type composerOverlayLayout struct {
 }
 
 func composerCursorForSurface(m Model, state events.SessionState, layout shellLayout) *tea.Cursor {
-	if m.chrome.focus != focusComposer || !m.composerInputEnabledForState(state) || hasPendingInteractionInState(state, m.turnID) {
+	liveActive, _ := m.liveTurnSpinnerState(state)
+	if m.chrome.focus != focusComposer || liveActive || !m.composerInputEnabledForState(state) || hasPendingInteractionInState(state, m.turnID) {
 		return nil
 	}
 	cursor := m.composer.Cursor()

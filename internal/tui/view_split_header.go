@@ -48,7 +48,7 @@ func renderSplitWideHeader(m Model, state events.SessionState, width int) string
 	}
 
 	row := renderHeaderLeftCenterRow(left, center, max(width, 1))
-	return row + "\n" + renderHeaderDivider(m, max(width, 1))
+	return row + "\n" + renderHeaderDividerForState(m, state, max(width, 1))
 }
 
 func renderSplitWideFooter(m Model, state events.SessionState, width int) string {

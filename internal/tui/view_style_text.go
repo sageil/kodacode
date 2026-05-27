@@ -1,6 +1,10 @@
 package tui
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/charmbracelet/x/ansi"
+)
 
 func truncateEnd(text string, width int) string {
 	if width <= 0 {
@@ -14,6 +18,20 @@ func truncateEnd(text string, width int) string {
 		return string(runes[:width])
 	}
 	return string(runes[:width-1]) + "…"
+}
+
+func truncateVisibleEnd(text string, width int) string {
+	if width <= 0 {
+		return ""
+	}
+	if visibleTextWidth(text) <= width {
+		return text
+	}
+	return truncateEnd(ansi.Strip(text), width)
+}
+
+func visibleTextWidth(text string) int {
+	return ansi.StringWidth(ansi.Strip(text))
 }
 
 func truncateMiddle(text string, width int) string {

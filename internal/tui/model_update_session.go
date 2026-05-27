@@ -106,8 +106,8 @@ func (m Model) handleSessionOpenedMsg(msg sessionOpenedMsg) (Model, tea.Cmd) {
 			m.ensureSelectedDelegatedSessionSnapshotLoadedCmd(),
 		)
 	}
-	m.syncLiveTurnWithState(msg.state)
 	m.busy = false
+	m.syncLiveTurnWithState(msg.state)
 	if m.hasPendingInteraction() {
 		m.chrome.focus = focusTranscript
 	} else {
@@ -160,8 +160,8 @@ func (m Model) handleSessionWatchOpenedMsg(msg sessionWatchOpenedMsg) (Model, te
 			m.ensureSelectedDelegatedSessionSnapshotLoadedCmd(),
 		)
 	}
-	m.syncLiveTurnWithState(m.projector.CurrentState())
 	m.busy = false
+	m.syncLiveTurnWithState(m.projector.CurrentState())
 	return m, tea.Batch(
 		m.syncComposerFocus(),
 		waitForEventCmd(m.stream, m.watchID),

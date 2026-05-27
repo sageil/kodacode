@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/sageil/kodacode/internal/app"
 	"github.com/sageil/kodacode/internal/events"
 	"github.com/sageil/kodacode/internal/provider"
@@ -124,7 +125,7 @@ func headerModelZone(m Model, state events.SessionState, width int) string {
 	if len(metadata) > 0 {
 		rendered += separator + headerJoinModelMetadata(metadata, separator)
 	}
-	if lipgloss.Width(rendered) <= width {
+	if ansi.StringWidth(ansi.Strip(rendered)) <= width {
 		return rendered
 	}
 

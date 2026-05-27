@@ -7,11 +7,6 @@ import (
 	"github.com/sageil/kodacode/internal/events"
 )
 
-func cachedTurnTranscriptRender(m Model, state events.SessionState, turnID string, turn *events.TurnState, width int, options transcriptTurnRenderOptions) transcriptRender {
-	rendered, _ := cachedTurnTranscriptRenderWithKey(m, state, turnID, turn, width, options)
-	return rendered
-}
-
 func cachedTurnTranscriptRenderWithKey(m Model, state events.SessionState, turnID string, turn *events.TurnState, width int, options transcriptTurnRenderOptions) (transcriptRender, string) {
 	if turn == nil {
 		return transcriptRender{}, ""

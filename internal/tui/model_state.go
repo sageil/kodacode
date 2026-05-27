@@ -32,10 +32,13 @@ func (m Model) interactionResolutionInFlight() bool {
 }
 
 func (m Model) pendingInteractionSubmissionInFlight() bool {
+	return m.pendingInteractionSubmissionInFlightForState(m.projector.CurrentState())
+}
+
+func (m Model) pendingInteractionSubmissionInFlightForState(state events.SessionState) bool {
 	if !m.interactionResolutionInFlight() {
 		return false
 	}
-	state := m.projector.CurrentState()
 	return hasPendingInteractionInState(state, m.turnID) || isFinishedInState(state, m.turnID)
 }
 

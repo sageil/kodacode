@@ -198,10 +198,6 @@ func (m Model) transcriptLayoutForTurnRefresh(state events.SessionState, turnIDs
 	return layout, true
 }
 
-func (m Model) buildTranscriptLayoutForViewport(state events.SessionState, width int) transcriptLayout {
-	return m.buildVisibleTranscriptLayout(state, width)
-}
-
 func (m Model) buildVisibleTranscriptLayout(state events.SessionState, width int) transcriptLayout {
 	previous := m.transcriptView.layout
 	width = max(width, 1)
@@ -715,26 +711,6 @@ func transcriptTurnRequiresRender(m Model, turnID string) bool {
 	return false
 }
 
-func (layout transcriptLayout) canReuseForViewportRender(width int, wide bool, turnIDs []string) bool {
-	if layout.width != max(width, 1) || layout.wide != wide || len(layout.chunks) == 0 {
-		return false
-	}
-	if len(layout.turnIndices) != len(turnIDs) {
-		return false
-	}
-	for _, turnID := range turnIDs {
-		index, ok := layout.turnIndices[strings.TrimSpace(turnID)]
-		if !ok || index < 0 || index >= len(layout.chunks) {
-			return false
-		}
-		chunk := layout.chunks[index]
-		if chunk.kind != transcriptLayoutChunkTurn || strings.TrimSpace(chunk.turnID) != strings.TrimSpace(turnID) {
-			return false
-		}
-	}
-	return true
-}
-
 func (layout transcriptLayout) turnLineStarts() map[string]int {
 	starts := make(map[string]int, len(layout.turnIndices))
 	line := 0
@@ -806,16 +782,6 @@ func transcriptLineRangeIntersects(start, lineCount, windowStart, windowEnd int)
 	}
 	end := start + lineCount
 	return start < windowEnd && end > windowStart
-}
-
-func transcriptTurnIntersectsViewport(chunk transcriptLayoutChunk, start, offset, height int) bool {
-	if height <= 0 {
-		return false
-	}
-	lineCount := transcriptLayoutChunkLineCount(chunk)
-	viewportStart := max(offset, 0)
-	viewportEnd := viewportStart + max(height, 1)
-	return transcriptLineRangeIntersects(start, lineCount, viewportStart, viewportEnd)
 }
 
 func nextTranscriptLayoutTurnID(layout transcriptLayout, turnID string) string {

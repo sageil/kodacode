@@ -68,17 +68,6 @@ func terminalIconProfileForModeWithEnv(mode string, getenv func(string) string) 
 	}
 }
 
-func normalizedTerminalIconMode(mode string) string {
-	switch strings.ToLower(strings.TrimSpace(mode)) {
-	case "ascii":
-		return "ascii"
-	case "unicode":
-		return "unicode"
-	default:
-		return "auto"
-	}
-}
-
 func detectTerminalIconProfile(getenv func(string) string) terminalIconProfile {
 	if getenv == nil {
 		getenv = os.Getenv

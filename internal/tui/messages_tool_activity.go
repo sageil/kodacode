@@ -65,10 +65,6 @@ func renderToolTimelineSection(m Model, state events.SessionState, turn *events.
 	}
 }
 
-func renderTurnToolOutcomeSections(m Model, state events.SessionState, refs []sessionToolCallRef, width int) []transcriptSection {
-	return transcriptToolEntryRendererForModel(m).RenderBatch(m, state, refs, width)
-}
-
 func renderClassicTurnToolOutcomeSections(m Model, state events.SessionState, refs []sessionToolCallRef, width int) []transcriptSection {
 	refs = filterPendingQuestionToolRefs(m, refs)
 	if len(refs) == 0 {

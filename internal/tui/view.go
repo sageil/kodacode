@@ -136,7 +136,6 @@ func renderSplitWideAnimationSurface(m Model, state events.SessionState, layout 
 }
 
 func shouldOverlaySplitWideAnimation(m Model, state events.SessionState, layout shellLayout) bool {
-	_ = state
 	if shellLayoutEnabled(m) {
 		return false
 	}
@@ -146,7 +145,7 @@ func shouldOverlaySplitWideAnimation(m Model, state events.SessionState, layout 
 	if m.width <= 0 || m.height <= 0 {
 		return false
 	}
-	return m.shouldAnimateTranscriptActivity()
+	return m.shouldAnimateTranscriptActivityForState(state)
 }
 
 func drawSplitWideAnimationOverlay(surface dialogSurface, m Model, state events.SessionState, layout shellLayout) {
@@ -154,7 +153,7 @@ func drawSplitWideAnimationOverlay(surface dialogSurface, m Model, state events.
 		return
 	}
 	width := max(layout.totalWidth, 1)
-	drawBlockOnSurface(surface, renderHeaderDivider(m, width), 0, splitWideHeaderHeight()-1)
+	drawBlockOnSurface(surface, renderHeaderDividerForState(m, state, width), 0, splitWideHeaderHeight()-1)
 	if activity, ok := composerActivityStripStateFor(m, state); ok && strings.TrimSpace(activity.Label) != "" {
 		footerTop := splitWideHeaderHeight() + splitWidePanelHeight(layout)
 		drawBlockOnSurface(surface, renderComposerActivityStrip(m, state, width, composerBorderColor(m, state)), 0, footerTop)

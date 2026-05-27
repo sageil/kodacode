@@ -55,7 +55,7 @@ func renderHeaderBar(m Model, state events.SessionState, width int) string {
 	}
 
 	row := renderHeaderLeftCenterRow(left, center, max(width, 1))
-	return row + "\n" + renderHeaderDivider(m, max(width, 1))
+	return row + "\n" + renderHeaderDividerForState(m, state, max(width, 1))
 }
 
 func renderHeaderBrand(m Model) string {
@@ -109,15 +109,15 @@ func sessionHasVisibleTools(state events.SessionState) bool {
 }
 
 func joinBar(left, right string, width int) string {
-	leftWidth := lipgloss.Width(left)
-	rightWidth := lipgloss.Width(right)
+	leftWidth := visibleTextWidth(left)
+	rightWidth := visibleTextWidth(right)
 	gap := max(width-leftWidth-rightWidth, 1)
 	return left + strings.Repeat(" ", gap) + right
 }
 
-func renderHeaderDivider(m Model, width int) string {
+func renderHeaderDividerForState(m Model, state events.SessionState, width int) string {
 	width = max(width, 1)
-	if !m.shouldAnimateTranscriptActivity() {
+	if !m.shouldAnimateTranscriptActivityForState(state) {
 		return lipgloss.NewStyle().
 			Foreground(lipgloss.Color(lineTone(m))).
 			Render(strings.Repeat("─", width))

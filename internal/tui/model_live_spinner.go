@@ -20,13 +20,23 @@ func (m Model) liveTurnSpinnerState(state events.SessionState) (bool, string) {
 	if !m.liveTurn.spinnerArmed {
 		return false, ""
 	}
-	if m.pendingInteractionSubmissionInFlight() {
+	pendingSubmission := m.pendingInteractionSubmissionInFlightForState(state)
+	if pendingSubmission {
 		if label := m.activeDelegatedSpinnerLabel(state); label != "" {
 			return true, label
 		}
 		return true, "Continuing"
 	}
-	if hasPendingInteractionInState(state, turnID) && !m.pendingInteractionSubmissionInFlight() {
+	trackedTurnID := strings.TrimSpace(m.turnID)
+	if turnID == "" {
+		if trackedTurnID == "" {
+			return false, ""
+		}
+		if turn := currentTurn(state, trackedTurnID); turn != nil && isTurnFinished(turn) {
+			return false, ""
+		}
+	}
+	if hasPendingInteractionInState(state, turnID) && !pendingSubmission {
 		return false, ""
 	}
 	if turn == nil {
@@ -113,13 +123,31 @@ func liveTurnActivityLabel(turn *events.TurnState) string {
 
 func (m Model) shouldAnimateTranscriptActivity() bool {
 	state := m.projector.CurrentState()
-	if m.busy {
-		return true
-	}
+	return m.shouldAnimateTranscriptActivityForState(state)
+}
+
+func (m Model) shouldAnimateTranscriptActivityForState(state events.SessionState) bool {
 	if active, _ := m.liveTurnSpinnerState(state); active {
 		return true
 	}
+	if !m.busy {
+		return false
+	}
+	turnID := strings.TrimSpace(m.turnID)
+	if turnID == "" {
+		return false
+	}
+	if turn := currentTurn(state, turnID); turn != nil {
+		if turn.Status == events.TurnStatusRunning {
+			return true
+		}
+	} else {
+		return true
+	}
 	for _, ref := range orderedSessionToolCallRefs(state) {
+		if turn := currentTurn(state, ref.TurnID); turn == nil || turn.Status != events.TurnStatusRunning {
+			continue
+		}
 		_, call := sessionToolCall(state, ref)
 		if call != nil && toolOutcomeShowsSpinner(toolStatus(call)) {
 			return true

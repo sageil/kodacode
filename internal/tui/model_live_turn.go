@@ -23,6 +23,13 @@ func (m *Model) disarmLiveTurn() {
 func (m *Model) syncLiveTurnWithState(state events.SessionState) {
 	m.disarmLiveTurn()
 	m.liveTurn.cancelRequested = false
+	if pendingInteractionTurnIDFromState(state) != "" {
+		m.armLiveTurn()
+		return
+	}
+	if !m.busy {
+		return
+	}
 	if turnID := effectiveLiveTurnID(*m, state); turnID != "" {
 		if turn := currentTurn(state, turnID); turn != nil && turn.Status == events.TurnStatusRunning {
 			m.armLiveTurn()

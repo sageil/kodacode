@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"path/filepath"
 	"strings"
 
 	"charm.land/lipgloss/v2"
@@ -34,31 +35,62 @@ func renderKodaShellTranscriptStatus(m Model, state events.SessionState, width i
 
 func renderKodaShellHeader(m Model, state events.SessionState, width int) string {
 	width = max(width, 1)
-	path := displaySessionPath(state.WorkspaceRoot, pickWorkspace(state.WorkspaceRoot, m.workspace))
-	if strings.TrimSpace(path) == "" {
-		path = "~"
-	}
-	branch := ""
-	if git := footerGitStatus(m.footerStatus.workspace); git != nil && strings.TrimSpace(git.Branch) != "" {
-		branch = strings.TrimSpace(git.Branch)
-	}
 	leftParts := []string{
-		renderShellText(m, path, "subtext", "#9da8ca", false),
+		renderShellText(m, "KodaCode", "primary", "#e6b450", true),
+		renderShellText(m, shellWorkspaceHandle(state.WorkspaceRoot, m.workspace), "subtext", "#9da8ca", false),
 	}
-	if branch != "" {
+	if branch := shellHeaderBranchLabel(m, state); branch != "" {
+		leftParts = append(leftParts, renderShellText(m, "on", "subtext", "#9da8ca", false))
 		leftParts = append(leftParts, renderShellText(m, branch, "success", "#90e5b4", false))
 	}
-	leftParts = append(leftParts,
-		renderShellText(m, "koda", "primary", "#e6b450", true),
-		renderShellText(m, footerAgentLabel(m, state, effectiveFooterTurnID(m, state)), "secondary", "#39bae6", false),
-	)
-	if modelZone := headerModelZone(m, state, max(width/3, 8)); modelZone != "" {
+	leftParts = append(leftParts, renderShellSeparator(m))
+	leftParts = append(leftParts, renderShellText(m, shellSessionLabel(m, state), "text", "#f8f8f2", false))
+
+	right := headerContextMetricsZone(m, state)
+	if modelZone := headerModelZone(m, state, width); modelZone != "" {
+		leftParts = append(leftParts, renderShellSeparator(m))
 		leftParts = append(leftParts, modelZone)
 	}
 	left := strings.Join(compactTextParts(leftParts), " ")
-	right := headerContextMetricsZone(m, state)
-	row := lipgloss.NewStyle().Width(width).Render(joinBar(truncateEnd(left, max(width-lipgloss.Width(right)-1, 1)), right, width))
-	return row + "\n" + renderHeaderDivider(m, width)
+	row := lipgloss.NewStyle().Width(width).Render(joinBar(truncateVisibleEnd(left, max(width-visibleTextWidth(right)-1, 1)), right, width))
+	return row + "\n" + renderHeaderDividerForState(m, state, width)
+}
+
+func shellWorkspaceHandle(workspaceRoot, fallback string) string {
+	name := strings.TrimSpace(shellWorkspaceName(workspaceRoot, fallback))
+	if name == "" || name == "~" {
+		return "@workspace"
+	}
+	return "@" + strings.ToLower(name)
+}
+
+func shellWorkspaceName(workspaceRoot, fallback string) string {
+	workspace := strings.TrimSpace(pickWorkspace(workspaceRoot, fallback))
+	if workspace == "" {
+		return "~"
+	}
+	base := filepath.Base(filepath.Clean(workspace))
+	switch base {
+	case "", ".", string(filepath.Separator):
+		return workspace
+	default:
+		return base
+	}
+}
+
+func shellHeaderBranchLabel(m Model, _ events.SessionState) string {
+	if git := footerGitStatus(m.footerStatus.workspace); git != nil {
+		if branch := strings.TrimSpace(git.Branch); branch != "" {
+			return m.terminalIcon(terminalIconGitBranch) + " " + branch
+		}
+	}
+	return ""
+}
+
+func renderShellSeparator(m Model) string {
+	return lipgloss.NewStyle().
+		Foreground(lipgloss.Color(lineTone(m))).
+		Render("|")
 }
 
 func renderKodaShellFooter(m Model, state events.SessionState, width int, transcriptStatus string) string {

@@ -248,11 +248,11 @@ func renderShellMutationToolTranscriptSection(m Model, state events.SessionState
 func renderShellMutationSuccessLines(m Model, state events.SessionState, ref sessionToolCallRef, call *events.ToolCallState, width int) []string {
 	switch strings.TrimSpace(call.ToolName) {
 	case "write":
-		return renderWriteMutationLinesWithDiffStyle(m, state.SessionID, ref, state.WorkspaceRoot, call, width, mutationToolDetailDiffStyleSplit)
+		return renderWriteMutationLinesWithDiffStyle(m, state.SessionID, ref, state.WorkspaceRoot, call, width, mutationToolDetailDiffStyleAuto)
 	case "apply_patch":
-		return renderApplyPatchMutationLinesWithDiffStyle(m, state.WorkspaceRoot, call, width, mutationToolDetailDiffStyleSplit)
+		return renderApplyPatchMutationLinesWithDiffStyle(m, state.WorkspaceRoot, call, width, mutationToolDetailDiffStyleAuto)
 	case "bash":
-		return renderBashMutationLinesWithDiffStyle(m, state.WorkspaceRoot, call, width, mutationToolDetailDiffStyleSplit)
+		return renderBashMutationLinesWithDiffStyle(m, state.WorkspaceRoot, call, width, mutationToolDetailDiffStyleAuto)
 	default:
 		return renderMutationSuccessLines(m, state.WorkspaceRoot, call, width)
 	}

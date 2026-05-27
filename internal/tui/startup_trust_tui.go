@@ -365,10 +365,6 @@ func (m startupTrustPromptModel) canContinue() bool {
 	return true
 }
 
-func checkedLabel(value bool) string {
-	return checkedLabelWithProfile(defaultTerminalIconProfile, value)
-}
-
 func checkedLabelWithProfile(icons terminalIconProfile, value bool) string {
 	if value {
 		return "[" + icons.Icon(terminalIconSelected) + "]"
