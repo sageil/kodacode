@@ -679,6 +679,56 @@ func TestInitialTranscriptSyncDoesNotRenderOffscreenTurns(t *testing.T) {
 	}
 }
 
+func TestIncrementalRefreshHydratesPlaceholdersExposedAtBottom(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context:       ctx,
+		Theme:         &defaultTheme,
+		SessionID:     "session-1",
+		TurnID:        "turn-2",
+		WorkspaceRoot: "/repo",
+	})
+	model.messages.SetSize(80, 12)
+
+	state := events.SessionState{
+		SessionID:     "session-1",
+		WorkspaceRoot: "/repo",
+		TurnOrder:     []string{"turn-1", "turn-2"},
+		Turns: map[string]*events.TurnState{
+			"turn-1": {TurnID: "turn-1", Transcript: []events.TranscriptEntryState{{Kind: events.TranscriptEntryAssistant, Text: numberedLines("previous", 80)}}},
+			"turn-2": {TurnID: "turn-2", Transcript: []events.TranscriptEntryState{{Kind: events.TranscriptEntryAssistant, Text: numberedLines("current-long", 80)}}},
+		},
+	}
+	model.projector = events.NewProjectorFromSnapshot(state)
+	model.syncTranscriptStructureWithState(state)
+	model.messages.GotoBottom()
+
+	previousChunk := model.transcriptView.layout.chunks[model.transcriptView.layout.turnIndices["turn-1"]]
+	if strings.TrimSpace(previousChunk.rendered.content) != "" {
+		t.Fatalf("setup rendered previous offscreen turn:\n%s", previousChunk.rendered.content)
+	}
+
+	state.Turns["turn-2"] = &events.TurnState{
+		TurnID:     "turn-2",
+		Transcript: []events.TranscriptEntryState{{Kind: events.TranscriptEntryAssistant, Text: "current-short"}},
+	}
+	model.projector = events.NewProjectorFromSnapshot(state)
+	if ok := model.applyTranscriptRefreshPlanWithState(state, transcriptTurnRefreshPlan("turn-2")); !ok {
+		t.Fatal("incremental refresh failed")
+	}
+
+	visible := ansi.Strip(strings.Join(model.messages.VisibleLines(), "\n"))
+	if !strings.Contains(visible, "previous") {
+		t.Fatalf("visible placeholder was not hydrated after incremental refresh:\n%s", visible)
+	}
+	if !strings.Contains(visible, "current-short") {
+		t.Fatalf("current turn missing after incremental refresh:\n%s", visible)
+	}
+}
+
 func numberedLines(prefix string, count int) string {
 	lines := make([]string, 0, count)
 	for i := 0; i < count; i++ {

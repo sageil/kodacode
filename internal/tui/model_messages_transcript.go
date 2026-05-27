@@ -143,7 +143,10 @@ func (m *Model) applyTranscriptRefreshPlanWithState(state events.SessionState, p
 			m.err = ErrTranscriptIncrementalRefreshInvariant
 			return false
 		}
-		m.applyVirtualTranscriptLayout(layout, m.messages.AtBottom())
+		contentWidth := max(m.messages.Width(), 1)
+		followBottom := m.messages.AtBottom()
+		m.applyVirtualTranscriptLayout(layout, followBottom)
+		m.syncVisibleTranscriptChunksAfterViewportSettle(state, contentWidth, followBottom)
 		return true
 	default:
 		m.err = ErrTranscriptIncrementalRefreshInvariant
