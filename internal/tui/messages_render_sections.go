@@ -31,6 +31,7 @@ func renderTurnTranscriptSectionsWithOptions(m Model, state events.SessionState,
 			compactionRendered = true
 		}
 	}
+	toolRenderer := transcriptToolEntryRendererForModel(m)
 	for i := 0; i < len(turn.Transcript); i++ {
 		entry := turn.Transcript[i]
 		if suppressContextLimitContinuationTranscriptEntry(turn, entry) {
@@ -90,7 +91,7 @@ func renderTurnTranscriptSectionsWithOptions(m Model, state events.SessionState,
 			}
 		case events.TranscriptEntryTool:
 			maybeRenderFallbackCompaction()
-			if isWideShell(m) {
+			if toolRenderer.BatchConsecutive() {
 				refs := make([]sessionToolCallRef, 0, 4)
 				for i < len(turn.Transcript) && turn.Transcript[i].Kind == events.TranscriptEntryTool {
 					callID := turn.Transcript[i].CallID
@@ -102,14 +103,13 @@ func renderTurnTranscriptSectionsWithOptions(m Model, state events.SessionState,
 				}
 				i--
 				if len(refs) > 0 {
-					sections = append(sections, renderTurnToolOutcomeSections(m, state, refs, width)...)
+					sections = append(sections, toolRenderer.RenderBatch(m, state, refs, width)...)
 				}
 				continue
 			}
 			call := turn.ToolCalls[entry.CallID]
-			if section := strings.TrimSpace(renderTurnToolTranscriptSection(m, state, turnID, turn, entry.CallID, call, width)); section != "" {
-				ref := sessionToolCallRef{TurnID: turnID, CallID: entry.CallID}
-				sections = append(sections, transcriptSection{content: section, toolRefs: []sessionToolCallRef{ref}})
+			if section, ok := toolRenderer.RenderOne(m, state, turnID, turn, entry.CallID, call, width); ok {
+				sections = append(sections, section)
 			}
 		}
 	}
