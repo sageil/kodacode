@@ -11,6 +11,7 @@ type transcriptMessageRowKind string
 
 const (
 	transcriptMessageRowUser             transcriptMessageRowKind = "user"
+	transcriptMessageRowDraftUser        transcriptMessageRowKind = "draft_user"
 	transcriptMessageRowAssistant        transcriptMessageRowKind = "assistant"
 	transcriptMessageRowAssistantPreview transcriptMessageRowKind = "assistant_preview"
 	transcriptMessageRowWorklog          transcriptMessageRowKind = "worklog"
@@ -34,6 +35,17 @@ func newUserTranscriptMessageRow(turnID string, entry events.TranscriptEntryStat
 		entrySeq: entry.Sequence,
 		entryIdx: entryIdx,
 		text:     strings.TrimSpace(entry.Text),
+		width:    max(width, 1),
+	}
+}
+
+func newDraftTranscriptMessageRow(turnID string, text string, width int) transcriptMessageRow {
+	return transcriptMessageRow{
+		kind:     transcriptMessageRowDraftUser,
+		turnID:   strings.TrimSpace(turnID),
+		entrySeq: -1,
+		entryIdx: -1,
+		text:     strings.TrimSpace(text),
 		width:    max(width, 1),
 	}
 }
@@ -72,7 +84,7 @@ func newAssistantPreviewTranscriptMessageRow(state events.SessionState, turnID s
 
 func (r transcriptMessageRow) section(m Model, turn *events.TurnState) (transcriptSection, bool) {
 	switch r.kind {
-	case transcriptMessageRowUser:
+	case transcriptMessageRowUser, transcriptMessageRowDraftUser:
 		if r.text == "" {
 			return transcriptSection{}, false
 		}
@@ -108,7 +120,7 @@ func (r transcriptMessageRow) render(m Model, turn *events.TurnState) string {
 
 func (r transcriptMessageRow) renderUncached(m Model, turn *events.TurnState) string {
 	switch r.kind {
-	case transcriptMessageRowUser:
+	case transcriptMessageRowUser, transcriptMessageRowDraftUser:
 		return renderUserSection(m, r.width, r.text)
 	case transcriptMessageRowAssistant, transcriptMessageRowWorklog:
 		return renderAssistantTranscriptSectionWithStreamKey(m, turn, r.text, r.width, r.streamKey)
@@ -121,7 +133,7 @@ func (r transcriptMessageRow) renderUncached(m Model, turn *events.TurnState) st
 
 func (r transcriptMessageRow) selectionLines(m Model) []transcriptSelectionLine {
 	switch r.kind {
-	case transcriptMessageRowUser:
+	case transcriptMessageRowUser, transcriptMessageRowDraftUser:
 		return transcriptRailSelectionLines(m, r.text, r.width)
 	case transcriptMessageRowAssistant, transcriptMessageRowWorklog, transcriptMessageRowAssistantPreview:
 		return assistantTranscriptSelectionLinesWithStreamKey(m, r.text, r.width, r.streamKey)

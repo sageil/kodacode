@@ -92,3 +92,58 @@ func TestTranscriptMessageRowsRenderSections(t *testing.T) {
 		t.Fatal("assistant row did not own selection lines")
 	}
 }
+
+func TestDraftTranscriptMessageRowCachePartsVaryByRenderState(t *testing.T) {
+	base := newDraftTranscriptMessageRow("turn-1", "draft prompt", 80)
+	if len(base.cacheParts()) == 0 {
+		t.Fatal("draft row cache parts empty")
+	}
+
+	withText := base
+	withText.text = "different"
+	if strings.Join(withText.cacheParts(), "\x00") == strings.Join(base.cacheParts(), "\x00") {
+		t.Fatal("draft row cache parts did not vary by text")
+	}
+
+	withFocus := base
+	withFocus.focused = true
+	if strings.Join(withFocus.cacheParts(), "\x00") == strings.Join(base.cacheParts(), "\x00") {
+		t.Fatal("draft row cache parts did not vary by focus state")
+	}
+}
+
+func TestRenderDraftTurnSectionsUsesMessageRow(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context:   ctx,
+		Theme:     &defaultTheme,
+		SessionID: "session-1",
+		TurnID:    "turn-1",
+	})
+	model.userText = "draft prompt"
+	state := events.SessionState{
+		Turns: map[string]*events.TurnState{
+			"turn-1": {TurnID: "turn-1"},
+		},
+	}
+
+	sections := renderDraftTurnSections(model, state, 80)
+	if len(sections) != 1 {
+		t.Fatalf("draft sections = %d, want 1", len(sections))
+	}
+	rendered := ansi.Strip(sections[0].content)
+	if !strings.Contains(rendered, "draft prompt") {
+		t.Fatalf("draft section missing text:\n%s", rendered)
+	}
+	if len(sections[0].selectionLines) == 0 {
+		t.Fatal("draft section missing row-owned selection lines")
+	}
+
+	state.Turns["turn-1"].UserText = "submitted prompt"
+	if got := renderDraftTurnSections(model, state, 80); len(got) != 0 {
+		t.Fatalf("draft sections with submitted turn = %d, want 0", len(got))
+	}
+}

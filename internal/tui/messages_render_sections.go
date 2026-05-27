@@ -399,7 +399,11 @@ func renderDraftTurnSections(m Model, state events.SessionState, width int) []tr
 	if turn != nil && strings.TrimSpace(turn.UserText) != "" {
 		return nil
 	}
-	return []transcriptSection{{content: renderUserSection(m, width, strings.TrimSpace(m.userText))}}
+	row := newDraftTranscriptMessageRow(m.turnID, m.userText, width)
+	if section, ok := row.section(m, nil); ok {
+		return []transcriptSection{section}
+	}
+	return nil
 }
 
 func visibleTranscriptTurnIDs(m Model, state events.SessionState) []string {
