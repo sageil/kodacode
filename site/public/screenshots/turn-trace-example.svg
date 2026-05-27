@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="860" viewBox="0 0 1400 860" role="img" aria-labelledby="title desc">
+  <title id="title">Turn Trace dialog example</title>
+  <desc id="desc">Example KodaCode Turn Trace dialog showing request mix, savings mix, likely spend drivers, and provider call details.</desc>
+  <rect width="1400" height="860" fill="#0d1018"/>
+  <rect x="1" y="1" width="1398" height="858" fill="none" stroke="#1f2634" stroke-width="2"/>
+  <style>
+    .title { fill: #f0c86b; font: 700 26px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .section { fill: #7f89c8; font: 700 22px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .text { fill: #a5a9b8; font: 400 21px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .muted { fill: #7d8291; font: 400 19px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  </style>
+  <text class="title" x="22" y="40">Turn Trace</text>
+  <text class="muted" x="22" y="105">turn 1 | completed | qwen/qwen3.6-35b-a3b | pricing unavailable</text>
+
+  <text class="section" x="22" y="170">Turn Summary</text>
+  <text class="text" x="22" y="205">Turn: 1 of 2</text>
+  <text class="text" x="22" y="240">Status: completed</text>
+  <text class="text" x="22" y="275">Model: qwen/qwen3.6-35b-a3b</text>
+  <text class="text" x="22" y="310">Provider usage: 96843 input | 3000 output | 4 assistant roundtrips | 5 provider calls</text>
+  <text class="text" x="22" y="345">Agent: builder</text>
+  <text class="text" x="22" y="380">Activity: 12 tool calls</text>
+  <text class="text" x="22" y="415">Prompt: apply .lean() anywhere its required</text>
+  <text class="text" x="22" y="450">Estimated request mix: 25307 prompt | 41408 conversation | 17255 tool surface</text>
+  <text class="text" x="22" y="485">Dominant request driver: conversation replay</text>
+  <text class="text" x="22" y="520">Estimated cumulative input savings: 53710 avoided input tokens</text>
+  <text class="text" x="22" y="555">Savings mix: 255 prompt compaction - 44970 current-turn projection -</text>
+  <text class="text" x="44" y="590">8485 tool catalog compression (7700 schema - 785 descriptions)</text>
+  <text class="text" x="22" y="625">Likely spend drivers: pricing missing - multiple provider calls - large prompt -</text>
+  <text class="text" x="44" y="660">large completion - conversation replay - tool-heavy - history pressure</text>
+
+  <text class="section" x="22" y="735">Provider Calls</text>
+  <text class="text" x="22" y="770">1.1 | lmstudio/qwen/qwen3.6-35b-a3b | 26.71s | 8650 input | 351 output | reported</text>
+  <text class="text" x="44" y="805">result: durable progress | 4 tools executed | finish tool calls</text>
+  <text class="muted" x="500" y="835">q close - up/down scroll - pgup/pgdn page</text>
+</svg>

@@ -191,22 +191,41 @@ Inside the TUI:
 - `/cost` opens the session cost dialog
 - `/trace [turn-number]` opens a per-turn detail view
 
-The cost dialog shows:
+Use `/cost` when you want the session-level answer:
 
-- estimated session total (or a priced subtotal when some turns lack pricing)
-- token breakdown: input, output, cache read, cache write, reasoning
-- provider steps and call attempts
-- utility compaction cost separated from agent turn cost
-- provider-reported usage where available (fully or partially reported)
-- input token savings from prompt compaction, history compaction, current-turn projection, and tool catalog compression
-- batch efficiency for compatible multi-tool steps
-- estimated cache discounts where cache pricing was applied
-- the highest-cost turn and the highest-token turn without pricing
+![Example Session Cost dialog showing token totals, cache activity, deterministic context, and savings mix.](/screenshots/session-cost-example.svg)
+
+| Label | Meaning |
+| --- | --- |
+| `Estimated session total` | Current estimated spend for the session, or a priced subtotal when some model pricing is missing |
+| `Provider tokens` | Provider-reported input, output, cache, and reasoning token counts when available |
+| `Provider activity` | Number of assistant roundtrips and provider calls |
+| `Batch efficiency` | Tool calls grouped into batches, plus the estimated provider calls avoided |
+| `Reported cache activity` | Cache read/write tokens reported by the provider and whether cache pricing was applied |
+| `Deterministic context` | Input tokens added by enabled `context_packet` sections, or omitted under input pressure |
+| `Estimated cumulative input savings` | Avoided input tokens and estimated dollar savings from prompt, history, current-turn, and tool-catalog optimizations |
+| `Savings mix` | Breakdown of which automatic optimizations produced those avoided tokens |
+| `Highest priced turn` | The turn that contributed the most estimated spend |
 
 This makes it possible to answer both:
 
 - "What did this session cost?"
 - "Which optimization actually saved money?"
+
+Use `/trace [turn-number]` when you want the turn-level explanation:
+
+![Example Turn Trace dialog showing request mix, savings mix, likely spend drivers, and provider calls.](/screenshots/turn-trace-example.svg)
+
+| Label | Meaning |
+| --- | --- |
+| `Estimated request mix` | How much of the request was prompt, conversation replay, and tool surface |
+| `Dominant request driver` | The largest contributor to request size, such as conversation replay or tool surface |
+| `Savings mix` | The same avoided-token breakdown, scoped to that turn |
+| `Likely spend drivers` | Plain-language reasons the turn was expensive or hard to price |
+| `Provider Calls` | Per-call model, duration, token counts, selected route, tool execution outcome, and request mix |
+
+If pricing is unavailable, token accounting still works. Dollar estimates are
+incomplete until the model has pricing metadata.
 
 ## Model pricing
 

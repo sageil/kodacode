@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="860" viewBox="0 0 1400 860" role="img" aria-labelledby="title desc">
+  <title id="title">Session Cost dialog example</title>
+  <desc id="desc">Example KodaCode Session Cost dialog showing token totals, provider calls, cache activity, deterministic context, and savings mix.</desc>
+  <rect width="1400" height="860" fill="#0d1018"/>
+  <rect x="1" y="1" width="1398" height="858" fill="none" stroke="#1f2634" stroke-width="2"/>
+  <style>
+    .title { fill: #f0c86b; font: 700 26px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .section { fill: #7f89c8; font: 700 22px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .text { fill: #a5a9b8; font: 400 21px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .muted { fill: #7d8291; font: 400 19px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .highlight { fill: #f0c86b; font: 700 21px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  </style>
+  <text class="title" x="22" y="40">Session Cost</text>
+
+  <text class="section" x="22" y="100">Session Summary</text>
+  <text class="text" x="22" y="135">Estimated session total: $0.8456</text>
+  <text class="text" x="22" y="170">Turns with usage: 1 of 1</text>
+  <text class="text" x="22" y="205">Provider tokens: 161618 input - 2557 output - 8704 cache-read - 176 thinking</text>
+  <text class="text" x="22" y="240">Provider activity: 6 assistant roundtrips - 6 provider calls</text>
+  <text class="text" x="22" y="275">Tool outcomes: 29 completed - 1 failed</text>
+  <text class="text" x="22" y="310">Batch efficiency: 29 batched tool calls in 5 batches - estimated 24 provider calls avoided</text>
+  <text class="text" x="22" y="345">Reported cache activity: 8704 cache-read input tokens - cache pricing applied on 1 turn</text>
+  <text class="text" x="22" y="380">Deterministic context: 876 input tokens included</text>
+  <text class="text" x="22" y="415">Estimated cumulative input savings: $0.07074 from 14148 avoided input tokens</text>
+  <text class="text" x="22" y="450">Savings mix: 306 prompt compaction - 3552 current-turn projection -</text>
+  <text class="text" x="44" y="485">10290 tool catalog compression (9240 schema - 1050 descriptions)</text>
+  <text class="text" x="22" y="520">Estimated cache discounts: $0.03917 where cache pricing was known</text>
+  <text class="text" x="22" y="555">Prompt cache support: openai request hints + cache-read reporting</text>
+  <text class="text" x="22" y="590">Highest priced turn: turn 1 - $0.8456</text>
+
+  <text class="section" x="22" y="675">Priced Turns by Estimated Cost</text>
+  <text class="highlight" x="22" y="725">Turn 1 - completed - estimated $0.8456</text>
+  <text class="text" x="22" y="760">Model: gpt-5.5</text>
+  <text class="text" x="22" y="795">Provider tokens: 161618 input - 2557 output - 164175 total - 8704 cache-read</text>
+  <text class="muted" x="500" y="835">q close - up/down scroll - pgup/pgdn page</text>
+</svg>
