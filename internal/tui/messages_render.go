@@ -105,14 +105,10 @@ func buildTranscriptLayout(m Model, state events.SessionState, width int) transc
 	}
 
 	if handoff := m.pendingDelegatedPermission(); handoff != nil {
+		row := newDelegatedPermissionSystemRow(handoff, width)
 		layout.chunks = append(layout.chunks, transcriptLayoutChunk{
-			kind: transcriptLayoutChunkDelegatedPermission,
-			rendered: transcriptRender{content: renderSystemSection(
-				m,
-				"Delegated child waiting on approval",
-				"A delegated child turn is blocked on permission. Resolve the approval prompt in this transcript to continue.",
-				width,
-			)},
+			kind:     transcriptLayoutChunkDelegatedPermission,
+			rendered: row.render(m),
 		})
 	}
 	return layout
