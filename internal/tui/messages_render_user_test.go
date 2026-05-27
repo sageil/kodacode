@@ -48,20 +48,14 @@ func TestRenderUserSectionUsesThemedRailWithoutBackground(t *testing.T) {
 		t.Fatalf("rendered user block missing rail-prefixed content: %q", stripped)
 	}
 	lines := strings.Split(strings.TrimRight(rendered, "\n"), "\n")
-	if len(lines) != 3 {
-		t.Fatalf("line count = %d, want 3", len(lines))
+	if len(lines) != 1 {
+		t.Fatalf("line count = %d, want 1", len(lines))
 	}
-	if got := ansi.Strip(lines[0]); got != "▌" {
-		t.Fatalf("top padding line = %q, want %q", got, "▌")
-	}
-	if got := ansi.Strip(lines[1]); got != "▌  hello" {
+	if got := ansi.Strip(lines[0]); got != "▌  hello" {
 		t.Fatalf("content line = %q, want %q", got, "▌  hello")
 	}
-	if got := ansi.Strip(lines[2]); got != "▌" {
-		t.Fatalf("bottom padding line = %q, want %q", got, "▌")
-	}
-	if got := ansi.StringWidth(ansi.Strip(lines[1])); got != ansi.StringWidth("▌  hello") {
-		t.Fatalf("content line width = %d, want %d\n%q", got, ansi.StringWidth("▌  hello"), ansi.Strip(lines[1]))
+	if got := ansi.StringWidth(ansi.Strip(lines[0])); got != ansi.StringWidth("▌  hello") {
+		t.Fatalf("content line width = %d, want %d\n%q", got, ansi.StringWidth("▌  hello"), ansi.Strip(lines[0]))
 	}
 }
 
@@ -101,28 +95,28 @@ func TestWideTranscriptIndentsAssistantBelowUserWithSpacer(t *testing.T) {
 	rendered := buildTranscriptRender(sections)
 
 	lines := strings.Split(strings.TrimRight(ansi.Strip(rendered.content), "\n"), "\n")
-	if len(lines) < 6 {
-		t.Fatalf("line count = %d, want at least 6\n%q", len(lines), lines)
+	if len(lines) < 5 {
+		t.Fatalf("line count = %d, want at least 5\n%q", len(lines), lines)
 	}
-	if got := lines[2]; got != "" {
+	if got := lines[1]; got != "" {
 		t.Fatalf("spacer line = %q, want blank line between user and assistant", got)
 	}
-	if got := lines[3]; strings.TrimSpace(got) != "" {
+	if got := lines[2]; strings.TrimSpace(got) != "" {
 		t.Fatalf("assistant top padding line = %q, want blank padded row", got)
 	}
-	if got := lines[4]; !strings.Contains(got, "Hello! How can I help you today?") {
+	if got := lines[3]; !strings.Contains(got, "Hello! How can I help you today?") {
 		t.Fatalf("assistant content line = %q, want filled assistant block", got)
 	}
-	if strings.ContainsAny(lines[4], "┌┐└┘│") {
-		t.Fatalf("assistant content line = %q, want no border glyphs", lines[4])
+	if strings.ContainsAny(lines[3], "┌┐└┘│") {
+		t.Fatalf("assistant content line = %q, want no border glyphs", lines[3])
 	}
-	if !strings.HasPrefix(lines[4], "  ") {
-		t.Fatalf("assistant content line = %q, want interior left padding", lines[4])
+	if !strings.HasPrefix(lines[3], "  ") {
+		t.Fatalf("assistant content line = %q, want interior left padding", lines[3])
 	}
-	if got := lines[5]; strings.TrimSpace(got) != "" {
+	if got := lines[4]; strings.TrimSpace(got) != "" {
 		t.Fatalf("assistant bottom padding line = %q, want blank padded row", got)
 	}
-	if got := ansi.StringWidth(lines[4]); got < 70 {
+	if got := ansi.StringWidth(lines[3]); got < 70 {
 		t.Fatalf("assistant block width = %d, want near transcript width", got)
 	}
 }

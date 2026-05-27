@@ -116,8 +116,8 @@ func TestTranscriptVisualSelectionStripsTranscriptRailsAndStartsOnSelectableText
 	model.messages.GotoTop()
 	model.syncTranscriptCursorToViewport()
 
-	if model.transcriptView.cursorLine != 1 {
-		t.Fatalf("transcriptCursorLine = %d, want 1 for first selectable rail content line", model.transcriptView.cursorLine)
+	if model.transcriptView.cursorLine != 0 {
+		t.Fatalf("transcriptCursorLine = %d, want 0 for first selectable rail content line", model.transcriptView.cursorLine)
 	}
 
 	updated, _ := model.Update(tea.KeyPressMsg{Text: "v", Code: 'v'})

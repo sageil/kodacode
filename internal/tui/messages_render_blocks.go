@@ -30,13 +30,9 @@ var (
 
 func transcriptRailSelectionLines(m Model, body string, width int) []transcriptSelectionLine {
 	bodyLines := wrapTranscriptText(body, max(width-ansi.StringWidth(userPromptContentPrefix()), 1))
-	lines := make([]transcriptSelectionLine, 0, len(bodyLines)+2)
-	lines = append(lines, transcriptSelectionLine{})
+	lines := make([]transcriptSelectionLine, 0, len(bodyLines))
 	for _, line := range bodyLines {
 		lines = append(lines, newTranscriptSelectionLine(line, userPromptContentPrefixGraphemeCount))
-	}
-	if !isWideShell(m) {
-		lines = append(lines, transcriptSelectionLine{})
 	}
 	return lines
 }
@@ -48,18 +44,14 @@ func userPromptContentPrefix() string {
 func renderTranscriptRailBlock(kind string, m Model, width int, body, accent, textColor string) string {
 	return cachedTranscriptRender(kind, m, width, func() string {
 		bodyLines := wrapTranscriptText(body, max(width-ansi.StringWidth(userPromptContentPrefix()), 1))
-		content := make([]string, 0, len(bodyLines)+2)
+		content := make([]string, 0, len(bodyLines))
 		rail := lipgloss.NewStyle().
 			Foreground(lipgloss.Color(accent)).
 			Render(userPromptRailGlyph)
 		textStyle := lipgloss.NewStyle().
 			Foreground(lipgloss.Color(textColor))
-		content = append(content, rail)
 		for _, line := range bodyLines {
 			content = append(content, rail+userPromptInnerPadding+textStyle.Render(line))
-		}
-		if !isWideShell(m) {
-			content = append(content, rail)
 		}
 		return strings.Join(content, "\n")
 	}, body, accent, textColor)
