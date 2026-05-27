@@ -9,7 +9,7 @@ const (
 	defaultOutputBudgetAgentTurn         = 8192
 	defaultOutputBudgetAgentTurnThinking = 16000
 	defaultOutputBudgetWorkspaceCompress = 1200
-	defaultOutputBudgetSessionCompaction = 2000
+	defaultOutputBudgetSessionCompaction = 4096
 )
 
 type OutputBudgetsConfig struct {

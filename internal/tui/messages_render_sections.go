@@ -33,6 +33,9 @@ func renderTurnTranscriptSectionsWithOptions(m Model, state events.SessionState,
 	}
 	for i := 0; i < len(turn.Transcript); i++ {
 		entry := turn.Transcript[i]
+		if suppressContextLimitContinuationTranscriptEntry(turn, entry) {
+			continue
+		}
 		if suppressQuestionAnswerContinuationTranscriptEntry(state, turn, entry) {
 			continue
 		}
@@ -178,6 +181,16 @@ func renderLiveToolCallPreviewSection(m Model, row toolOutcomeRow, width int) st
 		}
 	}
 	return renderOutcomeSummaryTranscriptSection(m, title, "", row.Status, width)
+}
+
+func suppressContextLimitContinuationTranscriptEntry(turn *events.TurnState, entry events.TranscriptEntryState) bool {
+	if turn == nil || turn.ContinuationStart == nil {
+		return false
+	}
+	if strings.TrimSpace(turn.ContinuationStart.Reason) != events.TurnContinuationReasonContextLimit {
+		return false
+	}
+	return isTurnContinuationTranscriptEntry(turn, entry)
 }
 
 func suppressQuestionAnswerContinuationTranscriptEntry(state events.SessionState, turn *events.TurnState, entry events.TranscriptEntryState) bool {

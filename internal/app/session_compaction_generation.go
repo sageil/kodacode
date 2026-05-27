@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
@@ -17,6 +18,7 @@ const (
 	sessionCompactionArtifactTurnMaxBytes = 4096
 	sessionCompactionArtifactToolMaxBytes = 240
 	sessionCompactionArtifactTimeout      = 90 * time.Second
+	sessionCompactionArtifactRetryFactor  = 2
 )
 
 const sessionCompactionArtifactPrompt = `Update the durable history continuation artifact for this coding session.
@@ -90,7 +92,7 @@ func (r *TurnRunner) generateSessionCompactionArtifact(
 	if len(inputs) == 0 {
 		return events.HistoryContinuationArtifact{}, errors.New("empty history continuation artifact input")
 	}
-	request, result, err := r.requestSessionCompactionArtifactText(ctx, input, inputs)
+	request, result, err := r.requestSessionCompactionArtifactText(ctx, input, inputs, 1)
 	if recordErr := r.appendHistoryCompactionProviderUsage(ctx, input.SessionID, input.TurnID, request, result.Attempts); recordErr != nil {
 		return events.HistoryContinuationArtifact{}, recordErr
 	}
@@ -98,6 +100,16 @@ func (r *TurnRunner) generateSessionCompactionArtifact(
 		return events.HistoryContinuationArtifact{}, err
 	}
 	artifact, err := parseSessionCompactionArtifact(result.Text)
+	if err != nil && shouldRetrySessionCompactionArtifactParse(request, err) {
+		request, result, err = r.requestSessionCompactionArtifactText(ctx, input, inputs, sessionCompactionArtifactRetryFactor)
+		if recordErr := r.appendHistoryCompactionProviderUsage(ctx, input.SessionID, input.TurnID, request, result.Attempts); recordErr != nil {
+			return events.HistoryContinuationArtifact{}, recordErr
+		}
+		if err != nil {
+			return events.HistoryContinuationArtifact{}, err
+		}
+		artifact, err = parseSessionCompactionArtifact(result.Text)
+	}
 	if err != nil {
 		return events.HistoryContinuationArtifact{}, err
 	}
@@ -111,6 +123,7 @@ func (r *TurnRunner) requestSessionCompactionArtifactText(
 	ctx context.Context,
 	input sessionConversationRequest,
 	inputs []provider.Input,
+	outputBudgetFactor int,
 ) (provider.Request, utilityTextResult, error) {
 	candidates := availableUtilityTextCandidates(r.utilityModel, input.ModelRoute, r.utilityProviderEnabled)
 	if len(candidates) == 0 {
@@ -132,9 +145,9 @@ func (r *TurnRunner) requestSessionCompactionArtifactText(
 			TurnID:          input.TurnID,
 			AgentID:         sessionCompactionArtifactAgentID,
 			Model:           candidate.Ref,
-			MaxOutputTokens: sessionCompactionArtifactOutputLimit(r.models, r.modelOverrides, r.outputBudgets, candidate.Ref),
+			MaxOutputTokens: sessionCompactionArtifactOutputLimit(r.models, r.modelOverrides, r.outputBudgets, candidate.Ref, outputBudgetFactor),
 			Instructions:    sessionCompactionArtifactPrompt,
-			Inputs:          append([]provider.Input(nil), inputs...),
+			Inputs:          sessionCompactionArtifactRequestInputs(inputs, outputBudgetFactor),
 		}
 		lastRequest = request
 		model := utilityCatalogModelForRef(r.models, candidate.Ref)
@@ -258,8 +271,26 @@ func (r *TurnRunner) appendHistoryCompactionProviderUsage(
 	return nil
 }
 
-func sessionCompactionArtifactOutputLimit(models modelCatalog, overrides []ModelOverrideConfig, budgets OutputBudgetsConfig, ref provider.ModelRef) int {
-	return requestMaxOutputTokensForModel(models, overrides, budgets, ref, outputBudgetSessionCompaction, false)
+func sessionCompactionArtifactOutputLimit(models modelCatalog, overrides []ModelOverrideConfig, budgets OutputBudgetsConfig, ref provider.ModelRef, factor int) int {
+	if factor <= 1 {
+		return requestMaxOutputTokensForModel(models, overrides, budgets, ref, outputBudgetSessionCompaction, false)
+	}
+	ceiling := modelMaxOutputTokenCeilingForModel(models, ref)
+	budget := outputBudgetForRequest(overrides, budgets, ref, outputBudgetSessionCompaction, false)
+	return clampOutputTokenBudget(budget*factor, ceiling)
+}
+
+func sessionCompactionArtifactRequestInputs(inputs []provider.Input, outputBudgetFactor int) []provider.Input {
+	requestInputs := append([]provider.Input(nil), inputs...)
+	if outputBudgetFactor <= 1 {
+		return requestInputs
+	}
+	return append(requestInputs, provider.Input{
+		Kind: provider.InputKindUserMessage,
+		Content: "The previous history artifact response was invalid or truncated. " +
+			"Replace it with exactly one complete JSON object now. " +
+			"Do not explain, apologize, use markdown, or include text outside the JSON object.",
+	})
 }
 
 func buildSessionCompactionArtifactInputs(
@@ -375,6 +406,16 @@ func parseSessionCompactionArtifact(raw string) (events.HistoryContinuationArtif
 		return events.HistoryContinuationArtifact{}, errors.New("history continuation artifact is empty")
 	}
 	return artifact, nil
+}
+
+func shouldRetrySessionCompactionArtifactParse(request provider.Request, err error) bool {
+	if err == nil || provider.EffectiveMaxOutputTokens(request) <= 0 {
+		return false
+	}
+	if errors.Is(err, io.ErrUnexpectedEOF) {
+		return true
+	}
+	return strings.Contains(strings.ToLower(err.Error()), "unexpected end of json input")
 }
 
 func validateSessionCompactionArtifactOutput(artifact events.HistoryContinuationArtifact) error {

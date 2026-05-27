@@ -675,8 +675,8 @@ func TestRenderTranscriptSuppressesInheritedCompactionSummaryAcrossRolloverChain
 	if strings.Contains(rendered, historyCompactionCardTitle) || strings.Contains(rendered, "earlier work compacted") {
 		t.Fatalf("rollover continuation should not redraw inherited compaction summary:\n%s", rendered)
 	}
-	if !strings.Contains(rendered, "Continuing automatically after the previous turn reached the model input limit.") {
-		t.Fatalf("transcript missing rollover continuation banner:\n%s", rendered)
+	if strings.Contains(rendered, "Continuing automatically after the previous turn reached the model input limit.") {
+		t.Fatalf("transcript should suppress rollover continuation banner:\n%s", rendered)
 	}
 }
 
@@ -736,8 +736,8 @@ func TestRenderTranscriptSuppressesPreviousCompactionWhenContinuationWritesNewSu
 	if !strings.Contains(rendered, "latest compacted summary") {
 		t.Fatalf("transcript missing latest compaction summary:\n%s", rendered)
 	}
-	if !strings.Contains(rendered, "Continuing automatically after the previous turn reached the model input limit.") {
-		t.Fatalf("transcript missing rollover continuation banner:\n%s", rendered)
+	if strings.Contains(rendered, "Continuing automatically after the previous turn reached the model input limit.") {
+		t.Fatalf("transcript should suppress rollover continuation banner:\n%s", rendered)
 	}
 }
 

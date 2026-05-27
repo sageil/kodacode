@@ -311,6 +311,76 @@ func TestCompactSessionHistoryUsesConfiguredUtilityModelForArtifact(t *testing.T
 	}
 }
 
+func TestCompactSessionHistoryRetriesTruncatedArtifactWithDoubledOutputBudget(t *testing.T) {
+	large := strings.Repeat("x", 3000)
+	client := &fakeProvider{
+		streams: []provider.Stream{
+			provider.NewSliceStream([]provider.Event{{Kind: provider.EventKindAssistantDelta, AssistantDelta: "one " + large}}),
+			provider.NewSliceStream([]provider.Event{{Kind: provider.EventKindAssistantDelta, AssistantDelta: "two " + large}}),
+			provider.NewSliceStream([]provider.Event{{Kind: provider.EventKindAssistantDelta, AssistantDelta: `{"session_objective":"truncated","settled_decisions":[{"decision":"unfinished"}`}}),
+			provider.NewSliceStream([]provider.Event{{Kind: provider.EventKindAssistantDelta, AssistantDelta: testHistoryContinuationArtifactJSON(events.HistoryContinuationArtifact{
+				SessionObjective: "finish the compaction retry",
+				SettledDecisions: []events.HistoryDecisionPayload{{
+					Decision:     "retry truncated compaction artifacts with a larger output budget",
+					Status:       events.HistoryDecisionStatusActive,
+					SourceTurnID: "turn-2",
+				}},
+			})}}),
+		},
+	}
+	runtime := newRuntimeWithClient(t, client)
+
+	sessionID, err := runtime.CreateSession(context.Background(), t.TempDir())
+	if err != nil {
+		t.Fatalf("CreateSession() error = %v", err)
+	}
+	for _, turn := range []struct {
+		id   string
+		text string
+	}{
+		{id: "turn-1", text: "first user request"},
+		{id: "turn-2", text: "second user request"},
+	} {
+		if _, err := runtime.StartSessionTurn(context.Background(), StartSessionTurnInput{
+			SessionID: sessionID,
+			TurnID:    turn.id,
+			UserText:  turn.text,
+			AgentID:   "builder",
+		}); err != nil {
+			t.Fatalf("StartSessionTurn(%s) error = %v", turn.id, err)
+		}
+	}
+
+	result, err := runtime.CompactSessionHistory(context.Background(), CompactSessionInput{
+		SessionID: sessionID,
+		TurnID:    "turn-compact",
+	})
+	if err != nil {
+		t.Fatalf("CompactSessionHistory() error = %v", err)
+	}
+	if result.Continuation == nil {
+		t.Fatal("CompactSessionHistory() returned nil compaction")
+	}
+	if len(client.requests) != 4 {
+		t.Fatalf("provider requests = %d, want two normal turns and two history artifact requests", len(client.requests))
+	}
+	firstArtifactRequest := client.requests[2]
+	retryArtifactRequest := client.requests[3]
+	if firstArtifactRequest.AgentID != sessionCompactionArtifactAgentID || retryArtifactRequest.AgentID != sessionCompactionArtifactAgentID {
+		t.Fatalf("artifact request agent IDs = %q, %q", firstArtifactRequest.AgentID, retryArtifactRequest.AgentID)
+	}
+	if firstArtifactRequest.MaxOutputTokens != defaultOutputBudgetSessionCompaction {
+		t.Fatalf("first artifact max output tokens = %d, want %d", firstArtifactRequest.MaxOutputTokens, defaultOutputBudgetSessionCompaction)
+	}
+	if retryArtifactRequest.MaxOutputTokens != defaultOutputBudgetSessionCompaction*sessionCompactionArtifactRetryFactor {
+		t.Fatalf("retry artifact max output tokens = %d, want %d", retryArtifactRequest.MaxOutputTokens, defaultOutputBudgetSessionCompaction*sessionCompactionArtifactRetryFactor)
+	}
+	lastInput := retryArtifactRequest.Inputs[len(retryArtifactRequest.Inputs)-1]
+	if lastInput.Kind != provider.InputKindUserMessage || !strings.Contains(lastInput.Content, "previous history artifact response was invalid or truncated") {
+		t.Fatalf("retry artifact final input = %#v", lastInput)
+	}
+}
+
 func TestTurnRunnerAutomaticHistoryCompactionUsesHistoryArtifactRequestPath(t *testing.T) {
 	sessions, tools, eng, shaper := newTurnRunnerTestDeps(t)
 	if _, err := sessions.CreateSession(context.Background(), CreateSessionInput{
