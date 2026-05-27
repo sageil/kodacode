@@ -91,6 +91,7 @@ func renderTranscriptViewportWithOptions(m Model, width int, opts transcriptPane
 
 	for i := range lines {
 		absoluteLine := baseLine + i
+		lines[i] = fitTranscriptViewportLine(lines[i], contentWidth)
 		lines[i] = styleTranscriptViewportLine(m, absoluteLine, lines[i], contentWidth)
 		if i < len(gutter) {
 			lines[i] += renderTranscriptViewportGutter(m, absoluteLine, gutter[i])
@@ -100,6 +101,18 @@ func renderTranscriptViewportWithOptions(m Model, width int, opts transcriptPane
 		}
 	}
 	return strings.Join(lines, "\n")
+}
+
+func fitTranscriptViewportLine(line string, width int) string {
+	width = max(width, 1)
+	if ansi.StringWidth(ansi.Strip(line)) > width {
+		return ansi.Cut(line, 0, width)
+	}
+	pad := width - ansi.StringWidth(ansi.Strip(line))
+	if pad <= 0 {
+		return line
+	}
+	return line + strings.Repeat(" ", pad)
 }
 
 func styleTranscriptViewportLine(m Model, lineIndex int, line string, width int) string {
