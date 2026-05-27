@@ -28,18 +28,32 @@ task test
 ## Project Structure
 
 ```
-cmd/kodacode/       Entry point and runtime wiring
+cmd/kodacode/       CLI and TUI entrypoint
 internal/
   agent/            Agent definitions and loading
-  config/           Configuration types, loading, merging
-  pipeline/         Request pipeline and middleware
-  provider/         AI provider implementations (OpenAI, Anthropic, Google)
-  search/           Symbol indexing, FTS, embeddings, hybrid search
-  service/          Session service, turn loop, compaction, subagents
-  tool/             Built-in tool implementations
-  tui/              Terminal UI (Bubble Tea)
+  app/              Runtime orchestration, sessions, turns, config, permissions
+  bootstrap/        Default config/auth file creation
+  configdir/        Platform config/data directory resolution
+  engine/           Engine boundary tests and orchestration helpers
+  events/           Durable event model, SQLite storage, projection
+  lsp/              Language server discovery and code intelligence
+  mcp/              MCP stdio transport and tool registry
+  observability/    Logging and retention helpers
+  permissionpolicy/ Permission policy matching
+  prompt/           Prompt fragment compilation and shaping
+  provider/         Model providers, routing, model catalog, usage accounting
+  search/           Lexical and semantic repository search
+  sessiontitle/     Session title generation
+  skill/            Skill loading and search
+  textdiff/         Diff preview helpers
+  textutil/         Text utilities
+  tool/             Tool contracts and built-in tool implementations
+  tui/              Terminal UI
+  websearch/        Web search provider backends
+  workspace/        Workspace root and path scope handling
 schema/             JSON schema for config validation
 site/               Documentation site (Astro + Starlight)
+tools/              Tooling modules, including pinned golangci-lint
 ```
 
 ## Development Workflow
@@ -115,10 +129,6 @@ pnpm run dev
 ```
 
 Content files are in `site/src/content/docs/`. Edit existing pages or add new `.mdx` files. Update `astro.config.mjs` to add new pages to the sidebar.
-
-## Acknowledgments
-
-KodaCode is built on many excellent open source projects. See [CREDITS.md](CREDITS.md) for the full list.
 
 ## License
 
