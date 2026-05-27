@@ -7,6 +7,13 @@ import (
 )
 
 type terminalIconID string
+type terminalIconCapabilities struct {
+	Unicode bool
+}
+
+type terminalIconProfile struct {
+	Capabilities terminalIconCapabilities
+}
 
 const (
 	terminalIconToolDone    terminalIconID = "tool_done"
@@ -28,50 +35,69 @@ const (
 	terminalIconScrollThumb terminalIconID = "scroll_thumb"
 )
 
+var defaultTerminalIconProfile = terminalIconProfile{
+	Capabilities: terminalIconCapabilities{
+		Unicode: true,
+	},
+}
+
 func terminalIcon(id terminalIconID) string {
+	return defaultTerminalIconProfile.Icon(id)
+}
+
+func (profile terminalIconProfile) Icon(id terminalIconID) string {
+	glyph, fallback := terminalIconGlyph(id)
+	return profile.safeGlyph(glyph, fallback)
+}
+
+func terminalIconGlyph(id terminalIconID) (string, string) {
 	switch id {
 	case terminalIconToolDone:
-		return terminalSafeGlyph("✓", "*")
+		return "✓", "*"
 	case terminalIconToolRunning:
-		return terminalSafeGlyph("●", "*")
+		return "●", "*"
 	case terminalIconToolBlocked:
-		return terminalSafeGlyph("!", "!")
+		return "!", "!"
 	case terminalIconToolError:
-		return terminalSafeGlyph("✗", "x")
+		return "✗", "x"
 	case terminalIconToolPending:
-		return terminalSafeGlyph("○", "o")
+		return "○", "o"
 	case terminalIconBranch:
-		return terminalSafeGlyph("↳", ">")
+		return "↳", ">"
 	case terminalIconBullet:
-		return terminalSafeGlyph("•", "*")
+		return "•", "*"
 	case terminalIconSelected:
-		return terminalSafeGlyph("●", "*")
+		return "●", "*"
 	case terminalIconUnselected:
-		return terminalSafeGlyph("○", "o")
+		return "○", "o"
 	case terminalIconCursor:
-		return terminalSafeGlyph("▸", ">")
+		return "▸", ">"
 	case terminalIconExpanded:
-		return terminalSafeGlyph("▾", "v")
+		return "▾", "v"
 	case terminalIconCollapsed:
-		return terminalSafeGlyph("▸", ">")
+		return "▸", ">"
 	case terminalIconCheck:
-		return terminalSafeGlyph("✓", "*")
+		return "✓", "*"
 	case terminalIconWarning:
-		return terminalSafeGlyph("⚠", "!")
+		return "⚠", "!"
 	case terminalIconGitBranch:
-		return terminalSafeGlyph("⎇", "#")
+		return "⎇", "#"
 	case terminalIconPromptRail:
-		return terminalSafeGlyph("▌", "|")
+		return "▌", "|"
 	case terminalIconScrollThumb:
-		return terminalSafeGlyph("▎", "|")
+		return "▎", "|"
 	default:
-		return "?"
+		return "?", "?"
 	}
 }
 
 func terminalSafeGlyph(glyph, fallback string) string {
+	return defaultTerminalIconProfile.safeGlyph(glyph, fallback)
+}
+
+func (profile terminalIconProfile) safeGlyph(glyph, fallback string) string {
 	glyph = strings.TrimSpace(glyph)
-	if glyph != "" && ansi.StringWidth(glyph) == 1 {
+	if profile.Capabilities.Unicode && glyph != "" && ansi.StringWidth(glyph) == 1 {
 		return glyph
 	}
 	fallback = strings.TrimSpace(fallback)

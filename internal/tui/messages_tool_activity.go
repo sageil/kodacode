@@ -66,20 +66,14 @@ func renderToolTimelineSection(m Model, state events.SessionState, turn *events.
 }
 
 func renderTurnToolOutcomeSections(m Model, state events.SessionState, refs []sessionToolCallRef, width int) []transcriptSection {
-	if shellLayoutEnabled(m) && !m.shellToolCallsVisible {
-		return nil
-	}
+	return transcriptToolEntryRendererForModel(m).RenderBatch(m, state, refs, width)
+}
+
+func renderClassicTurnToolOutcomeSections(m Model, state events.SessionState, refs []sessionToolCallRef, width int) []transcriptSection {
 	refs = filterPendingQuestionToolRefs(m, refs)
 	if len(refs) == 0 {
 		return nil
 	}
-	if shellLayoutEnabled(m) {
-		return renderShellTurnToolOutcomeSections(m, state, refs, width)
-	}
-	if isWideShell(m) {
-		return renderCompactWideTurnToolOutcomeSections(m, state, refs, width)
-	}
-
 	rows := deriveTurnToolOutcomeRows(state, refs)
 	if len(rows) == 0 {
 		return nil
@@ -89,7 +83,7 @@ func renderTurnToolOutcomeSections(m Model, state events.SessionState, refs []se
 	for _, row := range rows {
 		turn := state.Turns[row.Ref.TurnID]
 		_, call := sessionToolCall(state, row.Ref)
-		if !shouldRenderToolCallInTranscriptForLayout(m, turn, row.Ref.CallID, call) {
+		if !(classicTranscriptToolEntryRenderer{}).ShouldRenderCall(m, turn, row.Ref.CallID, call) {
 			continue
 		}
 		selected := selectedToolMatchesSession(m, state.SessionID, row.Ref)

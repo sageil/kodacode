@@ -36,6 +36,7 @@ const (
 type transcriptLayoutChunk struct {
 	kind     transcriptLayoutChunkKind
 	turnID   string
+	cacheKey string
 	rendered transcriptRender
 }
 
@@ -89,11 +90,13 @@ func buildTranscriptLayout(m Model, state events.SessionState, width int) transc
 		if i+1 < len(turnIDs) && shouldSuppressHistoryCompactionBeforeContinuation(state, turnID, turnIDs[i+1]) {
 			options.suppressHistoryCompaction = true
 		}
+		rendered, cacheKey := cachedTurnTranscriptRenderWithKey(m, state, turnID, turn, width, options)
 		layout.turnIndices[turnID] = len(layout.chunks)
 		layout.chunks = append(layout.chunks, transcriptLayoutChunk{
 			kind:     transcriptLayoutChunkTurn,
 			turnID:   turnID,
-			rendered: cachedTurnTranscriptRender(m, state, turnID, turn, width, options),
+			cacheKey: cacheKey,
+			rendered: rendered,
 		})
 	}
 

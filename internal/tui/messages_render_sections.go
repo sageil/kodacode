@@ -95,7 +95,7 @@ func renderTurnTranscriptSectionsWithOptions(m Model, state events.SessionState,
 				for i < len(turn.Transcript) && turn.Transcript[i].Kind == events.TranscriptEntryTool {
 					callID := turn.Transcript[i].CallID
 					call := turn.ToolCalls[callID]
-					if shouldRenderToolCallInTranscriptForLayout(m, turn, callID, call) {
+					if toolRenderer.ShouldRenderCall(m, turn, callID, call) {
 						refs = append(refs, sessionToolCallRef{TurnID: turnID, CallID: callID})
 					}
 					i++
@@ -128,9 +128,10 @@ func renderTurnTranscriptSectionsWithOptions(m Model, state events.SessionState,
 }
 
 func renderLiveToolCallPreviewSections(m Model, state events.SessionState, turnID string, turn *events.TurnState, width int) []transcriptSection {
-	if shellLayoutEnabled(m) && !m.shellToolCallsVisible {
-		return nil
-	}
+	return transcriptToolEntryRendererForModel(m).RenderLivePreview(m, state, turnID, turn, width)
+}
+
+func renderToolCallPreviewSections(m Model, state events.SessionState, turnID string, turn *events.TurnState, width int) []transcriptSection {
 	if turn == nil || turn.Status != events.TurnStatusRunning {
 		return nil
 	}
@@ -323,16 +324,10 @@ func turnHasHistoryCompactionTranscriptEntry(turn *events.TurnState) bool {
 }
 
 func renderTurnToolTranscriptSection(m Model, state events.SessionState, turnID string, turn *events.TurnState, callID string, call *events.ToolCallState, width int) string {
-	if shellLayoutEnabled(m) && !m.shellToolCallsVisible {
-		return ""
-	}
-	if !shouldRenderToolCallInTranscriptForLayout(m, turn, callID, call) {
+	if !transcriptToolEntryRendererForModel(m).ShouldRenderCall(m, turn, callID, call) {
 		return ""
 	}
 	ref := sessionToolCallRef{TurnID: turnID, CallID: callID}
-	if shellLayoutEnabled(m) {
-		return renderShellToolTranscriptSection(m, state, ref, call, width)
-	}
 	selected := selectedToolMatchesSession(m, state.SessionID, ref)
 	if selected {
 		return renderFocusedToolTranscriptSection(m, ref, state, call, width)

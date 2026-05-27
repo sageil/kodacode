@@ -60,13 +60,6 @@ func shouldRenderToolCallInTranscript(turn *events.TurnState, callID string, cal
 	return true
 }
 
-func shouldRenderToolCallInTranscriptForLayout(m Model, turn *events.TurnState, callID string, call *events.ToolCallState) bool {
-	if shellLayoutEnabled(m) && isMutationToolCall(call) && transcriptOwnsToolCallRow(call) {
-		return true
-	}
-	return shouldRenderToolCallInTranscript(turn, callID, call)
-}
-
 func shouldHideDelegateToolCallInTranscript(turn *events.TurnState, call *events.ToolCallState) bool {
 	if !isDelegateToolCall(call) {
 		return false
