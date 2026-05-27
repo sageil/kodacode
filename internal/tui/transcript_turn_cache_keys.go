@@ -73,6 +73,11 @@ func turnTranscriptChunkCacheKeyWithOptions(m Model, state events.SessionState, 
 		b.WriteString(strings.TrimSpace(m.selection.callID))
 	}
 	b.WriteString("\x00")
+	if strings.TrimSpace(expandedToolSessionID(m)) == strings.TrimSpace(state.SessionID) &&
+		strings.TrimSpace(m.selection.expandedCallTurnID) == turnID {
+		b.WriteString(strings.TrimSpace(m.selection.expandedCallID))
+	}
+	b.WriteString("\x00")
 	if explicitSelectedHandoff(turn, strings.TrimSpace(m.selection.handoffID)) != nil {
 		b.WriteString(strings.TrimSpace(m.selection.handoffID))
 	}

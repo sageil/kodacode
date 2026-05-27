@@ -56,6 +56,19 @@ func selectedToolMatchesSession(m Model, sessionID string, ref sessionToolCallRe
 		strings.TrimSpace(m.selection.callID) == strings.TrimSpace(ref.CallID)
 }
 
+func expandedToolSessionID(m Model) string {
+	if sessionID := strings.TrimSpace(m.selection.expandedCallSessionID); sessionID != "" {
+		return normalizeToolTargetSessionID(m.sessionID, sessionID)
+	}
+	return strings.TrimSpace(m.sessionID)
+}
+
+func expandedToolMatchesSession(m Model, sessionID string, ref sessionToolCallRef) bool {
+	return normalizeToolTargetSessionID(m.sessionID, sessionID) == expandedToolSessionID(m) &&
+		strings.TrimSpace(m.selection.expandedCallTurnID) == strings.TrimSpace(ref.TurnID) &&
+		strings.TrimSpace(m.selection.expandedCallID) == strings.TrimSpace(ref.CallID)
+}
+
 func selectedDelegatedHandoff(state events.SessionState, m Model) *events.AgentHandoffState {
 	return explicitSelectedHandoff(currentTurn(state, m.turnID), strings.TrimSpace(m.selection.handoffID))
 }

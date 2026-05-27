@@ -56,7 +56,14 @@ func modelThemeCacheKey(m Model) string {
 }
 
 func modelRenderCacheKey(m Model) string {
-	return modelThemeCacheKey(m) + "\x00icons:" + m.terminalIcons.CacheKey()
+	shellTools := "0"
+	if m.shellToolCallsVisible {
+		shellTools = "1"
+	}
+	return modelThemeCacheKey(m) +
+		"\x00icons:" + m.terminalIcons.CacheKey() +
+		"\x00layout:" + strings.TrimSpace(m.layout) +
+		"\x00shell_tools:" + shellTools
 }
 
 func renderThemeCacheKey(th *theme.Theme) string {

@@ -60,7 +60,7 @@ func shellStatusHints(m Model, state events.SessionState) string {
 		if shellLayoutEnabled(m) {
 			toolHint := "t tools · T inline tools"
 			if selectedTranscriptToolAvailable(m, state) && m.shellToolCallsVisible {
-				toolHint = "enter details · " + toolHint
+				toolHint = "enter expand · " + toolHint
 			}
 			return toolHint + " · h/l chars · v select · i insert · ctrl+s sessions · ctrl+n new"
 		}

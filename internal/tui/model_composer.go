@@ -113,6 +113,7 @@ func (m *Model) submitComposer() (tea.Model, tea.Cmd) {
 		m.selection.callSessionID = ""
 		m.selection.callTurnID = ""
 		m.selection.callID = ""
+		m.clearExpandedToolCall()
 		m.selection.handoffID = ""
 		m.inspector.tab = 1
 		m.clearComposerDraft()
@@ -180,6 +181,7 @@ func (m *Model) submitAgentTurn(userText string, attachments []app.AttachmentInp
 	m.selection.callSessionID = ""
 	m.selection.callTurnID = ""
 	m.selection.callID = ""
+	m.clearExpandedToolCall()
 	m.selection.handoffID = ""
 	m.inspector.tab = 1
 	m.clearComposerDraft()
@@ -228,6 +230,7 @@ func (m *Model) submitComposerReview(instructions string) (tea.Model, tea.Cmd) {
 	m.selection.callSessionID = ""
 	m.selection.callTurnID = ""
 	m.selection.callID = ""
+	m.clearExpandedToolCall()
 	m.selection.handoffID = ""
 	m.inspector.tab = 1
 	m.clearComposerDraft()

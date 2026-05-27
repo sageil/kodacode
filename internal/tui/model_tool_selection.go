@@ -110,7 +110,7 @@ func (m Model) handleTranscriptInput(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case "enter":
 		if shellLayoutEnabled(m) && m.shellToolCallsVisible {
-			if cmd := m.openSelectedTranscriptToolDialog(); cmd != nil {
+			if cmd, handled := m.toggleSelectedTranscriptToolExpansion(); handled {
 				return m, cmd
 			}
 		}
@@ -176,26 +176,27 @@ func (m *Model) openSelectedInspectorToolDialog() tea.Cmd {
 	return tea.Batch(m.selectInspectorToolTarget(target), m.openInspectorToolTargetDialog(target))
 }
 
-func (m *Model) openSelectedTranscriptToolDialog() tea.Cmd {
+func (m *Model) toggleSelectedTranscriptToolExpansion() (tea.Cmd, bool) {
 	if m == nil {
-		return nil
+		return nil, false
 	}
 	state := m.projector.Snapshot()
 	sessionID, ref, _, _, ok := selectedSessionToolCall(state, *m)
 	if !ok {
-		return nil
+		return nil, false
 	}
-	if strings.TrimSpace(sessionID) == "" {
-		sessionID = m.sessionID
+	sessionID = normalizeToolTargetSessionID(m.sessionID, sessionID)
+	oldExpandedTurnID := strings.TrimSpace(m.selection.expandedCallTurnID)
+	if expandedToolMatchesSession(*m, sessionID, ref) {
+		m.clearExpandedToolCall()
+		m.refreshToolSelectionTranscript(oldExpandedTurnID)
+		return nil, true
 	}
-	if strings.TrimSpace(sessionID) == strings.TrimSpace(m.sessionID) {
-		return m.openToolCallDialog(ref)
-	}
-	childState, ok := m.delegatedSnapshot(sessionID)
-	if !ok {
-		return m.ensureDelegatedSessionSnapshotLoadedCmd(sessionID)
-	}
-	return m.openToolCallDialogForSession(sessionID, childState, ref)
+	m.selection.expandedCallSessionID = sessionID
+	m.selection.expandedCallTurnID = strings.TrimSpace(ref.TurnID)
+	m.selection.expandedCallID = strings.TrimSpace(ref.CallID)
+	m.refreshToolSelectionTranscript(oldExpandedTurnID, ref.TurnID)
+	return m.ensureSelectedToolResultLoadedCmd(), true
 }
 
 func (m *Model) moveSelectedToolAcross(refs []sessionToolCallRef, delta int, clearOnEmpty bool) tea.Cmd {
@@ -238,6 +239,7 @@ func (m *Model) selectToolCall(ref sessionToolCallRef) tea.Cmd {
 		return m.ensureSelectedToolResultLoadedCmd()
 	}
 	oldSelectedCallTurnID := strings.TrimSpace(m.selection.callTurnID)
+	oldExpandedTurnID := strings.TrimSpace(m.selection.expandedCallTurnID)
 	selectedHandoffTurnID := ""
 	if strings.TrimSpace(m.selection.handoffID) != "" {
 		selectedHandoffTurnID = strings.TrimSpace(m.turnID)
@@ -245,8 +247,9 @@ func (m *Model) selectToolCall(ref sessionToolCallRef) tea.Cmd {
 	m.selection.callSessionID = strings.TrimSpace(m.sessionID)
 	m.selection.callTurnID = ref.TurnID
 	m.selection.callID = ref.CallID
+	m.clearExpandedToolCall()
 	m.selection.handoffID = ""
-	_ = m.applyTranscriptRefreshPlan(transcriptTurnRefreshPlan(oldSelectedCallTurnID, ref.TurnID, selectedHandoffTurnID))
+	m.refreshToolSelectionTranscript(oldSelectedCallTurnID, oldExpandedTurnID, ref.TurnID, selectedHandoffTurnID)
 	m.jumpTranscriptToSelectedTool()
 	m.syncInspectorBody(true)
 	return m.ensureSelectedToolResultLoadedCmd()
@@ -325,12 +328,40 @@ func (m *Model) clearSelectedToolCall() {
 		return
 	}
 	oldSelectedCallTurnID := strings.TrimSpace(m.selection.callTurnID)
+	oldExpandedTurnID := strings.TrimSpace(m.selection.expandedCallTurnID)
 	m.selection.callSessionID = ""
 	m.selection.callTurnID = ""
 	m.selection.callID = ""
-	_ = m.applyTranscriptRefreshPlan(transcriptTurnRefreshPlan(oldSelectedCallTurnID))
+	m.clearExpandedToolCall()
+	m.refreshToolSelectionTranscript(oldSelectedCallTurnID, oldExpandedTurnID)
 	m.messages.GotoBottom()
 	m.syncInspectorBody(true)
+}
+
+func (m *Model) refreshToolSelectionTranscript(turnIDs ...string) {
+	if m == nil {
+		return
+	}
+	plan := transcriptTurnRefreshPlan(turnIDs...)
+	if plan.kind == transcriptRefreshNone {
+		return
+	}
+	state := m.projector.CurrentState()
+	if shellLayoutEnabled(*m) {
+		m.syncTranscriptStructureWithState(state)
+		return
+	}
+	if m.canSyncTranscriptTurns(state, plan.turnIDs...) {
+		_ = m.applyTranscriptRefreshPlanWithState(state, plan)
+		return
+	}
+	m.syncTranscriptStructureWithState(state)
+}
+
+func (m *Model) clearExpandedToolCall() {
+	m.selection.expandedCallSessionID = ""
+	m.selection.expandedCallTurnID = ""
+	m.selection.expandedCallID = ""
 }
 
 func (m *Model) jumpTranscriptToSelectedTool() {
@@ -382,6 +413,14 @@ func (m *Model) syncSelectionStateWithState(state events.SessionState) {
 		m.selection.callSessionID = ""
 		m.selection.callTurnID = ""
 		m.selection.callID = ""
+	}
+	if strings.TrimSpace(m.selection.expandedCallTurnID) == "" || strings.TrimSpace(m.selection.expandedCallID) == "" {
+		m.clearExpandedToolCall()
+	} else if expandedToolSessionID(*m) == strings.TrimSpace(m.sessionID) && indexOfToolCallRef(orderedSessionToolCallRefs(state), sessionToolCallRef{
+		TurnID: strings.TrimSpace(m.selection.expandedCallTurnID),
+		CallID: strings.TrimSpace(m.selection.expandedCallID),
+	}) < 0 {
+		m.clearExpandedToolCall()
 	}
 	syncTaskSelectionStateWithState(m, state)
 	m.syncHandoffSelectionState()

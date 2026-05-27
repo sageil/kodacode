@@ -66,7 +66,7 @@ func TestShellLayoutRendersSinglePlanePrompt(t *testing.T) {
 	}
 }
 
-func TestShellLayoutEnterOpensSelectedToolDetailOverlay(t *testing.T) {
+func TestShellLayoutEnterExpandsSelectedToolInline(t *testing.T) {
 	defaultTheme := theme.StaticDefault()
 	ctx, cancel := context.WithCancel(context.TODO())
 	defer cancel()
@@ -87,6 +87,7 @@ func TestShellLayoutEnterOpensSelectedToolDetailOverlay(t *testing.T) {
 			"turn-1": {
 				TurnID:        "turn-1",
 				Status:        events.TurnStatusCompleted,
+				Transcript:    []events.TranscriptEntryState{{Kind: events.TranscriptEntryTool, CallID: "call-1"}},
 				ToolCallOrder: []string{"call-1"},
 				ToolCalls: map[string]*events.ToolCallState{
 					"call-1": {
@@ -113,18 +114,22 @@ func TestShellLayoutEnterOpensSelectedToolDetailOverlay(t *testing.T) {
 	if next.selection.callID != "call-1" {
 		t.Fatalf("selectedCallID after j = %q, want call-1", next.selection.callID)
 	}
+	rendered := ansi.Strip(renderModelView(next))
+	if strings.Contains(rendered, "all tests passed") {
+		t.Fatalf("j expanded selected shell tool row before enter:\n%s", rendered)
+	}
 
 	updated, _ = next.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	next = updated.(Model)
-	if next.dialog == nil {
-		t.Fatal("dialog = nil, want selected tool detail overlay")
+	if next.dialog != nil {
+		t.Fatalf("dialog = %#v, want nil after inline expansion", next.dialog)
 	}
-	if next.dialog.ID() != dialogIDToolDetail {
-		t.Fatalf("dialog id = %q, want %q", next.dialog.ID(), dialogIDToolDetail)
+	if next.selection.expandedCallID != "call-1" {
+		t.Fatalf("expandedCallID after enter = %q, want call-1", next.selection.expandedCallID)
 	}
-	rendered := renderTestDialogContentPlain(next.dialog)
+	rendered = ansi.Strip(renderModelView(next))
 	if !strings.Contains(rendered, "npm test") || !strings.Contains(rendered, "all tests passed") {
-		t.Fatalf("tool detail dialog missing selected tool content\nrendered:\n%s", rendered)
+		t.Fatalf("expanded shell tool row missing selected tool content\nrendered:\n%s", rendered)
 	}
 }
 
@@ -232,8 +237,14 @@ func TestShellLayoutInlineToolCallsRenderAsCompactRows(t *testing.T) {
 	updated, _ := model.Update(tea.KeyPressMsg{Text: "j", Code: 'j'})
 	model = updated.(Model)
 	rendered = ansi.Strip(renderModelView(model))
+	if strings.Contains(rendered, "all tests passed") {
+		t.Fatalf("j expanded selected shell tool row before enter:\n%s", rendered)
+	}
+	updated, _ = model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	model = updated.(Model)
+	rendered = ansi.Strip(renderModelView(model))
 	if !strings.Contains(rendered, "all tests passed") {
-		t.Fatalf("selected shell tool row did not expand inline:\n%s", rendered)
+		t.Fatalf("enter did not expand selected shell tool row inline:\n%s", rendered)
 	}
 	if strings.Contains(rendered, "Tool •") || strings.Contains(rendered, "TOOL •") {
 		t.Fatalf("selected shell tool row used classic block title:\n%s", rendered)

@@ -135,10 +135,10 @@ func (m Model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			case "down":
 				m.inspector.body.ScrollDown(1)
 				return m, nil
-			case "pgdown", "ctrl+d":
+			case "pgdown", "J":
 				m.inspector.body.PageDown()
 				return m, nil
-			case "pgup", "ctrl+u":
+			case "pgup", "K":
 				m.inspector.body.PageUp()
 				return m, nil
 			case "home":
@@ -290,6 +290,7 @@ func (m *Model) resetInspectorAgentSelectionToCurrentTurn() {
 	m.selection.callSessionID = ""
 	m.selection.callTurnID = ""
 	m.selection.callID = ""
+	m.clearExpandedToolCall()
 	_ = m.applyTranscriptRefreshPlan(transcriptTurnRefreshPlan(oldSelectedCallTurnID, selectedHandoffTurnID))
 }
 

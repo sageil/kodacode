@@ -237,12 +237,15 @@ type chromeState struct {
 }
 
 type selectionState struct {
-	detailTurnID  string
-	callSessionID string
-	callTurnID    string
-	callID        string
-	taskID        string
-	handoffID     string
+	detailTurnID          string
+	callSessionID         string
+	callTurnID            string
+	callID                string
+	expandedCallSessionID string
+	expandedCallTurnID    string
+	expandedCallID        string
+	taskID                string
+	handoffID             string
 }
 
 type liveTurnState struct {
@@ -266,6 +269,9 @@ type sessionView struct {
 	SelectedCallSessionID string
 	SelectedCallTurnID    string
 	SelectedCallID        string
+	ExpandedCallSessionID string
+	ExpandedCallTurnID    string
+	ExpandedCallID        string
 	SelectedTaskID        string
 	SelectedHandoffID     string
 	Focus                 focusRegion

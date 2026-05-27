@@ -193,6 +193,7 @@ func (m *Model) runComposerCommand(invocation composerCommandInvocation) (tea.Mo
 			m.selection.callSessionID = ""
 			m.selection.callTurnID = ""
 			m.selection.callID = ""
+			m.clearExpandedToolCall()
 			m.selection.handoffID = ""
 			m.inspector.tab = 1
 		}

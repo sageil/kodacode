@@ -68,6 +68,7 @@ func (m *Model) moveSelectedHandoff(delta int) {
 		m.selection.callSessionID = ""
 		m.selection.callTurnID = ""
 		m.selection.callID = ""
+		m.clearExpandedToolCall()
 		_ = m.applyTranscriptRefreshPlan(transcriptRefreshPlan{kind: transcriptRefreshStructure})
 		m.syncInspectorBody(true)
 		return
@@ -93,6 +94,7 @@ func (m *Model) moveSelectedHandoff(delta int) {
 	m.selection.callSessionID = ""
 	m.selection.callTurnID = ""
 	m.selection.callID = ""
+	m.clearExpandedToolCall()
 	_ = m.applyTranscriptRefreshPlan(transcriptRefreshPlan{kind: transcriptRefreshStructure})
 	m.syncInspectorBody(true)
 }

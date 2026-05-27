@@ -172,7 +172,8 @@ func renderShellTurnToolOutcomeSections(m Model, state events.SessionState, refs
 			continue
 		}
 		selected := selectedToolMatchesSession(m, state.SessionID, row.Ref)
-		if selected {
+		expanded := expandedToolMatchesSession(m, state.SessionID, row.Ref)
+		if expanded {
 			if content := strings.TrimSpace(renderShellFocusedToolTranscriptSection(m, row.Ref, state, call, width)); content != "" {
 				flushCompact()
 				sections = append(sections, transcriptSection{content: content, toolRefs: []sessionToolCallRef{row.Ref}})
@@ -211,7 +212,8 @@ func renderShellToolTranscriptSection(m Model, state events.SessionState, ref se
 			continue
 		}
 		selected := selectedToolMatchesSession(m, state.SessionID, row.Ref)
-		if selected {
+		expanded := expandedToolMatchesSession(m, state.SessionID, row.Ref)
+		if expanded {
 			if content := strings.TrimSpace(renderShellFocusedToolTranscriptSection(m, row.Ref, state, rowCall, width)); content != "" {
 				lines = append(lines, content)
 				continue

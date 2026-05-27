@@ -75,6 +75,9 @@ func (m Model) currentView() sessionView {
 		SelectedCallSessionID: m.selection.callSessionID,
 		SelectedCallTurnID:    m.selection.callTurnID,
 		SelectedCallID:        m.selection.callID,
+		ExpandedCallSessionID: m.selection.expandedCallSessionID,
+		ExpandedCallTurnID:    m.selection.expandedCallTurnID,
+		ExpandedCallID:        m.selection.expandedCallID,
 		SelectedTaskID:        m.selection.taskID,
 		SelectedHandoffID:     m.selection.handoffID,
 		Focus:                 m.chrome.focus,
@@ -103,6 +106,9 @@ func (m *Model) applyView(view sessionView, state events.SessionState, stateOwne
 	m.selection.callSessionID = view.SelectedCallSessionID
 	m.selection.callTurnID = view.SelectedCallTurnID
 	m.selection.callID = view.SelectedCallID
+	m.selection.expandedCallSessionID = view.ExpandedCallSessionID
+	m.selection.expandedCallTurnID = view.ExpandedCallTurnID
+	m.selection.expandedCallID = view.ExpandedCallID
 	m.selection.taskID = view.SelectedTaskID
 	m.selection.handoffID = view.SelectedHandoffID
 	m.chrome.focus = view.Focus

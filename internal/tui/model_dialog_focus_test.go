@@ -183,7 +183,7 @@ func TestSessionOpenedMsgClearsStaleLiveTurnForReadySession(t *testing.T) {
 	}
 }
 
-func TestSessionOpenedMsgArmsLiveTurnForRunningSession(t *testing.T) {
+func TestSessionOpenedMsgDoesNotArmLiveTurnForResumedRunningSession(t *testing.T) {
 	defaultTheme := theme.StaticDefault()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -214,12 +214,12 @@ func TestSessionOpenedMsgArmsLiveTurnForRunningSession(t *testing.T) {
 	})
 
 	next := updated.(Model)
-	if !next.liveTurn.spinnerArmed {
-		t.Fatal("live turn spinner should be armed for a running opened session")
+	if next.liveTurn.spinnerArmed {
+		t.Fatal("live turn spinner should not be armed for a resumed running session")
 	}
 	active, label := next.liveTurnSpinnerState(next.projector.Snapshot())
-	if !active || label == "" {
-		t.Fatalf("liveTurnSpinnerState() = (%v, %q), want active", active, label)
+	if active || label != "" {
+		t.Fatalf("liveTurnSpinnerState() = (%v, %q), want inactive", active, label)
 	}
 }
 

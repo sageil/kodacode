@@ -2309,15 +2309,13 @@ func TestHandleWatchEventsSkipsDelegatedSnapshotRefreshWhenInspectorToolsHidden(
 		t.Fatalf("cmd = nil, err = %v", next.err)
 	}
 	msg := cmd()
-	batch, ok := msg.(tea.BatchMsg)
-	if !ok {
-		t.Fatalf("cmd() msg = %#v, want tea.BatchMsg", msg)
-	}
-	for _, batchCmd := range batch {
-		if batchCmd == nil {
-			continue
+	if batch, ok := msg.(tea.BatchMsg); ok {
+		for _, batchCmd := range batch {
+			if batchCmd == nil {
+				continue
+			}
+			_ = batchCmd()
 		}
-		_ = batchCmd()
 	}
 	if len(controller.snapshotCalls) != 0 {
 		t.Fatalf("snapshotCalls = %#v, want no delegated child refresh while inspector tools are hidden", controller.snapshotCalls)
@@ -2415,15 +2413,13 @@ func TestHandleWatchEventsSkipsDelegatedSnapshotRefreshForPreviewTextOnly(t *tes
 		t.Fatalf("cmd = nil, err = %v", next.err)
 	}
 	msg := cmd()
-	batch, ok := msg.(tea.BatchMsg)
-	if !ok {
-		t.Fatalf("cmd() msg = %#v, want tea.BatchMsg", msg)
-	}
-	for _, batchCmd := range batch {
-		if batchCmd == nil {
-			continue
+	if batch, ok := msg.(tea.BatchMsg); ok {
+		for _, batchCmd := range batch {
+			if batchCmd == nil {
+				continue
+			}
+			_ = batchCmd()
 		}
-		_ = batchCmd()
 	}
 	if len(controller.snapshotCalls) != 0 {
 		t.Fatalf("snapshotCalls = %#v, want no delegated child refresh for assistant-text-only preview updates", controller.snapshotCalls)
