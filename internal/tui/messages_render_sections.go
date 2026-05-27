@@ -78,11 +78,9 @@ func renderTurnTranscriptSectionsWithOptions(m Model, state events.SessionState,
 			}
 		case events.TranscriptEntryReview:
 			maybeRenderFallbackCompaction()
-			if review := renderReviewTranscriptSection(m, turn, width); review != "" {
-				sections = append(sections, transcriptSection{
-					content:        review,
-					selectionLines: reviewTranscriptSelectionLines(m, turn, width),
-				})
+			row := newReviewTranscriptRow(turnID, turn, entry, i, width)
+			if section, ok := row.section(m); ok {
+				sections = append(sections, section)
 			}
 		case events.TranscriptEntryReasoning:
 			maybeRenderFallbackCompaction()
