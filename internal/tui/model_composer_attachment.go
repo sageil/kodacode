@@ -36,7 +36,7 @@ func composerPrompt(_ []Attachment, shellLayout bool) string {
 	if shellLayout {
 		return "❯ "
 	}
-	return "┃ "
+	return "  "
 }
 
 func formatAttachmentLabel(index int, attachment Attachment) string {

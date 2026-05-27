@@ -1063,7 +1063,7 @@ func TestRenderModelSurfaceWideComposerCursorStaysOnInputLine(t *testing.T) {
 	if cursor.Y < 0 || cursor.Y >= len(lines) {
 		t.Fatalf("cursor.Y = %d, want visible row within %d lines", cursor.Y, len(lines))
 	}
-	if !strings.HasPrefix(lines[cursor.Y], "┃ 1111111111") {
+	if !strings.HasPrefix(lines[cursor.Y], "  1111111111") {
 		t.Fatalf("cursor row = %q, want composer input line", lines[cursor.Y])
 	}
 }
@@ -1095,12 +1095,60 @@ func TestRenderModelSurfaceWideComposerCursorStaysOnInputLineWithFooterNotice(t 
 	if cursor.Y < 0 || cursor.Y >= len(lines) {
 		t.Fatalf("cursor.Y = %d, want visible row within %d lines", cursor.Y, len(lines))
 	}
-	if !strings.HasPrefix(lines[cursor.Y], "┃ cat auth.test.ts") {
+	if !strings.HasPrefix(lines[cursor.Y], "  cat auth.test.ts") {
 		t.Fatalf("cursor row = %q, want composer input line", lines[cursor.Y])
 	}
 	for _, unwanted := range []string{"builder", "mode:auto", "The requested model is not supported."} {
 		if strings.Contains(lines[cursor.Y], unwanted) {
 			t.Fatalf("cursor row should not be footer content %q: %q", unwanted, lines[cursor.Y])
+		}
+	}
+}
+
+func TestRenderModelSurfaceWideNormalModeDoesNotDrawComposerLeftMarker(t *testing.T) {
+	customTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context:       ctx,
+		Theme:         &customTheme,
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: "/repo",
+	})
+	model.chrome.focus = focusTranscript
+	model.chrome.wideSidebarOpen = true
+	model.chrome.inspectorOpen = true
+	model.inspector.tab = inspectorTabTools
+	modelIface, _ := model.Update(tea.WindowSizeMsg{Width: 160, Height: 28})
+	model = modelIface.(Model)
+	model.projector = events.NewProjectorFromSnapshot(events.SessionState{
+		SessionID:     "session-1",
+		WorkspaceRoot: "/repo",
+		TurnOrder:     []string{"turn-1"},
+		Turns: map[string]*events.TurnState{
+			"turn-1": {
+				TurnID: "turn-1",
+				Status: events.TurnStatusCompleted,
+				Transcript: []events.TranscriptEntryState{
+					{Kind: events.TranscriptEntryUser, Text: "review the current project"},
+					{Kind: events.TranscriptEntryAssistant, Text: "Done."},
+				},
+				ToolCalls: map[string]*events.ToolCallState{},
+				Handoffs:  map[string]*events.AgentHandoffState{},
+			},
+		},
+	})
+	model.syncViewportLayout()
+
+	rendered, cursor := renderModelSurface(model)
+	if cursor != nil {
+		t.Fatalf("cursor = %#v, want nil outside composer focus", cursor)
+	}
+	for _, line := range strings.Split(ansi.Strip(rendered), "\n") {
+		if strings.HasPrefix(line, "┃ Ask kodacode") {
+			t.Fatalf("normal-mode footer composer drew left marker: %q", line)
 		}
 	}
 }
