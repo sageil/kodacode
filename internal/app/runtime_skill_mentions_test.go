@@ -73,3 +73,52 @@ Review with extra care.
 		}
 	}
 }
+
+func TestRunSessionTurnDoesNotSelectExplicitDollarMentionedSkill(t *testing.T) {
+	root := t.TempDir()
+	skillDir := filepath.Join(root, ".kodacode", "skills", "review")
+	if err := os.MkdirAll(skillDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(skill) error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte(`---
+name: review
+description: Use for code review.
+---
+
+Review with extra care.
+`), 0o644); err != nil {
+		t.Fatalf("WriteFile(skill) error = %v", err)
+	}
+
+	client := &fakeProvider{
+		streams: []provider.Stream{provider.NewSliceStream([]provider.Event{
+			{Kind: provider.EventKindAssistantDelta, AssistantDelta: "done"},
+		})},
+	}
+	runtime := newRuntimeWithClient(t, client)
+	registry, err := skill.NewRegistry(skill.RegistryConfig{GlobalDir: t.TempDir()})
+	if err != nil {
+		t.Fatalf("skill.NewRegistry() error = %v", err)
+	}
+	runtime.Skills = registry
+
+	result, err := runtime.RunSessionTurn(context.Background(), RunSessionInput{
+		WorkspaceRoot: root,
+		UserText:      "Use $review on this change.",
+	})
+	if err != nil {
+		t.Fatalf("RunSessionTurn() error = %v", err)
+	}
+
+	state, err := runtime.Sessions.Snapshot(context.Background(), result.SessionID)
+	if err != nil {
+		t.Fatalf("Snapshot() error = %v", err)
+	}
+	config := state.Turns[result.TurnID].Config
+	if !reflect.DeepEqual(config.SkillIDs, []string{"review"}) {
+		t.Fatalf("SkillIDs = %#v, want effective review", config.SkillIDs)
+	}
+	if config.SelectedSkillIDs == nil || len(config.SelectedSkillIDs) != 0 {
+		t.Fatalf("SelectedSkillIDs = %#v, want explicit empty selection", config.SelectedSkillIDs)
+	}
+}

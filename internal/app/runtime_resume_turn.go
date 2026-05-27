@@ -50,7 +50,7 @@ func resolveResumeTurn(state events.SessionState, input ResolveSessionTurnInput)
 		result.agentID = config.AgentID
 	}
 	if len(result.skillIDs) == 0 && config != nil {
-		result.skillIDs = append([]string(nil), config.SkillIDs...)
+		result.skillIDs = append([]string(nil), config.SelectedSkillIDs...)
 	}
 	if result.allowedTools == nil && config != nil {
 		result.allowedTools = slices.Clone(config.AllowedTools)

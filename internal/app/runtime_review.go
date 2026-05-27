@@ -86,6 +86,7 @@ func (r *Runtime) StartSessionReview(ctx context.Context, input StartSessionRevi
 		UserText:             manualReviewUserText(input.Instructions),
 		AgentID:              resolved.AgentID,
 		SkillIDs:             append([]string(nil), effectiveSkillIDs...),
+		SelectedSkillIDs:     cloneSelectedSkillIDs(input.SkillIDs),
 		ThinkingEnabled:      input.ThinkingEnabled,
 		ThinkingMode:         input.ThinkingMode,
 		Fragments:            fragments,

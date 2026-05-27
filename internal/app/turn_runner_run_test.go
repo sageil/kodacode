@@ -475,6 +475,7 @@ func TestTurnRunnerRunDeclaresAndExecutesToolCall(t *testing.T) {
 			ModelRoute:   baseModelRoute(),
 			AllowedTools: []string{tool.TaskWorkflowToolName},
 		},
+		nil,
 		false,
 		false,
 		"",

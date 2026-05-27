@@ -882,6 +882,7 @@ func appendConfiguredTurnForTaskWorkflowTest(t *testing.T, service *SessionServi
 					"task_workflow",
 				},
 			},
+			nil,
 			false,
 			false,
 			"",

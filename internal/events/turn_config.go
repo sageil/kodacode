@@ -9,6 +9,7 @@ import (
 type TurnConfiguredPayload struct {
 	AgentID                   string
 	SkillIDs                  []string
+	SelectedSkillIDs          []string
 	Model                     string
 	PreserveSessionModel      bool
 	ThinkingEnabled           bool
@@ -39,6 +40,7 @@ func (p TurnConfiguredPayload) validate() error {
 type TurnConfigState struct {
 	AgentID                   string
 	SkillIDs                  []string
+	SelectedSkillIDs          []string
 	Model                     string
 	PreserveSessionModel      bool
 	ThinkingEnabled           bool
@@ -57,6 +59,7 @@ func cloneTurnConfigState(state *TurnConfigState) *TurnConfigState {
 	return &TurnConfigState{
 		AgentID:                   state.AgentID,
 		SkillIDs:                  append([]string(nil), state.SkillIDs...),
+		SelectedSkillIDs:          slices.Clone(state.SelectedSkillIDs),
 		Model:                     state.Model,
 		PreserveSessionModel:      state.PreserveSessionModel,
 		ThinkingEnabled:           state.ThinkingEnabled,

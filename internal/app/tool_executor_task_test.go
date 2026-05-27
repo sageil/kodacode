@@ -689,6 +689,7 @@ func TestToolExecutorTaskWorkflowRejectsCompletionWithoutRecordedWork(t *testing
 				ModelRoute:   baseModelRoute(),
 				AllowedTools: []string{tool.TaskWorkflowToolName},
 			},
+			nil,
 			false,
 			false,
 			"",

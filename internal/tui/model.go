@@ -293,9 +293,7 @@ func NewModel(backend Backend, cfg ModelConfig) Model {
 		userText = resolvedUserText(*cfg.InitialState, sessionView{TurnID: cfg.TurnID, UserText: cfg.UserText})
 		agentID = resolvedAgentID(*cfg.InitialState, cfg.TurnID, agentID)
 		if len(skillIDs) == 0 {
-			if turn := currentTurn(*cfg.InitialState, cfg.TurnID); turn != nil && turn.Config != nil {
-				skillIDs = append([]string(nil), turn.Config.SkillIDs...)
-			}
+			skillIDs = resolvedSkillIDs(*cfg.InitialState, cfg.TurnID, skillIDs)
 		}
 		bootstrapped = true
 	}

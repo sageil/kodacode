@@ -337,11 +337,12 @@ func TestApplyViewRestoresTurnConfigAgentSkillsAndReasoning(t *testing.T) {
 			Content: "inspect repository",
 		}),
 		draftEvent(2, events.TypeTurnConfigured, "session-1", "turn-1", events.TurnConfiguredPayload{
-			AgentID:      "planner",
-			SkillIDs:     []string{"review", "search"},
-			Model:        "openai/gpt-5-mini",
-			ThinkingMode: "high",
-			AllowedTools: []string{"read"},
+			AgentID:          "planner",
+			SkillIDs:         []string{"review", "search"},
+			SelectedSkillIDs: []string{"review", "search"},
+			Model:            "openai/gpt-5-mini",
+			ThinkingMode:     "high",
+			AllowedTools:     []string{"read"},
 		}),
 	)
 
@@ -362,6 +363,49 @@ func TestApplyViewRestoresTurnConfigAgentSkillsAndReasoning(t *testing.T) {
 	}
 	if model.reasoningVariant != "high" {
 		t.Fatalf("reasoningVariant = %q, want high", model.reasoningVariant)
+	}
+}
+
+func TestApplyViewUsesSelectedSkillsInsteadOfEffectiveMentionSkills(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context:       ctx,
+		Theme:         &defaultTheme,
+		SessionID:     "session-1",
+		TurnID:        "turn-0",
+		WorkspaceRoot: "/repo",
+		UserText:      "previous",
+	})
+	model.skillIDs = []string{"stale"}
+
+	state := snapshotFromEvents(t, "session-1",
+		draftEvent(0, events.TypeSessionConfigured, "session-1", "_session", events.SessionConfiguredPayload{
+			WorkspaceRoot: "/repo",
+		}),
+		draftEvent(1, events.TypeUserMessage, "session-1", "turn-1", events.UserMessagePayload{
+			Content: "Use $review on this change.",
+		}),
+		draftEvent(2, events.TypeTurnConfigured, "session-1", "turn-1", events.TurnConfiguredPayload{
+			AgentID:          "builder",
+			SkillIDs:         []string{"review"},
+			SelectedSkillIDs: []string{},
+			Model:            "openai/gpt-5-mini",
+			AllowedTools:     []string{"read"},
+		}),
+	)
+
+	model.applyView(sessionView{
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		SkillIDs:      []string{"stale"},
+		WorkspaceRoot: "/repo",
+	}, state, false, nil, nil, 0)
+
+	if model.skillIDs != nil && len(model.skillIDs) != 0 {
+		t.Fatalf("skillIDs = %#v, want no sticky selected skills", model.skillIDs)
 	}
 }
 

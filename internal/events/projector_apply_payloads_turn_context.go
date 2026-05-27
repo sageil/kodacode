@@ -25,6 +25,7 @@ func (p *Projector) applyTurnContextPayload(event Event) (bool, error) {
 		turn.Config = &TurnConfigState{
 			AgentID:                   payload.AgentID,
 			SkillIDs:                  append([]string(nil), payload.SkillIDs...),
+			SelectedSkillIDs:          slices.Clone(payload.SelectedSkillIDs),
 			Model:                     payload.Model,
 			PreserveSessionModel:      payload.PreserveSessionModel,
 			ThinkingEnabled:           payload.ThinkingEnabled,

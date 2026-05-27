@@ -18,10 +18,11 @@ func (r *TurnRunner) appendTurnConfigured(ctx context.Context, sessionID, turnID
 	return err
 }
 
-func newTurnConfiguredPayload(capabilities TurnCapabilities, preserveSessionModel bool, thinkingEnabled bool, thinkingMode string, responseStyle ResponseStyle, hideAssistantPreview bool) events.TurnConfiguredPayload {
+func newTurnConfiguredPayload(capabilities TurnCapabilities, selectedSkillIDs []string, preserveSessionModel bool, thinkingEnabled bool, thinkingMode string, responseStyle ResponseStyle, hideAssistantPreview bool) events.TurnConfiguredPayload {
 	return events.TurnConfiguredPayload{
 		AgentID:                   capabilities.AgentID,
 		SkillIDs:                  append([]string(nil), capabilities.SkillIDs...),
+		SelectedSkillIDs:          cloneSelectedSkillIDs(selectedSkillIDs),
 		Model:                     capabilities.ModelRoute.Primary.String(),
 		PreserveSessionModel:      preserveSessionModel,
 		ThinkingEnabled:           thinkingEnabled,
@@ -32,4 +33,14 @@ func newTurnConfiguredPayload(capabilities TurnCapabilities, preserveSessionMode
 		SupportsThinkingOutput:    capabilities.SupportsThinkingOutput(),
 		HideAssistantPreview:      hideAssistantPreview,
 	}
+}
+
+func cloneSelectedSkillIDs(skillIDs []string) []string {
+	out := make([]string, 0, len(skillIDs))
+	for _, id := range skillIDs {
+		if id = strings.TrimSpace(id); id != "" {
+			out = append(out, id)
+		}
+	}
+	return out
 }

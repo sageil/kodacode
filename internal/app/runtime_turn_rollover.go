@@ -140,6 +140,7 @@ func (r *Runtime) continueRolledOverTurn(
 		UserText:             "",
 		AgentID:              capabilities.AgentID,
 		SkillIDs:             append([]string(nil), capabilities.SkillIDs...),
+		SelectedSkillIDs:     rolloverSelectedSkillIDs(input),
 		ThinkingEnabled:      thinkingEnabled,
 		ThinkingMode:         thinkingMode,
 		Fragments:            append([]prompt.Fragment(nil), input.Fragments...),
@@ -183,4 +184,11 @@ func (r *Runtime) continueRolledOverResumedTurn(
 		HideAssistantPreview: hideAssistantPreview,
 		DisableAutoReview:    disableAutoReview,
 	}, capabilities, thinkingEnabled, thinkingMode)
+}
+
+func rolloverSelectedSkillIDs(input runExistingTurnInput) []string {
+	if input.SelectedSkillIDs != nil {
+		return cloneSelectedSkillIDs(input.SelectedSkillIDs)
+	}
+	return cloneSelectedSkillIDs(input.SkillIDs)
 }

@@ -200,15 +200,19 @@ func resolvedAgentID(state events.SessionState, turnID, fallback string) string 
 }
 
 func resolvedSkillIDs(state events.SessionState, turnID string, fallback []string) []string {
-	if turn := currentTurn(state, turnID); turn != nil && turn.Config != nil && len(turn.Config.SkillIDs) > 0 {
-		return append([]string(nil), turn.Config.SkillIDs...)
+	if turn := currentTurn(state, turnID); turn != nil && turn.Config != nil {
+		if turn.Config.SelectedSkillIDs != nil {
+			return append([]string(nil), turn.Config.SelectedSkillIDs...)
+		}
 	}
 	for idx := len(state.TurnOrder) - 1; idx >= 0; idx-- {
 		turn := state.Turns[state.TurnOrder[idx]]
-		if turn == nil || turn.Config == nil || len(turn.Config.SkillIDs) == 0 {
+		if turn == nil || turn.Config == nil {
 			continue
 		}
-		return append([]string(nil), turn.Config.SkillIDs...)
+		if turn.Config.SelectedSkillIDs != nil {
+			return append([]string(nil), turn.Config.SelectedSkillIDs...)
+		}
 	}
 	return append([]string(nil), fallback...)
 }

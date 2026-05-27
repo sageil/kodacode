@@ -28,6 +28,7 @@ type runExistingTurnInput struct {
 	ResolvedAttachments  []provider.Attachment
 	AgentID              string
 	SkillIDs             []string
+	SelectedSkillIDs     []string
 	ThinkingEnabled      bool
 	ThinkingMode         string
 	Fragments            []prompt.Fragment
@@ -163,6 +164,10 @@ func (r *Runtime) runExistingSessionTurn(ctx context.Context, input runExistingT
 	effectiveThinkingMode = capabilities.EffectiveReasoningVariant(effectiveThinkingMode)
 	effectiveThinkingEnabled = capabilities.EffectiveThinkingEnabled(effectiveThinkingEnabled)
 	thinkingSupported := capabilities.SupportsThinkingOutput()
+	selectedSkillIDs := input.SelectedSkillIDs
+	if selectedSkillIDs == nil {
+		selectedSkillIDs = input.SkillIDs
+	}
 	r.log("runtime").Op("session turn started",
 		"session_id", input.SessionID,
 		"turn_id", input.TurnID,
@@ -184,7 +189,7 @@ func (r *Runtime) runExistingSessionTurn(ctx context.Context, input runExistingT
 			return RunSessionResult{}, err
 		}
 	}
-	if err := r.Runner.appendTurnConfigured(ctx, input.SessionID, input.TurnID, newTurnConfiguredPayload(capabilities.TurnCapabilities, input.PreserveSessionModel, effectiveThinkingEnabled, effectiveThinkingMode, responseStyle, input.HideAssistantPreview)); err != nil {
+	if err := r.Runner.appendTurnConfigured(ctx, input.SessionID, input.TurnID, newTurnConfiguredPayload(capabilities.TurnCapabilities, selectedSkillIDs, input.PreserveSessionModel, effectiveThinkingEnabled, effectiveThinkingMode, responseStyle, input.HideAssistantPreview)); err != nil {
 		return RunSessionResult{}, err
 	}
 	if input.InitialState != nil {
