@@ -9,6 +9,7 @@ import (
 type transcriptSection struct {
 	content        string
 	toolRefs       []sessionToolCallRef
+	toolLineRefs   map[sessionToolCallRef]int
 	selectionLines []transcriptSelectionLine
 }
 

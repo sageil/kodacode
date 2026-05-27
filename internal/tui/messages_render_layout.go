@@ -127,8 +127,14 @@ func buildTranscriptSections(sections []transcriptSection, addBottomPadding bool
 			line += strings.Count(separator, "\n")
 			selectionLines = append(selectionLines, transcriptSelectionLine{}, transcriptSelectionLine{})
 		}
-		for _, ref := range section.toolRefs {
-			toolLines[ref] = line
+		if len(section.toolLineRefs) > 0 {
+			for ref, sectionLine := range section.toolLineRefs {
+				toolLines[ref] = line + max(sectionLine, 0)
+			}
+		} else {
+			for _, ref := range section.toolRefs {
+				toolLines[ref] = line
+			}
 		}
 		selectionLines = append(selectionLines, normalizedTranscriptSelectionLines(section.content, section.selectionLines)...)
 		line += transcriptRenderedLineCount(section.content)

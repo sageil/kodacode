@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/sageil/kodacode/internal/events"
@@ -26,6 +27,12 @@ type toolOutcomeRow struct {
 }
 
 func visibleToolSelectionRefs(m Model, state events.SessionState) []sessionToolCallRef {
+	if shellLayoutEnabled(m) && m.shellToolCallsVisible {
+		refs := visibleTranscriptToolRefs(m)
+		if len(refs) > 0 {
+			return refs
+		}
+	}
 	if isWideShell(m) {
 		rows := deriveSessionToolOutcomeRows(state)
 		refs := make([]sessionToolCallRef, 0, len(rows))
@@ -42,12 +49,67 @@ func visibleToolSelectionRefs(m Model, state events.SessionState) []sessionToolC
 	return orderedSessionToolCallRefs(state)
 }
 
+func visibleTranscriptToolRefs(m Model) []sessionToolCallRef {
+	if len(m.transcriptView.toolLines) == 0 {
+		return nil
+	}
+	type visibleRef struct {
+		ref  sessionToolCallRef
+		line int
+	}
+	visible := make([]visibleRef, 0, len(m.transcriptView.toolLines))
+	for ref, line := range m.transcriptView.toolLines {
+		if strings.TrimSpace(ref.TurnID) == "" || strings.TrimSpace(ref.CallID) == "" {
+			continue
+		}
+		visible = append(visible, visibleRef{ref: ref, line: line})
+	}
+	sort.SliceStable(visible, func(i, j int) bool {
+		if visible[i].line != visible[j].line {
+			return visible[i].line < visible[j].line
+		}
+		if visible[i].ref.TurnID != visible[j].ref.TurnID {
+			return visible[i].ref.TurnID < visible[j].ref.TurnID
+		}
+		return visible[i].ref.CallID < visible[j].ref.CallID
+	})
+	refs := make([]sessionToolCallRef, 0, len(visible))
+	for _, item := range visible {
+		refs = append(refs, item.ref)
+	}
+	return refs
+}
+
 func deriveSessionToolOutcomeRows(state events.SessionState) []toolOutcomeRow {
 	return deriveToolOutcomeRows(state, orderedAllSessionToolCallRefs(state))
 }
 
 func deriveTurnToolOutcomeRows(state events.SessionState, refs []sessionToolCallRef) []toolOutcomeRow {
 	return deriveToolOutcomeRows(state, refs)
+}
+
+func deriveUngroupedToolOutcomeRows(state events.SessionState, refs []sessionToolCallRef) []toolOutcomeRow {
+	rows := make([]toolOutcomeRow, 0, len(refs))
+	for _, ref := range refs {
+		_, call := sessionToolCall(state, ref)
+		if call == nil {
+			continue
+		}
+		if isApplyPatchNoop(call) {
+			continue
+		}
+		switch outcomeCategoryForTool(call) {
+		case toolOutcomeMutation:
+			rows = append(rows, mutationOutcomeRows(state, ref, call)...)
+		case toolOutcomeCommand:
+			rows = append(rows, commandOutcomeRow(state, ref, call))
+		case toolOutcomeExploration:
+			rows = append(rows, explorationOutcomeRow(state, ref, call))
+		default:
+			rows = append(rows, genericOutcomeRow(state, ref, call))
+		}
+	}
+	return rows
 }
 
 func deriveToolOutcomeRows(state events.SessionState, refs []sessionToolCallRef) []toolOutcomeRow {
@@ -253,6 +315,27 @@ func genericOutcomeRow(state events.SessionState, ref sessionToolCallRef, call *
 	}
 	return toolOutcomeRow{
 		Kind:   toolOutcomeGeneric,
+		Label:  label,
+		Detail: detail,
+		Status: toolStatus(call),
+		Ref:    ref,
+	}
+}
+
+func explorationOutcomeRow(state events.SessionState, ref sessionToolCallRef, call *events.ToolCallState) toolOutcomeRow {
+	label := strings.TrimSpace(groupedToolItemLabel(state.WorkspaceRoot, call))
+	if label == "" {
+		label = strings.TrimSpace(toolDisplayNameForSession(state, call))
+	}
+	if label == "" {
+		label = "tool"
+	}
+	detail := strings.TrimSpace(groupedToolItemResultDetail(call))
+	if strings.Contains(detail, "\n") {
+		detail = summarizeInlineValue(detail)
+	}
+	return toolOutcomeRow{
+		Kind:   toolOutcomeExploration,
 		Label:  label,
 		Detail: detail,
 		Status: toolStatus(call),

@@ -239,6 +239,115 @@ func TestShellLayoutInlineToolCallsRenderAsCompactRows(t *testing.T) {
 	}
 }
 
+func TestShellLayoutInlineToolCallsRenderIndividuallyAtWideWidths(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context:       ctx,
+		Theme:         &defaultTheme,
+		Layout:        "shell",
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: "/repo",
+	})
+	state := events.SessionState{
+		SessionID:     "session-1",
+		WorkspaceRoot: "/repo",
+		TurnOrder:     []string{"turn-1"},
+		Turns: map[string]*events.TurnState{
+			"turn-1": {
+				TurnID: "turn-1",
+				Status: events.TurnStatusCompleted,
+				Transcript: []events.TranscriptEntryState{
+					{Kind: events.TranscriptEntryTool, CallID: "read-readme"},
+					{Kind: events.TranscriptEntryTool, CallID: "locate-src"},
+					{Kind: events.TranscriptEntryTool, CallID: "search-needle"},
+					{Kind: events.TranscriptEntryTool, CallID: "read-main"},
+				},
+				ToolCallOrder: []string{"read-readme", "locate-src", "search-needle", "read-main"},
+				ToolCalls: map[string]*events.ToolCallState{
+					"read-readme": {
+						CallID:    "read-readme",
+						ToolName:  "read",
+						Input:     `{"path":"README.md"}`,
+						Output:    "README\n",
+						Declared:  true,
+						Completed: true,
+						Succeeded: true,
+					},
+					"locate-src": {
+						CallID:    "locate-src",
+						ToolName:  "locate",
+						Input:     `{"path":"src","query":""}`,
+						Output:    "src/server.ts\nsrc/database.ts\n",
+						Declared:  true,
+						Completed: true,
+						Succeeded: true,
+					},
+					"search-needle": {
+						CallID:    "search-needle",
+						ToolName:  "search",
+						Input:     `{"query":"needle","path":"src"}`,
+						Output:    "src/main.go:1:needle\n",
+						Declared:  true,
+						Completed: true,
+						Succeeded: true,
+					},
+					"read-main": {
+						CallID:    "read-main",
+						ToolName:  "read",
+						Input:     `{"path":"src/main.go"}`,
+						Output:    "package main\n",
+						Declared:  true,
+						Completed: true,
+						Succeeded: true,
+					},
+				},
+			},
+		},
+	}
+	model.projector = events.NewProjectorFromSnapshot(state)
+	modelIface, _ := model.Update(tea.WindowSizeMsg{Width: 140, Height: 32})
+	model = modelIface.(Model)
+
+	rendered := ansi.Strip(renderModelView(model))
+	for _, needle := range []string{"README.md", "src", "needle", "main.go"} {
+		if !strings.Contains(rendered, needle) {
+			t.Fatalf("shell layout missing individual tool row %q:\n%s", needle, rendered)
+		}
+	}
+	for _, forbidden := range []string{"Explored", "2 read", "1 locate", "1 search", "Read README.md", "Locate src", "Search src"} {
+		if strings.Contains(rendered, forbidden) {
+			t.Fatalf("shell layout grouped tool rows with %q:\n%s", forbidden, rendered)
+		}
+	}
+	transcript := renderTranscriptMessages(model, state, 140)
+	readmeLine, ok := transcript.toolLines[sessionToolCallRef{TurnID: "turn-1", CallID: "read-readme"}]
+	if !ok {
+		t.Fatal("read-readme missing from transcript tool line refs")
+	}
+	for offset, callID := range []string{"locate-src", "search-needle", "read-main"} {
+		line, ok := transcript.toolLines[sessionToolCallRef{TurnID: "turn-1", CallID: callID}]
+		if !ok {
+			t.Fatalf("%s missing from transcript tool line refs", callID)
+		}
+		if line != readmeLine+offset+1 {
+			t.Fatalf("%s tool line = %d, want %d", callID, line, readmeLine+offset+1)
+		}
+	}
+
+	model.chrome.focus = focusTranscript
+	for _, wantCallID := range []string{"read-readme", "locate-src", "search-needle", "read-main"} {
+		updated, _ := model.Update(tea.KeyPressMsg{Text: "j", Code: 'j'})
+		model = updated.(Model)
+		if model.selection.callID != wantCallID {
+			t.Fatalf("selected call after j = %q, want %q", model.selection.callID, wantCallID)
+		}
+	}
+}
+
 func TestShellToolCompactRowsFitWidthsAndShowActiveStatuses(t *testing.T) {
 	defaultTheme := theme.StaticDefault()
 	ctx, cancel := context.WithCancel(context.TODO())

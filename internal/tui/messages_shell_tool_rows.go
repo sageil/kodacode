@@ -14,14 +14,32 @@ const (
 )
 
 func renderShellTurnToolOutcomeSections(m Model, state events.SessionState, refs []sessionToolCallRef, width int) []transcriptSection {
-	rows := deriveTurnToolOutcomeRows(state, refs)
+	rows := deriveUngroupedToolOutcomeRows(state, refs)
 	if len(rows) == 0 {
 		return nil
 	}
 	sections := make([]transcriptSection, 0, len(rows))
+	compactLines := make([]string, 0, len(rows))
+	compactRefs := make(map[sessionToolCallRef]int, len(rows))
+	flushCompact := func() {
+		if len(compactLines) == 0 {
+			return
+		}
+		lineRefs := make(map[sessionToolCallRef]int, len(compactRefs))
+		for ref, line := range compactRefs {
+			lineRefs[ref] = line
+		}
+		sections = append(sections, transcriptSection{
+			content:      strings.Join(compactLines, "\n"),
+			toolLineRefs: lineRefs,
+		})
+		compactLines = compactLines[:0]
+		clear(compactRefs)
+	}
 	for _, row := range rows {
 		_, call := sessionToolCall(state, row.Ref)
 		if call != nil && strings.TrimSpace(call.ToolName) == "question" {
+			flushCompact()
 			if content := strings.TrimSpace(renderQuestionOutcomeTranscriptSection(m, state, row.Ref, call, width)); content != "" {
 				sections = append(sections, transcriptSection{content: content, toolRefs: []sessionToolCallRef{row.Ref}})
 			}
@@ -29,6 +47,12 @@ func renderShellTurnToolOutcomeSections(m Model, state events.SessionState, refs
 		}
 		if row.Kind == toolOutcomeMutation || isMutationToolCall(call) {
 			if content := strings.TrimSpace(renderShellMutationToolTranscriptSection(m, state, row.Ref, call, width)); content != "" {
+				if transcriptRenderedLineCount(content) == 1 {
+					compactRefs[row.Ref] = len(compactLines)
+					compactLines = append(compactLines, content)
+					continue
+				}
+				flushCompact()
 				sections = append(sections, transcriptSection{content: content, toolRefs: []sessionToolCallRef{row.Ref}})
 			}
 			continue
@@ -37,8 +61,10 @@ func renderShellTurnToolOutcomeSections(m Model, state events.SessionState, refs
 		if strings.TrimSpace(content) == "" {
 			continue
 		}
-		sections = append(sections, transcriptSection{content: content, toolRefs: []sessionToolCallRef{row.Ref}})
+		compactRefs[row.Ref] = len(compactLines)
+		compactLines = append(compactLines, content)
 	}
+	flushCompact()
 	return sections
 }
 
@@ -46,7 +72,7 @@ func renderShellToolTranscriptSection(m Model, state events.SessionState, ref se
 	if call != nil && strings.TrimSpace(call.ToolName) == "question" {
 		return renderQuestionOutcomeTranscriptSection(m, state, ref, call, width)
 	}
-	rows := deriveTurnToolOutcomeRows(state, []sessionToolCallRef{ref})
+	rows := deriveUngroupedToolOutcomeRows(state, []sessionToolCallRef{ref})
 	if len(rows) == 0 {
 		return ""
 	}
@@ -120,16 +146,10 @@ func renderShellToolOutcomeLine(m Model, state events.SessionState, row toolOutc
 
 func shellToolRowLabel(state events.SessionState, row toolOutcomeRow, call *events.ToolCallState) string {
 	label := strings.TrimSpace(row.Label)
-	singularExploration := shellToolRowSingularExploration(row)
-	if row.Kind == toolOutcomeExploration && singularExploration && call != nil {
-		if callLabel := strings.TrimSpace(groupedToolItemLabel(state.WorkspaceRoot, call)); callLabel != "" {
-			label = callLabel
-		}
+	if shellLayoutToolRowShouldUseConciseLabel(row, call) {
+		label = shellToolConciseLabel(state, call, label)
 	}
 	if detail := strings.TrimSpace(row.Detail); detail != "" {
-		if singularExploration {
-			return singleLineToolText(label)
-		}
 		if label == "" {
 			label = detail
 		} else if !strings.Contains(label, detail) {
@@ -139,10 +159,72 @@ func shellToolRowLabel(state events.SessionState, row toolOutcomeRow, call *even
 	return singleLineToolText(label)
 }
 
+func shellLayoutToolRowShouldUseConciseLabel(row toolOutcomeRow, call *events.ToolCallState) bool {
+	return call != nil && row.Kind == toolOutcomeExploration
+}
+
+func shellToolConciseLabel(state events.SessionState, call *events.ToolCallState, fallback string) string {
+	label := strings.TrimSpace(fallback)
+	switch strings.TrimSpace(call.ToolName) {
+	case "read":
+		if input, ok := parseReadToolViewInput(call.Input); ok && len(input.Paths) == 1 {
+			label = displayToolBaseName(state.WorkspaceRoot, input.Paths[0])
+		} else {
+			label = strings.TrimPrefix(label, "Read ")
+			label = strings.TrimPrefix(label, "Reading ")
+		}
+	case "locate":
+		if input, ok := parseLocateToolViewInput(call.Input); ok {
+			path := displayToolPath(state.WorkspaceRoot, input.Path)
+			query := strings.TrimSpace(input.Query)
+			switch {
+			case path != "." && path != "" && query != "":
+				label = query + " under " + path
+			case query != "":
+				label = query
+			case path != "." && path != "":
+				label = path
+			default:
+				label = "workspace"
+			}
+		} else {
+			label = strings.TrimPrefix(label, "Locate ")
+			label = strings.TrimPrefix(label, "Locating ")
+		}
+	case "search":
+		label = strings.TrimPrefix(label, "Search ")
+		label = strings.TrimPrefix(label, "Searching ")
+	case "bash":
+		label = strings.TrimPrefix(label, "Shell: ")
+		label = strings.TrimPrefix(label, "Shell")
+	default:
+		display := strings.TrimSpace(toolDisplayNameForSession(state, call))
+		for _, prefix := range []string{display + " ", titleCaseASCII(display) + " "} {
+			label = strings.TrimPrefix(label, prefix)
+		}
+	}
+	if label == "" {
+		label = strings.TrimSpace(fallback)
+	}
+	return label
+}
+
+func titleCaseASCII(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	first := value[0]
+	if first >= 'a' && first <= 'z' {
+		first -= 'a' - 'A'
+	}
+	return string(first) + value[1:]
+}
+
 func shellToolRowKind(row toolOutcomeRow, call *events.ToolCallState) string {
 	switch row.Kind {
 	case toolOutcomeExploration:
-		if shellToolRowSingularExploration(row) && call != nil {
+		if call != nil {
 			return shellToolKind(call)
 		}
 		return "scan"
@@ -162,14 +244,6 @@ func shellToolRowKind(row toolOutcomeRow, call *events.ToolCallState) string {
 		}
 		return "tool"
 	}
-}
-
-func shellToolRowSingularExploration(row toolOutcomeRow) bool {
-	if row.Kind != toolOutcomeExploration {
-		return false
-	}
-	detail := strings.TrimSpace(row.Detail)
-	return strings.HasPrefix(detail, "1 ") && !strings.Contains(detail, " · ")
 }
 
 func shellToolRowRight(state events.SessionState, ref sessionToolCallRef, status string, selected bool) string {
