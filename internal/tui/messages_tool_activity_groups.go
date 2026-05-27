@@ -115,16 +115,16 @@ func renderWideToolGroupItemLine(m Model, workspaceRoot string, ref sessionToolC
 		}
 	}
 	status := normalizeOutcomeStatus(toolStatus(call))
-	prefixText := terminalIcon(terminalIconBranch) + " "
+	prefixText := m.terminalIcon(terminalIconBranch) + " "
 	prefixColor := colorFor(m.theme, "subtext", "#9da8ca")
 	labelColor := colorFor(m.theme, "text", "#ecf0ff")
 	switch status {
 	case "error":
-		prefixText = terminalIcon(terminalIconToolError) + " "
+		prefixText = m.terminalIcon(terminalIconToolError) + " "
 		prefixColor = colorFor(m.theme, "error", "#ff9aa6")
 		labelColor = colorFor(m.theme, "error", "#ff9aa6")
 	case "running", "preparing", "building":
-		prefixText = terminalIcon(terminalIconBullet) + " "
+		prefixText = m.terminalIcon(terminalIconBullet) + " "
 		prefixColor = colorFor(m.theme, "warning", "#ffd28f")
 	}
 	prefix := lipgloss.NewStyle().
@@ -187,7 +187,7 @@ func renderTaskListGroupItemLine(m Model, label, status string, width int, selec
 	}
 	prefix := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(colorFor(m.theme, "subtext", "#9da8ca"))).
-		Render(terminalIcon(terminalIconBranch) + " ")
+		Render(m.terminalIcon(terminalIconBranch) + " ")
 	labelStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(colorFor(m.theme, "text", "#ecf0ff")))
 	if selected {
@@ -195,7 +195,7 @@ func renderTaskListGroupItemLine(m Model, label, status string, width int, selec
 			Foreground(lipgloss.Color(colorFor(m.theme, "primary", "#7cc7ff"))).
 			Bold(true)
 	}
-	leftWidth := max(width-ansi.StringWidth(terminalIcon(terminalIconBranch)+" ")-len(statusLabel)-1, 1)
+	leftWidth := max(width-ansi.StringWidth(m.terminalIcon(terminalIconBranch)+" ")-len(statusLabel)-1, 1)
 	left := prefix + labelStyle.Render(truncateEnd(singleLineToolText(label), leftWidth))
 	if statusLabel == "" {
 		return left

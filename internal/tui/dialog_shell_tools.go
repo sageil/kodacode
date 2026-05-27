@@ -17,6 +17,7 @@ type shellToolsDialogResult struct {
 
 type shellToolsDialog struct {
 	theme       *theme.Theme
+	icons       terminalIconProfile
 	sessionID   string
 	state       events.SessionState
 	refs        []sessionToolCallRef
@@ -35,6 +36,7 @@ const (
 func newShellToolsDialog(m Model, state events.SessionState) *shellToolsDialog {
 	dialog := &shellToolsDialog{
 		theme:       m.theme,
+		icons:       m.terminalIcons,
 		sessionID:   strings.TrimSpace(m.sessionID),
 		state:       state,
 		refs:        shellToolsDialogRefs(state),
@@ -277,7 +279,7 @@ func (d *shellToolsDialog) renderRow(ref sessionToolCallRef, call *events.ToolCa
 }
 
 func (d *shellToolsDialog) renderRowLeft(call *events.ToolCallState, status string, width int) string {
-	icon := toolStatusSymbol(status)
+	icon := d.icons.ToolStatusSymbol(status)
 	kind := shellToolKind(call)
 	prefix := icon + " " + padRight(truncateEnd(kind, 10), 10) + " "
 	label := shellToolPrimaryLabel(d.state, call)

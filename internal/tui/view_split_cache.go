@@ -30,7 +30,7 @@ func splitWideViewCacheKeyForLayout(m Model, state events.SessionState, layout s
 	writeTranscriptSignatureInt(hasher, max(layout.rightWidth, 0))
 	writeTranscriptSignatureInt(hasher, max(layout.contentHeight, 1))
 	writeTranscriptSignatureBool(hasher, layout.showInspector)
-	writeTranscriptSignatureString(hasher, modelThemeCacheKey(m))
+	writeTranscriptSignatureString(hasher, modelRenderCacheKey(m))
 	writeTranscriptSignatureString(hasher, string(m.chrome.focus))
 	writeTranscriptSignatureBool(hasher, m.transcriptView.visualActive)
 	writeTranscriptSignatureBool(hasher, m.shouldAnimateTranscriptActivity())

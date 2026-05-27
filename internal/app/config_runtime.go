@@ -61,6 +61,7 @@ type TUISettings struct {
 	ThemeName      string
 	DisplayTurns   int
 	Layout         string
+	TerminalIcons  string
 	ShellToolCalls bool
 }
 
@@ -84,6 +85,7 @@ func LoadTUISettingsWithSources(
 		ThemeName:      strings.TrimSpace(storedConfig.TUI.Theme),
 		DisplayTurns:   normalizedTUIDisplayTurns(storedConfig.TUI.DisplayTurns),
 		Layout:         normalizedTUILayout(storedConfig.TUI.Layout),
+		TerminalIcons:  normalizedTUITerminalIcons(storedConfig.TUI.TerminalIcons),
 		ShellToolCalls: normalizedTUIShellToolCalls(storedConfig.TUI.ShellToolCalls),
 	}, nil
 }
@@ -116,6 +118,15 @@ func normalizedTUILayout(value string) string {
 		return "shell"
 	default:
 		return ""
+	}
+}
+
+func normalizedTUITerminalIcons(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "ascii":
+		return "ascii"
+	default:
+		return "unicode"
 	}
 }
 

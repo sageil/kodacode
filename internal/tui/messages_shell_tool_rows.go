@@ -95,7 +95,7 @@ func (r shellToolTranscriptRow) leftText(m Model, width int) string {
 		marker = ">"
 	}
 	kindWidth := shellToolRowKindWidth(width)
-	icon := toolStatusSymbol(r.status)
+	icon := m.toolStatusSymbol(r.status)
 	prefixPlain := marker + " " + icon + " "
 	if kindWidth > 0 {
 		prefixPlain += padRight(truncateEnd(r.kind, kindWidth), kindWidth) + " "

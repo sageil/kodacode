@@ -49,8 +49,10 @@ func transcriptSelectionLinesForContent(content string) []transcriptSelectionLin
 	for _, line := range lines {
 		stripped := ansi.Strip(line)
 		switch {
-		case stripped == userPromptRailGlyph:
+		case stripped == userPromptRailGlyph || stripped == asciiUserPromptRailGlyph:
 			selection = append(selection, transcriptSelectionLine{})
+		case strings.HasPrefix(stripped, asciiUserPromptContentPrefixValue):
+			selection = append(selection, newTranscriptSelectionLine(strings.TrimPrefix(stripped, asciiUserPromptContentPrefixValue), transcriptGraphemeCount(asciiUserPromptContentPrefixValue)))
 		case strings.HasPrefix(stripped, userPromptContentPrefix()):
 			selection = append(selection, newTranscriptSelectionLine(strings.TrimPrefix(stripped, userPromptContentPrefix()), userPromptContentPrefixGraphemeCount))
 		default:

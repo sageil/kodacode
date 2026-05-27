@@ -42,7 +42,7 @@ func transcriptRenderCacheKey(kind string, m Model, width int, parts ...string) 
 	b.WriteString("\x00")
 	b.WriteString(strconv.Itoa(max(width, 1)))
 	b.WriteString("\x00")
-	b.WriteString(modelThemeCacheKey(m))
+	b.WriteString(modelRenderCacheKey(m))
 	for _, part := range parts {
 		b.WriteString("\x00")
 		b.WriteString(part)

@@ -134,6 +134,7 @@ type StoredTUIConfig struct {
 	Theme          string `yaml:"theme,omitempty"`
 	DisplayTurns   int    `yaml:"display_turns,omitempty"`
 	Layout         string `yaml:"layout,omitempty"`
+	TerminalIcons  string `yaml:"terminal_icons,omitempty"`
 	ShellToolCalls *bool  `yaml:"shell_tool_calls,omitempty"`
 }
 

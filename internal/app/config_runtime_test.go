@@ -890,6 +890,7 @@ func TestLoadTUISettingsWithSourcesIncludesDisplayTurns(t *testing.T) {
 				Theme:          "nord",
 				DisplayTurns:   6,
 				Layout:         "shell",
+				TerminalIcons:  "ascii",
 				ShellToolCalls: boolPtr(false),
 			},
 		}},
@@ -905,6 +906,9 @@ func TestLoadTUISettingsWithSourcesIncludesDisplayTurns(t *testing.T) {
 	}
 	if settings.Layout != "shell" {
 		t.Fatalf("layout = %q, want shell", settings.Layout)
+	}
+	if settings.TerminalIcons != "ascii" {
+		t.Fatalf("terminal icons = %q, want ascii", settings.TerminalIcons)
 	}
 	if settings.ShellToolCalls {
 		t.Fatal("shell tool calls = true, want false")
@@ -923,6 +927,9 @@ func TestLoadTUISettingsWithSourcesNormalizesNegativeDisplayTurns(t *testing.T) 
 	}
 	if settings.DisplayTurns != 0 {
 		t.Fatalf("display turns = %d, want 0", settings.DisplayTurns)
+	}
+	if settings.TerminalIcons != "unicode" {
+		t.Fatalf("terminal icons = %q, want unicode", settings.TerminalIcons)
 	}
 	if !settings.ShellToolCalls {
 		t.Fatal("shell tool calls should default to true")

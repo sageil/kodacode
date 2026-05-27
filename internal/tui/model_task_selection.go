@@ -11,7 +11,7 @@ import (
 func (m *Model) moveSelectedInspectorTask(delta int) tea.Cmd {
 	state := m.projector.Snapshot()
 	if strings.TrimSpace(m.selection.taskID) == "" && delta >= 0 {
-		if taskID := inspectorPreferredTaskID(state); taskID != "" {
+		if taskID := inspectorPreferredTaskID(*m, state); taskID != "" {
 			return m.selectTask(taskID)
 		}
 	}
@@ -141,14 +141,14 @@ func inspectorActiveTaskID(m Model, state events.SessionState) (string, bool) {
 	if index := indexOfString(taskIDs, selected); index >= 0 {
 		return taskIDs[index], true
 	}
-	if preferred := inspectorPreferredTaskID(state); preferred != "" {
+	if preferred := inspectorPreferredTaskID(m, state); preferred != "" {
 		return preferred, true
 	}
 	return taskIDs[0], true
 }
 
-func inspectorPreferredTaskID(state events.SessionState) string {
-	rows := orderedInspectorTaskRows(state)
+func inspectorPreferredTaskID(m Model, state events.SessionState) string {
+	rows := orderedInspectorTaskRows(m, state)
 	if len(rows) == 0 {
 		return ""
 	}
@@ -185,7 +185,7 @@ func inspectorVisibleTaskIDs(m Model, state events.SessionState) []string {
 		}
 	}
 
-	rows := orderedInspectorTaskRows(state)
+	rows := orderedInspectorTaskRows(m, state)
 	if len(rows) == 0 {
 		return nil
 	}

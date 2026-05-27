@@ -16,13 +16,13 @@ func headerModelCapabilitiesLabel(m Model, state events.SessionState) string {
 	}
 	parts := make([]string, 0, 3)
 	if model.Reasoning {
-		parts = append(parts, terminalIcon(terminalIconCheck)+"R")
+		parts = append(parts, m.terminalIcon(terminalIconCheck)+"R")
 	}
 	if model.ToolCalls {
-		parts = append(parts, terminalIcon(terminalIconCheck)+"T")
+		parts = append(parts, m.terminalIcon(terminalIconCheck)+"T")
 	}
 	if model.Vision {
-		parts = append(parts, terminalIcon(terminalIconCheck)+"V")
+		parts = append(parts, m.terminalIcon(terminalIconCheck)+"V")
 	}
 	return strings.Join(parts, " ")
 }

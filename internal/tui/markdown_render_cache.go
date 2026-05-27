@@ -54,7 +54,7 @@ func markdownSurfaceRenderContextKey(kind string, m Model, width int, bg string)
 	b.WriteString("\x00")
 	b.WriteString(strings.TrimSpace(bg))
 	b.WriteString("\x00")
-	b.WriteString(modelThemeCacheKey(m))
+	b.WriteString(modelRenderCacheKey(m))
 	return b.String()
 }
 

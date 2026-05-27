@@ -50,3 +50,18 @@ func TestTerminalSafeGlyphFallsBackForWideOrEmptyGlyphs(t *testing.T) {
 		t.Fatalf("wide glyph fallback = %q, want x", got)
 	}
 }
+
+func TestTerminalIconProfilesUseUnicodeByDefaultAndASCIIWhenConfigured(t *testing.T) {
+	if got := terminalIconProfileForMode("").Icon(terminalIconPromptRail); got != "▌" {
+		t.Fatalf("default prompt rail = %q, want unicode rail", got)
+	}
+	if got := terminalIconProfileForMode("unknown").Name; got != "unicode" {
+		t.Fatalf("unknown icon profile = %q, want unicode", got)
+	}
+	if got := terminalIconProfileForMode("ascii").Icon(terminalIconPromptRail); got != "|" {
+		t.Fatalf("ascii prompt rail = %q, want |", got)
+	}
+	if got := terminalIconProfileForMode("ascii").ToolStatusSymbol("done"); got != "*" {
+		t.Fatalf("ascii done status = %q, want *", got)
+	}
+}

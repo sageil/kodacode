@@ -17,6 +17,7 @@ type skillsDialog struct {
 	frameWidth  int
 	frameHeight int
 	theme       *theme.Theme
+	icons       terminalIconProfile
 
 	paletteListState
 
@@ -37,6 +38,7 @@ func newSkillsDialog(items []skillItem, current []string, th *theme.Theme) *skil
 		frameWidth:  96,
 		frameHeight: 32,
 		theme:       th,
+		icons:       defaultTerminalIconProfile,
 		paletteListState: newPaletteListState(
 			commandPaletteMaxVisible,
 		),

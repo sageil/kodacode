@@ -22,7 +22,7 @@ type inspectorTasksRender struct {
 
 func renderWideTasksList(m Model, state events.SessionState, width int) string {
 	label := renderWidePaneTitle(m, "Tasks", "", width, colorFor(m.theme, "secondary", "#ff79c6"))
-	rows := orderedWideTaskRows(state)
+	rows := orderedWideTaskRows(m, state)
 	if len(rows) == 0 {
 		return ""
 	}
@@ -33,8 +33,8 @@ func renderWideTasksList(m Model, state events.SessionState, width int) string {
 	return label + "\n" + strings.Join(lines, "\n")
 }
 
-func orderedWideTaskRows(state events.SessionState) []inspectorTaskRow {
-	return orderedInspectorTaskRows(state)
+func orderedWideTaskRows(m Model, state events.SessionState) []inspectorTaskRow {
+	return orderedInspectorTaskRows(m, state)
 }
 
 func renderTasksInspector(m Model, state events.SessionState, width int) string {
@@ -42,7 +42,7 @@ func renderTasksInspector(m Model, state events.SessionState, width int) string 
 }
 
 func renderTasksInspectorView(m Model, state events.SessionState, width int) inspectorTasksRender {
-	rows := orderedInspectorTaskRows(state)
+	rows := orderedInspectorTaskRows(m, state)
 	if len(rows) == 0 {
 		body := emptyTasksInspectorBody(m)
 		if isWideShell(m) {
@@ -83,7 +83,7 @@ type inspectorTaskTreeNode struct {
 	children []*inspectorTaskTreeNode
 }
 
-func orderedInspectorTaskRows(state events.SessionState) []inspectorTaskRow {
+func orderedInspectorTaskRows(m Model, state events.SessionState) []inspectorTaskRow {
 	if len(state.TaskOrder) == 0 {
 		return nil
 	}
@@ -145,7 +145,7 @@ func orderedInspectorTaskRows(state events.SessionState) []inspectorTaskRow {
 			label:      strings.TrimSpace(node.task.Title),
 			status:     inspectorTaskStatus(node.task),
 			active:     strings.TrimSpace(node.task.Status) == events.TaskStatusInProgress,
-			treePrefix: inspectorTaskTreePrefix(branchState),
+			treePrefix: inspectorTaskTreePrefix(m, branchState),
 		})
 		for idx, child := range node.children {
 			nextState := make([]bool, 0, len(branchState)+1)
@@ -166,11 +166,11 @@ func orderedInspectorTaskRows(state events.SessionState) []inspectorTaskRow {
 	return rows
 }
 
-func inspectorTaskTreePrefix(branchState []bool) string {
+func inspectorTaskTreePrefix(m Model, branchState []bool) string {
 	if len(branchState) == 0 {
 		return ""
 	}
-	return strings.Repeat("  ", len(branchState)-1) + " " + terminalIcon(terminalIconBranch) + " "
+	return strings.Repeat("  ", len(branchState)-1) + " " + m.terminalIcon(terminalIconBranch) + " "
 }
 
 func renderInspectorTaskRow(m Model, row inspectorTaskRow, width int) string {
@@ -183,7 +183,7 @@ func renderInspectorTaskRow(m Model, row inspectorTaskRow, width int) string {
 		labelColor = colorFor(m.theme, "primary", "#7cc7ff")
 	}
 	prefixText := row.treePrefix
-	statusBadge := taskStatusBadge(row.status)
+	statusBadge := taskStatusBadge(m, row.status)
 	prefixRendered := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(colorFor(m.theme, "subtext", "#9da8ca"))).
 		Render(prefixText)
@@ -197,10 +197,10 @@ func renderInspectorTaskRow(m Model, row inspectorTaskRow, width int) string {
 	return prefixRendered + statusRendered + " " + labelRendered
 }
 
-func taskStatusBadge(status string) string {
+func taskStatusBadge(m Model, status string) string {
 	switch strings.TrimSpace(status) {
 	case "done":
-		return "[" + terminalIcon(terminalIconCheck) + "]"
+		return "[" + m.terminalIcon(terminalIconCheck) + "]"
 	case "running":
 		return "[>]"
 	case "blocked":

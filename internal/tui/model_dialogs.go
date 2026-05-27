@@ -166,7 +166,7 @@ func (m *Model) openTrustDialog() tea.Cmd {
 		if err != nil {
 			return dialogOpenedMsg{err: err}
 		}
-		dialog := newTrustDialog(state, m.theme)
+		dialog := newTrustDialogWithIcons(state, m.theme, m.terminalIcons)
 		width, height := dialogRenderSize(*m, m.projector.CurrentState())
 		dialog.SetFrame(width, height)
 		return dialogOpenedMsg{dialog: dialog}
@@ -371,7 +371,7 @@ func (m *Model) handleDialogClosed(msg dialogClosedMsg) (tea.Model, tea.Cmd) {
 		if !ok {
 			return *m, nil
 		}
-		return *m, revokeTrustAndReopenDialogCmd(m.ctx, m.backend, m.sessionID, m.workspace, result, m.theme, m.width, m.height)
+		return *m, revokeTrustAndReopenDialogCmd(m.ctx, m.backend, m.sessionID, m.workspace, result, m.theme, m.terminalIcons, m.width, m.height)
 	case dialogIDReasoningVariant:
 		result, ok := msg.result.(reasoningVariantDialogResult)
 		if !ok {

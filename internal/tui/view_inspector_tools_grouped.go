@@ -311,9 +311,9 @@ func buildInspectorToolGroups(state events.SessionState, refs []sessionToolCallR
 }
 
 func renderInspectorToolGroupHeader(m Model, title, status string, width int, collapsed bool, depth int) string {
-	indicator := terminalIcon(terminalIconExpanded)
+	indicator := m.terminalIcon(terminalIconExpanded)
 	if collapsed {
-		indicator = terminalIcon(terminalIconCollapsed)
+		indicator = m.terminalIcon(terminalIconCollapsed)
 	}
 	indent := inspectorTreeIndent(depth)
 	return indent + renderWideToolHeader(m, indicator+" "+title, status, max(width-len(indent), 1))

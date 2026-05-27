@@ -26,13 +26,14 @@ func renderUserPromptBlock(m Model, width int, body string) string {
 var (
 	userPromptContentPrefixValue         = userPromptRailGlyph + userPromptInnerPadding
 	userPromptContentPrefixGraphemeCount = transcriptGraphemeCount(userPromptContentPrefixValue)
+	asciiUserPromptContentPrefixValue    = asciiUserPromptRailGlyph + userPromptInnerPadding
 )
 
 func transcriptRailSelectionLines(m Model, body string, width int) []transcriptSelectionLine {
-	bodyLines := wrapTranscriptText(body, max(width-ansi.StringWidth(userPromptContentPrefix()), 1))
+	bodyLines := wrapTranscriptText(body, max(width-ansi.StringWidth(m.userPromptContentPrefix()), 1))
 	lines := make([]transcriptSelectionLine, 0, len(bodyLines))
 	for _, line := range bodyLines {
-		lines = append(lines, newTranscriptSelectionLine(line, userPromptContentPrefixGraphemeCount))
+		lines = append(lines, newTranscriptSelectionLine(line, m.userPromptContentPrefixGraphemeCount()))
 	}
 	return lines
 }
@@ -41,13 +42,26 @@ func userPromptContentPrefix() string {
 	return userPromptContentPrefixValue
 }
 
+func (m Model) userPromptRailGlyph() string {
+	return m.terminalIcon(terminalIconPromptRail)
+}
+
+func (m Model) userPromptContentPrefix() string {
+	return m.userPromptRailGlyph() + userPromptInnerPadding
+}
+
+func (m Model) userPromptContentPrefixGraphemeCount() int {
+	return transcriptGraphemeCount(m.userPromptContentPrefix())
+}
+
 func renderTranscriptRailBlock(kind string, m Model, width int, body, accent, textColor string) string {
 	return cachedTranscriptRender(kind, m, width, func() string {
-		bodyLines := wrapTranscriptText(body, max(width-ansi.StringWidth(userPromptContentPrefix()), 1))
+		prefix := m.userPromptContentPrefix()
+		bodyLines := wrapTranscriptText(body, max(width-ansi.StringWidth(prefix), 1))
 		content := make([]string, 0, len(bodyLines))
 		rail := lipgloss.NewStyle().
 			Foreground(lipgloss.Color(accent)).
-			Render(userPromptRailGlyph)
+			Render(m.userPromptRailGlyph())
 		textStyle := lipgloss.NewStyle().
 			Foreground(lipgloss.Color(textColor))
 		for _, line := range bodyLines {

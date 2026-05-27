@@ -43,7 +43,7 @@ func turnTranscriptChunkCacheKeyWithOptions(m Model, state events.SessionState, 
 	b.WriteString("turn_chunk\x00")
 	b.WriteString(strconv.Itoa(max(width, 1)))
 	b.WriteString("\x00")
-	b.WriteString(modelThemeCacheKey(m))
+	b.WriteString(modelRenderCacheKey(m))
 	b.WriteString("\x00")
 	if isWideShell(m) {
 		b.WriteString("wide")

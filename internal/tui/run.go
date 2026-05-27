@@ -105,13 +105,14 @@ func RunWithBackend(backend Backend, opts RunOpts) error {
 		return err
 	}
 	repairStartupThemeSelection(themeName, resolvedThemeName, fellBack)
+	terminalIcons := terminalIconProfileForMode(tuiSettings.TerminalIcons)
 
 	pendingTrust, err := backend.EvaluateStartupTrust(opts.Context, workspaceRoot)
 	if err != nil {
 		return err
 	}
 	if pendingTrust.Pending() {
-		decision, proceed, err := promptStartupTrustTUI(in, out, activeTheme, pendingTrust)
+		decision, proceed, err := promptStartupTrustTUI(in, out, activeTheme, terminalIcons, pendingTrust)
 		if err != nil {
 			return err
 		}
@@ -170,6 +171,7 @@ func RunWithBackend(backend Backend, opts RunOpts) error {
 		Theme:              activeTheme,
 		ThemeName:          resolvedThemeName,
 		Layout:             tuiSettings.Layout,
+		TerminalIcons:      tuiSettings.TerminalIcons,
 		HideShellToolCalls: !tuiSettings.ShellToolCalls,
 		DisplayTurns:       tuiSettings.DisplayTurns,
 		SessionID:          sessionID,

@@ -19,6 +19,7 @@ type toolDetailDialog struct {
 	frameWidth        int
 	frameHeight       int
 	theme             *theme.Theme
+	icons             terminalIconProfile
 	title             string
 	subtitle          string
 	body              Messages
@@ -58,6 +59,7 @@ func newToolDetailDialogForSession(m Model, sessionID string, state events.Sessi
 		frameWidth:      108,
 		frameHeight:     32,
 		theme:           m.theme,
+		icons:           m.terminalIcons,
 		body:            body,
 		markdownStreams: newStreamingMarkdownSurfaceCache(16),
 		ctx:             m.ctx,
@@ -152,7 +154,7 @@ func (d *toolDetailDialog) Draw(surface dialogSurface, area dialogRenderArea) *t
 		d.theme,
 		max(width-dialogFrameInset*2, 1),
 		summary,
-		renderToolDetailDialogViewport(d.theme, d.body, toolDetailDialogContentWidth(width)),
+		renderToolDetailDialogViewport(d.theme, d.icons, d.body, toolDetailDialogContentWidth(width)),
 		d.hint(),
 	)
 	return drawDialogFrameOnSurfaceWithTone(surface, area, d.theme, width, content, nil, scrollableDetailDialogCardTone)
@@ -237,13 +239,13 @@ func toolDetailDialogBodyWidth(dialogWidth int) int {
 	return max(toolDetailDialogContentWidth(dialogWidth)-transcriptScrollbarWidth, 1)
 }
 
-func renderToolDetailDialogViewport(th *theme.Theme, body Messages, width int) string {
+func renderToolDetailDialogViewport(th *theme.Theme, icons terminalIconProfile, body Messages, width int) string {
 	height := min(max(body.TotalLineCount(), 1), max(body.Height(), 1))
 	content := strings.TrimRight(body.View(), "\n")
 	maxContentWidth := max(width-transcriptScrollbarWidth, 1)
 	contentWidth := min(max(blockWidth(content), 1), maxContentWidth)
 	lines := strings.Split(content, "\n")
-	gutter := renderToolDetailDialogScrollbar(th, body, height)
+	gutter := renderToolDetailDialogScrollbar(th, icons, body, height)
 	bg := toneValue(th, body.surfaceTone())
 	viewportWidth := contentWidth + transcriptScrollbarWidth
 
@@ -265,7 +267,7 @@ func renderToolDetailDialogViewport(th *theme.Theme, body Messages, width int) s
 	return strings.Join(lines, "\n")
 }
 
-func renderToolDetailDialogScrollbar(th *theme.Theme, body Messages, height int) []string {
+func renderToolDetailDialogScrollbar(th *theme.Theme, icons terminalIconProfile, body Messages, height int) []string {
 	if height <= 0 {
 		return nil
 	}
@@ -293,7 +295,7 @@ func renderToolDetailDialogScrollbar(th *theme.Theme, body Messages, height int)
 	lines := blankTranscriptScrollbar(height)
 	for i := 0; i < height; i++ {
 		if i >= thumbStart && i < thumbStart+thumbHeight {
-			lines[i] = thumbStyle.Render(transcriptScrollbarThumbGlyph)
+			lines[i] = thumbStyle.Render(icons.Icon(terminalIconScrollThumb))
 		}
 	}
 	return lines

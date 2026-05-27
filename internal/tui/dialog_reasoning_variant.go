@@ -28,6 +28,7 @@ type reasoningVariantDialog struct {
 	frameWidth  int
 	frameHeight int
 	theme       *theme.Theme
+	icons       terminalIconProfile
 	model       provider.ModelRef
 	options     []reasoningVariantDialogOption
 	cursor      int
@@ -36,7 +37,7 @@ type reasoningVariantDialog struct {
 	view        sessionView
 }
 
-func newReasoningVariantDialog(model provider.ModelRef, variants []string, current string, applyModel bool, view sessionView, th *theme.Theme) *reasoningVariantDialog {
+func newReasoningVariantDialog(model provider.ModelRef, variants []string, current string, applyModel bool, view sessionView, th *theme.Theme, icons terminalIconProfile) *reasoningVariantDialog {
 	options := buildReasoningVariantDialogOptions(variants)
 	cursor := 0
 	current = strings.TrimSpace(strings.ToLower(current))
@@ -49,6 +50,7 @@ func newReasoningVariantDialog(model provider.ModelRef, variants []string, curre
 	return &reasoningVariantDialog{
 		id:         dialogIDReasoningVariant,
 		theme:      th,
+		icons:      icons,
 		model:      model,
 		options:    options,
 		cursor:     cursor,
@@ -209,8 +211,8 @@ func (d *reasoningVariantDialog) bodyView() string {
 	selected := dialogSelectedItemStyle(d.theme)
 	normal := dialogItemStyle(d.theme)
 	subtle := dialogHintStyle(d.theme)
-	cursorGlyph := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colorFor(d.theme, "primary", "#7aa2f7"))).Render(terminalIcon(terminalIconCursor))
-	activeGlyph := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#9ece6a")).Render(terminalIcon(terminalIconCheck))
+	cursorGlyph := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colorFor(d.theme, "primary", "#7aa2f7"))).Render(d.icons.Icon(terminalIconCursor))
+	activeGlyph := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#9ece6a")).Render(d.icons.Icon(terminalIconCheck))
 
 	maxLabelWidth := 0
 	for _, opt := range d.options {

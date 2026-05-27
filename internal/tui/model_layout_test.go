@@ -431,6 +431,42 @@ func TestShellToolCompactRowsFitWidthsAndShowActiveStatuses(t *testing.T) {
 	}
 }
 
+func TestShellToolCompactRowsUseConfiguredASCIIIcons(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context:       ctx,
+		Theme:         &defaultTheme,
+		Layout:        "shell",
+		TerminalIcons: "ascii",
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: "/repo",
+	})
+	state := events.SessionState{
+		SessionID:     "session-1",
+		WorkspaceRoot: "/repo",
+		TurnOrder:     []string{"turn-1"},
+		Turns:         map[string]*events.TurnState{"turn-1": {TurnID: "turn-1"}},
+	}
+	row := toolOutcomeRow{
+		Kind:   toolOutcomeCommand,
+		Label:  "npm test",
+		Status: "done",
+		Ref:    sessionToolCallRef{TurnID: "turn-1", CallID: "call-done"},
+	}
+
+	rendered := ansi.Strip(renderShellToolOutcomeLine(model, state, row, nil, 80, false))
+	if !strings.Contains(rendered, "*") {
+		t.Fatalf("ascii shell tool row missing ascii status icon:\n%s", rendered)
+	}
+	if strings.Contains(rendered, "✓") {
+		t.Fatalf("ascii shell tool row rendered unicode status icon:\n%s", rendered)
+	}
+}
+
 func TestShellToolTranscriptRowCachePartsTrackRenderState(t *testing.T) {
 	state := events.SessionState{
 		SessionID:     "session-1",

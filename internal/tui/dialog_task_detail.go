@@ -17,6 +17,7 @@ type taskDetailDialog struct {
 	frameWidth  int
 	frameHeight int
 	theme       *theme.Theme
+	icons       terminalIconProfile
 	title       string
 	subtitle    string
 	body        Messages
@@ -32,6 +33,7 @@ func newTaskDetailDialog(m Model, state events.SessionState, taskID string, task
 		frameWidth:  108,
 		frameHeight: 32,
 		theme:       m.theme,
+		icons:       m.terminalIcons,
 		body:        body,
 	}
 	width, height := dialogRenderSize(m, state)
@@ -118,7 +120,7 @@ func (d *taskDetailDialog) Draw(surface dialogSurface, area dialogRenderArea) *t
 		d.theme,
 		max(width-dialogFrameInset*2, 1),
 		subtitle,
-		renderToolDetailDialogViewport(d.theme, d.body, toolDetailDialogContentWidth(width)),
+		renderToolDetailDialogViewport(d.theme, d.icons, d.body, toolDetailDialogContentWidth(width)),
 		"q close • ↑/↓ scroll • pgup/pgdn page",
 	)
 	return drawDialogFrameOnSurfaceWithTone(surface, area, d.theme, width, content, nil, scrollableDetailDialogCardTone)

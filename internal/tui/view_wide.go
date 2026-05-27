@@ -85,7 +85,7 @@ func renderWideToolTimelineRow(m Model, state events.SessionState, call *events.
 	label, target := wideToolDescriptor(state, call)
 	status := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(wideToolTone(m, call))).
-		Render(wideToolStatusSummary(call))
+		Render(wideToolStatusSummary(m, call))
 	leftWidth := max(width-lipgloss.Width(status)-1, 8)
 	targetWidth := leftWidth - len(label) - 1
 	if targetWidth < 0 {
@@ -97,7 +97,7 @@ func renderWideToolTimelineRow(m Model, state events.SessionState, call *events.
 	leftParts := []string{
 		lipgloss.NewStyle().
 			Foreground(lipgloss.Color(colorFor(m.theme, "soft", softTextColor))).
-			Render(toolStatusSymbol(toolStatus(call))),
+			Render(m.toolStatusSymbol(toolStatus(call))),
 		lipgloss.NewStyle().
 			Foreground(lipgloss.Color(colorFor(m.theme, "text", "#ecf0ff"))).
 			Render(label),
@@ -153,10 +153,10 @@ func prettyToolName(name string) string {
 	return strings.Join(parts, " ")
 }
 
-func wideToolStatusSummary(call *events.ToolCallState) string {
+func wideToolStatusSummary(m Model, call *events.ToolCallState) string {
 	if call != nil && call.Execution != nil && call.Execution.Background != nil {
 		background := call.Execution.Background
-		prefix := toolStatusSymbol(toolStatus(call))
+		prefix := m.toolStatusSymbol(toolStatus(call))
 		switch background.Status {
 		case events.ExecutionBackgroundStatusStarting:
 			return prefix + " starting"
@@ -177,7 +177,7 @@ func wideToolStatusSummary(call *events.ToolCallState) string {
 		}
 	}
 	status := toolStatus(call)
-	prefix := toolStatusSymbol(status)
+	prefix := m.toolStatusSymbol(status)
 	var label string
 	switch status {
 	case "done":
@@ -273,9 +273,9 @@ func renderWideAgentsList(m Model, state events.SessionState, width int) string 
 	header := renderWidePaneTitle(m, "Agents", "", width, colorFor(m.theme, "thinking", "#bd93f9"))
 	lines := make([]string, 0, len(rows))
 	for _, row := range rows {
-		prefix := terminalIcon(terminalIconCursor) + " "
+		prefix := m.terminalIcon(terminalIconCursor) + " "
 		if row.depth > 0 {
-			prefix = strings.Repeat("  ", row.depth) + toolStatusSymbol(row.status) + " "
+			prefix = strings.Repeat("  ", row.depth) + m.toolStatusSymbol(row.status) + " "
 		}
 		labelColor := colorFor(m.theme, "subtext", "#9da8ca")
 		if row.depth == 0 {

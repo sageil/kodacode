@@ -113,6 +113,7 @@ func revokeTrustAndReopenDialogCmd(
 	sessionID, workspaceRoot string,
 	result trustDialogResult,
 	th *tuitheme.Theme,
+	icons terminalIconProfile,
 	width, height int,
 ) tea.Cmd {
 	return func() tea.Msg {
@@ -125,7 +126,7 @@ func revokeTrustAndReopenDialogCmd(
 		if err != nil {
 			return dialogOpenedMsg{err: err}
 		}
-		dialog := newTrustDialog(state, th)
+		dialog := newTrustDialogWithIcons(state, th, icons)
 		dialog.SetFrame(width, height)
 		return dialogOpenedMsg{dialog: dialog}
 	}

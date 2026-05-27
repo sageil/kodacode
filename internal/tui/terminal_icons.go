@@ -12,6 +12,7 @@ type terminalIconCapabilities struct {
 }
 
 type terminalIconProfile struct {
+	Name         string
 	Capabilities terminalIconCapabilities
 }
 
@@ -36,18 +37,71 @@ const (
 )
 
 var defaultTerminalIconProfile = terminalIconProfile{
+	Name: "unicode",
 	Capabilities: terminalIconCapabilities{
 		Unicode: true,
 	},
+}
+
+var asciiTerminalIconProfile = terminalIconProfile{
+	Name: "ascii",
+	Capabilities: terminalIconCapabilities{
+		Unicode: false,
+	},
+}
+
+func terminalIconProfileForMode(mode string) terminalIconProfile {
+	switch strings.ToLower(strings.TrimSpace(mode)) {
+	case "ascii":
+		return asciiTerminalIconProfile
+	default:
+		return defaultTerminalIconProfile
+	}
+}
+
+func normalizedTerminalIconMode(mode string) string {
+	return terminalIconProfileForMode(mode).Name
+}
+
+func (profile terminalIconProfile) CacheKey() string {
+	name := strings.TrimSpace(profile.Name)
+	if name == "" {
+		name = "unicode"
+	}
+	return name
 }
 
 func terminalIcon(id terminalIconID) string {
 	return defaultTerminalIconProfile.Icon(id)
 }
 
+func (m Model) terminalIcon(id terminalIconID) string {
+	return m.terminalIcons.Icon(id)
+}
+
+func (m Model) toolStatusSymbol(status string) string {
+	return m.terminalIcons.ToolStatusSymbol(status)
+}
+
 func (profile terminalIconProfile) Icon(id terminalIconID) string {
 	glyph, fallback := terminalIconGlyph(id)
 	return profile.safeGlyph(glyph, fallback)
+}
+
+func (profile terminalIconProfile) ToolStatusSymbol(status string) string {
+	switch normalizeOutcomeStatus(status) {
+	case "done":
+		return profile.Icon(terminalIconToolDone)
+	case "running", "declared", "preparing", "building":
+		return profile.Icon(terminalIconToolRunning)
+	case "error":
+		return profile.Icon(terminalIconToolError)
+	default:
+		if strings.TrimSpace(status) == "blocked" {
+			return profile.Icon(terminalIconToolBlocked)
+		}
+		return profile.Icon(terminalIconToolPending)
+	}
 }
 
 func terminalIconGlyph(id terminalIconID) (string, string) {
@@ -97,7 +151,8 @@ func terminalSafeGlyph(glyph, fallback string) string {
 
 func (profile terminalIconProfile) safeGlyph(glyph, fallback string) string {
 	glyph = strings.TrimSpace(glyph)
-	if profile.Capabilities.Unicode && glyph != "" && ansi.StringWidth(glyph) == 1 {
+	unicode := profile.Capabilities.Unicode || strings.TrimSpace(profile.Name) == ""
+	if unicode && glyph != "" && ansi.StringWidth(glyph) == 1 {
 		return glyph
 	}
 	fallback = strings.TrimSpace(fallback)
@@ -108,17 +163,5 @@ func (profile terminalIconProfile) safeGlyph(glyph, fallback string) string {
 }
 
 func toolStatusSymbol(status string) string {
-	switch normalizeOutcomeStatus(status) {
-	case "done":
-		return terminalIcon(terminalIconToolDone)
-	case "running", "declared", "preparing", "building":
-		return terminalIcon(terminalIconToolRunning)
-	case "error":
-		return terminalIcon(terminalIconToolError)
-	default:
-		if strings.TrimSpace(status) == "blocked" {
-			return terminalIcon(terminalIconToolBlocked)
-		}
-		return terminalIcon(terminalIconToolPending)
-	}
+	return defaultTerminalIconProfile.ToolStatusSymbol(status)
 }

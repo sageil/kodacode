@@ -86,8 +86,12 @@ func (m Model) transcriptSelectionLineFromRaw(line, prefixGraphemes int) (transc
 		return newTranscriptSelectionLine(ansi.Cut(stripped, prefixGraphemes, total), prefixGraphemes), true
 	}
 	switch {
-	case stripped == userPromptRailGlyph:
+	case stripped == m.userPromptRailGlyph() || stripped == userPromptRailGlyph || stripped == asciiUserPromptRailGlyph:
 		return transcriptSelectionLine{}, true
+	case strings.HasPrefix(stripped, m.userPromptContentPrefix()):
+		return newTranscriptSelectionLine(strings.TrimPrefix(stripped, m.userPromptContentPrefix()), m.userPromptContentPrefixGraphemeCount()), true
+	case strings.HasPrefix(stripped, asciiUserPromptContentPrefixValue):
+		return newTranscriptSelectionLine(strings.TrimPrefix(stripped, asciiUserPromptContentPrefixValue), transcriptGraphemeCount(asciiUserPromptContentPrefixValue)), true
 	case strings.HasPrefix(stripped, userPromptContentPrefix()):
 		return newTranscriptSelectionLine(strings.TrimPrefix(stripped, userPromptContentPrefix()), userPromptContentPrefixGraphemeCount), true
 	default:

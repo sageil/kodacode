@@ -24,6 +24,7 @@ type ModelConfig struct {
 	Theme              *theme.Theme
 	ThemeName          string
 	Layout             string
+	TerminalIcons      string
 	HideShellToolCalls bool
 	DisplayTurns       int
 	SessionID          string
@@ -47,6 +48,7 @@ type Model struct {
 	themeRenderTheme      *theme.Theme
 	themeRenderKey        string
 	layout                string
+	terminalIcons         terminalIconProfile
 	shellToolCallsVisible bool
 	displayTurns          int
 	sessionID             string
@@ -319,6 +321,7 @@ func NewModel(backend Backend, cfg ModelConfig) Model {
 		themeRenderTheme:      activeTheme,
 		themeRenderKey:        renderThemeCacheKey(activeTheme),
 		layout:                normalizedTUILayoutSelection(cfg.Layout),
+		terminalIcons:         terminalIconProfileForMode(cfg.TerminalIcons),
 		shellToolCallsVisible: !cfg.HideShellToolCalls,
 		displayTurns:          max(cfg.DisplayTurns, 0),
 		sessionID:             cfg.SessionID,

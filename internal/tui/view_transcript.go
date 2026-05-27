@@ -271,7 +271,7 @@ func renderTranscriptScrollbar(m Model, height int, showScrollbar bool) []string
 	lines := blankTranscriptScrollbar(height)
 	for i := 0; i < height; i++ {
 		if i >= thumbStart && i < thumbStart+thumbHeight {
-			lines[i] = thumbStyle.Render(transcriptScrollbarThumbGlyph)
+			lines[i] = thumbStyle.Render(m.terminalIcon(terminalIconScrollThumb))
 		}
 	}
 	return lines

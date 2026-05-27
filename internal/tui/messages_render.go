@@ -57,6 +57,7 @@ const transcriptBottomPadding = "\n\n"
 const userPromptInnerPadding = "  "
 
 var userPromptRailGlyph = terminalIcon(terminalIconPromptRail)
+var asciiUserPromptRailGlyph = asciiTerminalIconProfile.Icon(terminalIconPromptRail)
 
 func renderTranscriptMessages(m Model, state events.SessionState, width int) transcriptRender {
 	return renderTranscriptLayout(m, state, width).rendered

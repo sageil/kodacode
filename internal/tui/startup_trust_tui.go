@@ -43,6 +43,7 @@ type startupTrustRow struct {
 
 type startupTrustPromptModel struct {
 	theme           *theme.Theme
+	icons           terminalIconProfile
 	state           app.StartupTrustState
 	rows            []startupTrustRow
 	width           int
@@ -59,13 +60,14 @@ func promptStartupTrustTUI(
 	in io.Reader,
 	out io.Writer,
 	th *theme.Theme,
+	icons terminalIconProfile,
 	state app.StartupTrustState,
 ) (app.ResolveStartupTrustInput, bool, error) {
 	if !state.Pending() {
 		return app.ResolveStartupTrustInput{}, true, nil
 	}
 	program := tea.NewProgram(
-		newStartupTrustPromptModel(th, state),
+		newStartupTrustPromptModelWithIcons(th, icons, state),
 		tea.WithInput(in),
 		tea.WithOutput(out),
 	)
@@ -84,6 +86,10 @@ func promptStartupTrustTUI(
 }
 
 func newStartupTrustPromptModel(th *theme.Theme, state app.StartupTrustState) startupTrustPromptModel {
+	return newStartupTrustPromptModelWithIcons(th, defaultTerminalIconProfile, state)
+}
+
+func newStartupTrustPromptModelWithIcons(th *theme.Theme, icons terminalIconProfile, state app.StartupTrustState) startupTrustPromptModel {
 	activeTheme := th
 	if activeTheme == nil {
 		defaultTheme := theme.StaticDefault()
@@ -91,6 +97,7 @@ func newStartupTrustPromptModel(th *theme.Theme, state app.StartupTrustState) st
 	}
 	model := startupTrustPromptModel{
 		theme:           activeTheme,
+		icons:           icons,
 		state:           state,
 		rows:            startupTrustRows(state),
 		width:           startupTrustDefaultWidth,
@@ -264,7 +271,7 @@ func (m startupTrustPromptModel) renderBody() string {
 }
 
 func (m startupTrustPromptModel) renderWorkspaceRow() string {
-	label := checkedLabel(m.trustWorkspace) + " Trust workspace for session startup"
+	label := checkedLabelWithProfile(m.icons, m.trustWorkspace) + " Trust workspace for session startup"
 	detail := strings.TrimSpace(m.state.WorkspaceRoot)
 	return m.renderSelectableRowWithDetail(0, label, detail)
 }
@@ -274,7 +281,7 @@ func (m startupTrustPromptModel) renderServerRow(server app.StartupTrustServer, 
 	if m.state.WorkspaceRequired {
 		rowIndex++
 	}
-	label := checkedLabel(m.serverDecisions[strings.TrimSpace(server.Fingerprint)]) + " " + strings.TrimSpace(server.Name)
+	label := checkedLabelWithProfile(m.icons, m.serverDecisions[strings.TrimSpace(server.Fingerprint)]) + " " + strings.TrimSpace(server.Name)
 	if kind := strings.TrimSpace(server.Type); kind != "" {
 		label += " (" + kind + ")"
 	}
@@ -359,8 +366,12 @@ func (m startupTrustPromptModel) canContinue() bool {
 }
 
 func checkedLabel(value bool) string {
+	return checkedLabelWithProfile(defaultTerminalIconProfile, value)
+}
+
+func checkedLabelWithProfile(icons terminalIconProfile, value bool) string {
 	if value {
-		return "[" + terminalIcon(terminalIconSelected) + "]"
+		return "[" + icons.Icon(terminalIconSelected) + "]"
 	}
-	return "[" + terminalIcon(terminalIconUnselected) + "]"
+	return "[" + icons.Icon(terminalIconUnselected) + "]"
 }

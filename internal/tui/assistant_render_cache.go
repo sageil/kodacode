@@ -42,7 +42,7 @@ func assistantContentCacheKey(m Model, body string, width int, bg string) string
 	b.WriteString("\x00")
 	b.WriteString(strings.TrimSpace(bg))
 	b.WriteString("\x00")
-	b.WriteString(modelThemeCacheKey(m))
+	b.WriteString(modelRenderCacheKey(m))
 	b.WriteString("\x00")
 	b.WriteString(body)
 	return b.String()
@@ -53,6 +53,10 @@ func modelThemeCacheKey(m Model) string {
 		return m.themeRenderKey
 	}
 	return renderThemeCacheKey(m.theme)
+}
+
+func modelRenderCacheKey(m Model) string {
+	return modelThemeCacheKey(m) + "\x00icons:" + m.terminalIcons.CacheKey()
 }
 
 func renderThemeCacheKey(th *theme.Theme) string {

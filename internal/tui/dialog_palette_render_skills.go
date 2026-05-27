@@ -98,9 +98,9 @@ func (d *skillsDialog) renderSkillListLines(listWidth int) []string {
 			style = selectedStyle
 		}
 
-		label := prefix + checkedLabel(d.skillSelected(item.ID)) + " " + item.ID
+		label := prefix + checkedLabelWithProfile(d.icons, d.skillSelected(item.ID)) + " " + item.ID
 		if d.initialSkills != nil && d.initialSkills[item.ID] {
-			label += " " + muted.Render(terminalIcon(terminalIconSelected))
+			label += " " + muted.Render(d.icons.Icon(terminalIconSelected))
 		}
 		lines = append(lines, style.Render(label))
 	}

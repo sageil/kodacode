@@ -107,7 +107,7 @@ func currentSessionReasoningLabel(m Model, state events.SessionState) string {
 }
 
 func (m *Model) openReasoningVariantDialog(model provider.ModelRef, variants []string, applyModel bool, view sessionView) tea.Cmd {
-	dialog := newReasoningVariantDialog(model, variants, m.reasoningVariant, applyModel, view, m.theme)
+	dialog := newReasoningVariantDialog(model, variants, m.reasoningVariant, applyModel, view, m.theme, m.terminalIcons)
 	width, height := dialogRenderSize(*m, m.projector.CurrentState())
 	dialog.SetFrame(width, height)
 	return func() tea.Msg {

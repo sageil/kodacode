@@ -55,6 +55,7 @@ type trustDialog struct {
 	frameWidth  int
 	frameHeight int
 	theme       *theme.Theme
+	icons       terminalIconProfile
 	state       app.WorkspaceTrustState
 	rows        []trustDialogRow
 	cursor      int
@@ -64,11 +65,16 @@ type trustDialog struct {
 }
 
 func newTrustDialog(state app.WorkspaceTrustState, th *theme.Theme) *trustDialog {
+	return newTrustDialogWithIcons(state, th, defaultTerminalIconProfile)
+}
+
+func newTrustDialogWithIcons(state app.WorkspaceTrustState, th *theme.Theme, icons terminalIconProfile) *trustDialog {
 	dialog := &trustDialog{
 		id:          dialogIDTrust,
 		frameWidth:  trustDialogDefaultWidth,
 		frameHeight: trustDialogDefaultHeight,
 		theme:       th,
+		icons:       icons,
 	}
 	dialog.Sync(state)
 	return dialog

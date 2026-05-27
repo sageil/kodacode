@@ -10,7 +10,7 @@ func splitInspectorPaneCacheKey(m Model, width, height int) uint64 {
 	writeTranscriptSignatureString(hasher, "split-inspector-pane")
 	writeTranscriptSignatureInt(hasher, max(width, 1))
 	writeTranscriptSignatureInt(hasher, max(height, 1))
-	writeTranscriptSignatureString(hasher, modelThemeCacheKey(m))
+	writeTranscriptSignatureString(hasher, modelRenderCacheKey(m))
 	writeTranscriptSignatureString(hasher, string(m.chrome.focus))
 	writeTranscriptSignatureString(hasher, strings.TrimSpace(m.agentID))
 	writeTranscriptSignatureInt(hasher, effectiveInspectorTab(m))

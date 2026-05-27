@@ -30,7 +30,7 @@ func appendTranscriptPaneCacheSignature(hasher hash.Hash64, m Model, state event
 	if hasher == nil {
 		return
 	}
-	writeTranscriptSignatureString(hasher, modelThemeCacheKey(m))
+	writeTranscriptSignatureString(hasher, modelRenderCacheKey(m))
 	writeTranscriptSignatureBool(hasher, isWideShell(m))
 	writeTranscriptSignatureString(hasher, string(m.chrome.focus))
 	writeTranscriptSignatureString(hasher, strings.TrimSpace(m.turnID))

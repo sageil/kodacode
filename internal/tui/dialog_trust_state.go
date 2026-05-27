@@ -13,7 +13,7 @@ func (d *trustDialog) rowLabel(row trustDialogRow) string {
 		if row.Trusted {
 			return "Workspace"
 		}
-		return "Workspace  " + terminalIcon(terminalIconUnselected) + " not trusted"
+		return "Workspace  " + d.icons.Icon(terminalIconUnselected) + " not trusted"
 	case trustDialogRowServer:
 		label := row.Label
 		if label == "" {
@@ -23,7 +23,7 @@ func (d *trustDialog) rowLabel(row trustDialogRow) string {
 			label += " (" + row.KindLabel + ")"
 		}
 		if !row.Trusted {
-			label += "  " + terminalIcon(terminalIconUnselected) + " revoked"
+			label += "  " + d.icons.Icon(terminalIconUnselected) + " revoked"
 		}
 		return label
 	default:
