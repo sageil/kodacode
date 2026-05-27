@@ -404,7 +404,7 @@ func TestApplyViewUsesSelectedSkillsInsteadOfEffectiveMentionSkills(t *testing.T
 		WorkspaceRoot: "/repo",
 	}, state, false, nil, nil, 0)
 
-	if model.skillIDs != nil && len(model.skillIDs) != 0 {
+	if len(model.skillIDs) != 0 {
 		t.Fatalf("skillIDs = %#v, want no sticky selected skills", model.skillIDs)
 	}
 }
