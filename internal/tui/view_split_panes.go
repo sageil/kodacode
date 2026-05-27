@@ -31,7 +31,7 @@ func renderSplitTranscriptPaneUncached(m Model, state events.SessionState, width
 	if borderless {
 		contentWidth = max(width, 1)
 	}
-	body, activity := renderTranscriptPaneSectionsWithOptions(m, state, contentWidth, transcriptPaneRenderOptions{showScrollbar: !borderless})
+	body, activity := renderTranscriptPaneSectionsWithOptions(m, state, contentWidth, transcriptPaneRenderOptions{showScrollbar: false})
 	body = strings.TrimRight(body, "\n")
 	transcriptTone := toneBG
 	if borderless {
