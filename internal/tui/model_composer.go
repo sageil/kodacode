@@ -318,11 +318,13 @@ func (m Model) handleComposerInput(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		focusCmd := m.enterTranscriptScrollMode()
 		m.messages.PageUp()
 		m.syncTranscriptCursorToViewport()
+		m.syncVisibleTranscriptChunksIfNeeded()
 		return m, focusCmd
 	case "pgdown":
 		focusCmd := m.enterTranscriptScrollMode()
 		m.messages.PageDown()
 		m.syncTranscriptCursorToViewport()
+		m.syncVisibleTranscriptChunksIfNeeded()
 		return m, focusCmd
 	case "ctrl+p":
 		return m, m.openCommandPalette()

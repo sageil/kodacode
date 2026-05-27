@@ -582,6 +582,70 @@ func TestTranscriptSyncUsesVirtualBacking(t *testing.T) {
 	}
 }
 
+func TestTranscriptSyncKeepsOffscreenTurnsAsVirtualPlaceholders(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context:       ctx,
+		Theme:         &defaultTheme,
+		SessionID:     "session-1",
+		TurnID:        "turn-3",
+		WorkspaceRoot: "/repo",
+	})
+	model.messages.SetSize(80, 5)
+
+	state := events.SessionState{
+		SessionID:     "session-1",
+		WorkspaceRoot: "/repo",
+		TurnOrder:     []string{"turn-1", "turn-2", "turn-3"},
+		Turns: map[string]*events.TurnState{
+			"turn-1": {TurnID: "turn-1", Transcript: []events.TranscriptEntryState{{Kind: events.TranscriptEntryAssistant, Text: numberedLines("hidden-old", 24)}}},
+			"turn-2": {TurnID: "turn-2", Transcript: []events.TranscriptEntryState{{Kind: events.TranscriptEntryAssistant, Text: numberedLines("middle", 24)}}},
+			"turn-3": {TurnID: "turn-3", Transcript: []events.TranscriptEntryState{{Kind: events.TranscriptEntryAssistant, Text: numberedLines("bottom", 24)}}},
+		},
+	}
+	model.projector = events.NewProjectorFromSnapshot(state)
+	model.syncTranscriptStructureWithState(state)
+	model.messages.GotoBottom()
+
+	state.Turns["turn-1"] = &events.TurnState{
+		TurnID:     "turn-1",
+		Transcript: []events.TranscriptEntryState{{Kind: events.TranscriptEntryAssistant, Text: numberedLines("hidden-new", 24)}},
+	}
+	model.projector = events.NewProjectorFromSnapshot(state)
+	model.syncTranscriptStructureWithState(state)
+
+	topIndex := model.transcriptView.layout.turnIndices["turn-1"]
+	topChunk := model.transcriptView.layout.chunks[topIndex]
+	if topChunk.lineCount <= 0 {
+		t.Fatal("offscreen turn lineCount = 0, want retained virtual geometry")
+	}
+	if strings.TrimSpace(topChunk.rendered.content) != "" {
+		t.Fatalf("offscreen turn kept rendered content:\n%s", topChunk.rendered.content)
+	}
+	visible := ansi.Strip(strings.Join(model.messages.VisibleLines(), "\n"))
+	if strings.Contains(visible, "hidden-new") || strings.Contains(visible, "hidden-old") {
+		t.Fatalf("bottom viewport rendered offscreen turn content:\n%s", visible)
+	}
+
+	model.messages.GotoTop()
+	model.syncVisibleTranscriptChunksIfNeeded()
+	topChunk = model.transcriptView.layout.chunks[topIndex]
+	if !strings.Contains(ansi.Strip(topChunk.rendered.content), "hidden-new") {
+		t.Fatalf("newly visible turn was not rendered with current state:\n%s", ansi.Strip(topChunk.rendered.content))
+	}
+}
+
+func numberedLines(prefix string, count int) string {
+	lines := make([]string, 0, count)
+	for i := 0; i < count; i++ {
+		lines = append(lines, fmt.Sprintf("%s-%02d", prefix, i+1))
+	}
+	return strings.Join(lines, "\n")
+}
+
 func TestShellLayoutWriteToolShowsSideBySideDiff(t *testing.T) {
 	defaultTheme := theme.StaticDefault()
 	ctx, cancel := context.WithCancel(context.TODO())

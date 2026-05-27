@@ -34,10 +34,11 @@ const (
 )
 
 type transcriptLayoutChunk struct {
-	kind     transcriptLayoutChunkKind
-	turnID   string
-	cacheKey string
-	rendered transcriptRender
+	kind      transcriptLayoutChunkKind
+	turnID    string
+	cacheKey  string
+	rendered  transcriptRender
+	lineCount int
 }
 
 type transcriptLayout struct {
@@ -94,25 +95,30 @@ func buildTranscriptLayout(m Model, state events.SessionState, width int) transc
 		rendered, cacheKey := cachedTurnTranscriptRenderWithKey(m, state, turnID, turn, width, options)
 		layout.turnIndices[turnID] = len(layout.chunks)
 		layout.chunks = append(layout.chunks, transcriptLayoutChunk{
-			kind:     transcriptLayoutChunkTurn,
-			turnID:   turnID,
-			cacheKey: cacheKey,
-			rendered: rendered,
+			kind:      transcriptLayoutChunkTurn,
+			turnID:    turnID,
+			cacheKey:  cacheKey,
+			rendered:  rendered,
+			lineCount: transcriptRenderLineCount(rendered),
 		})
 	}
 
 	if draftSections := renderDraftTurnSections(m, state, width); len(draftSections) > 0 {
+		rendered := buildTranscriptChunk(draftSections)
 		layout.chunks = append(layout.chunks, transcriptLayoutChunk{
-			kind:     transcriptLayoutChunkDraft,
-			rendered: buildTranscriptChunk(draftSections),
+			kind:      transcriptLayoutChunkDraft,
+			rendered:  rendered,
+			lineCount: transcriptRenderLineCount(rendered),
 		})
 	}
 
 	if handoff := m.pendingDelegatedPermission(); handoff != nil {
 		row := newDelegatedPermissionSystemRow(handoff, width)
+		rendered := row.render(m)
 		layout.chunks = append(layout.chunks, transcriptLayoutChunk{
-			kind:     transcriptLayoutChunkDelegatedPermission,
-			rendered: row.render(m),
+			kind:      transcriptLayoutChunkDelegatedPermission,
+			rendered:  rendered,
+			lineCount: transcriptRenderLineCount(rendered),
 		})
 	}
 	return layout

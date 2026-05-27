@@ -346,6 +346,7 @@ func (m *Model) jumpTranscriptToSelectedTool() {
 	}
 	if line, ok := m.transcriptView.toolLines[ref]; ok {
 		m.messages.GotoLine(line)
+		m.syncVisibleTranscriptChunksIfNeeded()
 		m.transcriptView.cursorLine = line
 		m.transcriptView.cursorColumn = 0
 		m.transcriptView.cursorGoalColumn = 0

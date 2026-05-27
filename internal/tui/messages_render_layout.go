@@ -183,6 +183,23 @@ func buildTranscriptFromChunks(chunks []transcriptRender) transcriptRender {
 	}
 }
 
+func transcriptRenderLineCount(rendered transcriptRender) int {
+	return transcriptRenderedLineCount(rendered.content)
+}
+
+func transcriptLayoutChunkLineCount(chunk transcriptLayoutChunk) int {
+	if chunk.lineCount > 0 {
+		return chunk.lineCount
+	}
+	return transcriptRenderLineCount(chunk.rendered)
+}
+
+func stripTranscriptRenderContent(rendered transcriptRender) transcriptRender {
+	rendered.content = ""
+	rendered.selectionLines = nil
+	return rendered
+}
+
 type virtualTranscriptContent struct {
 	chunks         []messagesVirtualChunk
 	toolLines      map[sessionToolCallRef]int
@@ -202,7 +219,7 @@ func virtualTranscriptRender(layout transcriptLayout) virtualTranscriptContent {
 		out.selectionLines = append(out.selectionLines, transcriptSelectionLine{}, transcriptSelectionLine{})
 		line += 2
 	}
-	appendChunk := func(rendered transcriptRender) {
+	appendRenderedChunk := func(rendered transcriptRender) {
 		content := strings.TrimRight(rendered.content, "\n")
 		if strings.TrimSpace(content) == "" {
 			return
@@ -218,20 +235,42 @@ func virtualTranscriptRender(layout transcriptLayout) virtualTranscriptContent {
 		line += transcriptRenderedLineCount(content)
 		index++
 	}
+	appendPlaceholderChunk := func(rendered transcriptRender, lineCount int) {
+		if lineCount <= 0 {
+			return
+		}
+		if index > 0 {
+			appendSeparator()
+		}
+		out.chunks = append(out.chunks, messagesVirtualChunk{blankLines: lineCount})
+		for ref, chunkLine := range rendered.toolLines {
+			out.toolLines[ref] = line + chunkLine
+		}
+		for i := 0; i < lineCount; i++ {
+			out.selectionLines = append(out.selectionLines, transcriptSelectionLine{})
+		}
+		line += lineCount
+		index++
+	}
 	for _, chunk := range layout.chunks {
 		rendered := chunk.rendered
 		content := strings.TrimRight(rendered.content, "\n")
-		if strings.TrimSpace(content) == "" {
+		lineCount := transcriptLayoutChunkLineCount(chunk)
+		if strings.TrimSpace(content) == "" && lineCount <= 0 {
 			continue
 		}
 		rendered.content = content
 		if chunk.kind == transcriptLayoutChunkTurn {
 			if visibleTurnSeen && !layout.wide && strings.TrimSpace(layout.turnSeparator.content) != "" {
-				appendChunk(layout.turnSeparator)
+				appendRenderedChunk(layout.turnSeparator)
 			}
 			visibleTurnSeen = true
 		}
-		appendChunk(rendered)
+		if strings.TrimSpace(content) == "" {
+			appendPlaceholderChunk(rendered, lineCount)
+			continue
+		}
+		appendRenderedChunk(rendered)
 	}
 	if index > 0 {
 		out.chunks = append(out.chunks, messagesVirtualChunk{blankLines: strings.Count(transcriptBottomPadding, "\n")})

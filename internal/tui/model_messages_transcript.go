@@ -12,7 +12,7 @@ func (m *Model) syncTranscriptStructureWithState(state events.SessionState) {
 		return
 	}
 	contentWidth := max(m.messages.Width(), 1)
-	layout := m.buildTranscriptLayoutForViewport(state, contentWidth)
+	layout := m.buildVisibleTranscriptLayout(state, contentWidth)
 	m.applyVirtualTranscriptLayout(layout, m.messages.AtBottom())
 }
 
@@ -45,6 +45,43 @@ func (m *Model) applyVirtualTranscriptLayout(layout transcriptLayout, followBott
 	m.transcriptView.toolLines = rendered.toolLines
 	m.transcriptView.selectionLines = rendered.selectionLines
 	m.transcriptView.layout = layout
+}
+
+func (m *Model) syncVisibleTranscriptChunksIfNeeded() {
+	if m == nil || len(m.transcriptView.layout.chunks) == 0 {
+		return
+	}
+	state := m.projector.CurrentState()
+	contentWidth := max(m.messages.Width(), 1)
+	layout := m.buildVisibleTranscriptLayout(state, contentWidth)
+	if transcriptLayoutsEquivalentForVirtualContent(m.transcriptView.layout, layout) {
+		return
+	}
+	offset := m.messages.YOffset()
+	m.applyVirtualTranscriptLayout(layout, false)
+	m.messages.GotoLine(offset)
+	m.syncTranscriptVisualState()
+}
+
+func transcriptLayoutsEquivalentForVirtualContent(left, right transcriptLayout) bool {
+	if left.width != right.width || left.wide != right.wide || len(left.chunks) != len(right.chunks) {
+		return false
+	}
+	if strings.TrimRight(left.turnSeparator.content, "\n") != strings.TrimRight(right.turnSeparator.content, "\n") {
+		return false
+	}
+	for i := range left.chunks {
+		a := left.chunks[i]
+		b := right.chunks[i]
+		if a.kind != b.kind ||
+			strings.TrimSpace(a.turnID) != strings.TrimSpace(b.turnID) ||
+			strings.TrimSpace(a.cacheKey) != strings.TrimSpace(b.cacheKey) ||
+			transcriptLayoutChunkLineCount(a) != transcriptLayoutChunkLineCount(b) ||
+			strings.TrimRight(a.rendered.content, "\n") != strings.TrimRight(b.rendered.content, "\n") {
+			return false
+		}
+	}
+	return true
 }
 
 func (m *Model) applyTranscriptRefreshPlan(plan transcriptRefreshPlan) bool {
@@ -115,6 +152,8 @@ func (m Model) transcriptLayoutForTurnRefresh(state events.SessionState, turnIDs
 	}
 	layout := m.transcriptView.layout
 	layout.chunks = append([]transcriptLayoutChunk(nil), layout.chunks...)
+	lineStarts := layout.turnLineStarts()
+	window := transcriptViewportRenderWindow(m.messages.YOffset(), m.messages.Height())
 	for _, turnID := range visibleTurnIDs {
 		index := layout.turnIndices[turnID]
 		turn := state.Turns[turnID]
@@ -125,26 +164,43 @@ func (m Model) transcriptLayoutForTurnRefresh(state events.SessionState, turnIDs
 		if shouldSuppressHistoryCompactionBeforeContinuation(state, turnID, nextTranscriptLayoutTurnID(layout, turnID)) {
 			options.suppressHistoryCompaction = true
 		}
-		rendered, cacheKey := cachedTurnTranscriptRenderWithKey(m, state, turnID, turn, contentWidth, options)
-		if strings.TrimSpace(rendered.content) == "" {
-			return transcriptLayout{}, false
+		chunk := layout.chunks[index]
+		cacheKey := turnTranscriptChunkCacheKeyWithOptions(m, state, turnID, turn, contentWidth, options)
+		start := lineStarts[turnID]
+		if transcriptTurnRequiresRender(m, turnID) || transcriptLineRangeIntersects(start, transcriptLayoutChunkLineCount(chunk), window.start, window.end) {
+			rendered, renderedKey := cachedTurnTranscriptRenderWithKey(m, state, turnID, turn, contentWidth, options)
+			if strings.TrimSpace(rendered.content) == "" {
+				return transcriptLayout{}, false
+			}
+			chunk.rendered = rendered
+			chunk.cacheKey = renderedKey
+			chunk.lineCount = transcriptRenderLineCount(rendered)
+		} else {
+			chunk.cacheKey = cacheKey
+			if chunk.lineCount <= 0 {
+				chunk.lineCount = transcriptRenderLineCount(chunk.rendered)
+			}
+			chunk.rendered = stripTranscriptRenderContent(chunk.rendered)
 		}
-		layout.chunks[index].rendered = rendered
-		layout.chunks[index].cacheKey = cacheKey
+		layout.chunks[index] = chunk
 	}
 	return layout, true
 }
 
 func (m Model) buildTranscriptLayoutForViewport(state events.SessionState, width int) transcriptLayout {
+	return m.buildVisibleTranscriptLayout(state, width)
+}
+
+func (m Model) buildVisibleTranscriptLayout(state events.SessionState, width int) transcriptLayout {
 	previous := m.transcriptView.layout
 	width = max(width, 1)
 	wide := isWideShell(m)
 	turnIDs := visibleTranscriptTurnIDs(m, state)
-	if !previous.canReuseForViewportRender(width, wide, turnIDs) {
+	previousCompatible := previous.width == width && previous.wide == wide && len(previous.chunks) > 0
+	if !previousCompatible {
 		return buildTranscriptLayout(m, state, width)
 	}
 
-	lineStarts := previous.turnLineStarts()
 	layout := transcriptLayout{
 		width:       width,
 		wide:        wide,
@@ -157,46 +213,111 @@ func (m Model) buildTranscriptLayoutForViewport(state events.SessionState, width
 		}
 	}
 
+	window := transcriptViewportRenderWindow(m.messages.YOffset(), m.messages.Height())
+	line := 0
+	index := 0
+	visibleTurnSeen := false
+	appendRenderedLineCount := func(rendered transcriptRender) {
+		content := strings.TrimRight(rendered.content, "\n")
+		if strings.TrimSpace(content) == "" {
+			return
+		}
+		if index > 0 {
+			line += 2
+		}
+		line += transcriptRenderedLineCount(content)
+		index++
+	}
+	appendChunkLineCount := func(lineCount int) {
+		if lineCount <= 0 {
+			return
+		}
+		if index > 0 {
+			line += 2
+		}
+		line += lineCount
+		index++
+	}
+
 	for i, turnID := range turnIDs {
 		turn := state.Turns[turnID]
 		if turn == nil {
 			continue
 		}
+		if visibleTurnSeen && !layout.wide && strings.TrimSpace(layout.turnSeparator.content) != "" {
+			appendRenderedLineCount(layout.turnSeparator)
+		}
+		visibleTurnSeen = true
+		start := line
+		if index > 0 {
+			start += 2
+		}
 		options := transcriptTurnRenderOptions{}
 		if i+1 < len(turnIDs) && shouldSuppressHistoryCompactionBeforeContinuation(state, turnID, turnIDs[i+1]) {
 			options.suppressHistoryCompaction = true
 		}
-		previousIndex := previous.turnIndices[turnID]
-		previousChunk := previous.chunks[previousIndex]
 		cacheKey := turnTranscriptChunkCacheKeyWithOptions(m, state, turnID, turn, width, options)
-		rendered := previousChunk.rendered
-		if previousChunk.cacheKey != cacheKey || transcriptTurnIntersectsViewport(previousChunk, lineStarts[turnID], m.messages.YOffset(), m.messages.Height()) {
-			rendered, cacheKey = cachedTurnTranscriptRenderWithKey(m, state, turnID, turn, width, options)
-		}
-		layout.turnIndices[turnID] = len(layout.chunks)
-		layout.chunks = append(layout.chunks, transcriptLayoutChunk{
+		chunk := transcriptLayoutChunk{
 			kind:     transcriptLayoutChunkTurn,
 			turnID:   turnID,
 			cacheKey: cacheKey,
-			rendered: rendered,
-		})
+		}
+		if previousIndex, ok := previous.turnIndices[turnID]; ok && previousIndex >= 0 && previousIndex < len(previous.chunks) {
+			previousChunk := previous.chunks[previousIndex]
+			if previousChunk.kind == transcriptLayoutChunkTurn {
+				chunk.rendered = previousChunk.rendered
+				chunk.lineCount = transcriptLayoutChunkLineCount(previousChunk)
+			}
+		}
+		if chunk.lineCount <= 0 || transcriptTurnRequiresRender(m, turnID) || transcriptLineRangeIntersects(start, chunk.lineCount, window.start, window.end) {
+			rendered, renderedKey := cachedTurnTranscriptRenderWithKey(m, state, turnID, turn, width, options)
+			chunk.rendered = rendered
+			chunk.cacheKey = renderedKey
+			chunk.lineCount = transcriptRenderLineCount(rendered)
+		} else {
+			chunk.rendered = stripTranscriptRenderContent(chunk.rendered)
+		}
+		if chunk.lineCount <= 0 {
+			continue
+		}
+		layout.turnIndices[turnID] = len(layout.chunks)
+		layout.chunks = append(layout.chunks, chunk)
+		appendChunkLineCount(chunk.lineCount)
 	}
 
 	if draftSections := renderDraftTurnSections(m, state, width); len(draftSections) > 0 {
+		rendered := buildTranscriptChunk(draftSections)
 		layout.chunks = append(layout.chunks, transcriptLayoutChunk{
-			kind:     transcriptLayoutChunkDraft,
-			rendered: buildTranscriptChunk(draftSections),
+			kind:      transcriptLayoutChunkDraft,
+			rendered:  rendered,
+			lineCount: transcriptRenderLineCount(rendered),
 		})
 	}
 
 	if handoff := m.pendingDelegatedPermission(); handoff != nil {
 		row := newDelegatedPermissionSystemRow(handoff, width)
+		rendered := row.render(m)
 		layout.chunks = append(layout.chunks, transcriptLayoutChunk{
-			kind:     transcriptLayoutChunkDelegatedPermission,
-			rendered: row.render(m),
+			kind:      transcriptLayoutChunkDelegatedPermission,
+			rendered:  rendered,
+			lineCount: transcriptRenderLineCount(rendered),
 		})
 	}
 	return layout
+}
+
+func transcriptTurnRequiresRender(m Model, turnID string) bool {
+	turnID = strings.TrimSpace(turnID)
+	if turnID == "" {
+		return false
+	}
+	if strings.TrimSpace(m.selection.callTurnID) == turnID && strings.TrimSpace(m.selection.callID) != "" {
+		return true
+	}
+	if strings.TrimSpace(m.selection.handoffID) != "" && strings.TrimSpace(m.turnID) == turnID {
+		return true
+	}
+	return false
 }
 
 func (layout transcriptLayout) canReuseForViewportRender(width int, wide bool, turnIDs []string) bool {
@@ -226,20 +347,33 @@ func (layout transcriptLayout) turnLineStarts() map[string]int {
 	visibleTurnSeen := false
 	appendRendered := func(rendered transcriptRender) bool {
 		content := strings.TrimRight(rendered.content, "\n")
+		lineCount := transcriptRenderedLineCount(content)
 		if strings.TrimSpace(content) == "" {
 			return false
 		}
 		if index > 0 {
 			line += 2
 		}
-		line += transcriptRenderedLineCount(content)
+		line += lineCount
+		index++
+		return true
+	}
+	appendChunk := func(chunk transcriptLayoutChunk) bool {
+		lineCount := transcriptLayoutChunkLineCount(chunk)
+		if lineCount <= 0 {
+			return false
+		}
+		if index > 0 {
+			line += 2
+		}
+		line += lineCount
 		index++
 		return true
 	}
 	for _, chunk := range layout.chunks {
 		rendered := chunk.rendered
 		content := strings.TrimRight(rendered.content, "\n")
-		if strings.TrimSpace(content) == "" {
+		if strings.TrimSpace(content) == "" && transcriptLayoutChunkLineCount(chunk) <= 0 {
 			continue
 		}
 		if chunk.kind == transcriptLayoutChunkTurn {
@@ -253,23 +387,40 @@ func (layout transcriptLayout) turnLineStarts() map[string]int {
 				starts[strings.TrimSpace(chunk.turnID)] = line
 			}
 		}
-		appendRendered(rendered)
+		appendChunk(chunk)
 	}
 	return starts
+}
+
+func transcriptViewportRenderWindow(offset, height int) transcriptLineWindow {
+	visibleHeight := max(height, 1)
+	overscan := visibleHeight
+	start := max(offset-overscan, 0)
+	end := max(offset, 0) + visibleHeight + overscan
+	return transcriptLineWindow{start: start, end: end}
+}
+
+type transcriptLineWindow struct {
+	start int
+	end   int
+}
+
+func transcriptLineRangeIntersects(start, lineCount, windowStart, windowEnd int) bool {
+	if lineCount <= 0 || windowEnd <= windowStart {
+		return false
+	}
+	end := start + lineCount
+	return start < windowEnd && end > windowStart
 }
 
 func transcriptTurnIntersectsViewport(chunk transcriptLayoutChunk, start, offset, height int) bool {
 	if height <= 0 {
 		return false
 	}
-	content := strings.TrimRight(chunk.rendered.content, "\n")
-	if strings.TrimSpace(content) == "" {
-		return false
-	}
-	end := start + transcriptRenderedLineCount(content)
+	lineCount := transcriptLayoutChunkLineCount(chunk)
 	viewportStart := max(offset, 0)
 	viewportEnd := viewportStart + max(height, 1)
-	return start < viewportEnd && end > viewportStart
+	return transcriptLineRangeIntersects(start, lineCount, viewportStart, viewportEnd)
 }
 
 func nextTranscriptLayoutTurnID(layout transcriptLayout, turnID string) string {

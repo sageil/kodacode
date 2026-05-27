@@ -266,10 +266,19 @@ func (m *Model) flushPendingTranscriptRefresh(now time.Time) tea.Cmd {
 }
 
 func (m *Model) syncDeferredTranscriptIfNeeded() {
-	if m == nil || !m.transcriptRefresh.deferred || m.shouldDeferLiveTranscriptRefresh() {
+	if m == nil {
 		return
 	}
-	m.flushQueuedTranscriptRefresh()
+	if m.transcriptRefresh.deferred {
+		if m.shouldDeferLiveTranscriptRefresh() {
+			return
+		}
+		m.flushQueuedTranscriptRefresh()
+	}
+	if m.transcriptRefresh.pending {
+		return
+	}
+	m.syncVisibleTranscriptChunksIfNeeded()
 }
 
 func (m *Model) enterTranscriptScrollMode() tea.Cmd {
