@@ -17,13 +17,17 @@ func renderSplitTranscriptPane(m Model, width, height int) string {
 	if isWideShell(m) {
 		layout = normalizeWideShellLayout(m, state, layout)
 	}
-	borderless := isWideShell(m) && !layout.showInspector
+	borderless := splitTranscriptPaneBorderless(m, layout)
 	if m.renderCache.splitTranscriptPane == nil {
 		return renderSplitTranscriptPaneUncached(m, state, width, height, borderless)
 	}
 	return m.renderCache.splitTranscriptPane.renderedFor(splitTranscriptPaneCacheKey(m, state, width, height, borderless), func() string {
 		return renderSplitTranscriptPaneUncached(m, state, width, height, borderless)
 	})
+}
+
+func splitTranscriptPaneBorderless(m Model, _ shellLayout) bool {
+	return isWideShell(m)
 }
 
 func renderSplitTranscriptPaneUncached(m Model, state events.SessionState, width, height int, borderless bool) string {

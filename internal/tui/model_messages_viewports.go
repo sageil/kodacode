@@ -215,27 +215,14 @@ func resolveTranscriptViewportGeometry(m Model, state events.SessionState, layou
 	rect := resolveShellRects(m, state, layout).transcript
 
 	if isWideShell(m) {
-		borderless := !layout.showInspector
-		paneWidth := max(layout.centerWidth-4, 1)
+		paneWidth := max(layout.centerWidth, 1)
 		panelHeight := splitWidePanelHeight(layout)
-		if borderless {
-			paneWidth = max(layout.centerWidth, 1)
-		} else {
-			rect.x += 2
-			rect.y++
-		}
 		questionHeight := questionPromptPanelHeight(m, paneWidth)
 		permissionHeight := permissionPromptPanelHeight(m, state, paneWidth)
 		statusHeight := transcriptStatusBarHeight(m, state, paneWidth)
-		viewportHeight := max(panelHeight-3-questionHeight-permissionHeight-statusHeight, 1)
-		viewportWidth := transcriptViewportWidth(paneWidth)
-		if borderless {
-			viewportWidth = paneWidth
-			viewportHeight = max(panelHeight-questionHeight-permissionHeight-statusHeight, 1)
-		}
 		rect.y += permissionHeight + questionHeight
-		rect.width = viewportWidth
-		rect.height = viewportHeight
+		rect.width = paneWidth
+		rect.height = max(panelHeight-questionHeight-permissionHeight-statusHeight, 1)
 		return transcriptViewportGeometry{
 			viewportRect:           rect,
 			questionPromptHeight:   questionHeight,

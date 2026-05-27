@@ -184,7 +184,7 @@ func TestTranscriptViewportRectDerivesFromShellRects(t *testing.T) {
 		yPad  int
 	}{
 		{name: "medium", width: 100, xPad: 0, yPad: 2},
-		{name: "wide inspector", width: 140, wide: true, xPad: 2, yPad: 1},
+		{name: "wide inspector", width: 140, wide: true, xPad: 0, yPad: 0},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			model := newShellRectsTestModel(t, tt.width, 30)
