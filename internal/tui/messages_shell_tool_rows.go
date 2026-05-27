@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"charm.land/lipgloss/v2"
@@ -12,6 +13,119 @@ const (
 	shellToolRowKindWidthWide   = 8
 	shellToolRowKindWidthNarrow = 6
 )
+
+type shellToolTranscriptRow struct {
+	ref         sessionToolCallRef
+	kind        string
+	label       string
+	status      string
+	selected    bool
+	turnOrdinal int
+	width       int
+}
+
+func newShellToolTranscriptRow(state events.SessionState, row toolOutcomeRow, call *events.ToolCallState, width int, selected bool) shellToolTranscriptRow {
+	status := strings.TrimSpace(row.Status)
+	if status == "" {
+		status = toolStatus(call)
+	}
+	label := shellToolRowLabel(state, row, call)
+	if label == "" {
+		label = shellToolPrimaryLabel(state, call)
+	}
+	if label == "" {
+		label = shellToolKind(call)
+	}
+	return shellToolTranscriptRow{
+		ref:         row.Ref,
+		kind:        shellToolRowKind(row, call),
+		label:       label,
+		status:      normalizeOutcomeStatus(status),
+		selected:    selected,
+		turnOrdinal: sessionToolTurnOrdinal(state, row.Ref.TurnID),
+		width:       max(width, 1),
+	}
+}
+
+func (r shellToolTranscriptRow) render(m Model) string {
+	return cachedTranscriptRender("shell_tool_row", m, r.width, func() string {
+		return r.renderUncached(m)
+	}, r.cacheParts()...)
+}
+
+func (r shellToolTranscriptRow) cacheParts() []string {
+	return []string{
+		strings.TrimSpace(r.ref.TurnID),
+		strings.TrimSpace(r.ref.CallID),
+		strings.TrimSpace(r.kind),
+		strings.TrimSpace(r.label),
+		normalizeOutcomeStatus(r.status),
+		strconv.FormatBool(r.selected),
+		strconv.Itoa(r.turnOrdinal),
+	}
+}
+
+func (r shellToolTranscriptRow) renderUncached(m Model) string {
+	right := r.rightText()
+	left := r.leftText(m, max(r.width-lipgloss.Width(right)-1, 1))
+	if right == "" {
+		return left
+	}
+	return joinBar(left, right, r.width)
+}
+
+func (r shellToolTranscriptRow) rightText() string {
+	parts := make([]string, 0, 2)
+	if r.turnOrdinal > 0 {
+		parts = append(parts, fmt.Sprintf("t%d", r.turnOrdinal))
+	}
+	switch {
+	case r.selected:
+		parts = append(parts, "enter")
+	case normalizeOutcomeStatus(r.status) != "done":
+		parts = append(parts, shellToolStatusLabel(r.status))
+	}
+	return strings.Join(parts, " · ")
+}
+
+func (r shellToolTranscriptRow) leftText(m Model, width int) string {
+	width = max(width, 1)
+	marker := " "
+	if r.selected {
+		marker = ">"
+	}
+	kindWidth := shellToolRowKindWidth(width)
+	icon := toolStatusSymbol(r.status)
+	prefixPlain := marker + " " + icon + " "
+	if kindWidth > 0 {
+		prefixPlain += padRight(truncateEnd(r.kind, kindWidth), kindWidth) + " "
+	}
+	labelWidth := max(width-lipgloss.Width(prefixPlain), 1)
+	text := truncateEnd(r.label, labelWidth)
+
+	markerStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(colorFor(m.theme, "subtext", "#9da8ca")))
+	if r.selected {
+		markerStyle = markerStyle.Foreground(lipgloss.Color(colorFor(m.theme, "primary", "#7cc7ff"))).Bold(true)
+	}
+	iconStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(toolStatusColorHex(m.theme, r.status)))
+	kindStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(colorFor(m.theme, "subtext", "#9da8ca")))
+	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(shellToolLabelColor(m.theme, r.status)))
+	if r.selected && normalizeOutcomeStatus(r.status) != "error" {
+		labelStyle = labelStyle.Foreground(lipgloss.Color(colorFor(m.theme, "primary", "#7cc7ff"))).Bold(true)
+	}
+
+	parts := []string{
+		markerStyle.Render(marker),
+		" ",
+		iconStyle.Render(icon),
+		" ",
+	}
+	if kindWidth > 0 {
+		parts = append(parts, kindStyle.Render(padRight(truncateEnd(r.kind, kindWidth), kindWidth)), " ")
+	}
+	parts = append(parts, labelStyle.Render(text))
+	return strings.Join(parts, "")
+}
 
 func renderShellTurnToolOutcomeSections(m Model, state events.SessionState, refs []sessionToolCallRef, width int) []transcriptSection {
 	rows := deriveUngroupedToolOutcomeRows(state, refs)
@@ -123,25 +237,7 @@ func renderShellMutationSuccessLines(m Model, state events.SessionState, ref ses
 }
 
 func renderShellToolOutcomeLine(m Model, state events.SessionState, row toolOutcomeRow, call *events.ToolCallState, width int, selected bool) string {
-	width = max(width, 1)
-	status := normalizeOutcomeStatus(row.Status)
-	if status == "" {
-		status = normalizeOutcomeStatus(toolStatus(call))
-	}
-	label := shellToolRowLabel(state, row, call)
-	if label == "" {
-		label = shellToolPrimaryLabel(state, call)
-	}
-	if label == "" {
-		label = shellToolKind(call)
-	}
-	kind := shellToolRowKind(row, call)
-	right := shellToolRowRight(state, row.Ref, status, selected)
-	left := shellToolRowLeft(m, kind, label, status, selected, max(width-lipgloss.Width(right)-1, 1))
-	if right == "" {
-		return left
-	}
-	return joinBar(left, right, width)
+	return newShellToolTranscriptRow(state, row, call, width, selected).render(m)
 }
 
 func shellToolRowLabel(state events.SessionState, row toolOutcomeRow, call *events.ToolCallState) string {
@@ -244,59 +340,6 @@ func shellToolRowKind(row toolOutcomeRow, call *events.ToolCallState) string {
 		}
 		return "tool"
 	}
-}
-
-func shellToolRowRight(state events.SessionState, ref sessionToolCallRef, status string, selected bool) string {
-	parts := make([]string, 0, 2)
-	if ordinal := sessionToolTurnOrdinal(state, ref.TurnID); ordinal > 0 {
-		parts = append(parts, fmt.Sprintf("t%d", ordinal))
-	}
-	switch {
-	case selected:
-		parts = append(parts, "enter")
-	case normalizeOutcomeStatus(status) != "done":
-		parts = append(parts, shellToolStatusLabel(status))
-	}
-	return strings.Join(parts, " · ")
-}
-
-func shellToolRowLeft(m Model, kind, label, status string, selected bool, width int) string {
-	width = max(width, 1)
-	marker := " "
-	if selected {
-		marker = ">"
-	}
-	kindWidth := shellToolRowKindWidth(width)
-	icon := toolStatusSymbol(status)
-	prefixPlain := marker + " " + icon + " "
-	if kindWidth > 0 {
-		prefixPlain += padRight(truncateEnd(kind, kindWidth), kindWidth) + " "
-	}
-	labelWidth := max(width-lipgloss.Width(prefixPlain), 1)
-	text := truncateEnd(label, labelWidth)
-
-	markerStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(colorFor(m.theme, "subtext", "#9da8ca")))
-	if selected {
-		markerStyle = markerStyle.Foreground(lipgloss.Color(colorFor(m.theme, "primary", "#7cc7ff"))).Bold(true)
-	}
-	iconStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(toolStatusColorHex(m.theme, status)))
-	kindStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(colorFor(m.theme, "subtext", "#9da8ca")))
-	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(shellToolLabelColor(m.theme, status)))
-	if selected && normalizeOutcomeStatus(status) != "error" {
-		labelStyle = labelStyle.Foreground(lipgloss.Color(colorFor(m.theme, "primary", "#7cc7ff"))).Bold(true)
-	}
-
-	parts := []string{
-		markerStyle.Render(marker),
-		" ",
-		iconStyle.Render(icon),
-		" ",
-	}
-	if kindWidth > 0 {
-		parts = append(parts, kindStyle.Render(padRight(truncateEnd(kind, kindWidth), kindWidth)), " ")
-	}
-	parts = append(parts, labelStyle.Render(text))
-	return strings.Join(parts, "")
 }
 
 func shellToolRowKindWidth(width int) int {

@@ -430,6 +430,40 @@ func TestShellToolCompactRowsFitWidthsAndShowActiveStatuses(t *testing.T) {
 	}
 }
 
+func TestShellToolTranscriptRowCachePartsTrackRenderState(t *testing.T) {
+	state := events.SessionState{
+		SessionID:     "session-1",
+		WorkspaceRoot: "/repo",
+		TurnOrder:     []string{"turn-1"},
+		Turns:         map[string]*events.TurnState{"turn-1": {TurnID: "turn-1"}},
+	}
+	row := toolOutcomeRow{
+		Kind:   toolOutcomeCommand,
+		Label:  "npm test",
+		Status: "done",
+		Ref:    sessionToolCallRef{TurnID: "turn-1", CallID: "call-1"},
+	}
+
+	base := strings.Join(newShellToolTranscriptRow(state, row, nil, 80, false).cacheParts(), "\x00")
+	selected := strings.Join(newShellToolTranscriptRow(state, row, nil, 80, true).cacheParts(), "\x00")
+	if selected == base {
+		t.Fatal("row cache parts did not vary with selected state")
+	}
+
+	row.Status = "running"
+	running := strings.Join(newShellToolTranscriptRow(state, row, nil, 80, false).cacheParts(), "\x00")
+	if running == base {
+		t.Fatal("row cache parts did not vary with status")
+	}
+
+	row.Status = "done"
+	row.Label = "npm run lint"
+	renamed := strings.Join(newShellToolTranscriptRow(state, row, nil, 80, false).cacheParts(), "\x00")
+	if renamed == base {
+		t.Fatal("row cache parts did not vary with label")
+	}
+}
+
 func TestShellLayoutWriteToolShowsSideBySideDiff(t *testing.T) {
 	defaultTheme := theme.StaticDefault()
 	ctx, cancel := context.WithCancel(context.TODO())
