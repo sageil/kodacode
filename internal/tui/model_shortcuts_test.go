@@ -6,6 +6,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/sageil/kodacode/internal/app"
+	"github.com/sageil/kodacode/internal/events"
 	"github.com/sageil/kodacode/internal/tui/theme"
 )
 
@@ -99,6 +100,116 @@ func TestCtrlBackslashTogglesDrawerOpenFromTranscript(t *testing.T) {
 	}
 	if !next.chrome.inspectorOpen {
 		t.Fatal("inspectorOpen = false, want true")
+	}
+}
+
+func TestCtrlLTogglesLayoutMode(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context:       ctx,
+		Theme:         &defaultTheme,
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: "/repo",
+	})
+	model.chrome.focus = focusInspector
+
+	updated, cmd := model.Update(tea.KeyPressMsg{Code: 'l', Mod: tea.ModCtrl})
+	next := updated.(Model)
+
+	if next.layout != tuiLayoutShell {
+		t.Fatalf("layout = %q, want %q", next.layout, tuiLayoutShell)
+	}
+	if next.chrome.focus != focusTranscript {
+		t.Fatalf("focus = %q, want %q after entering shell layout", next.chrome.focus, focusTranscript)
+	}
+	if cmd == nil {
+		t.Fatal("layout toggle cmd = nil")
+	}
+
+	updated, _ = next.Update(tea.KeyPressMsg{Code: 'l', Mod: tea.ModCtrl})
+	next = updated.(Model)
+	if next.layout != tuiLayoutClassic {
+		t.Fatalf("layout = %q, want classic layout", next.layout)
+	}
+}
+
+func TestEscapeFocusesTranscriptWhenTurnNotRunning(t *testing.T) {
+	for _, layout := range []string{"", "shell"} {
+		t.Run(layout, func(t *testing.T) {
+			defaultTheme := theme.StaticDefault()
+			ctx, cancel := context.WithCancel(context.TODO())
+			defer cancel()
+
+			model := NewModel(&fakeController{}, ModelConfig{
+				Context:       ctx,
+				Theme:         &defaultTheme,
+				Layout:        layout,
+				SessionID:     "session-1",
+				TurnID:        "turn-1",
+				WorkspaceRoot: "/repo",
+			})
+			model.chrome.focus = focusComposer
+			model.composerState.popupMode = composerPopupSlash
+
+			updated, _ := model.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+			next := updated.(Model)
+
+			if next.chrome.focus != focusTranscript {
+				t.Fatalf("focus = %q, want %q", next.chrome.focus, focusTranscript)
+			}
+			if next.composerState.popupMode != composerPopupNone {
+				t.Fatalf("composer popup mode = %v, want none", next.composerState.popupMode)
+			}
+		})
+	}
+}
+
+func TestEscapeCancelsRunningTurnBeforeNormalMode(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	controller := &fakeController{}
+	model := NewModel(controller, ModelConfig{
+		Context:       ctx,
+		Theme:         &defaultTheme,
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: "/repo",
+	})
+	model.projector = events.NewProjectorFromSnapshot(events.SessionState{
+		SessionID: "session-1",
+		TurnOrder: []string{
+			"turn-1",
+		},
+		Turns: map[string]*events.TurnState{
+			"turn-1": {
+				TurnID: "turn-1",
+				Status: events.TurnStatusRunning,
+			},
+		},
+	})
+	model.chrome.focus = focusComposer
+
+	updated, cmd := model.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	next := updated.(Model)
+
+	if next.chrome.focus != focusComposer {
+		t.Fatalf("focus = %q, want %q while canceling", next.chrome.focus, focusComposer)
+	}
+	if !next.liveTurn.cancelRequested {
+		t.Fatal("cancelRequested = false, want true")
+	}
+	if cmd == nil {
+		t.Fatal("cancel cmd = nil")
+	}
+	_ = cmd()
+	if len(controller.cancelTurnCalls) != 1 {
+		t.Fatalf("cancel calls = %d, want 1", len(controller.cancelTurnCalls))
 	}
 }
 

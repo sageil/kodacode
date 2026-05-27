@@ -360,6 +360,168 @@ func TestShellLayoutInlineToolCallsRenderIndividuallyAtWideWidths(t *testing.T) 
 	}
 }
 
+func TestShellLayoutSelectedNonMutationToolScrollsIntoView(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context:       ctx,
+		Theme:         &defaultTheme,
+		Layout:        "shell",
+		SessionID:     "session-1",
+		TurnID:        "turn-8",
+		WorkspaceRoot: "/repo",
+	})
+
+	state := events.SessionState{
+		SessionID:     "session-1",
+		WorkspaceRoot: "/repo",
+		TurnOrder:     []string{},
+		Turns:         map[string]*events.TurnState{},
+	}
+	for i := 1; i <= 8; i++ {
+		turnID := fmt.Sprintf("turn-%d", i)
+		callID := fmt.Sprintf("search-%d", i)
+		state.TurnOrder = append(state.TurnOrder, turnID)
+		state.Turns[turnID] = &events.TurnState{
+			TurnID: turnID,
+			Status: events.TurnStatusCompleted,
+			Transcript: []events.TranscriptEntryState{
+				{Kind: events.TranscriptEntryUser, Text: fmt.Sprintf("find target %d", i)},
+				{Kind: events.TranscriptEntryAssistant, Text: strings.Repeat(fmt.Sprintf("assistant text %d. ", i), 12)},
+				{Kind: events.TranscriptEntryTool, CallID: callID},
+			},
+			ToolCallOrder: []string{callID},
+			ToolCalls: map[string]*events.ToolCallState{
+				callID: {
+					CallID:    callID,
+					ToolName:  "search",
+					Input:     fmt.Sprintf(`{"query":"target-%d","path":"src"}`, i),
+					Output:    "src/main.go:1:target\n",
+					Declared:  true,
+					Completed: true,
+					Succeeded: true,
+				},
+			},
+		}
+	}
+
+	model.projector = events.NewProjectorFromSnapshot(state)
+	modelIface, _ := model.Update(tea.WindowSizeMsg{Width: 100, Height: 18})
+	model = modelIface.(Model)
+	model.chrome.focus = focusTranscript
+	model.messages.GotoBottom()
+	model.syncTranscriptStructureWithState(state)
+
+	cmd := model.selectToolCall(sessionToolCallRef{TurnID: "turn-2", CallID: "search-2"})
+	if cmd != nil {
+		_ = cmd()
+	}
+
+	visible := ansi.Strip(strings.Join(model.messages.VisibleLines(), "\n"))
+	if !strings.Contains(visible, "target-2") {
+		t.Fatalf("selected non-mutation tool was not visible after jump; offset=%d\nvisible:\n%s", model.messages.YOffset(), visible)
+	}
+}
+
+func TestTranscriptToolNavigationSkipsMutationToolCalls(t *testing.T) {
+	for _, layout := range []string{"", "shell"} {
+		t.Run(layout, func(t *testing.T) {
+			defaultTheme := theme.StaticDefault()
+			ctx, cancel := context.WithCancel(context.TODO())
+			defer cancel()
+
+			model := NewModel(&fakeController{}, ModelConfig{
+				Context:       ctx,
+				Theme:         &defaultTheme,
+				Layout:        layout,
+				SessionID:     "session-1",
+				TurnID:        "turn-1",
+				WorkspaceRoot: "/repo",
+			})
+			state := events.SessionState{
+				SessionID:     "session-1",
+				WorkspaceRoot: "/repo",
+				TurnOrder:     []string{"turn-1"},
+				Turns: map[string]*events.TurnState{
+					"turn-1": {
+						TurnID: "turn-1",
+						Status: events.TurnStatusCompleted,
+						Transcript: []events.TranscriptEntryState{
+							{Kind: events.TranscriptEntryTool, CallID: "search-1"},
+							{Kind: events.TranscriptEntryTool, CallID: "write-1"},
+							{Kind: events.TranscriptEntryTool, CallID: "patch-1"},
+							{Kind: events.TranscriptEntryTool, CallID: "search-2"},
+						},
+						ToolCallOrder: []string{"search-1", "write-1", "patch-1", "search-2"},
+						ToolCalls: map[string]*events.ToolCallState{
+							"search-1": {
+								CallID:    "search-1",
+								ToolName:  "search",
+								Input:     `{"query":"first","path":"src"}`,
+								Output:    "src/a.go:1:first\n",
+								Declared:  true,
+								Completed: true,
+								Succeeded: true,
+							},
+							"write-1": {
+								CallID:    "write-1",
+								ToolName:  "write",
+								Input:     `{"path":"src/write.go","content":"package main\n"}`,
+								Output:    "wrote src/write.go\n",
+								Declared:  true,
+								Completed: true,
+								Succeeded: true,
+								WriteMutation: &events.WriteMutation{
+									Path: "src/write.go",
+								},
+							},
+							"patch-1": {
+								CallID:    "patch-1",
+								ToolName:  "apply_patch",
+								Input:     `{"patch":"*** Begin Patch\n*** Update File: src/a.go\n@@\n-old\n+new\n*** End Patch"}`,
+								Output:    "Done!\n",
+								Declared:  true,
+								Completed: true,
+								Succeeded: true,
+								WriteMutations: []events.WriteMutation{{
+									Path: "src/a.go",
+								}},
+							},
+							"search-2": {
+								CallID:    "search-2",
+								ToolName:  "search",
+								Input:     `{"query":"second","path":"src"}`,
+								Output:    "src/b.go:1:second\n",
+								Declared:  true,
+								Completed: true,
+								Succeeded: true,
+							},
+						},
+					},
+				},
+			}
+			model.projector = events.NewProjectorFromSnapshot(state)
+			modelIface, _ := model.Update(tea.WindowSizeMsg{Width: 120, Height: 28})
+			model = modelIface.(Model)
+			model.chrome.focus = focusTranscript
+
+			updated, _ := model.Update(tea.KeyPressMsg{Text: "j", Code: 'j'})
+			model = updated.(Model)
+			if model.selection.callID != "search-1" {
+				t.Fatalf("selected call after first j = %q, want search-1", model.selection.callID)
+			}
+
+			updated, _ = model.Update(tea.KeyPressMsg{Text: "j", Code: 'j'})
+			model = updated.(Model)
+			if model.selection.callID != "search-2" {
+				t.Fatalf("selected call after second j = %q, want search-2", model.selection.callID)
+			}
+		})
+	}
+}
+
 func TestShellToolCompactRowsFitWidthsAndShowActiveStatuses(t *testing.T) {
 	defaultTheme := theme.StaticDefault()
 	ctx, cancel := context.WithCancel(context.TODO())
@@ -987,6 +1149,104 @@ func TestShellLayoutToolsPopupShowsAllToolCallsAndOpensDetails(t *testing.T) {
 	detail := renderTestDialogContentPlain(next.dialog)
 	if !strings.Contains(detail, "README.md") {
 		t.Fatalf("tool detail dialog missing selected read call\nrendered:\n%s", detail)
+	}
+}
+
+func TestShellLayoutToolsPopupSearchesToolCalls(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context:       ctx,
+		Theme:         &defaultTheme,
+		Layout:        "shell",
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: "/repo",
+	})
+	state := events.SessionState{
+		SessionID:     "session-1",
+		WorkspaceRoot: "/repo",
+		TurnOrder:     []string{"turn-1"},
+		Turns: map[string]*events.TurnState{
+			"turn-1": {
+				TurnID:        "turn-1",
+				Status:        events.TurnStatusCompleted,
+				ToolCallOrder: []string{"call-read", "call-search", "call-symbol"},
+				ToolCalls: map[string]*events.ToolCallState{
+					"call-read": {
+						CallID:    "call-read",
+						ToolName:  "read",
+						Input:     `{"paths":["src/validation/projectValidation.ts"],"start_line":1,"max_lines":80}`,
+						Output:    "1: export const schema = {}",
+						Declared:  true,
+						Completed: true,
+						Succeeded: true,
+					},
+					"call-search": {
+						CallID:    "call-search",
+						ToolName:  "search",
+						Input:     `{"query":"uniqueArrayValidator","path":"src","mode":"lexical"}`,
+						Output:    "src/validation/projectValidation.ts:8:uniqueArrayValidator\n",
+						Declared:  true,
+						Completed: true,
+						Succeeded: true,
+					},
+					"call-symbol": {
+						CallID:    "call-symbol",
+						ToolName:  "definition",
+						Input:     `{"path":"src/controllers/TaskController.ts","symbol":"TaskController"}`,
+						Output:    "src/controllers/TaskController.ts:1\n",
+						Declared:  true,
+						Completed: true,
+						Succeeded: true,
+					},
+				},
+			},
+		},
+	}
+	dialog := newShellToolsDialog(model, state)
+	dialog.SetFrame(110, 18)
+
+	typeSearch := func(value string) {
+		for _, r := range value {
+			updated, _ := dialog.Update(tea.KeyPressMsg{Text: string(r), Code: r})
+			dialog = updated.(*shellToolsDialog)
+		}
+	}
+
+	typeSearch("project")
+	if got := len(dialog.refs); got != 1 {
+		t.Fatalf("project search refs = %d, want 1", got)
+	}
+	rendered := renderTestDialogContentPlain(dialog)
+	if !strings.Contains(rendered, "projectValidation.ts") || strings.Contains(rendered, "uniqueArrayValidator") {
+		t.Fatalf("project search did not isolate filename match:\n%s", rendered)
+	}
+
+	updated, _ := dialog.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	dialog = updated.(*shellToolsDialog)
+	updated, _ = dialog.Update(tea.KeyPressMsg{Text: "/", Code: '/'})
+	dialog = updated.(*shellToolsDialog)
+	typeSearch("unique")
+	if got := len(dialog.refs); got != 1 {
+		t.Fatalf("unique search refs = %d, want 1", got)
+	}
+	rendered = renderTestDialogContentPlain(dialog)
+	if !strings.Contains(rendered, "uniqueArrayValidator") || strings.Contains(rendered, "TaskController") {
+		t.Fatalf("unique search did not isolate query match:\n%s", rendered)
+	}
+
+	updated, _ = dialog.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	dialog = updated.(*shellToolsDialog)
+	typeSearch("TaskController")
+	if got := len(dialog.refs); got != 1 {
+		t.Fatalf("TaskController search refs = %d, want 1", got)
+	}
+	rendered = renderTestDialogContentPlain(dialog)
+	if !strings.Contains(rendered, "TaskController") || strings.Contains(rendered, "projectValidation.ts") {
+		t.Fatalf("symbol search did not isolate symbol match:\n%s", rendered)
 	}
 }
 

@@ -31,15 +31,18 @@ func visibleToolSelectionRefs(m Model, state events.SessionState) []sessionToolC
 		if !m.shellToolCallsVisible {
 			return nil
 		}
-		if refs := visibleTranscriptToolRefs(m); len(refs) > 0 {
+		if refs := filterNonMutationToolSelectionRefs(state, visibleTranscriptToolRefs(m)); len(refs) > 0 {
 			return refs
 		}
-		return ungroupedSessionToolSelectionRefs(state)
+		return filterNonMutationToolSelectionRefs(state, ungroupedSessionToolSelectionRefs(state))
 	}
 	if isWideShell(m) {
 		rows := deriveSessionToolOutcomeRows(state)
 		refs := make([]sessionToolCallRef, 0, len(rows))
 		for _, row := range rows {
+			if row.Kind == toolOutcomeMutation {
+				continue
+			}
 			if strings.TrimSpace(row.Ref.TurnID) == "" || strings.TrimSpace(row.Ref.CallID) == "" {
 				continue
 			}
@@ -49,7 +52,7 @@ func visibleToolSelectionRefs(m Model, state events.SessionState) []sessionToolC
 			return refs
 		}
 	}
-	return orderedSessionToolCallRefs(state)
+	return filterNonMutationToolSelectionRefs(state, orderedSessionToolCallRefs(state))
 }
 
 func ungroupedSessionToolSelectionRefs(state events.SessionState) []sessionToolCallRef {
@@ -93,6 +96,24 @@ func visibleTranscriptToolRefs(m Model) []sessionToolCallRef {
 		refs = append(refs, item.ref)
 	}
 	return refs
+}
+
+func filterNonMutationToolSelectionRefs(state events.SessionState, refs []sessionToolCallRef) []sessionToolCallRef {
+	if len(refs) == 0 {
+		return nil
+	}
+	filtered := make([]sessionToolCallRef, 0, len(refs))
+	for _, ref := range refs {
+		if strings.TrimSpace(ref.TurnID) == "" || strings.TrimSpace(ref.CallID) == "" {
+			continue
+		}
+		_, call := sessionToolCall(state, ref)
+		if call == nil || outcomeCategoryForTool(call) == toolOutcomeMutation {
+			continue
+		}
+		filtered = append(filtered, ref)
+	}
+	return filtered
 }
 
 func deriveSessionToolOutcomeRows(state events.SessionState) []toolOutcomeRow {

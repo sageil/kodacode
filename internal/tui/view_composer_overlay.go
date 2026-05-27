@@ -121,9 +121,6 @@ func resolveComposerOverlayLayout(m Model, state events.SessionState, layout she
 
 	if shellLayoutEnabled(m) {
 		y := max(m.height-kodaShellFooterHeight(m, state, layout.totalWidth), 0)
-		if notice := renderFooterNoticeBlock(m, state, layout.totalWidth); strings.TrimSpace(notice) != "" {
-			y += lipgloss.Height(notice)
-		}
 		if divider := renderComposerActivityStrip(m, state, layout.totalWidth, composerBorderColor(m, state)); strings.TrimSpace(divider) != "" {
 			y += lipgloss.Height(divider)
 		}

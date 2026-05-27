@@ -44,9 +44,7 @@ func (m Model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 
 	if isTranscriptFocusShortcut(msg) && m.chrome.focus != focusTranscript {
-		m.chrome.focus = focusTranscript
-		m.syncViewportLayout()
-		return m, m.syncComposerFocus()
+		return m.enterNormalMode()
 	}
 
 	if isDrawerToggleShortcut(msg) {
@@ -59,6 +57,10 @@ func (m Model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 	if isNewSessionShortcut(msg) {
 		return m.startNewWorkspaceSession(m.chrome.focus == focusComposer, m.chrome.focus == focusComposer)
+	}
+
+	if isLayoutToggleShortcut(msg) {
+		return m.toggleLayoutMode()
 	}
 
 	if updated, cmd, handled := m.handleShellToolsShortcut(msg); handled {
@@ -154,7 +156,12 @@ func (m Model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 }
 
 func isTranscriptFocusShortcut(msg tea.KeyPressMsg) bool {
-	return msg.Keystroke() == "ctrl+]"
+	switch msg.Keystroke() {
+	case "ctrl+]", "esc":
+		return true
+	default:
+		return false
+	}
 }
 
 func isDrawerToggleShortcut(msg tea.KeyPressMsg) bool {
@@ -172,6 +179,25 @@ func isSessionsDialogShortcut(msg tea.KeyPressMsg) bool {
 
 func isNewSessionShortcut(msg tea.KeyPressMsg) bool {
 	return msg.Keystroke() == "ctrl+n"
+}
+
+func isLayoutToggleShortcut(msg tea.KeyPressMsg) bool {
+	return msg.Keystroke() == "ctrl+l"
+}
+
+func (m Model) toggleLayoutMode() (tea.Model, tea.Cmd) {
+	label := "Shell layout"
+	if shellLayoutEnabled(m) {
+		m.layout = tuiLayoutClassic
+		label = "Classic layout"
+	} else {
+		m.layout = tuiLayoutShell
+		if m.chrome.focus == focusInspector {
+			m.chrome.focus = focusTranscript
+		}
+	}
+	m.syncViewportLayout()
+	return m, tea.Batch(m.syncComposerFocus(), m.showFooterActivity(label, footerActivityToneInfo, ""))
 }
 
 func (m Model) handleShellToolsShortcut(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool) {
@@ -274,6 +300,13 @@ func (m Model) handleAgentCycleShortcut(msg tea.KeyPressMsg) (tea.Model, tea.Cmd
 		return m, nil, true
 	}
 	return m.cycleSelectedAgent(delta), nil, true
+}
+
+func (m Model) enterNormalMode() (tea.Model, tea.Cmd) {
+	m.chrome.focus = focusTranscript
+	m.dismissComposerPopup()
+	m.syncViewportLayout()
+	return m, m.syncComposerFocus()
 }
 
 func (m *Model) resetInspectorAgentSelectionToCurrentTurn() {

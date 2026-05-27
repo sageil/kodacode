@@ -759,7 +759,7 @@ func TestModelCtrlCQuitsEvenWhenDelegatedDialogIsOpen(t *testing.T) {
 	}
 }
 
-func TestModelEscDoesNotCancelWhenTurnNotRunning(t *testing.T) {
+func TestModelEscEntersNormalModeWhenTurnNotRunning(t *testing.T) {
 	defaultTheme := theme.StaticDefault()
 	controller := &fakeController{}
 	ctx, cancel := context.WithCancel(context.TODO())
@@ -779,8 +779,8 @@ func TestModelEscDoesNotCancelWhenTurnNotRunning(t *testing.T) {
 	if len(controller.cancelTurnCalls) != 0 {
 		t.Fatalf("cancelTurnCalls = %#v, want none", controller.cancelTurnCalls)
 	}
-	if next.chrome.focus != focusComposer {
-		t.Fatalf("focus = %q, want %q", next.chrome.focus, focusComposer)
+	if next.chrome.focus != focusTranscript {
+		t.Fatalf("focus = %q, want %q", next.chrome.focus, focusTranscript)
 	}
 	if !next.chrome.wideSidebarOpen {
 		t.Fatal("wideSidebarOpen = false, want true")

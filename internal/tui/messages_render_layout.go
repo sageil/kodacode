@@ -108,10 +108,11 @@ func buildTranscriptSections(sections []transcriptSection, addBottomPadding bool
 	selectionLines := make([]transcriptSelectionLine, 0, len(sections)*4)
 	separator := "\n\n"
 	for _, section := range sections {
-		if strings.TrimSpace(section.content) == "" {
+		content := strings.TrimRight(section.content, "\n")
+		if strings.TrimSpace(content) == "" {
 			continue
 		}
-		parts = append(parts, section.content)
+		parts = append(parts, content)
 	}
 	if len(parts) == 0 {
 		return transcriptRender{}
@@ -122,12 +123,13 @@ func buildTranscriptSections(sections []transcriptSection, addBottomPadding bool
 	line := 0
 	index := 0
 	for _, section := range sections {
-		if strings.TrimSpace(section.content) == "" {
+		content := strings.TrimRight(section.content, "\n")
+		if strings.TrimSpace(content) == "" {
 			continue
 		}
 		if index > 0 {
-			line += strings.Count(separator, "\n")
-			selectionLines = append(selectionLines, transcriptSelectionLine{}, transcriptSelectionLine{})
+			line += transcriptSeparatorLineAdvance(separator)
+			selectionLines = append(selectionLines, transcriptSeparatorSelectionLines(separator)...)
 		}
 		if len(section.toolLineRefs) > 0 {
 			for ref, sectionLine := range section.toolLineRefs {
@@ -138,8 +140,8 @@ func buildTranscriptSections(sections []transcriptSection, addBottomPadding bool
 				toolLines[ref] = line
 			}
 		}
-		selectionLines = append(selectionLines, normalizedTranscriptSelectionLines(section.content, section.selectionLines)...)
-		line += transcriptRenderedLineCount(section.content)
+		selectionLines = append(selectionLines, normalizedTranscriptSelectionLines(content, section.selectionLines)...)
+		line += transcriptRenderedLineCount(content)
 		index++
 	}
 	return transcriptRender{
@@ -163,8 +165,8 @@ func buildTranscriptFromChunks(chunks []transcriptRender) transcriptRender {
 		}
 		parts = append(parts, content)
 		if index > 0 {
-			line += strings.Count(separator, "\n")
-			selectionLines = append(selectionLines, transcriptSelectionLine{}, transcriptSelectionLine{})
+			line += transcriptSeparatorLineAdvance(separator)
+			selectionLines = append(selectionLines, transcriptSeparatorSelectionLines(separator)...)
 		}
 		for ref, chunkLine := range chunk.toolLines {
 			toolLines[ref] = line + chunkLine
@@ -181,6 +183,18 @@ func buildTranscriptFromChunks(chunks []transcriptRender) transcriptRender {
 		toolLines:      toolLines,
 		selectionLines: selectionLines,
 	}
+}
+
+func transcriptSeparatorLineAdvance(separator string) int {
+	return max(strings.Count(separator, "\n")-1, 0)
+}
+
+func transcriptSeparatorSelectionLines(separator string) []transcriptSelectionLine {
+	count := transcriptSeparatorLineAdvance(separator)
+	if count <= 0 {
+		return nil
+	}
+	return make([]transcriptSelectionLine, count)
 }
 
 func transcriptRenderLineCount(rendered transcriptRender) int {

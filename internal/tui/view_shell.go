@@ -95,10 +95,7 @@ func renderShellSeparator(m Model) string {
 
 func renderKodaShellFooter(m Model, state events.SessionState, width int, transcriptStatus string) string {
 	width = max(width, 1)
-	parts := make([]string, 0, 5)
-	if notice := renderFooterNoticeBlock(m, state, width); strings.TrimSpace(notice) != "" {
-		parts = append(parts, notice)
-	}
+	parts := make([]string, 0, 4)
 	if divider := renderComposerActivityStrip(m, state, width, composerBorderColor(m, state)); strings.TrimSpace(divider) != "" {
 		parts = append(parts, divider)
 	}

@@ -20,7 +20,10 @@ type shellToolsDialog struct {
 	icons       terminalIconProfile
 	sessionID   string
 	state       events.SessionState
+	allRefs     []sessionToolCallRef
 	refs        []sessionToolCallRef
+	search      string
+	searching   bool
 	cursor      int
 	offset      int
 	frameWidth  int
@@ -39,10 +42,11 @@ func newShellToolsDialog(m Model, state events.SessionState) *shellToolsDialog {
 		icons:       m.terminalIcons,
 		sessionID:   strings.TrimSpace(m.sessionID),
 		state:       state,
-		refs:        shellToolsDialogRefs(state),
+		allRefs:     shellToolsDialogRefs(state),
 		frameWidth:  96,
 		frameHeight: shellToolsDialogDefaultHeight,
 	}
+	dialog.applySearchFilter(sessionToolCallRef{})
 	selected := sessionToolCallRef{
 		TurnID: strings.TrimSpace(m.selection.callTurnID),
 		CallID: strings.TrimSpace(m.selection.callID),
@@ -82,6 +86,57 @@ func (d *shellToolsDialog) SetFrame(width, height int) {
 func (d *shellToolsDialog) Update(msg tea.Msg) (dialogModel, tea.Cmd) {
 	switch typed := msg.(type) {
 	case tea.KeyPressMsg:
+		if d.searching {
+			switch typed.String() {
+			case "ctrl+c":
+				return d, closeDialog(d.ID(), nil)
+			case "esc":
+				d.clearSearch()
+				return d, nil
+			case "backspace", "ctrl+h":
+				d.removeSearchRune()
+				return d, nil
+			case "ctrl+u":
+				d.clearSearch()
+				return d, nil
+			case "up":
+				d.moveCursor(-1)
+				return d, nil
+			case "down":
+				d.moveCursor(1)
+				return d, nil
+			case "pgup":
+				d.moveCursor(-d.bodyHeight())
+				return d, nil
+			case "pgdown":
+				d.moveCursor(d.bodyHeight())
+				return d, nil
+			case "home":
+				d.cursor = 0
+				d.ensureCursorVisible()
+				return d, nil
+			case "end":
+				d.cursor = max(len(d.refs)-1, 0)
+				d.ensureCursorVisible()
+				return d, nil
+			case "enter":
+				ref, ok := d.selectedRef()
+				if !ok {
+					return d, nil
+				}
+				return d, closeDialog(d.ID(), shellToolsDialogResult{Ref: ref})
+			default:
+				if text := shellToolsDialogSearchText(typed); text != "" {
+					d.appendSearchText(text)
+					return d, nil
+				}
+			}
+			return d, nil
+		}
+		if typed.Text == "/" || typed.Keystroke() == "/" || typed.String() == "/" {
+			d.searching = true
+			return d, nil
+		}
 		switch typed.String() {
 		case "q", "esc", "ctrl+c":
 			return d, closeDialog(d.ID(), nil)
@@ -111,6 +166,12 @@ func (d *shellToolsDialog) Update(msg tea.Msg) (dialogModel, tea.Cmd) {
 				return d, nil
 			}
 			return d, closeDialog(d.ID(), shellToolsDialogResult{Ref: ref})
+		default:
+			if text := shellToolsDialogSearchText(typed); text != "" {
+				d.searching = true
+				d.appendSearchText(text)
+				return d, nil
+			}
 		}
 	}
 	return d, nil
@@ -122,11 +183,11 @@ func (d *shellToolsDialog) Draw(surface dialogSurface, area dialogRenderArea) *t
 	contentWidth := max(width-dialogFrameInset*2, 1)
 	bodyHeight := d.bodyHeight()
 	body := d.renderBody(max(contentWidth-2, 1), bodyHeight)
-	prompt := dialogTitleStyle(d.theme).Render("tools") + " " + dialogHintStyle(d.theme).Render(d.countLabelWithRange())
+	prompt := d.renderPrompt()
 	content := renderPaletteDialogContentSized(d.theme, contentWidth, dialogPaletteFrame{
 		Prompt: prompt,
 		Body:   body,
-		Hint:   "j/k move · enter details · q close",
+		Hint:   d.hint(),
 	}, bodyHeight)
 	return drawDialogFrameOnSurfaceWithTone(surface, area, d.theme, width, content, nil, scrollableDetailDialogCardTone)
 }
@@ -136,7 +197,8 @@ func (d *shellToolsDialog) Sync(m Model, state events.SessionState) {
 	d.theme = m.theme
 	d.sessionID = strings.TrimSpace(m.sessionID)
 	d.state = state
-	d.refs = shellToolsDialogRefs(state)
+	d.allRefs = shellToolsDialogRefs(state)
+	d.applySearchFilter(selected)
 	switch {
 	case len(d.refs) == 0:
 		d.cursor = 0
@@ -155,6 +217,8 @@ func (d *shellToolsDialog) Sync(m Model, state events.SessionState) {
 func (d *shellToolsDialog) OverlayCacheKey() uint64 {
 	hasher := fnv.New64a()
 	writeTranscriptSignatureString(hasher, d.sessionID)
+	writeTranscriptSignatureString(hasher, d.search)
+	writeTranscriptSignatureBool(hasher, d.searching)
 	writeTranscriptSignatureInt(hasher, d.cursor)
 	writeTranscriptSignatureInt(hasher, d.offset)
 	for _, ref := range d.refs {
@@ -171,6 +235,25 @@ func (d *shellToolsDialog) OverlayCacheKey() uint64 {
 		writeTranscriptSignatureString(hasher, call.Error)
 	}
 	return hasher.Sum64()
+}
+
+func (d *shellToolsDialog) renderPrompt() string {
+	prompt := dialogTitleStyle(d.theme).Render("tools")
+	if strings.TrimSpace(d.search) != "" || d.searching {
+		query := d.search
+		if d.searching {
+			query += " "
+		}
+		prompt += " " + dialogHintStyle(d.theme).Render("/"+query)
+	}
+	return prompt + " " + dialogHintStyle(d.theme).Render(d.countLabelWithRange())
+}
+
+func (d *shellToolsDialog) hint() string {
+	if d.searching {
+		return "type search · ↑/↓ move · enter details · backspace edit · esc clear"
+	}
+	return "/ search · j/k move · enter details · q close"
 }
 
 func (d *shellToolsDialog) dialogWidth() int {
@@ -191,6 +274,56 @@ func (d *shellToolsDialog) moveCursor(delta int) {
 		return
 	}
 	d.cursor = max(min(d.cursor+delta, len(d.refs)-1), 0)
+	d.ensureCursorVisible()
+}
+
+func (d *shellToolsDialog) appendSearchText(text string) {
+	if text == "" {
+		return
+	}
+	selected, _ := d.selectedRef()
+	d.search += text
+	d.applySearchFilter(selected)
+}
+
+func (d *shellToolsDialog) removeSearchRune() {
+	if d.search == "" {
+		d.searching = false
+		return
+	}
+	selected, _ := d.selectedRef()
+	runes := []rune(d.search)
+	d.search = string(runes[:len(runes)-1])
+	d.applySearchFilter(selected)
+}
+
+func (d *shellToolsDialog) clearSearch() {
+	selected, _ := d.selectedRef()
+	d.search = ""
+	d.searching = false
+	d.applySearchFilter(selected)
+}
+
+func (d *shellToolsDialog) applySearchFilter(selected sessionToolCallRef) {
+	query := strings.TrimSpace(d.search)
+	if query == "" {
+		d.refs = append([]sessionToolCallRef(nil), d.allRefs...)
+	} else {
+		d.refs = shellToolsDialogFilterRefs(d.state, d.allRefs, query)
+	}
+	switch {
+	case len(d.refs) == 0:
+		d.cursor = 0
+		d.offset = 0
+	case strings.TrimSpace(selected.TurnID) != "":
+		if idx := indexOfToolCallRef(d.refs, selected); idx >= 0 {
+			d.cursor = idx
+		} else {
+			d.cursor = min(d.cursor, len(d.refs)-1)
+		}
+	default:
+		d.cursor = min(d.cursor, len(d.refs)-1)
+	}
 	d.ensureCursorVisible()
 }
 
@@ -227,23 +360,34 @@ func (d *shellToolsDialog) countLabel() string {
 
 func (d *shellToolsDialog) countLabelWithRange() string {
 	if len(d.refs) == 0 {
+		if strings.TrimSpace(d.search) != "" {
+			return fmt.Sprintf("0/%d tools", len(d.allRefs))
+		}
 		return "no tools"
 	}
 	height := max(d.bodyHeight(), 1)
 	start := min(d.offset+1, len(d.refs))
 	end := min(d.offset+height, len(d.refs))
 	rangeLabel := fmt.Sprintf("%d-%d", start, end)
-	if len(d.refs) <= height {
-		return d.countLabel()
+	count := d.countLabel()
+	if strings.TrimSpace(d.search) != "" {
+		count = fmt.Sprintf("%d/%d tools", len(d.refs), len(d.allRefs))
 	}
-	return d.countLabel() + " · " + rangeLabel
+	if len(d.refs) <= height {
+		return count
+	}
+	return count + " · " + rangeLabel
 }
 
 func (d *shellToolsDialog) renderBody(width, height int) string {
 	width = max(width, 1)
 	height = max(height, 1)
 	if len(d.refs) == 0 {
-		empty := dialogHintStyle(d.theme).Render("No tool calls in this session.")
+		message := "No tool calls in this session."
+		if strings.TrimSpace(d.search) != "" && len(d.allRefs) > 0 {
+			message = "No tool calls match " + d.search + "."
+		}
+		empty := dialogHintStyle(d.theme).Render(message)
 		return renderDialogPlainBlock(width, height, empty)
 	}
 	d.ensureCursorVisible()
@@ -333,6 +477,79 @@ func shellToolStatusLabel(status string) string {
 	default:
 		return strings.TrimSpace(status)
 	}
+}
+
+func shellToolsDialogSearchText(msg tea.KeyPressMsg) string {
+	text := msg.Text
+	if text == "" {
+		text = msg.String()
+	}
+	if text == "space" {
+		return " "
+	}
+	if text == "" {
+		return ""
+	}
+	runes := []rune(text)
+	if len(runes) != 1 {
+		return ""
+	}
+	r := runes[0]
+	if r < 0x20 || r == 0x7f {
+		return ""
+	}
+	return text
+}
+
+func shellToolsDialogFilterRefs(state events.SessionState, refs []sessionToolCallRef, query string) []sessionToolCallRef {
+	tokens := strings.Fields(strings.ToLower(strings.TrimSpace(query)))
+	if len(tokens) == 0 {
+		return append([]sessionToolCallRef(nil), refs...)
+	}
+	filtered := make([]sessionToolCallRef, 0, len(refs))
+	for _, ref := range refs {
+		_, call := sessionToolCall(state, ref)
+		if call == nil {
+			continue
+		}
+		haystack := strings.ToLower(shellToolsDialogSearchTextForCall(state, ref, call))
+		matches := true
+		for _, token := range tokens {
+			if !strings.Contains(haystack, token) {
+				matches = false
+				break
+			}
+		}
+		if matches {
+			filtered = append(filtered, ref)
+		}
+	}
+	return filtered
+}
+
+func shellToolsDialogSearchTextForCall(state events.SessionState, ref sessionToolCallRef, call *events.ToolCallState) string {
+	parts := []string{
+		ref.TurnID,
+		ref.CallID,
+		call.ToolName,
+		shellToolPrimaryLabel(state, call),
+		groupedToolItemResultDetail(call),
+		toolStatus(call),
+		call.Input,
+		string(call.StructuredResult),
+	}
+	if presenter, ok := toolPresenterForCall(call); ok {
+		if presenter.ListSummary != nil {
+			parts = append(parts, presenter.ListSummary(call))
+		}
+		if presenter.DisplayName != nil {
+			parts = append(parts, presenter.DisplayName(state.WorkspaceRoot, call))
+		}
+		if presenter.MutationPaths != nil {
+			parts = append(parts, presenter.MutationPaths(call)...)
+		}
+	}
+	return strings.Join(parts, " ")
 }
 
 func toolStatusColorHex(th *theme.Theme, status string) string {

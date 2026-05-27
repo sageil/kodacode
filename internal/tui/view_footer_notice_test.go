@@ -120,6 +120,36 @@ func TestRenderFooterNoticeOverlayAppearsBelowStatusLine(t *testing.T) {
 	assertFooterNoticeBelowStatus(t, ansi.Strip(surface))
 }
 
+func TestRenderShellFooterNoticeOnlyUsesBottomOverlay(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context:       ctx,
+		Theme:         &defaultTheme,
+		Layout:        "shell",
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: "/repo",
+	})
+	modelIface, _ := model.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+	model = modelIface.(Model)
+	state := model.projector.Snapshot()
+	model.footerNotice.err = "The requested model is not supported."
+
+	footer := ansi.Strip(renderKodaShellFooter(model, state, 100, renderKodaShellTranscriptStatus(model, state, 100)))
+	if strings.Contains(footer, "The requested model is not supported.") {
+		t.Fatalf("shell footer should not embed overlaid notice\n%s", footer)
+	}
+
+	surface, _ := renderModelSurface(model)
+	rendered := ansi.Strip(surface)
+	if count := strings.Count(rendered, "The requested model is not supported."); count != 1 {
+		t.Fatalf("shell surface notice count = %d, want 1\n%s", count, rendered)
+	}
+}
+
 func TestRenderFooterNoticeOverlayDoesNotChangeFooterHeight(t *testing.T) {
 	defaultTheme := theme.StaticDefault()
 	ctx, cancel := context.WithCancel(context.Background())
