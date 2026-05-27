@@ -174,14 +174,6 @@ func allToolPresenters() []toolPresenter {
 		ListSummary:     writeToolListSummary,
 		MutationPaths:   writeToolMutationPaths,
 	}, {
-		Names:           []string{"edit"},
-		Category:        fixedToolCategory(toolOutcomeMutation),
-		DisplayName:     editToolDisplayName,
-		InspectorParams: editInspectorParams,
-		ListSummary:     editToolListSummary,
-		ResultDetail:    editToolResultDetail,
-		MutationPaths:   editToolMutationPaths,
-	}, {
 		Names:           []string{"apply_patch"},
 		Category:        fixedToolCategory(toolOutcomeMutation),
 		DisplayName:     applyPatchToolDisplayName,
@@ -264,17 +256,6 @@ func writeToolMutationPaths(call *events.ToolCallState) []string {
 		return nil
 	}
 	input, ok := parseWriteToolViewInput(call.Input)
-	if !ok {
-		return nil
-	}
-	return singleMutationPath(input.Path)
-}
-
-func editToolMutationPaths(call *events.ToolCallState) []string {
-	if call == nil {
-		return nil
-	}
-	input, ok := parseEditToolViewInput(call.Input)
 	if !ok {
 		return nil
 	}

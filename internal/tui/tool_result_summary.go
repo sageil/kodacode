@@ -38,20 +38,6 @@ func groupedToolItemResultDetail(call *events.ToolCallState) string {
 	return ""
 }
 
-func editToolResultDetail(call *events.ToolCallState) string {
-	input, ok := parseEditToolViewInput(call.Input)
-	if !ok {
-		return ""
-	}
-	if detail := strings.TrimSpace(editMutationCompactDiffLabel(call, input)); detail != "" {
-		return detail
-	}
-	if detail := strings.TrimSpace(editToolMatchLabel(input)); detail != "" {
-		return detail
-	}
-	return contentStatsLabel(input.NewText)
-}
-
 func readToolResultDetail(call *events.ToolCallState) string {
 	if reused := reusedToolCallLabel(call); reused != "" {
 		return strings.Replace(reused, ":", "", 1)

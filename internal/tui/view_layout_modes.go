@@ -44,7 +44,11 @@ func shellStatusHints(m Model, state events.SessionState) string {
 		}
 		return "h/l tabs · i insert · ctrl+\\ drawer · ctrl+s sessions · ctrl+n new · pgup/pgdn scroll · ctrl+] normal"
 	case focusComposer:
-		hints := "enter submit · shift+enter nl · ctrl+e edit · ↑/↓ recall · ctrl+s sessions · ctrl+n new · ctrl+\\ drawer · pgup/pgdn"
+		hints := "enter submit · shift+enter nl · ctrl+e edit · ↑/↓ recall"
+		if shellLayoutEnabled(m) {
+			hints += " · ctrl+t tools"
+		}
+		hints += " · ctrl+s sessions · ctrl+n new · ctrl+\\ drawer · pgup/pgdn"
 		if !m.currentTurnRunning() {
 			hints += " · tab agent"
 		}
@@ -53,6 +57,18 @@ func shellStatusHints(m Model, state events.SessionState) string {
 		if m.transcriptView.visualActive {
 			return "y copy · v/esc cancel · h/l chars · ↑↓ lines · 0/$ line · home/end doc"
 		}
+		if shellLayoutEnabled(m) {
+			toolHint := "t tools · T inline tools"
+			if selectedTranscriptToolAvailable(m, state) && m.shellToolCallsVisible {
+				toolHint = "enter details · " + toolHint
+			}
+			return toolHint + " · h/l chars · v select · i insert · ctrl+s sessions · ctrl+n new"
+		}
 		return "drag/v select · h/l chars · ↑↓ lines · j/k tools · {/]} handoffs · i insert · ctrl+\\ drawer · ctrl+s sessions · ctrl+n new"
 	}
+}
+
+func selectedTranscriptToolAvailable(m Model, state events.SessionState) bool {
+	_, _, _, _, ok := selectedSessionToolCall(state, m)
+	return ok
 }

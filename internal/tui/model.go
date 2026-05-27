@@ -20,41 +20,45 @@ var ErrContextRequired = errors.New("tui context is required")
 var ErrTranscriptIncrementalRefreshInvariant = errors.New("incremental transcript refresh requires a cached compatible layout")
 
 type ModelConfig struct {
-	Context           context.Context
-	Theme             *theme.Theme
-	ThemeName         string
-	DisplayTurns      int
-	SessionID         string
-	TurnID            string
-	WorkspaceRoot     string
-	UserText          string
-	AgentID           string
-	SkillIDs          []string
-	InitialState      *events.SessionState
-	InitialStateOwned bool
+	Context            context.Context
+	Theme              *theme.Theme
+	ThemeName          string
+	Layout             string
+	HideShellToolCalls bool
+	DisplayTurns       int
+	SessionID          string
+	TurnID             string
+	WorkspaceRoot      string
+	UserText           string
+	AgentID            string
+	SkillIDs           []string
+	InitialState       *events.SessionState
+	InitialStateOwned  bool
 }
 
 type Model struct {
-	backend          Backend
-	controller       controller
-	clipboard        clipboardWriter
-	editor           externalEditorLauncher
-	ctx              context.Context
-	theme            *theme.Theme
-	themeName        string
-	themeRenderTheme *theme.Theme
-	themeRenderKey   string
-	displayTurns     int
-	sessionID        string
-	turnID           string
-	userText         string
-	agentID          string
-	skillIDs         []string
-	thinkingEnabled  bool
-	reasoningVariant string
-	workspace        string
-	bootstrapped     bool
-	providerCatalog  providerCatalogState
+	backend               Backend
+	controller            controller
+	clipboard             clipboardWriter
+	editor                externalEditorLauncher
+	ctx                   context.Context
+	theme                 *theme.Theme
+	themeName             string
+	themeRenderTheme      *theme.Theme
+	themeRenderKey        string
+	layout                string
+	shellToolCallsVisible bool
+	displayTurns          int
+	sessionID             string
+	turnID                string
+	userText              string
+	agentID               string
+	skillIDs              []string
+	thinkingEnabled       bool
+	reasoningVariant      string
+	workspace             string
+	bootstrapped          bool
+	providerCatalog       providerCatalogState
 
 	projector *events.Projector
 	stream    <-chan events.Event
@@ -305,25 +309,27 @@ func NewModel(backend Backend, cfg ModelConfig) Model {
 	}
 
 	model := Model{
-		backend:          backend,
-		controller:       backend,
-		clipboard:        systemClipboardWriter{},
-		editor:           systemExternalEditorLauncher{},
-		ctx:              cfg.Context,
-		theme:            activeTheme,
-		themeName:        normalizedThemeSelection(cfg.ThemeName),
-		themeRenderTheme: activeTheme,
-		themeRenderKey:   renderThemeCacheKey(activeTheme),
-		displayTurns:     max(cfg.DisplayTurns, 0),
-		sessionID:        cfg.SessionID,
-		turnID:           cfg.TurnID,
-		userText:         userText,
-		agentID:          pickFirstNonBlank(agentID, "builder"),
-		skillIDs:         skillIDs,
-		thinkingEnabled:  thinkingEnabled,
-		reasoningVariant: reasoningVariant,
-		workspace:        workspace,
-		bootstrapped:     bootstrapped,
+		backend:               backend,
+		controller:            backend,
+		clipboard:             systemClipboardWriter{},
+		editor:                systemExternalEditorLauncher{},
+		ctx:                   cfg.Context,
+		theme:                 activeTheme,
+		themeName:             normalizedThemeSelection(cfg.ThemeName),
+		themeRenderTheme:      activeTheme,
+		themeRenderKey:        renderThemeCacheKey(activeTheme),
+		layout:                normalizedTUILayoutSelection(cfg.Layout),
+		shellToolCallsVisible: !cfg.HideShellToolCalls,
+		displayTurns:          max(cfg.DisplayTurns, 0),
+		sessionID:             cfg.SessionID,
+		turnID:                cfg.TurnID,
+		userText:              userText,
+		agentID:               pickFirstNonBlank(agentID, "builder"),
+		skillIDs:              skillIDs,
+		thinkingEnabled:       thinkingEnabled,
+		reasoningVariant:      reasoningVariant,
+		workspace:             workspace,
+		bootstrapped:          bootstrapped,
 		providerCatalog: providerCatalogState{
 			agents:             make(map[string]app.AvailableAgent),
 			connectedProviders: make(map[string]app.ConnectedProvider),

@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -24,6 +25,15 @@ func requestInputIndex(request provider.Request, match func(provider.Input) bool
 		}
 	}
 	return -1
+}
+
+func requireLocalTestListener(t *testing.T) {
+	t.Helper()
+	listener, err := net.Listen("tcp", "localhost:0")
+	if err != nil {
+		t.Skipf("local test listener unavailable: %v", err)
+	}
+	_ = listener.Close()
 }
 
 func TestRuntimeRunSessionTurnCompletesOneShotTurn(t *testing.T) {
@@ -540,6 +550,8 @@ func TestRuntimeResolveSessionTurnReplaysBatchedPrefixBeforePendingPermission(t 
 }
 
 func TestRuntimeResolveSessionTurnAllowsOneShotWebFetchPermission(t *testing.T) {
+	requireLocalTestListener(t)
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		_, _ = w.Write([]byte("hello from server"))

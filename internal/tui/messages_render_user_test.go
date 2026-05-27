@@ -829,7 +829,7 @@ func TestWideTranscriptShowsMutationOutcomeDetails(t *testing.T) {
 	}
 }
 
-func TestWideTranscriptShowsEditOutcomeDetails(t *testing.T) {
+func TestWideTranscriptShowsWriteOutcomeDetails(t *testing.T) {
 	customTheme := theme.StaticDefault()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -853,15 +853,15 @@ func TestWideTranscriptShowsEditOutcomeDetails(t *testing.T) {
 			"turn-1": {
 				TurnID: "turn-1",
 				Transcript: []events.TranscriptEntryState{
-					{Kind: events.TranscriptEntryTool, CallID: "edit-call"},
+					{Kind: events.TranscriptEntryTool, CallID: "write-call"},
 				},
-				ToolCallOrder: []string{"edit-call"},
+				ToolCallOrder: []string{"write-call"},
 				ToolCalls: map[string]*events.ToolCallState{
-					"edit-call": {
-						CallID:    "edit-call",
-						ToolName:  "edit",
-						Input:     `{"path":"src/app.ts","start_line":"2","old_text":"const value = 1;\n","new_text":"const value = 2;\n"}`,
-						Output:    "edited line 2 in /repo/src/app.ts",
+					"write-call": {
+						CallID:    "write-call",
+						ToolName:  "write",
+						Input:     `{"path":"src/app.ts","content":"function run() {\nconst value = 2;\n}\n"}`,
+						Output:    "wrote /repo/src/app.ts",
 						Completed: true,
 						WriteMutation: &events.WriteMutation{
 							Path:    "/repo/src/app.ts",
@@ -885,8 +885,8 @@ func TestWideTranscriptShowsEditOutcomeDetails(t *testing.T) {
 
 	rendered := ansi.Strip(renderTranscriptMessages(model, state, 100).content)
 	for _, want := range []string{
-		"Edited src/app.ts (+1 -1)",
-		"exact text match",
+		"Wrote src/app.ts",
+		"4 lines",
 		"- const value = 1;",
 		"+ const value = 2;",
 	} {
@@ -896,7 +896,7 @@ func TestWideTranscriptShowsEditOutcomeDetails(t *testing.T) {
 	}
 }
 
-func TestWideTranscriptHidesSupersededFailedEditRetry(t *testing.T) {
+func TestWideTranscriptHidesSupersededFailedWriteRetry(t *testing.T) {
 	customTheme := theme.StaticDefault()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -920,25 +920,25 @@ func TestWideTranscriptHidesSupersededFailedEditRetry(t *testing.T) {
 			"turn-1": {
 				TurnID: "turn-1",
 				Transcript: []events.TranscriptEntryState{
-					{Kind: events.TranscriptEntryTool, CallID: "edit-fail"},
-					{Kind: events.TranscriptEntryWorklog, Text: "Retrying the edit after rereading the file."},
-					{Kind: events.TranscriptEntryTool, CallID: "edit-success"},
+					{Kind: events.TranscriptEntryTool, CallID: "write-fail"},
+					{Kind: events.TranscriptEntryWorklog, Text: "Retrying the write after rereading the file."},
+					{Kind: events.TranscriptEntryTool, CallID: "write-success"},
 				},
-				ToolCallOrder: []string{"edit-fail", "edit-success"},
+				ToolCallOrder: []string{"write-fail", "write-success"},
 				ToolCalls: map[string]*events.ToolCallState{
-					"edit-fail": {
-						CallID:    "edit-fail",
-						ToolName:  "edit",
-						Input:     `{"path":"src/server.ts","start_line":"169","old_text":"const RedisStore = connectRedis(session);\n","new_text":"let redisStore: RedisStore | undefined;\n"}`,
-						Error:     "Read src/server.ts line 169, then retry edit.",
+					"write-fail": {
+						CallID:    "write-fail",
+						ToolName:  "write",
+						Input:     `{"path":"src/server.ts","content":"let redisStore: RedisStore | undefined;\n"}`,
+						Error:     "Read src/server.ts line 169, then retry write.",
 						Completed: true,
 						Succeeded: false,
 					},
-					"edit-success": {
-						CallID:    "edit-success",
-						ToolName:  "edit",
-						Input:     `{"path":"src/server.ts","start_line":"169","old_text":"const RedisStore = connectRedis(session);\n","new_text":"let redisStore: RedisStore | undefined;\n"}`,
-						Output:    "edited line 169 in /repo/src/server.ts",
+					"write-success": {
+						CallID:    "write-success",
+						ToolName:  "write",
+						Input:     `{"path":"src/server.ts","content":"let redisStore: RedisStore | undefined;\n"}`,
+						Output:    "wrote /repo/src/server.ts",
 						Completed: true,
 						Succeeded: true,
 						WriteMutation: &events.WriteMutation{
@@ -962,11 +962,11 @@ func TestWideTranscriptHidesSupersededFailedEditRetry(t *testing.T) {
 	}
 
 	rendered := ansi.Strip(renderTranscriptMessages(model, state, 100).content)
-	if !strings.Contains(rendered, "Edited src/server.ts") {
+	if !strings.Contains(rendered, "Wrote src/server.ts") {
 		t.Fatalf("wide transcript missing successful retry output\nrendered:\n%s", rendered)
 	}
 	for _, unwanted := range []string{
-		"Read src/server.ts line 169, then retry edit.",
+		"Read src/server.ts line 169, then retry write.",
 		"Change failed",
 	} {
 		if strings.Contains(rendered, unwanted) {
@@ -1039,7 +1039,7 @@ func TestWideTranscriptOmitsFailedWriteToolEntries(t *testing.T) {
 	}
 }
 
-func TestTranscriptOmitsSelectedFailedEditToolEntries(t *testing.T) {
+func TestTranscriptOmitsSelectedFailedWriteToolEntries(t *testing.T) {
 	customTheme := theme.StaticDefault()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -1053,7 +1053,7 @@ func TestTranscriptOmitsSelectedFailedEditToolEntries(t *testing.T) {
 		WorkspaceRoot: "/repo",
 	})
 	model.selection.callTurnID = "turn-1"
-	model.selection.callID = "edit-fail"
+	model.selection.callID = "write-fail"
 
 	state := events.SessionState{
 		SessionID:     "session-1",
@@ -1064,15 +1064,15 @@ func TestTranscriptOmitsSelectedFailedEditToolEntries(t *testing.T) {
 				TurnID: "turn-1",
 				Transcript: []events.TranscriptEntryState{
 					{Kind: events.TranscriptEntryUser, Text: "Patch the auth guard."},
-					{Kind: events.TranscriptEntryTool, CallID: "edit-fail"},
+					{Kind: events.TranscriptEntryTool, CallID: "write-fail"},
 				},
-				ToolCallOrder: []string{"edit-fail"},
+				ToolCallOrder: []string{"write-fail"},
 				ToolCalls: map[string]*events.ToolCallState{
-					"edit-fail": {
-						CallID:    "edit-fail",
-						ToolName:  "edit",
-						Input:     `{"path":"src/auth.ts","old_text":"if (!user) {\n","new_text":"if (user == nil) {\n"}`,
-						Error:     "Read src/auth.ts, then retry edit.",
+					"write-fail": {
+						CallID:    "write-fail",
+						ToolName:  "write",
+						Input:     `{"path":"src/auth.ts","content":"if (user == nil) {\n"}`,
+						Error:     "Read src/auth.ts, then retry write.",
 						Completed: true,
 						Succeeded: false,
 					},
@@ -1087,12 +1087,12 @@ func TestTranscriptOmitsSelectedFailedEditToolEntries(t *testing.T) {
 		t.Fatalf("transcript missing user entry\nrendered:\n%s", rendered)
 	}
 	for _, unwanted := range []string{
-		"Read src/auth.ts, then retry edit.",
-		"Edited src/auth.ts",
+		"Read src/auth.ts, then retry write.",
+		"Wrote src/auth.ts",
 		"Tool •",
 	} {
 		if strings.Contains(rendered, unwanted) {
-			t.Fatalf("transcript unexpectedly shows selected failed edit detail %q\nrendered:\n%s", unwanted, rendered)
+			t.Fatalf("transcript unexpectedly shows selected failed write detail %q\nrendered:\n%s", unwanted, rendered)
 		}
 	}
 }

@@ -238,41 +238,6 @@ func TestShouldRenderToolCallInTranscriptHidesSupersededRetriedTaskCall(t *testi
 	}
 }
 
-func TestOrderedTurnToolCallRefsHideSupersededRetriedEditCall(t *testing.T) {
-	turn := &events.TurnState{
-		TurnID:        "turn-1",
-		ToolCallOrder: []string{"call-1", "call-2"},
-		ToolCalls: map[string]*events.ToolCallState{
-			"call-1": {
-				CallID:    "call-1",
-				ToolName:  "edit",
-				Input:     `{"path":"src/filterUtils.ts","old_text":"old\n","new_text":"new\n"}`,
-				Error:     "edit failed: Could not find an exact old_text match in src/filterUtils.ts.",
-				Completed: true,
-			},
-			"call-2": {
-				CallID:        "call-2",
-				ToolName:      "edit",
-				Input:         `{"path":"src/filterUtils.ts","old_text":"old\n","new_text":"new\n"}`,
-				Error:         "edit failed: Could not find an exact old_text match in src/filterUtils.ts.",
-				RetryOfCallID: "call-1",
-				Completed:     true,
-			},
-		},
-	}
-
-	state := events.SessionState{
-		Turns: map[string]*events.TurnState{
-			"turn-1": turn,
-		},
-	}
-
-	refs := orderedTurnToolCallRefs(state, "turn-1")
-	if len(refs) != 1 || refs[0].CallID != "call-2" {
-		t.Fatalf("refs = %#v, want only latest edit retry", refs)
-	}
-}
-
 func TestShouldRenderToolCallInTranscriptHidesDelegateCallWithHandoff(t *testing.T) {
 	turn := &events.TurnState{
 		TurnID:        "turn-1",
@@ -372,11 +337,15 @@ func TestGroupedToolItemLabelUsesProgressiveVerbsWhileRunning(t *testing.T) {
 			want: "Writing ProjectController.ts",
 		},
 		{
-			name: "edit",
+			name: "apply_patch",
 			call: &events.ToolCallState{
-				ToolName:  "edit",
-				Input:     `{"path":"src/controllers/ProjectController.ts","start_line":"12","old_text":"old","new_text":"new"}`,
+				ToolName:  "apply_patch",
+				Input:     `*** Begin Patch\n*** Update File: src/controllers/ProjectController.ts\n@@\n-old\n+new\n*** End Patch\n`,
 				Executing: true,
+				WriteMutation: &events.WriteMutation{
+					Path:    "/repo/src/controllers/ProjectController.ts",
+					Existed: true,
+				},
 			},
 			want: "Editing ProjectController.ts",
 		},

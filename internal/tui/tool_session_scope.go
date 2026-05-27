@@ -56,26 +56,6 @@ func selectedToolMatchesSession(m Model, sessionID string, ref sessionToolCallRe
 		strings.TrimSpace(m.selection.callID) == strings.TrimSpace(ref.CallID)
 }
 
-func orderedTurnToolCallRefs(state events.SessionState, turnID string) []sessionToolCallRef {
-	turnID = strings.TrimSpace(turnID)
-	if turnID == "" {
-		return nil
-	}
-	turn := state.Turns[turnID]
-	if turn == nil {
-		return nil
-	}
-	refs := make([]sessionToolCallRef, 0, len(turn.ToolCallOrder))
-	for _, callID := range orderedToolCallIDs(turn) {
-		call := turn.ToolCalls[callID]
-		if call == nil || shouldHideSupersededMutationFailure(turn, callID, call) || shouldHideSupersededRetriedLogicalToolCall(turn, callID, call) || shouldHideSupersededDelegateAttempt(turn, callID, call) {
-			continue
-		}
-		refs = append(refs, sessionToolCallRef{TurnID: turnID, CallID: callID})
-	}
-	return refs
-}
-
 func selectedDelegatedHandoff(state events.SessionState, m Model) *events.AgentHandoffState {
 	return explicitSelectedHandoff(currentTurn(state, m.turnID), strings.TrimSpace(m.selection.handoffID))
 }

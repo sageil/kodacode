@@ -89,7 +89,7 @@ func toolDetailPrimaryPath(call *events.ToolCallState) string {
 		if input, ok := parseReadToolViewInput(call.Input); ok && len(input.Paths) == 1 {
 			return input.Paths[0]
 		}
-	case "write", "edit", "mkdir":
+	case "write", "mkdir":
 		if params := toolInspectorParams(call); len(params) > 0 {
 			for _, param := range params {
 				if strings.EqualFold(strings.TrimSpace(param.Label), "Path") && strings.TrimSpace(param.Value) != "" {

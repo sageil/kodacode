@@ -109,6 +109,11 @@ func (m Model) handleTranscriptInput(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.syncDeferredTranscriptIfNeeded()
 		return m, nil
 	case "enter":
+		if shellLayoutEnabled(m) && m.shellToolCallsVisible {
+			if cmd := m.openSelectedTranscriptToolDialog(); cmd != nil {
+				return m, cmd
+			}
+		}
 		return m.startChildSessionView()
 	case "r":
 		return m.reuseSelectedHandoffResult()
@@ -169,6 +174,28 @@ func (m *Model) openSelectedInspectorToolDialog() tea.Cmd {
 		return nil
 	}
 	return tea.Batch(m.selectInspectorToolTarget(target), m.openInspectorToolTargetDialog(target))
+}
+
+func (m *Model) openSelectedTranscriptToolDialog() tea.Cmd {
+	if m == nil {
+		return nil
+	}
+	state := m.projector.Snapshot()
+	sessionID, ref, _, _, ok := selectedSessionToolCall(state, *m)
+	if !ok {
+		return nil
+	}
+	if strings.TrimSpace(sessionID) == "" {
+		sessionID = m.sessionID
+	}
+	if strings.TrimSpace(sessionID) == strings.TrimSpace(m.sessionID) {
+		return m.openToolCallDialog(ref)
+	}
+	childState, ok := m.delegatedSnapshot(sessionID)
+	if !ok {
+		return m.ensureDelegatedSessionSnapshotLoadedCmd(sessionID)
+	}
+	return m.openToolCallDialogForSession(sessionID, childState, ref)
 }
 
 func (m *Model) moveSelectedToolAcross(refs []sessionToolCallRef, delta int, clearOnEmpty bool) tea.Cmd {

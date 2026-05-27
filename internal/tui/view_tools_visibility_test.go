@@ -208,54 +208,6 @@ func TestRenderTranscriptMessagesSkipsRunningLocatePreview(t *testing.T) {
 	}
 }
 
-func TestRenderTranscriptMessagesSkipsUnstableRunningToolCallPreview(t *testing.T) {
-	defaultTheme := theme.StaticDefault()
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	model := NewModel(&fakeController{}, ModelConfig{
-		Context:       ctx,
-		Theme:         &defaultTheme,
-		SessionID:     "session-1",
-		TurnID:        "turn-1",
-		WorkspaceRoot: "/repo",
-	})
-	state := events.SessionState{
-		SessionID:     "session-1",
-		WorkspaceRoot: "/repo",
-		TurnOrder:     []string{"turn-1"},
-		Turns: map[string]*events.TurnState{
-			"turn-1": {
-				TurnID: "turn-1",
-				Status: events.TurnStatusRunning,
-				Transcript: []events.TranscriptEntryState{
-					{Kind: events.TranscriptEntryUser, Text: "change the config"},
-				},
-				ToolCallOrder: []string{"call-edit"},
-				ToolCalls: map[string]*events.ToolCallState{
-					"call-edit": {
-						CallID:    "call-edit",
-						ToolName:  "edit",
-						Input:     `{"path":"config.ts","old_text":"old","new_text":"new"}`,
-						Declared:  true,
-						Executing: true,
-					},
-				},
-				Handoffs: map[string]*events.AgentHandoffState{},
-			},
-		},
-	}
-
-	rendered := ansi.Strip(renderTranscriptMessages(model, state, 120).content)
-	if strings.Contains(rendered, "Editing") || strings.Contains(rendered, "config.ts") {
-		t.Fatalf("transcript rendered unstable running edit preview:\n%s", rendered)
-	}
-	tools := ansi.Strip(renderOutcomeToolsListInspector(model, state, 120))
-	if !strings.Contains(tools, "config.ts") || !strings.Contains(tools, "edit config.ts") {
-		t.Fatalf("tools inspector should still show running edit preview:\n%s", tools)
-	}
-}
-
 func TestTurnTranscriptSourceSignatureSkipsRunningLocatePreview(t *testing.T) {
 	turn := &events.TurnState{
 		TurnID:        "turn-1",
@@ -276,29 +228,6 @@ func TestTurnTranscriptSourceSignatureSkipsRunningLocatePreview(t *testing.T) {
 	next := buildTurnTranscriptSourceSignature(turn)
 	if initial != next {
 		t.Fatalf("transcript source signature changed for hidden running locate preview")
-	}
-}
-
-func TestTurnTranscriptSourceSignatureSkipsUnstableRunningToolCallPreview(t *testing.T) {
-	turn := &events.TurnState{
-		TurnID:        "turn-1",
-		Status:        events.TurnStatusRunning,
-		ToolCallOrder: []string{"call-edit"},
-		ToolCalls: map[string]*events.ToolCallState{
-			"call-edit": {
-				CallID:   "call-edit",
-				ToolName: "edit",
-				Input:    `{"path":"config.ts","old_text":"old","new_text":"ne`,
-			},
-		},
-	}
-
-	initial := buildTurnTranscriptSourceSignature(turn)
-	turn.ToolCalls["call-edit"].Input = `{"path":"config.ts","old_text":"old","new_text":"new"}`
-	turn.ToolCalls["call-edit"].LastUpdatedSeq = 2
-	next := buildTurnTranscriptSourceSignature(turn)
-	if initial != next {
-		t.Fatalf("transcript source signature changed for hidden running edit preview")
 	}
 }
 
@@ -764,9 +693,9 @@ func TestRenderGroupedToolsInspectorKeepsMutationErrorsOutOfListRows(t *testing.
 				ToolCalls: map[string]*events.ToolCallState{
 					"call-1": {
 						CallID:    "call-1",
-						ToolName:  "edit",
-						Input:     `{"path":"src/cacheMiddleware.ts","old_text":"old\n","new_text":"new\n"}`,
-						Error:     "`edit` failed. path is required. Use exact old_text/new_text, optionally with start_line, or use edits[] with exact old_text/new_text entries.",
+						ToolName:  "write",
+						Input:     `{"path":"src/cacheMiddleware.ts","content":"new\n"}`,
+						Error:     "`write` failed. path is required.",
 						Declared:  true,
 						Completed: true,
 						Succeeded: false,
@@ -778,12 +707,12 @@ func TestRenderGroupedToolsInspectorKeepsMutationErrorsOutOfListRows(t *testing.
 	}
 
 	rendered := ansi.Strip(renderGroupedToolsInspector(model, state, 48).Content)
-	if !strings.Contains(rendered, "Edit cacheMiddleware.ts") {
-		t.Fatalf("grouped tools inspector missing failed edit label:\n%s", rendered)
+	if !strings.Contains(rendered, "Write cacheMiddleware.ts") {
+		t.Fatalf("grouped tools inspector missing failed write label:\n%s", rendered)
 	}
 	for _, unwanted := range []string{
-		"Edited cacheMiddleware.ts",
-		"`edit` failed.",
+		"Wrote cacheMiddleware.ts",
+		"`write` failed.",
 		"Example:",
 		"src/app.ts",
 	} {

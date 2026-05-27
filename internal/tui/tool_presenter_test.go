@@ -15,7 +15,6 @@ func TestToolPresenterRegistryCoversKnownTools(t *testing.T) {
 		"definition",
 		"delegate",
 		"diagnostics",
-		"edit",
 		"git_diff",
 		"git_show",
 		"git_status",

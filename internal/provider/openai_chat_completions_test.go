@@ -132,7 +132,7 @@ func TestBuildOpenAIChatCompletionsRequestNormalizesOpenAICompatibleToolSchema(t
 		Instructions: "be precise",
 		Inputs:       []Input{{Kind: InputKindUserMessage, Content: "hello"}},
 		Tools: []Tool{{
-			Name:        "edit",
+			Name:        "custom_tool",
 			Description: "Edit a file",
 			InputSchema: `{"type":"object","properties":{"path":{"type":"string"},"mode":{"type":"string","enum":["exact","range"]},"start_line":{"type":["integer","string","null"]},"headers":{"type":["object","null"],"additionalProperties":{"type":["string","null"]}}},"required":["path"],"anyOf":[{"required":["old_text"]},{"required":["start_line","end_line"]}],"additionalProperties":false}`,
 		}},

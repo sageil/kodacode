@@ -48,33 +48,6 @@ func renderWriteMutationToolDetailLines(m Model, sessionID string, ref sessionTo
 	return lines, true
 }
 
-func renderEditMutationToolDetailLines(m Model, sessionID string, ref sessionToolCallRef, call *events.ToolCallState, width int, diffStyle mutationToolDetailDiffStyle) ([]string, bool) {
-	input, ok := parseEditToolViewInput(call.Input)
-	if !ok {
-		return nil, false
-	}
-
-	lines := mutationToolDetailContextLines(m, editMutationToolDetailMetaLabel(call, input), width)
-
-	if preview, ok := toolMutationDetailPreviewForSession(m, sessionID, ref, call); ok {
-		if !textdiff.HasChanges(*preview) {
-			return append(lines, renderMutationMetaLine(m, "no content changes", width)), true
-		}
-		lines = append(lines, "")
-		lines = append(lines, renderMutationToolDetailDiffOpsWithStyleAt(m, mutationDiffOpsFromPreview(preview), width, preview.OldStartLine, preview.NewStartLine, diffStyle)...)
-		return lines, true
-	}
-
-	ops := trimMutationDiffContext(mutationDiffLines(splitNormalizedLines(input.OldText), splitNormalizedLines(input.NewText)), 2)
-	if !mutationDiffHasChanges(ops) {
-		return append(lines, renderMutationMetaLine(m, "no content changes", width)), true
-	}
-	lines = append(lines, "")
-	startLine := editMutationPreviewStartLine(call)
-	lines = append(lines, renderMutationToolDetailDiffOpsWithStyleAt(m, ops, width, startLine, startLine, diffStyle)...)
-	return lines, true
-}
-
 func renderApplyPatchMutationToolDetailLines(m Model, workspaceRoot string, call *events.ToolCallState, width int, diffStyle mutationToolDetailDiffStyle) ([]string, bool) {
 	mutations := applyPatchMutations(call)
 	if len(mutations) == 0 {
@@ -111,20 +84,6 @@ func writeMutationToolDetailMetaLabel(call *events.ToolCallState, content string
 	parts := []string{contentStatsLabel(content)}
 	if diff := strings.TrimSpace(writeMutationDiffLabel(call)); diff != "" && diff != "no content changes" {
 		parts = append(parts, diff)
-	}
-	return strings.Join(parts, " • ")
-}
-
-func editMutationToolDetailMetaLabel(call *events.ToolCallState, input editToolViewInput) string {
-	parts := make([]string, 0, 2)
-	if match := strings.TrimSpace(editToolMatchLabel(input)); match != "" {
-		parts = append(parts, match)
-	}
-	if diff := strings.TrimSpace(editMutationDiffLabel(call, input)); diff != "" && diff != "no content changes" {
-		parts = append(parts, diff)
-	}
-	if len(parts) == 0 {
-		return contentStatsLabel(input.NewText)
 	}
 	return strings.Join(parts, " • ")
 }

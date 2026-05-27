@@ -267,6 +267,12 @@ func (m *Model) handleDialogClosed(msg dialogClosedMsg) (tea.Model, tea.Cmd) {
 	}
 
 	switch msg.id {
+	case dialogIDShellTools:
+		result, ok := msg.result.(shellToolsDialogResult)
+		if !ok {
+			return *m, nil
+		}
+		return *m, m.openShellToolsDialogResult(result)
 	case dialogIDTheme:
 		item, ok := msg.result.(themeItem)
 		if !ok {

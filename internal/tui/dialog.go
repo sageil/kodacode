@@ -23,6 +23,7 @@ const (
 	dialogIDGitHubCopilotAuth = "github-copilot-auth"
 	dialogIDCost              = "cost"
 	dialogIDTrace             = "trace"
+	dialogIDShellTools        = "shell-tools"
 	dialogIDToolDetail        = "tool-detail"
 	dialogIDHandoffDetail     = "handoff-detail"
 	dialogIDTaskDetail        = "task-detail"

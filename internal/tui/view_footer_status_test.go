@@ -2061,13 +2061,13 @@ func TestHandleWatchEventsRefreshesSessionUsageSummaryAfterToolExecEndEvent(t *t
 	updated, cmd := model.handleWatchEvents(7, []events.Event{
 		draftEvent(1, events.TypeToolCallDeclared, "session-1", "turn-1", events.ToolCallDeclaredPayload{
 			CallID:   "call-1",
-			ToolName: "edit",
-			Input:    `{"path":"notes.txt"}`,
+			ToolName: "write",
+			Input:    `{"path":"notes.txt","content":"updated\n"}`,
 		}),
 		draftEvent(2, events.TypeToolExecEnd, "session-1", "turn-1", events.ToolExecEndPayload{
 			CallID:       "call-1",
-			ToolName:     "edit",
-			Error:        "read notes.txt first, then retry edit",
+			ToolName:     "write",
+			Error:        "read notes.txt first, then retry write",
 			FailureClass: "contract_violation",
 		}),
 	}, false)

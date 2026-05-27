@@ -112,6 +112,9 @@ func renderModelRootSurfaceBaseBuffer(m Model, state events.SessionState, layout
 }
 
 func renderModelRootContent(m Model, state events.SessionState, layout shellLayout) string {
+	if shellLayoutEnabled(m) {
+		return renderKodaShellView(m, state, layout)
+	}
 	if isWideShell(m) {
 		return renderSplitWideView(m, state, layout)
 	}
@@ -134,6 +137,9 @@ func renderSplitWideAnimationSurface(m Model, state events.SessionState, layout 
 
 func shouldOverlaySplitWideAnimation(m Model, state events.SessionState, layout shellLayout) bool {
 	_ = state
+	if shellLayoutEnabled(m) {
+		return false
+	}
 	if !isWideShell(m) {
 		return false
 	}

@@ -350,6 +350,7 @@ func (m Model) handleSessionSnapshotRefreshedMsg(msg sessionSnapshotRefreshedMsg
 			m.delegatedSnapshots.snapshots = make(map[string]events.SessionState)
 		}
 		m.delegatedSnapshots.snapshots[msg.sessionID] = msg.state
+		m.syncShellToolsDialog()
 		m.syncToolDetailDialog()
 		m.syncHandoffDetailDialog()
 		m.syncInspectorBody(false)
@@ -376,6 +377,7 @@ func (m Model) handleSessionSnapshotRefreshedMsg(msg sessionSnapshotRefreshedMsg
 		m.clearFooterError()
 	}
 	m.syncToolDetailDialog()
+	m.syncShellToolsDialog()
 	m.syncHandoffDetailDialog()
 	m.syncTaskDetailDialog()
 	m.syncViewportLayout()

@@ -71,7 +71,9 @@ func (m *Model) syncComposerFocus() tea.Cmd {
 
 func (m *Model) setComposerWidth(width int) {
 	innerWidth := max(width-6, 1)
-	if isWideShell(*m) {
+	if shellLayoutEnabled(*m) {
+		innerWidth = max(width-2, 1)
+	} else if isWideShell(*m) {
 		innerWidth = max(width-2, 1)
 	}
 	m.composer.SetWidth(innerWidth)

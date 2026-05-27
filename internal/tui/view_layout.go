@@ -37,6 +37,39 @@ func resolveShellRects(m Model, state events.SessionState, layout shellLayout) s
 		return shellRects{}
 	}
 
+	if shellLayoutEnabled(m) {
+		width := max(layout.totalWidth, 1)
+		headerHeight := kodaShellHeaderHeight(m, state, width)
+		footerHeight := kodaShellFooterHeight(m, state, width)
+		bodyHeight := max(m.height-headerHeight-footerHeight, 1)
+		return shellRects{
+			header: inputMouseRect{
+				x:      0,
+				y:      0,
+				width:  width,
+				height: headerHeight,
+			},
+			body: inputMouseRect{
+				x:      0,
+				y:      headerHeight,
+				width:  width,
+				height: bodyHeight,
+			},
+			transcript: inputMouseRect{
+				x:      0,
+				y:      headerHeight,
+				width:  width,
+				height: bodyHeight,
+			},
+			composerFocus: inputMouseRect{
+				x:      0,
+				y:      headerHeight + bodyHeight,
+				width:  width,
+				height: footerHeight,
+			},
+		}
+	}
+
 	if isWideShell(m) {
 		layout = normalizeWideShellLayout(m, state, layout)
 		headerHeight := lipgloss.Height(renderSplitWideHeader(m, state, layout.totalWidth))

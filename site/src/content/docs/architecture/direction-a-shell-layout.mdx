@@ -1,0 +1,76 @@
+---
+title: Direction A Shell Layout
+description: Design decision for KodaCode's terminal-native shell layout
+---
+
+## Context
+
+KodaCode's classic TUI uses persistent inspector surfaces for details, tools,
+and session metadata. That layout is useful for dense inspection, but it makes
+the terminal feel like a dashboard and pushes new UX ideas toward more sidebars.
+
+Direction A is a terminal-native shell layout. The first screen should feel like
+one continuous command surface: header, transcript, composer, and status line.
+Tool details, permissions, and diagnostics should appear through progressive
+disclosure instead of occupying permanent screen real estate.
+
+## Decision
+
+`tui.layout = "shell"` defines a single-plane layout. It is not a rearranged
+version of the classic sidebar UI.
+
+Transcript rows are the primary UX unit for conversation flow, but they are not
+the only way to reach tool calls. Shell layout must offer a dedicated tools
+popup backed by the full session tool-call list, including calls that are not
+rendered inline in the transcript.
+
+Inline tool calls are optional in shell layout through `tui.shell_tool_calls`.
+When enabled, a tool call may have a compact row for normal transcript flow and
+an expanded/detail rendering for focus, popup, or inspection. Both views must be
+rendered from the same tool-call state.
+
+Persistent inspector panels should not be reintroduced in shell layout. If users
+need details, the shell should expose them as an overlay, focused transcript
+expansion, or command-driven detail view.
+
+## Interaction Contract
+
+- `ctrl+t` opens the shell tools popup from insert mode or normal mode.
+- `t` opens the shell tools popup from normal transcript mode.
+- `T` toggles inline tool-call rows in the shell transcript.
+- `j`/`k` navigate the tools popup, with page/home/end keys for longer lists.
+- `enter` opens the selected tool-call detail overlay.
+
+The popup is not a substitute sidebar. It is a shell-style index over every
+tool call in the session, including calls hidden from the inline transcript.
+
+## Practices To Adopt
+
+- Keep transcript rows compact by default and expand on demand.
+- Let users choose whether shell transcripts show inline tool-call rows.
+- Provide a shell-style tools popup for navigating all session tool calls.
+- Make message/tool rows own their render state, focus state, versioning, and cache invalidation.
+- Render only visible transcript content where possible; long sessions should not force full transcript redraws.
+- Separate high-frequency streaming updates from terminal events such as tool result, error, cancel, and permission decisions.
+- Centralize terminal-safe icons and avoid visual elements that depend on unsupported glyphs.
+- Test shell layout behavior across terminal widths and heights, especially composer growth, detail overlays, and selected tool rows.
+
+## Consequences
+
+The shell layout should stay visually quieter than the classic layout. It may
+show less information at rest, but it should preserve access to detail through
+deliberate interaction.
+
+Tool popup/detail work should reuse existing tool renderers and state.
+Duplicating tool data into popup-only state would create drift and violate the
+shell layout contract.
+
+Classic layout can continue to support dashboard-style inspection. Shell layout
+should optimize for flow, terminal resize behavior, and low visual weight.
+
+## Implementation Expectations
+
+- Add shell behavior behind explicit layout checks, not broad rewrites of the classic path.
+- Prefer small renderer interfaces over global layout conditionals when adding compact/expanded transcript behavior.
+- Use deterministic render tests for width, height, selected-tool behavior, and absence of classic inspector labels.
+- Avoid fake state or UI-only placeholders for backend/tool lifecycle gaps.

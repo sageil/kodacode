@@ -117,6 +117,8 @@ func TestToolExecutorExecuteWebFetchShowsMethodInPreviewForNonGETRequests(t *tes
 }
 
 func TestToolExecutorExecuteWebFetchUsesSessionNetworkGrantAfterApproval(t *testing.T) {
+	requireLocalTestListener(t)
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		_, _ = w.Write([]byte("hello from server"))
@@ -192,6 +194,8 @@ func TestToolExecutorExecuteWebFetchUsesSessionNetworkGrantAfterApproval(t *test
 }
 
 func TestToolExecutorExecuteWebFetchAllowsByURLPolicy(t *testing.T) {
+	requireLocalTestListener(t)
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		_, _ = w.Write([]byte("allowed by policy"))
@@ -242,6 +246,8 @@ func TestToolExecutorExecuteWebFetchAllowsByURLPolicy(t *testing.T) {
 }
 
 func TestToolExecutorExecuteWebFetchDeniesByHostPolicy(t *testing.T) {
+	requireLocalTestListener(t)
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		t.Fatal("server should not be reached when policy denies")
 	}))
@@ -291,6 +297,8 @@ func TestToolExecutorExecuteWebFetchDeniesByHostPolicy(t *testing.T) {
 }
 
 func TestToolExecutorExecuteWebFetchBypassesApprovalInFullAccessMode(t *testing.T) {
+	requireLocalTestListener(t)
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		_, _ = w.Write([]byte("full access"))

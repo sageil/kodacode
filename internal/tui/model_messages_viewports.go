@@ -76,6 +76,22 @@ func (m *Model) renderInspectorViewportContent(state events.SessionState, width 
 func (m *Model) syncViewportLayout() {
 	state := m.projector.CurrentState()
 	layout := resolveShellLayout(*m, state)
+	if shellLayoutEnabled(*m) {
+		width := max(layout.totalWidth, 1)
+		m.setComposerWidth(width)
+		m.syncMouseRegions(state, layout)
+		questionHeight := questionPromptPanelHeight(*m, width)
+		permissionHeight := permissionPromptPanelHeight(*m, state, width)
+		statusHeight := transcriptStatusBarHeight(*m, state, width)
+		headerHeight := kodaShellHeaderHeight(*m, state, width)
+		footerHeight := kodaShellFooterHeight(*m, state, width)
+		messageHeight := max(m.height-headerHeight-footerHeight-questionHeight-permissionHeight-statusHeight, 1)
+		m.setTranscriptMessagesSize(width, messageHeight)
+		m.messages.ApplyTheme(m.theme)
+		m.syncTranscriptStructureWithState(state)
+		m.syncDialogFrameWithState(state)
+		return
+	}
 	if isWideShell(*m) {
 		m.setComposerWidth(layout.totalWidth)
 		layout = normalizeWideShellLayout(*m, state, layout)

@@ -107,7 +107,7 @@ func renderWideToolGroupItemLine(m Model, workspaceRoot string, ref sessionToolC
 	}
 	if detail := strings.TrimSpace(groupedToolItemResultDetail(call)); detail != "" {
 		switch {
-		case (strings.TrimSpace(call.ToolName) == "edit" || strings.TrimSpace(call.ToolName) == "read") &&
+		case strings.TrimSpace(call.ToolName) == "read" &&
 			strings.TrimSpace(call.Error) == "" && !call.Executing:
 			label += " (" + detail + ")"
 		default:
@@ -455,25 +455,6 @@ func groupedToolItemMutationLabel(workspaceRoot string, call *events.ToolCallSta
 			action = "Created"
 		}
 		return action + " " + name, true
-	case "edit":
-		input, ok := parseEditToolViewInput(call.Input)
-		if !ok {
-			if inProgress {
-				return "Editing file", true
-			}
-			if strings.TrimSpace(call.Error) != "" {
-				return "Edit file", true
-			}
-			return "Edited file", true
-		}
-		name := displayToolBaseName(workspaceRoot, input.Path)
-		if inProgress {
-			return "Editing " + name, true
-		}
-		if strings.TrimSpace(call.Error) != "" {
-			return "Edit " + name, true
-		}
-		return "Edited " + name, true
 	case "apply_patch":
 		paths := applyPatchToolMutationPaths(call)
 		pathLabel := mutationGroupedToolPathLabel(workspaceRoot, paths)

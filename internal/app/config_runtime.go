@@ -58,8 +58,10 @@ func LoadThemeName(getenv func(string) string) (string, error) {
 }
 
 type TUISettings struct {
-	ThemeName    string
-	DisplayTurns int
+	ThemeName      string
+	DisplayTurns   int
+	Layout         string
+	ShellToolCalls bool
 }
 
 func LoadTUISettings(getenv func(string) string) (TUISettings, error) {
@@ -79,8 +81,10 @@ func LoadTUISettingsWithSources(
 		return TUISettings{}, err
 	}
 	return TUISettings{
-		ThemeName:    strings.TrimSpace(storedConfig.TUI.Theme),
-		DisplayTurns: normalizedTUIDisplayTurns(storedConfig.TUI.DisplayTurns),
+		ThemeName:      strings.TrimSpace(storedConfig.TUI.Theme),
+		DisplayTurns:   normalizedTUIDisplayTurns(storedConfig.TUI.DisplayTurns),
+		Layout:         normalizedTUILayout(storedConfig.TUI.Layout),
+		ShellToolCalls: normalizedTUIShellToolCalls(storedConfig.TUI.ShellToolCalls),
 	}, nil
 }
 
@@ -104,6 +108,22 @@ func normalizedTUIDisplayTurns(value int) int {
 		return 0
 	}
 	return value
+}
+
+func normalizedTUILayout(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "shell":
+		return "shell"
+	default:
+		return ""
+	}
+}
+
+func normalizedTUIShellToolCalls(value *bool) bool {
+	if value == nil {
+		return true
+	}
+	return *value
 }
 
 func loadStoredConfig(store storedConfigLoader) (StoredConfig, error) {

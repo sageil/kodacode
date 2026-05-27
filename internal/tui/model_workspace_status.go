@@ -49,7 +49,6 @@ func shouldRefreshWorkspaceStatusForEvent(event events.Event) bool {
 func toolAffectsWorkspaceStatus(toolName string) bool {
 	switch strings.TrimSpace(toolName) {
 	case "bash",
-		"edit",
 		"mkdir",
 		tool.SearchToolName,
 		"write",

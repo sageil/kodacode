@@ -166,17 +166,19 @@ func RunWithBackend(backend Backend, opts RunOpts) error {
 	}()
 
 	model := NewModel(backend, ModelConfig{
-		Context:           opts.Context,
-		Theme:             activeTheme,
-		ThemeName:         resolvedThemeName,
-		DisplayTurns:      tuiSettings.DisplayTurns,
-		SessionID:         sessionID,
-		TurnID:            turnID,
-		WorkspaceRoot:     workspaceRoot,
-		UserText:          input.UserText,
-		SkillIDs:          append([]string(nil), input.SkillIDs...),
-		InitialState:      initialState,
-		InitialStateOwned: initialState != nil,
+		Context:            opts.Context,
+		Theme:              activeTheme,
+		ThemeName:          resolvedThemeName,
+		Layout:             tuiSettings.Layout,
+		HideShellToolCalls: !tuiSettings.ShellToolCalls,
+		DisplayTurns:       tuiSettings.DisplayTurns,
+		SessionID:          sessionID,
+		TurnID:             turnID,
+		WorkspaceRoot:      workspaceRoot,
+		UserText:           input.UserText,
+		SkillIDs:           append([]string(nil), input.SkillIDs...),
+		InitialState:       initialState,
+		InitialStateOwned:  initialState != nil,
 	})
 	model.inputTrace = inputTrace
 	if !startTurn {

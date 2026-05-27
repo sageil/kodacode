@@ -42,14 +42,6 @@ func writeInspectorParams(call *events.ToolCallState) []inspectorParam {
 	return mutationInspectorParams(display)
 }
 
-func editInspectorParams(call *events.ToolCallState) []inspectorParam {
-	display, ok := mutationDisplayFromCall("", call)
-	if !ok {
-		return defaultInspectorParams(call)
-	}
-	return mutationInspectorParams(display)
-}
-
 func mkdirInspectorParams(call *events.ToolCallState) []inspectorParam {
 	input, ok := parseMkdirToolViewInput(call.Input)
 	if !ok {
@@ -77,46 +69,6 @@ func parseWriteToolViewInput(raw string) (struct {
 		return input, false
 	}
 	return input, true
-}
-
-type editToolViewInput struct {
-	Path          string
-	StartLine     int
-	EndLine       int
-	HasStartLine  bool
-	HasEndLine    bool
-	OldText       string
-	NewText       string
-	ReplaceAll    bool
-	HasReplaceAll bool
-}
-
-func parseEditToolViewInput(raw string) (editToolViewInput, bool) {
-	var wire struct {
-		Path       string          `json:"path"`
-		StartLine  json.RawMessage `json:"start_line"`
-		EndLine    json.RawMessage `json:"end_line"`
-		OldText    string          `json:"old_text"`
-		NewText    string          `json:"new_text"`
-		ReplaceAll json.RawMessage `json:"replace_all"`
-	}
-	if json.Unmarshal([]byte(raw), &wire) != nil || strings.TrimSpace(wire.Path) == "" {
-		return editToolViewInput{}, false
-	}
-	startLine, hasStartLine := parseToolViewOptionalInt(wire.StartLine)
-	endLine, hasEndLine := parseToolViewOptionalInt(wire.EndLine)
-	replaceAll, hasReplaceAll := parseToolViewOptionalBool(wire.ReplaceAll)
-	return editToolViewInput{
-		Path:          wire.Path,
-		StartLine:     startLine,
-		EndLine:       endLine,
-		HasStartLine:  hasStartLine,
-		HasEndLine:    hasEndLine,
-		OldText:       wire.OldText,
-		NewText:       wire.NewText,
-		ReplaceAll:    replaceAll,
-		HasReplaceAll: hasReplaceAll,
-	}, true
 }
 
 func parseMkdirToolViewInput(raw string) (struct {

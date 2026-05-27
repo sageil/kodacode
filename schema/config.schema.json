@@ -496,6 +496,16 @@
         "display_turns": {
           "type": "integer",
           "minimum": 0
+        },
+        "layout": {
+          "type": "string",
+          "enum": [
+            "classic",
+            "shell"
+          ]
+        },
+        "shell_tool_calls": {
+          "type": "boolean"
         }
       }
     },

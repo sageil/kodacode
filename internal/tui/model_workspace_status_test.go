@@ -18,13 +18,13 @@ func TestShouldRefreshWorkspaceStatusForWorkspaceWriteRestoredEvent(t *testing.T
 	}
 }
 
-func TestShouldRefreshWorkspaceStatusForEditToolEvent(t *testing.T) {
+func TestShouldRefreshWorkspaceStatusForWriteToolEvent(t *testing.T) {
 	if !shouldRefreshWorkspaceStatusForEvent(draftEvent(4, events.TypeToolExecEnd, "session-1", "turn-1", events.ToolExecEndPayload{
 		CallID:   "call-2",
-		ToolName: "edit",
+		ToolName: "write",
 		Output:   "ok",
 	})) {
-		t.Fatal("shouldRefreshWorkspaceStatusForEvent() = false, want true for edit tool completion")
+		t.Fatal("shouldRefreshWorkspaceStatusForEvent() = false, want true for write tool completion")
 	}
 }
 

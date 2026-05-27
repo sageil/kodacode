@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"encoding/base64"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -32,6 +33,15 @@ func (f fakeRuntimeModelCatalog) ModelsForProvider(providerID string) []provider
 func (fakeRuntimeModelCatalog) EnsureFresh(context.Context) error { return nil }
 
 func (fakeRuntimeModelCatalog) Refresh(context.Context) error { return nil }
+
+func requireLocalBackendTestListener(t *testing.T) {
+	t.Helper()
+	listener, err := net.Listen("tcp", "localhost:0")
+	if err != nil {
+		t.Skipf("local test listener unavailable: %v", err)
+	}
+	_ = listener.Close()
+}
 
 func TestLocalBackendSetPrimaryModelDoesNotPersistInvalidSelection(t *testing.T) {
 	setRuntimeHomes(t)
@@ -350,6 +360,8 @@ func TestLocalBackendCompleteGitHubCopilotAuthPersistsOAuthAndReconfigures(t *te
 }
 
 func TestLocalBackendCompleteOpenAIAuthPersistsOAuthAndReconfigures(t *testing.T) {
+	requireLocalBackendTestListener(t)
+
 	setRuntimeHomes(t)
 	if err := app.NewConfigStore().SetModelRoute("openai/gpt-5"); err != nil {
 		t.Fatalf("config.SetModelRoute() error = %v", err)

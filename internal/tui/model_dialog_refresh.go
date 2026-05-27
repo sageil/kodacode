@@ -108,6 +108,8 @@ func (m *Model) syncDialogByID(dialogID string, now time.Time) bool {
 		m.syncCostDialog()
 	case dialogIDTrace:
 		m.syncTraceDialog()
+	case dialogIDShellTools:
+		m.syncShellToolsDialog()
 	case dialogIDToolDetail:
 		m.syncToolDetailDialog()
 	case dialogIDHandoffDetail:

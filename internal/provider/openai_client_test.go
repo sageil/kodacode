@@ -423,7 +423,7 @@ func TestBuildOpenAIRequestSimplifiesGitHubCopilotToolSchema(t *testing.T) {
 		Instructions: "be precise",
 		Inputs:       []Input{{Kind: InputKindUserMessage, Content: "hello"}},
 		Tools: []Tool{{
-			Name:        "edit",
+			Name:        "custom_tool",
 			Description: "Edit a file",
 			InputSchema: inputSchema,
 		}},

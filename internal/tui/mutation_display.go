@@ -32,8 +32,6 @@ func mutationDisplayFromCall(workspaceRoot string, call *events.ToolCallState) (
 	switch call.ToolName {
 	case "write":
 		return buildWriteMutationDisplay(workspaceRoot, call), true
-	case "edit":
-		return buildEditMutationDisplay(workspaceRoot, call), true
 	case "apply_patch":
 		return buildApplyPatchMutationDisplay(workspaceRoot, call), true
 	case "bash":
@@ -78,39 +76,6 @@ func buildWriteMutationDisplay(workspaceRoot string, call *events.ToolCallState)
 	return display
 }
 
-func buildEditMutationDisplay(workspaceRoot string, call *events.ToolCallState) mutationDisplay {
-	input, ok := parseEditToolViewInput(call.Input)
-	if !ok {
-		return mutationDisplay{
-			Summary: fallbackMutationSummary(call),
-			Failure: condenseMutationFailure(call),
-		}
-	}
-
-	summary := joinMutationSummary(
-		mutationSummaryLabel(call, "edited", "edit"),
-		displayToolPath(workspaceRoot, input.Path),
-	)
-	display := mutationDisplay{
-		Summary: summary,
-		InspectorMeta: []mutationField{
-			{Label: "Path", Value: input.Path},
-			{Label: "Match", Value: editToolMatchLabel(input)},
-			{Label: "Previous", Value: writeMutationPreviousLabel(call)},
-			{Label: "Old", Value: contentStatsLabel(input.OldText)},
-			{Label: "New", Value: contentStatsLabel(input.NewText)},
-		},
-	}
-	if diffLabel := editMutationDiffLabel(call, input); diffLabel != "" {
-		display.InspectorMeta = append(display.InspectorMeta, mutationField{Label: "Diff", Value: diffLabel})
-	}
-	if failure := condenseMutationFailure(call); failure != nil {
-		display.Failure = failure
-		display.InspectorMeta = editFailureInspectorMeta(input)
-	}
-	return display
-}
-
 func buildBashMutationDisplay(workspaceRoot string, call *events.ToolCallState) mutationDisplay {
 	if call == nil {
 		return mutationDisplay{}
@@ -150,28 +115,6 @@ func writeFailureInspectorMeta(input struct {
 		return nil
 	}
 	return []mutationField{{Label: "Path", Value: input.Path}}
-}
-
-func editFailureInspectorMeta(input editToolViewInput) []mutationField {
-	fields := make([]mutationField, 0, 2)
-	if strings.TrimSpace(input.Path) != "" {
-		fields = append(fields, mutationField{Label: "Path", Value: input.Path})
-	}
-	if mode := editFailureModeLabel(input); mode != "" {
-		fields = append(fields, mutationField{Label: "Mode", Value: mode})
-	}
-	return fields
-}
-
-func editFailureModeLabel(input editToolViewInput) string {
-	switch {
-	case input.ReplaceAll:
-		return "replace all exact matches"
-	case input.HasStartLine:
-		return fmt.Sprintf("exact text match from line %d", input.StartLine)
-	default:
-		return "exact text match"
-	}
 }
 
 func mutationInspectorParams(display mutationDisplay) []inspectorParam {
@@ -242,33 +185,6 @@ func writeMutationDiffLabel(call *events.ToolCallState) string {
 	return fmt.Sprintf("+%d -%d lines", added, removed)
 }
 
-func compactMutationDiffLabel(label string) string {
-	label = strings.TrimSpace(label)
-	if label == "" {
-		return ""
-	}
-	return strings.TrimSuffix(label, " lines")
-}
-
-func editMutationDiffLabel(call *events.ToolCallState, input editToolViewInput) string {
-	if preview, ok := writeMutationDiffPreview(call); ok {
-		if !textdiff.HasChanges(*preview) {
-			return "no content changes"
-		}
-		added, removed := textdiff.LineStats(*preview)
-		return fmt.Sprintf("+%d -%d lines", added, removed)
-	}
-	added, removed := writeMutationLineStats(input.OldText, input.NewText)
-	if added == 0 && removed == 0 {
-		return "no content changes"
-	}
-	return fmt.Sprintf("+%d -%d lines", added, removed)
-}
-
-func editMutationCompactDiffLabel(call *events.ToolCallState, input editToolViewInput) string {
-	return compactMutationDiffLabel(editMutationDiffLabel(call, input))
-}
-
 func writeMutationLineStats(before, after string) (added, removed int) {
 	ops := mutationDiffLines(splitNormalizedLines(before), splitNormalizedLines(after))
 	for _, op := range ops {
@@ -296,13 +212,6 @@ func condenseMutationFailure(call *events.ToolCallState) *mutationFailure {
 			return &mutationFailure{Status: "fix args", Message: errorText}
 		}
 		return &mutationFailure{Status: "failed", Message: errorText}
-	case "edit":
-		if strings.Contains(errorText, "path is required") ||
-			strings.Contains(errorText, "old_text is required") ||
-			strings.Contains(errorText, "new_text is required") {
-			return &mutationFailure{Status: "fix args", Message: errorText}
-		}
-		return &mutationFailure{Status: "failed", Message: errorText}
 	default:
 		return &mutationFailure{Status: "failed", Message: errorText}
 	}
@@ -315,18 +224,9 @@ func fallbackMutationSummary(call *events.ToolCallState) string {
 	switch call.ToolName {
 	case "write":
 		return joinMutationSummary(mutationSummaryLabel(call, "wrote", "write"), "")
-	case "edit":
-		return joinMutationSummary(mutationSummaryLabel(call, "edited", "edit"), "")
 	default:
 		return strings.TrimSpace(call.ToolName)
 	}
-}
-
-func editToolMatchLabel(input editToolViewInput) string {
-	if input.ReplaceAll {
-		return "replace all exact matches"
-	}
-	return "exact text match"
 }
 
 func splitNormalizedLines(text string) []string {

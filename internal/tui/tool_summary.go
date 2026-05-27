@@ -281,20 +281,6 @@ func writeToolDisplayName(workspaceRoot string, call *events.ToolCallState) stri
 	return "write " + displayToolPath(workspaceRoot, input.Path)
 }
 
-func editToolDisplayName(workspaceRoot string, call *events.ToolCallState) string {
-	input, ok := parseEditToolViewInput(call.Input)
-	if !ok {
-		return "edit"
-	}
-	label := "edit " + displayToolPath(workspaceRoot, input.Path)
-	if detail := strings.TrimSpace(editMutationCompactDiffLabel(call, input)); detail != "" {
-		label += " (" + detail + ")"
-	} else if detail := strings.TrimSpace(editToolMatchLabel(input)); detail != "" {
-		label += " · " + detail
-	}
-	return label
-}
-
 func searchToolDisplayName(workspaceRoot string, call *events.ToolCallState) string {
 	input, ok := parseSearchToolViewInput(call.Input)
 	if !ok {
@@ -359,14 +345,6 @@ func searchToolQueryLabel(query string, regex bool) string {
 }
 
 func writeToolListSummary(call *events.ToolCallState) string {
-	display, ok := mutationDisplayFromCall("", call)
-	if !ok {
-		return ""
-	}
-	return display.Summary
-}
-
-func editToolListSummary(call *events.ToolCallState) string {
 	display, ok := mutationDisplayFromCall("", call)
 	if !ok {
 		return ""

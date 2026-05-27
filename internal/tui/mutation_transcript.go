@@ -2,7 +2,6 @@ package tui
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 
 	"charm.land/lipgloss/v2"
@@ -25,8 +24,6 @@ func renderMutationSuccessLines(m Model, workspaceRoot string, call *events.Tool
 	switch call.ToolName {
 	case "write":
 		return renderWriteMutationLines(m, workspaceRoot, call, width)
-	case "edit":
-		return renderEditMutationLines(m, workspaceRoot, call, width)
 	case "apply_patch":
 		return renderApplyPatchMutationLines(m, workspaceRoot, call, width)
 	case "mkdir":
@@ -39,6 +36,10 @@ func renderMutationSuccessLines(m Model, workspaceRoot string, call *events.Tool
 }
 
 func renderApplyPatchMutationLines(m Model, workspaceRoot string, call *events.ToolCallState, width int) []string {
+	return renderApplyPatchMutationLinesWithDiffStyle(m, workspaceRoot, call, width, mutationToolDetailDiffStyleUnified)
+}
+
+func renderApplyPatchMutationLinesWithDiffStyle(m Model, workspaceRoot string, call *events.ToolCallState, width int, diffStyle mutationToolDetailDiffStyle) []string {
 	mutations := applyPatchMutations(call)
 	if len(mutations) == 0 {
 		return renderMutationSummaryLines(m, mutationToolFallbackBody(call), width)
@@ -65,7 +66,7 @@ func renderApplyPatchMutationLines(m Model, workspaceRoot string, call *events.T
 			lines = append(lines, renderMutationMetaLine(m, "no content changes", width))
 			continue
 		}
-		lines = append(lines, renderMutationDiffOpsAt(m, mutationDiffOpsFromPreview(mutation.DiffPreview), width, mutation.DiffPreview.OldStartLine, mutation.DiffPreview.NewStartLine)...)
+		lines = append(lines, renderMutationToolDetailDiffOpsWithStyleAt(m, mutationDiffOpsFromPreview(mutation.DiffPreview), width, mutation.DiffPreview.OldStartLine, mutation.DiffPreview.NewStartLine, diffStyle)...)
 	}
 	return lines
 }
@@ -78,6 +79,10 @@ func applyPatchMutationAction(mutation events.WriteMutation) string {
 }
 
 func renderBashMutationLines(m Model, workspaceRoot string, call *events.ToolCallState, width int) []string {
+	return renderBashMutationLinesWithDiffStyle(m, workspaceRoot, call, width, mutationToolDetailDiffStyleUnified)
+}
+
+func renderBashMutationLinesWithDiffStyle(m Model, workspaceRoot string, call *events.ToolCallState, width int, diffStyle mutationToolDetailDiffStyle) []string {
 	if call == nil {
 		return nil
 	}
@@ -97,7 +102,7 @@ func renderBashMutationLines(m Model, workspaceRoot string, call *events.ToolCal
 			return append(lines, renderMutationMetaLine(m, "no content changes", width))
 		}
 		lines = append(lines, "")
-		lines = append(lines, renderMutationDiffOpsAt(m, mutationDiffOpsFromPreview(preview), width, preview.OldStartLine, preview.NewStartLine)...)
+		lines = append(lines, renderMutationToolDetailDiffOpsWithStyleAt(m, mutationDiffOpsFromPreview(preview), width, preview.OldStartLine, preview.NewStartLine, diffStyle)...)
 		return lines
 	}
 	if call.WriteMutation.BeforeTruncated {
@@ -107,6 +112,10 @@ func renderBashMutationLines(m Model, workspaceRoot string, call *events.ToolCal
 }
 
 func renderWriteMutationLines(m Model, workspaceRoot string, call *events.ToolCallState, width int) []string {
+	return renderWriteMutationLinesWithDiffStyle(m, "", sessionToolCallRef{}, workspaceRoot, call, width, mutationToolDetailDiffStyleUnified)
+}
+
+func renderWriteMutationLinesWithDiffStyle(m Model, sessionID string, ref sessionToolCallRef, workspaceRoot string, call *events.ToolCallState, width int, diffStyle mutationToolDetailDiffStyle) []string {
 	input, ok := parseWriteToolViewInput(call.Input)
 	if !ok {
 		return renderMutationSummaryLines(m, mutationToolFallbackBody(call), width)
@@ -125,7 +134,7 @@ func renderWriteMutationLines(m Model, workspaceRoot string, call *events.ToolCa
 			return append(lines, renderMutationMetaLine(m, "no content changes", width))
 		}
 		lines = append(lines, "")
-		lines = append(lines, renderMutationDiffOpsAt(m, mutationDiffOpsFromPreview(preview), width, preview.OldStartLine, preview.NewStartLine)...)
+		lines = append(lines, renderMutationToolDetailDiffOpsWithStyleAt(m, mutationDiffOpsFromPreview(preview), width, preview.OldStartLine, preview.NewStartLine, diffStyle)...)
 		return lines
 	}
 	before, ok := writeMutationBeforeContent(call)
@@ -136,170 +145,12 @@ func renderWriteMutationLines(m Model, workspaceRoot string, call *events.ToolCa
 			return append(lines, renderMutationMetaLine(m, "no content changes", width))
 		}
 		lines = append(lines, "")
-		lines = append(lines, renderMutationDiffOps(m, ops, width)...)
+		lines = append(lines, renderMutationToolDetailDiffOpsWithStyleAt(m, ops, width, 1, 1, diffStyle)...)
 		return lines
 	case call != nil && call.WriteMutation != nil && call.WriteMutation.BeforeTruncated:
 		return append(lines, renderMutationMetaLine(m, "diff unavailable in transcript for large write", width))
 	default:
 		return append(lines, renderMutationMetaLine(m, "diff unavailable", width))
-	}
-}
-
-func renderEditMutationLines(m Model, workspaceRoot string, call *events.ToolCallState, width int) []string {
-	input, ok := parseEditToolViewInput(call.Input)
-	if !ok {
-		return renderMutationSummaryLines(m, mutationToolFallbackBody(call), width)
-	}
-
-	target := displayToolPath(workspaceRoot, input.Path)
-	if diff := strings.TrimSpace(editMutationCompactDiffLabel(call, input)); diff != "" && diff != "no content changes" {
-		target += " (" + diff + ")"
-	}
-	meta := editMutationMetaLabel(call, input)
-	if strings.TrimSpace(meta) == "" {
-		meta = contentStatsLabel(input.NewText)
-	}
-	lines := []string{
-		renderMutationActionLine(m, "Edited", target, width),
-		renderMutationMetaLine(m, meta, width),
-	}
-	if preview, ok := writeMutationDiffPreview(call); ok {
-		if !textdiff.HasChanges(*preview) {
-			return append(lines, renderMutationMetaLine(m, "no content changes", width))
-		}
-		lines = append(lines, "")
-		lines = append(lines, renderMutationDiffOpsAt(m, mutationDiffOpsFromPreview(preview), width, preview.OldStartLine, preview.NewStartLine)...)
-		return lines
-	}
-	ops := trimMutationDiffContext(mutationDiffLines(splitNormalizedLines(input.OldText), splitNormalizedLines(input.NewText)), 2)
-	if !mutationDiffHasChanges(ops) {
-		return append(lines, renderMutationMetaLine(m, "no content changes", width))
-	}
-	lines = append(lines, "")
-	startLine := editMutationPreviewStartLine(call)
-	lines = append(lines, renderMutationDiffOpsAt(m, ops, width, startLine, startLine)...)
-	return lines
-}
-
-func editMutationMetaLabel(call *events.ToolCallState, input editToolViewInput) string {
-	return strings.TrimSpace(editToolMatchLabel(input))
-}
-
-func editMutationDisplayLine(call *events.ToolCallState) int {
-	if call == nil {
-		return 0
-	}
-	if line, ok := editMutationPreviewChangedLine(call); ok {
-		return line
-	}
-	for _, mutation := range call.MutationRanges {
-		if mutation.OldStartLine > 0 {
-			return mutation.OldStartLine
-		}
-		if mutation.NewStartLine > 0 {
-			return mutation.NewStartLine
-		}
-	}
-	if line, ok := editMutationOutputLine(call.Output); ok {
-		return line
-	}
-	if call.WriteMutation != nil && call.WriteMutation.DiffPreview != nil {
-		if call.WriteMutation.DiffPreview.OldStartLine > 0 {
-			return call.WriteMutation.DiffPreview.OldStartLine
-		}
-		if call.WriteMutation.DiffPreview.NewStartLine > 0 {
-			return call.WriteMutation.DiffPreview.NewStartLine
-		}
-	}
-	return 0
-}
-
-func editMutationPreviewChangedLine(call *events.ToolCallState) (int, bool) {
-	preview, ok := writeMutationDiffPreview(call)
-	if !ok || preview == nil {
-		return 0, false
-	}
-	oldLine := preview.OldStartLine
-	newLine := preview.NewStartLine
-	oldKnown := oldLine > 0
-	newKnown := newLine > 0
-	for _, op := range preview.Ops {
-		switch op.Kind {
-		case textdiff.OpContext:
-			if oldKnown {
-				oldLine++
-			}
-			if newKnown {
-				newLine++
-			}
-		case textdiff.OpDelete:
-			switch {
-			case oldKnown:
-				return oldLine, true
-			case newKnown:
-				return newLine, true
-			}
-		case textdiff.OpInsert:
-			switch {
-			case newKnown:
-				return newLine, true
-			case oldKnown:
-				return oldLine, true
-			}
-		case textdiff.OpSkip:
-			continue
-		}
-	}
-	return 0, false
-}
-
-func editMutationPreviewStartLine(call *events.ToolCallState) int {
-	if call == nil {
-		return 0
-	}
-	if call.WriteMutation != nil && call.WriteMutation.DiffPreview != nil {
-		if call.WriteMutation.DiffPreview.OldStartLine > 0 {
-			return call.WriteMutation.DiffPreview.OldStartLine
-		}
-		if call.WriteMutation.DiffPreview.NewStartLine > 0 {
-			return call.WriteMutation.DiffPreview.NewStartLine
-		}
-	}
-	for _, mutation := range call.MutationRanges {
-		if mutation.OldStartLine > 0 {
-			return mutation.OldStartLine
-		}
-		if mutation.NewStartLine > 0 {
-			return mutation.NewStartLine
-		}
-	}
-	if line, ok := editMutationOutputLine(call.Output); ok {
-		return line
-	}
-	return 0
-}
-
-func editMutationOutputLine(output string) (int, bool) {
-	output = strings.TrimSpace(output)
-	switch {
-	case strings.HasPrefix(output, "edited line "):
-		value := strings.TrimPrefix(output, "edited line ")
-		fields := strings.Fields(value)
-		if len(fields) == 0 {
-			return 0, false
-		}
-		line, err := strconv.Atoi(fields[0])
-		return line, err == nil && line > 0
-	case strings.Contains(output, "starting at line "):
-		value := output[strings.Index(output, "starting at line ")+len("starting at line "):]
-		fields := strings.Fields(value)
-		if len(fields) == 0 {
-			return 0, false
-		}
-		line, err := strconv.Atoi(fields[0])
-		return line, err == nil && line > 0
-	default:
-		return 0, false
 	}
 }
 

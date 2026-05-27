@@ -13,7 +13,7 @@ func showMutationToolInTranscript(call *events.ToolCallState) bool {
 	}
 
 	switch call.ToolName {
-	case "write", "edit":
+	case "write":
 		return strings.TrimSpace(call.Error) == ""
 	case "apply_patch":
 		return strings.TrimSpace(call.Error) == "" && !isApplyPatchNoop(call)
@@ -39,7 +39,7 @@ func shouldRenderToolCallInTranscript(turn *events.TurnState, callID string, cal
 	if shouldHideDelegateToolCallInTranscript(turn, call) {
 		return false
 	}
-	if shouldHideFailedWriteEditInTranscript(call) {
+	if shouldHideFailedMutationInTranscript(call) {
 		return false
 	}
 	if strings.TrimSpace(call.ToolName) == "skill" {
@@ -60,6 +60,13 @@ func shouldRenderToolCallInTranscript(turn *events.TurnState, callID string, cal
 	return true
 }
 
+func shouldRenderToolCallInTranscriptForLayout(m Model, turn *events.TurnState, callID string, call *events.ToolCallState) bool {
+	if shellLayoutEnabled(m) && isMutationToolCall(call) && transcriptOwnsToolCallRow(call) {
+		return true
+	}
+	return shouldRenderToolCallInTranscript(turn, callID, call)
+}
+
 func shouldHideDelegateToolCallInTranscript(turn *events.TurnState, call *events.ToolCallState) bool {
 	if !isDelegateToolCall(call) {
 		return false
@@ -67,12 +74,12 @@ func shouldHideDelegateToolCallInTranscript(turn *events.TurnState, call *events
 	return delegateHandoffForCall(turn, call) != nil
 }
 
-func shouldHideFailedWriteEditInTranscript(call *events.ToolCallState) bool {
+func shouldHideFailedMutationInTranscript(call *events.ToolCallState) bool {
 	if call == nil || !call.Completed {
 		return false
 	}
 	switch strings.TrimSpace(call.ToolName) {
-	case "write", "edit", "apply_patch":
+	case "write", "apply_patch":
 		return strings.TrimSpace(call.Error) != ""
 	default:
 		return false
@@ -171,7 +178,7 @@ func isRetryCollapsibleLogicalToolCall(call *events.ToolCallState) bool {
 		return false
 	}
 	switch strings.TrimSpace(call.ToolName) {
-	case "question", "task", "task_workflow", "task_review", "edit":
+	case "question", "task", "task_workflow", "task_review":
 		return true
 	default:
 		return false
@@ -210,7 +217,7 @@ func isMutationToolCall(call *events.ToolCallState) bool {
 		return false
 	}
 	switch call.ToolName {
-	case "write", "edit", "apply_patch":
+	case "write", "apply_patch":
 		return true
 	case "bash":
 		return outcomeCategoryForTool(call) == toolOutcomeMutation

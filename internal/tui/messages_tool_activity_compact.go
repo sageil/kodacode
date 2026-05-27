@@ -42,7 +42,7 @@ func shouldRenderMutationOutcomeDetailsInWideTranscript(call *events.ToolCallSta
 		return false
 	}
 	switch strings.TrimSpace(call.ToolName) {
-	case "write", "edit", "apply_patch", "bash":
+	case "write", "apply_patch", "bash":
 		return true
 	default:
 		return false

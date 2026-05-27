@@ -61,6 +61,10 @@ func (m Model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.startNewWorkspaceSession(m.chrome.focus == focusComposer, m.chrome.focus == focusComposer)
 	}
 
+	if updated, cmd, handled := m.handleShellToolsShortcut(msg); handled {
+		return updated, cmd
+	}
+
 	if m.chrome.focus == focusComposer {
 		return m.handleComposerInput(msg)
 	}
@@ -168,6 +172,34 @@ func isSessionsDialogShortcut(msg tea.KeyPressMsg) bool {
 
 func isNewSessionShortcut(msg tea.KeyPressMsg) bool {
 	return msg.Keystroke() == "ctrl+n"
+}
+
+func (m Model) handleShellToolsShortcut(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool) {
+	if !shellLayoutEnabled(m) {
+		return m, nil, false
+	}
+	switch msg.String() {
+	case "ctrl+t":
+		return m, m.openShellToolsDialog(), true
+	case "t":
+		if m.chrome.focus == focusComposer {
+			return m, nil, false
+		}
+		return m, m.openShellToolsDialog(), true
+	case "T":
+		if m.chrome.focus == focusComposer {
+			return m, nil, false
+		}
+		m.shellToolCallsVisible = !m.shellToolCallsVisible
+		m.syncTranscriptStructureWithState(m.projector.Snapshot())
+		if m.shellToolCallsVisible {
+			return m, m.showFooterActivity("Tool calls shown in shell", footerActivityToneInfo, ""), true
+		} else {
+			return m, m.showFooterActivity("Tool calls hidden from shell", footerActivityToneInfo, ""), true
+		}
+	default:
+		return m, nil, false
+	}
 }
 
 func (m Model) handleTurnCancelShortcut(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool) {

@@ -22,7 +22,7 @@ type Attachment struct {
 }
 
 func (m *Model) syncComposerPrompt() {
-	prompt := composerPrompt(m.composerState.pendingAttachments)
+	prompt := composerPrompt(m.composerState.pendingAttachments, shellLayoutEnabled(*m))
 	promptWidth := lipgloss.Width(prompt)
 	m.composer.SetPromptFunc(promptWidth, func(info textarea.PromptInfo) string {
 		if info.LineNumber == 0 {
@@ -32,7 +32,10 @@ func (m *Model) syncComposerPrompt() {
 	})
 }
 
-func composerPrompt(_ []Attachment) string {
+func composerPrompt(_ []Attachment, shellLayout bool) string {
+	if shellLayout {
+		return "❯ "
+	}
 	return "┃ "
 }
 

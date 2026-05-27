@@ -38,7 +38,7 @@ func permissionAccessLabel(access string) string {
 		return "read-only"
 	case "workdir":
 		return "working directory"
-	case "write", "edit":
+	case "write":
 		return "write"
 	case "exec", "command":
 		return "execute"

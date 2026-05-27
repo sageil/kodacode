@@ -131,8 +131,10 @@ type StoredSessionConfig struct {
 }
 
 type StoredTUIConfig struct {
-	Theme        string `yaml:"theme,omitempty"`
-	DisplayTurns int    `yaml:"display_turns,omitempty"`
+	Theme          string `yaml:"theme,omitempty"`
+	DisplayTurns   int    `yaml:"display_turns,omitempty"`
+	Layout         string `yaml:"layout,omitempty"`
+	ShellToolCalls *bool  `yaml:"shell_tool_calls,omitempty"`
 }
 
 type StoredModelCacheConfig struct {

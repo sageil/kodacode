@@ -93,6 +93,11 @@ func testDialogFrame(dialog dialogModel) (int, int) {
 			return d.frameWidth, d.frameHeight
 		}
 		return 240, 80
+	case *shellToolsDialog:
+		if d.frameWidth > 0 && d.frameHeight > 0 {
+			return d.frameWidth, d.frameHeight
+		}
+		return 120, 40
 	case *handoffDetailDialog:
 		if d.frameWidth > 0 && d.frameHeight > 0 {
 			return d.frameWidth, d.frameHeight

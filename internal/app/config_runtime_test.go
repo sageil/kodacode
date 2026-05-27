@@ -887,8 +887,10 @@ func TestLoadTUISettingsWithSourcesIncludesDisplayTurns(t *testing.T) {
 		func(string) string { return "" },
 		fakeStoredConfigLoader{config: StoredConfig{
 			TUI: StoredTUIConfig{
-				Theme:        "nord",
-				DisplayTurns: 6,
+				Theme:          "nord",
+				DisplayTurns:   6,
+				Layout:         "shell",
+				ShellToolCalls: boolPtr(false),
 			},
 		}},
 	)
@@ -900,6 +902,12 @@ func TestLoadTUISettingsWithSourcesIncludesDisplayTurns(t *testing.T) {
 	}
 	if settings.DisplayTurns != 6 {
 		t.Fatalf("display turns = %d, want 6", settings.DisplayTurns)
+	}
+	if settings.Layout != "shell" {
+		t.Fatalf("layout = %q, want shell", settings.Layout)
+	}
+	if settings.ShellToolCalls {
+		t.Fatal("shell tool calls = true, want false")
 	}
 }
 
@@ -915,6 +923,9 @@ func TestLoadTUISettingsWithSourcesNormalizesNegativeDisplayTurns(t *testing.T) 
 	}
 	if settings.DisplayTurns != 0 {
 		t.Fatalf("display turns = %d, want 0", settings.DisplayTurns)
+	}
+	if !settings.ShellToolCalls {
+		t.Fatal("shell tool calls should default to true")
 	}
 }
 

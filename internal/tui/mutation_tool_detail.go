@@ -46,11 +46,6 @@ func renderMutationToolDetailSectionForSession(m Model, sessionID, workspaceRoot
 		if ok {
 			return strings.Join(lines, "\n")
 		}
-	case "edit":
-		lines, ok := renderEditMutationToolDetailLines(m, sessionID, ref, call, width, diffStyle)
-		if ok {
-			return strings.Join(lines, "\n")
-		}
 	case "apply_patch":
 		lines, ok := renderApplyPatchMutationToolDetailLines(m, workspaceRoot, call, width, diffStyle)
 		if ok {

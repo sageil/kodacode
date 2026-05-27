@@ -118,6 +118,17 @@ func resolveComposerOverlayLayout(m Model, state events.SessionState, layout she
 		return composerOverlayLayout{}, false
 	}
 
+	if shellLayoutEnabled(m) {
+		y := max(m.height-kodaShellFooterHeight(m, state, layout.totalWidth), 0)
+		if notice := renderFooterNoticeBlock(m, state, layout.totalWidth); strings.TrimSpace(notice) != "" {
+			y += lipgloss.Height(notice)
+		}
+		if divider := renderComposerActivityStrip(m, state, layout.totalWidth, composerBorderColor(m, state)); strings.TrimSpace(divider) != "" {
+			y += lipgloss.Height(divider)
+		}
+		return composerOverlayLayout{textY: y}, true
+	}
+
 	footerTop := composerFooterTop(m, state, layout)
 	composerTop := footerTop
 

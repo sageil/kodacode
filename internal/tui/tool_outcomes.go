@@ -190,12 +190,6 @@ func mutationOutcomeDetail(call *events.ToolCallState, path string) string {
 			return display.Summary
 		}
 		return "write file"
-	case "edit":
-		display, ok := mutationDisplayFromCall("", call)
-		if ok && strings.TrimSpace(display.Summary) != "" {
-			return display.Summary
-		}
-		return "edit file"
 	case "apply_patch":
 		display, ok := mutationDisplayFromCall("", call)
 		if ok && strings.TrimSpace(display.Summary) != "" {

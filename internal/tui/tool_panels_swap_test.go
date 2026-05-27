@@ -10,6 +10,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/sageil/kodacode/internal/events"
+	"github.com/sageil/kodacode/internal/textdiff"
 	"github.com/sageil/kodacode/internal/tui/theme"
 )
 
@@ -119,7 +120,7 @@ func TestRenderTranscriptMessagesWideShowsCompletedToolRowsWhileTurnKeepsRunning
 	}
 }
 
-func TestRenderTranscriptMessagesWideShowsRepeatedMutationEditsChronologically(t *testing.T) {
+func TestRenderTranscriptMessagesWideShowsRepeatedMutationWritesChronologically(t *testing.T) {
 	defaultTheme := theme.StaticDefault()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -143,24 +144,34 @@ func TestRenderTranscriptMessagesWideShowsRepeatedMutationEditsChronologically(t
 				TurnID: "turn-1",
 				Status: events.TurnStatusCompleted,
 				Transcript: []events.TranscriptEntryState{
-					{Kind: events.TranscriptEntryTool, CallID: "edit-1"},
-					{Kind: events.TranscriptEntryTool, CallID: "edit-2"},
+					{Kind: events.TranscriptEntryTool, CallID: "write-1"},
+					{Kind: events.TranscriptEntryTool, CallID: "write-2"},
 				},
-				ToolCallOrder: []string{"edit-1", "edit-2"},
+				ToolCallOrder: []string{"write-1", "write-2"},
 				ToolCalls: map[string]*events.ToolCallState{
-					"edit-1": {
-						CallID:    "edit-1",
-						ToolName:  "edit",
-						Input:     `{"path":"src/repositories/ProjectRepository.ts","start_line":"31","old_text":"const a = 1;\n","new_text":"const a = 2;\n"}`,
-						Output:    "edited line 31 in /repo/src/repositories/ProjectRepository.ts",
+					"write-1": {
+						CallID:    "write-1",
+						ToolName:  "write",
+						Input:     `{"path":"src/repositories/ProjectRepository.ts","content":"const a = 2;\n"}`,
+						Output:    "wrote /repo/src/repositories/ProjectRepository.ts",
 						Completed: true,
+						WriteMutation: &events.WriteMutation{
+							Path:    "/repo/src/repositories/ProjectRepository.ts",
+							Existed: true,
+							Before:  "const a = 1;\n",
+						},
 					},
-					"edit-2": {
-						CallID:    "edit-2",
-						ToolName:  "edit",
-						Input:     `{"path":"src/repositories/ProjectRepository.ts","start_line":"130","old_text":"const b = 1;\n","new_text":"const b = 2;\n"}`,
-						Output:    "edited line 130 in /repo/src/repositories/ProjectRepository.ts",
+					"write-2": {
+						CallID:    "write-2",
+						ToolName:  "write",
+						Input:     `{"path":"src/repositories/ProjectRepository.ts","content":"const b = 2;\n"}`,
+						Output:    "wrote /repo/src/repositories/ProjectRepository.ts",
 						Completed: true,
+						WriteMutation: &events.WriteMutation{
+							Path:    "/repo/src/repositories/ProjectRepository.ts",
+							Existed: true,
+							Before:  "const b = 1;\n",
+						},
 					},
 				},
 			},
@@ -168,16 +179,16 @@ func TestRenderTranscriptMessagesWideShowsRepeatedMutationEditsChronologically(t
 	}
 
 	rendered := ansi.Strip(renderTranscriptMessages(model, state, 100).content)
-	if strings.Count(rendered, "Edited src/repositories/ProjectRepository.ts (+1 -1)") != 2 {
-		t.Fatalf("transcript should show each repeated edit for the same file:\n%s", rendered)
+	if strings.Count(rendered, "Wrote src/repositories/ProjectRepository.ts") != 2 {
+		t.Fatalf("transcript should show each repeated write for the same file:\n%s", rendered)
 	}
 	first := strings.Index(rendered, "const a = 1;")
 	second := strings.Index(rendered, "const b = 1;")
 	if first < 0 || second < 0 {
-		t.Fatalf("transcript missing repeated edit details:\n%s", rendered)
+		t.Fatalf("transcript missing repeated write details:\n%s", rendered)
 	}
 	if first >= second {
-		t.Fatalf("transcript should preserve chronological order for repeated edits:\n%s", rendered)
+		t.Fatalf("transcript should preserve chronological order for repeated writes:\n%s", rendered)
 	}
 }
 
@@ -399,7 +410,7 @@ func TestWideDrawerShowsReadFilenamesForMultiFileRead(t *testing.T) {
 	}
 }
 
-func TestWideDrawerHidesSupersededFailedEditRetry(t *testing.T) {
+func TestWideDrawerHidesSupersededFailedWriteRetry(t *testing.T) {
 	defaultTheme := theme.StaticDefault()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -419,13 +430,13 @@ func TestWideDrawerHidesSupersededFailedEditRetry(t *testing.T) {
 			"turn-1": {
 				TurnID:        "turn-1",
 				Status:        events.TurnStatusCompleted,
-				ToolCallOrder: []string{"edit-fail", "read-1", "edit-success"},
+				ToolCallOrder: []string{"write-fail", "read-1", "write-success"},
 				ToolCalls: map[string]*events.ToolCallState{
-					"edit-fail": {
-						CallID:    "edit-fail",
-						ToolName:  "edit",
-						Input:     `{"path":"src/server.ts","start_line":"169","old_text":"const RedisStore = connectRedis(session);\n","new_text":"let redisStore: RedisStore | undefined;\n"}`,
-						Error:     "Read src/server.ts line 169, then retry edit.",
+					"write-fail": {
+						CallID:    "write-fail",
+						ToolName:  "write",
+						Input:     `{"path":"src/server.ts","content":"let redisStore: RedisStore | undefined;\n"}`,
+						Error:     "Read src/server.ts line 169, then retry write.",
 						Completed: true,
 						Succeeded: false,
 					},
@@ -437,13 +448,26 @@ func TestWideDrawerHidesSupersededFailedEditRetry(t *testing.T) {
 						Completed: true,
 						Succeeded: true,
 					},
-					"edit-success": {
-						CallID:    "edit-success",
-						ToolName:  "edit",
-						Input:     `{"path":"src/server.ts","start_line":"169","old_text":"const RedisStore = connectRedis(session);\n","new_text":"let redisStore: RedisStore | undefined;\n"}`,
-						Output:    "edited line 169 in /repo/src/server.ts",
+					"write-success": {
+						CallID:    "write-success",
+						ToolName:  "write",
+						Input:     `{"path":"src/server.ts","content":"let redisStore: RedisStore | undefined;\n"}`,
+						Output:    "wrote /repo/src/server.ts",
 						Completed: true,
 						Succeeded: true,
+						WriteMutation: &events.WriteMutation{
+							Path:    "/repo/src/server.ts",
+							Existed: true,
+							Before:  "const RedisStore = connectRedis(session);\n",
+							DiffPreview: &textdiff.Preview{
+								OldStartLine: 169,
+								NewStartLine: 169,
+								Ops: []textdiff.PreviewOp{
+									{Kind: textdiff.OpDelete, Text: "const RedisStore = connectRedis(session);"},
+									{Kind: textdiff.OpInsert, Text: "let redisStore: RedisStore | undefined;"},
+								},
+							},
+						},
 					},
 				},
 			},
@@ -460,20 +484,20 @@ func TestWideDrawerHidesSupersededFailedEditRetry(t *testing.T) {
 
 	rendered := ansi.Strip(model.inspector.body.View())
 	if strings.Contains(rendered, "Change failed") {
-		t.Fatalf("wide drawer still shows superseded failed edit group:\n%s", rendered)
+		t.Fatalf("wide drawer still shows superseded failed write group:\n%s", rendered)
 	}
-	if strings.Count(rendered, "Edited server.ts (+1 -1)") != 1 {
-		t.Fatalf("wide drawer should show exactly one visible edit retry entry:\n%s", rendered)
+	if strings.Count(rendered, "Wrote server.ts") != 1 {
+		t.Fatalf("wide drawer should show exactly one visible write retry entry:\n%s", rendered)
 	}
 	if !strings.Contains(rendered, "Changed") {
 		t.Fatalf("wide drawer missing successful change group:\n%s", rendered)
 	}
 
 	refs := inspectorVisibleToolRefs(model, state)
-	if indexOfToolCallRef(refs, sessionToolCallRef{TurnID: "turn-1", CallID: "edit-fail"}) >= 0 {
-		t.Fatalf("inspector refs still include superseded failed edit: %#v", refs)
+	if indexOfToolCallRef(refs, sessionToolCallRef{TurnID: "turn-1", CallID: "write-fail"}) >= 0 {
+		t.Fatalf("inspector refs still include superseded failed write: %#v", refs)
 	}
-	if indexOfToolCallRef(refs, sessionToolCallRef{TurnID: "turn-1", CallID: "edit-success"}) < 0 {
+	if indexOfToolCallRef(refs, sessionToolCallRef{TurnID: "turn-1", CallID: "write-success"}) < 0 {
 		t.Fatalf("inspector refs missing successful retry: %#v", refs)
 	}
 }

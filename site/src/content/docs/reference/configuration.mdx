@@ -82,6 +82,8 @@ permissions:
 
 tui:
   theme: ayu-dark
+  # layout: classic  # or shell
+  # shell_tool_calls: true
   # display_turns: 6
 ```
 
@@ -222,6 +224,8 @@ permissions:
 
 tui:
   theme: ayu-dark
+  layout: classic
+  shell_tool_calls: true
   display_turns: 6
 ```
 
@@ -429,7 +433,7 @@ That config expects an auth entry named `research`, not `exa`.
 - `model_cache`: cloud catalog cache expiry; default `expiry_days: 7`
 - `retention`: unified expiry policy for derived DB artifacts, search cache files, and app logs; default `expiry_days: 0`
 - `logging`: log directory and debug logging
-- `tui`: current theme selection and optional transcript display limit
+- `tui`: current theme selection, optional layout, optional shell transcript tool-call visibility, and optional transcript display limit
 
 There is currently no persisted top-level `lsp` config area.
 

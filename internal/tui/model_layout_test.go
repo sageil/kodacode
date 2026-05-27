@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/sageil/kodacode/internal/app"
 	"github.com/sageil/kodacode/internal/events"
 	"github.com/sageil/kodacode/internal/provider"
+	"github.com/sageil/kodacode/internal/textdiff"
 	"github.com/sageil/kodacode/internal/tui/theme"
 )
 
@@ -33,6 +35,602 @@ func TestRenderHeaderBarUsesSessionTitle(t *testing.T) {
 	}, 120))
 	if !strings.Contains(header, "terminal shell split operator") {
 		t.Fatalf("header = %q", header)
+	}
+}
+
+func TestShellLayoutRendersSinglePlanePrompt(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context:       ctx,
+		Theme:         &defaultTheme,
+		Layout:        "shell",
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: "/repo",
+	})
+	modelIface, _ := model.Update(tea.WindowSizeMsg{Width: 120, Height: 28})
+	model = modelIface.(Model)
+
+	rendered := ansi.Strip(renderModelView(model))
+	if !strings.Contains(rendered, "koda") {
+		t.Fatalf("shell layout missing koda shell header:\n%s", rendered)
+	}
+	if !strings.Contains(rendered, "❯") {
+		t.Fatalf("shell layout missing shell prompt:\n%s", rendered)
+	}
+	if strings.Contains(rendered, "Details") || strings.Contains(rendered, "Tools") {
+		t.Fatalf("shell layout should not render inspector tabs:\n%s", rendered)
+	}
+}
+
+func TestShellLayoutEnterOpensSelectedToolDetailOverlay(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context:       ctx,
+		Theme:         &defaultTheme,
+		Layout:        "shell",
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: "/repo",
+	})
+	state := events.SessionState{
+		SessionID:     "session-1",
+		WorkspaceRoot: "/repo",
+		TurnOrder:     []string{"turn-1"},
+		Turns: map[string]*events.TurnState{
+			"turn-1": {
+				TurnID:        "turn-1",
+				Status:        events.TurnStatusCompleted,
+				ToolCallOrder: []string{"call-1"},
+				ToolCalls: map[string]*events.ToolCallState{
+					"call-1": {
+						CallID:    "call-1",
+						ToolName:  "bash",
+						Input:     `{"cmd":"npm test","workdir":"/repo"}`,
+						Output:    "all tests passed",
+						Declared:  true,
+						Completed: true,
+						Succeeded: true,
+					},
+				},
+			},
+		},
+	}
+	model.projector = events.NewProjectorFromSnapshot(state)
+	model.width = 120
+	model.height = 32
+	model.chrome.focus = focusTranscript
+	model.syncViewportLayout()
+
+	updated, _ := model.Update(tea.KeyPressMsg{Text: "j", Code: 'j'})
+	next := updated.(Model)
+	if next.selection.callID != "call-1" {
+		t.Fatalf("selectedCallID after j = %q, want call-1", next.selection.callID)
+	}
+
+	updated, _ = next.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	next = updated.(Model)
+	if next.dialog == nil {
+		t.Fatal("dialog = nil, want selected tool detail overlay")
+	}
+	if next.dialog.ID() != dialogIDToolDetail {
+		t.Fatalf("dialog id = %q, want %q", next.dialog.ID(), dialogIDToolDetail)
+	}
+	rendered := renderTestDialogContentPlain(next.dialog)
+	if !strings.Contains(rendered, "npm test") || !strings.Contains(rendered, "all tests passed") {
+		t.Fatalf("tool detail dialog missing selected tool content\nrendered:\n%s", rendered)
+	}
+}
+
+func TestShellLayoutCanHideInlineToolCalls(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context:            ctx,
+		Theme:              &defaultTheme,
+		Layout:             "shell",
+		HideShellToolCalls: true,
+		SessionID:          "session-1",
+		TurnID:             "turn-1",
+		WorkspaceRoot:      "/repo",
+	})
+	state := events.SessionState{
+		SessionID:     "session-1",
+		WorkspaceRoot: "/repo",
+		TurnOrder:     []string{"turn-1"},
+		Turns: map[string]*events.TurnState{
+			"turn-1": {
+				TurnID:        "turn-1",
+				Status:        events.TurnStatusCompleted,
+				Transcript:    []events.TranscriptEntryState{{Kind: events.TranscriptEntryTool, CallID: "call-1"}},
+				ToolCallOrder: []string{"call-1"},
+				ToolCalls: map[string]*events.ToolCallState{
+					"call-1": {
+						CallID:    "call-1",
+						ToolName:  "bash",
+						Input:     `{"cmd":"npm test","workdir":"/repo"}`,
+						Output:    "all tests passed",
+						Declared:  true,
+						Completed: true,
+						Succeeded: true,
+					},
+				},
+			},
+		},
+	}
+	model.projector = events.NewProjectorFromSnapshot(state)
+	modelIface, _ := model.Update(tea.WindowSizeMsg{Width: 120, Height: 28})
+	model = modelIface.(Model)
+
+	rendered := ansi.Strip(renderModelView(model))
+	if strings.Contains(rendered, "npm test") || strings.Contains(rendered, "all tests passed") {
+		t.Fatalf("shell layout rendered hidden inline tool call:\n%s", rendered)
+	}
+}
+
+func TestShellLayoutInlineToolCallsRenderAsCompactRows(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context:       ctx,
+		Theme:         &defaultTheme,
+		Layout:        "shell",
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: "/repo",
+	})
+	state := events.SessionState{
+		SessionID:     "session-1",
+		WorkspaceRoot: "/repo",
+		TurnOrder:     []string{"turn-1"},
+		Turns: map[string]*events.TurnState{
+			"turn-1": {
+				TurnID:        "turn-1",
+				Status:        events.TurnStatusCompleted,
+				Transcript:    []events.TranscriptEntryState{{Kind: events.TranscriptEntryTool, CallID: "call-1"}},
+				ToolCallOrder: []string{"call-1"},
+				ToolCalls: map[string]*events.ToolCallState{
+					"call-1": {
+						CallID:    "call-1",
+						ToolName:  "bash",
+						Input:     `{"cmd":"npm test","workdir":"/repo"}`,
+						Output:    "all tests passed",
+						Declared:  true,
+						Completed: true,
+						Succeeded: true,
+					},
+				},
+			},
+		},
+	}
+	model.projector = events.NewProjectorFromSnapshot(state)
+	modelIface, _ := model.Update(tea.WindowSizeMsg{Width: 100, Height: 28})
+	model = modelIface.(Model)
+
+	rendered := ansi.Strip(renderModelView(model))
+	if !strings.Contains(rendered, "bash") || !strings.Contains(rendered, "npm test") {
+		t.Fatalf("shell layout missing compact inline tool row:\n%s", rendered)
+	}
+	if strings.Contains(rendered, "1 shell") {
+		t.Fatalf("shell layout rendered redundant single-call summary:\n%s", rendered)
+	}
+	if strings.Contains(rendered, "Succeeded") || strings.Contains(rendered, "Tool •") {
+		t.Fatalf("shell layout rendered block-style inline tool call:\n%s", rendered)
+	}
+
+	updated, _ := model.Update(tea.KeyPressMsg{Text: "j", Code: 'j'})
+	model = updated.(Model)
+	rendered = ansi.Strip(renderModelView(model))
+	if !strings.Contains(rendered, "enter") {
+		t.Fatalf("selected shell tool row missing detail hint:\n%s", rendered)
+	}
+	if strings.Contains(rendered, "Succeeded") || strings.Contains(rendered, "Tool •") {
+		t.Fatalf("selected shell tool row expanded inline instead of staying compact:\n%s", rendered)
+	}
+}
+
+func TestShellToolCompactRowsFitWidthsAndShowActiveStatuses(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context:       ctx,
+		Theme:         &defaultTheme,
+		Layout:        "shell",
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: "/repo",
+	})
+	state := events.SessionState{
+		SessionID:     "session-1",
+		WorkspaceRoot: "/repo",
+		TurnOrder:     []string{"turn-1"},
+		Turns:         map[string]*events.TurnState{"turn-1": {TurnID: "turn-1"}},
+	}
+	for _, tt := range []struct {
+		name       string
+		row        toolOutcomeRow
+		width      int
+		want       string
+		notWant    string
+		wantStatus string
+	}{
+		{
+			name: "narrow running",
+			row: toolOutcomeRow{
+				Kind:   toolOutcomeCommand,
+				Label:  "npm run extremely-long-script-name -- --watch --verbose",
+				Status: "running",
+				Ref:    sessionToolCallRef{TurnID: "turn-1", CallID: "call-running"},
+			},
+			width:      32,
+			want:       "npm",
+			wantStatus: "running",
+		},
+		{
+			name: "medium error",
+			row: toolOutcomeRow{
+				Kind:   toolOutcomeCommand,
+				Label:  "npm test",
+				Status: "error",
+				Ref:    sessionToolCallRef{TurnID: "turn-1", CallID: "call-error"},
+			},
+			width:      52,
+			want:       "npm test",
+			wantStatus: "error",
+		},
+		{
+			name: "done omits success prose",
+			row: toolOutcomeRow{
+				Kind:   toolOutcomeCommand,
+				Label:  "npm test",
+				Status: "done",
+				Ref:    sessionToolCallRef{TurnID: "turn-1", CallID: "call-done"},
+			},
+			width:   80,
+			want:    "npm test",
+			notWant: "Succeeded",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			rendered := ansi.Strip(renderShellToolOutcomeLine(model, state, tt.row, nil, tt.width, false))
+			if got := ansi.StringWidth(rendered); got > tt.width {
+				t.Fatalf("row width = %d, want <= %d\nrendered: %q", got, tt.width, rendered)
+			}
+			if !strings.Contains(rendered, tt.want) {
+				t.Fatalf("row missing %q\nrendered: %q", tt.want, rendered)
+			}
+			if tt.wantStatus != "" && !strings.Contains(rendered, tt.wantStatus) {
+				t.Fatalf("row missing status %q\nrendered: %q", tt.wantStatus, rendered)
+			}
+			if tt.notWant != "" && strings.Contains(rendered, tt.notWant) {
+				t.Fatalf("row contains unwanted %q\nrendered: %q", tt.notWant, rendered)
+			}
+		})
+	}
+}
+
+func TestShellLayoutWriteToolShowsSideBySideDiff(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context:       ctx,
+		Theme:         &defaultTheme,
+		Layout:        "shell",
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: "/repo",
+	})
+	state := events.SessionState{
+		SessionID:     "session-1",
+		WorkspaceRoot: "/repo",
+		TurnOrder:     []string{"turn-1"},
+		Turns: map[string]*events.TurnState{
+			"turn-1": {
+				TurnID: "turn-1",
+				Status: events.TurnStatusCompleted,
+				Transcript: []events.TranscriptEntryState{
+					{Kind: events.TranscriptEntryTool, CallID: "write-1"},
+				},
+				ToolCallOrder: []string{"write-1"},
+				ToolCalls: map[string]*events.ToolCallState{
+					"write-1": {
+						CallID:    "write-1",
+						ToolName:  "write",
+						Input:     `{"path":"src/app.ts","content":"const value = 2;\n"}`,
+						Completed: true,
+						Succeeded: true,
+						WriteMutation: &events.WriteMutation{
+							Path:    "/repo/src/app.ts",
+							Existed: true,
+							DiffPreview: &textdiff.Preview{
+								OldStartLine: 1,
+								NewStartLine: 1,
+								Ops: []textdiff.PreviewOp{
+									{Kind: textdiff.OpDelete, Text: "const value = 1;"},
+									{Kind: textdiff.OpInsert, Text: "const value = 2;"},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	model.projector = events.NewProjectorFromSnapshot(state)
+	modelIface, _ := model.Update(tea.WindowSizeMsg{Width: 120, Height: 28})
+	model = modelIface.(Model)
+
+	rendered := ansi.Strip(renderModelView(model))
+	for _, want := range []string{
+		"Wrote src/app.ts",
+		"Old",
+		"New",
+		"const value = 1;",
+		"const value = 2;",
+	} {
+		if !strings.Contains(rendered, want) {
+			t.Fatalf("shell write diff missing %q\nrendered:\n%s", want, rendered)
+		}
+	}
+	if strings.Contains(rendered, "diff unavailable") {
+		t.Fatalf("shell write diff fell back to unavailable state:\n%s", rendered)
+	}
+}
+
+func TestShellLayoutFailedWriteToolStillShows(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context:       ctx,
+		Theme:         &defaultTheme,
+		Layout:        "shell",
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: "/repo",
+	})
+	state := events.SessionState{
+		SessionID:     "session-1",
+		WorkspaceRoot: "/repo",
+		TurnOrder:     []string{"turn-1"},
+		Turns: map[string]*events.TurnState{
+			"turn-1": {
+				TurnID: "turn-1",
+				Status: events.TurnStatusCompleted,
+				Transcript: []events.TranscriptEntryState{
+					{Kind: events.TranscriptEntryTool, CallID: "write-fail"},
+				},
+				ToolCallOrder: []string{"write-fail"},
+				ToolCalls: map[string]*events.ToolCallState{
+					"write-fail": {
+						CallID:    "write-fail",
+						ToolName:  "write",
+						Input:     `{"path":"src/server.ts","content":"export const ready = true;\n"}`,
+						Error:     "permission denied",
+						Completed: true,
+						Succeeded: false,
+					},
+				},
+			},
+		},
+	}
+	model.projector = events.NewProjectorFromSnapshot(state)
+	modelIface, _ := model.Update(tea.WindowSizeMsg{Width: 120, Height: 28})
+	model = modelIface.(Model)
+
+	rendered := ansi.Strip(renderModelView(model))
+	if !strings.Contains(rendered, "write src/server.ts") {
+		t.Fatalf("shell layout hid failed write tool\nrendered:\n%s", rendered)
+	}
+}
+
+func TestShellLayoutToolsPopupShowsAllToolCallsAndOpensDetails(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context:            ctx,
+		Theme:              &defaultTheme,
+		Layout:             "shell",
+		HideShellToolCalls: true,
+		SessionID:          "session-1",
+		TurnID:             "turn-1",
+		WorkspaceRoot:      "/repo",
+	})
+	state := events.SessionState{
+		SessionID:     "session-1",
+		WorkspaceRoot: "/repo",
+		TurnOrder:     []string{"turn-1"},
+		Turns: map[string]*events.TurnState{
+			"turn-1": {
+				TurnID:        "turn-1",
+				Status:        events.TurnStatusCompleted,
+				ToolCallOrder: []string{"call-read", "call-bash"},
+				ToolCalls: map[string]*events.ToolCallState{
+					"call-read": {
+						CallID:    "call-read",
+						ToolName:  "read",
+						Input:     `{"paths":["README.md"],"start_line":1,"max_lines":40}`,
+						Output:    "1: # KodaCode",
+						Declared:  true,
+						Completed: true,
+						Succeeded: true,
+					},
+					"call-bash": {
+						CallID:    "call-bash",
+						ToolName:  "bash",
+						Input:     `{"cmd":"npm test","workdir":"/repo"}`,
+						Output:    "all tests passed",
+						Declared:  true,
+						Completed: true,
+						Succeeded: true,
+					},
+				},
+			},
+		},
+	}
+	model.projector = events.NewProjectorFromSnapshot(state)
+	model.width = 120
+	model.height = 32
+	model.syncViewportLayout()
+
+	updated, _ := model.Update(tea.KeyPressMsg{Code: 't', Mod: tea.ModCtrl})
+	next := updated.(Model)
+	if next.dialog == nil {
+		t.Fatal("dialog = nil, want shell tools popup")
+	}
+	if next.dialog.ID() != dialogIDShellTools {
+		t.Fatalf("dialog id = %q, want %q", next.dialog.ID(), dialogIDShellTools)
+	}
+	rendered := renderTestDialogContentPlain(next.dialog)
+	if !strings.Contains(rendered, "README.md") || !strings.Contains(rendered, "npm test") {
+		t.Fatalf("tools popup missing all tool calls\nrendered:\n%s", rendered)
+	}
+	if !strings.Contains(rendered, "t1") || !strings.Contains(rendered, "done") {
+		t.Fatalf("tools popup missing turn/status scan columns\nrendered:\n%s", rendered)
+	}
+
+	updated, cmd := next.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	next = updated.(Model)
+	if cmd == nil {
+		t.Fatal("enter returned nil cmd, want shell tools selection")
+	}
+	closed, ok := cmd().(dialogClosedMsg)
+	if !ok {
+		t.Fatalf("cmd() = %#v, want dialogClosedMsg", cmd())
+	}
+	updated, _ = next.Update(closed)
+	next = updated.(Model)
+	if next.dialog == nil || next.dialog.ID() != dialogIDToolDetail {
+		t.Fatalf("dialog = %#v, want tool detail dialog", next.dialog)
+	}
+	detail := renderTestDialogContentPlain(next.dialog)
+	if !strings.Contains(detail, "README.md") {
+		t.Fatalf("tool detail dialog missing selected read call\nrendered:\n%s", detail)
+	}
+}
+
+func TestShellLayoutToolsPopupEmptyState(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context:       ctx,
+		Theme:         &defaultTheme,
+		Layout:        "shell",
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: "/repo",
+	})
+	model.projector = events.NewProjectorFromSnapshot(events.SessionState{
+		SessionID:     "session-1",
+		WorkspaceRoot: "/repo",
+		Turns:         map[string]*events.TurnState{},
+	})
+	model.width = 96
+	model.height = 28
+	model.syncViewportLayout()
+
+	updated, _ := model.Update(tea.KeyPressMsg{Code: 't', Mod: tea.ModCtrl})
+	next := updated.(Model)
+	if next.dialog == nil || next.dialog.ID() != dialogIDShellTools {
+		t.Fatalf("dialog = %#v, want shell tools popup", next.dialog)
+	}
+	rendered := renderTestDialogContentPlain(next.dialog)
+	if !strings.Contains(rendered, "no tools") || !strings.Contains(rendered, "No tool calls in this session.") {
+		t.Fatalf("tools popup missing empty state\nrendered:\n%s", rendered)
+	}
+}
+
+func TestShellLayoutToolsPopupPaginatesAndOpensLastTool(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context:       ctx,
+		Theme:         &defaultTheme,
+		Layout:        "shell",
+		SessionID:     "session-1",
+		TurnID:        "turn-2",
+		WorkspaceRoot: "/repo",
+	})
+	turns := map[string]*events.TurnState{}
+	for turnIdx := 1; turnIdx <= 2; turnIdx++ {
+		turnID := fmt.Sprintf("turn-%d", turnIdx)
+		turn := &events.TurnState{
+			TurnID:        turnID,
+			Status:        events.TurnStatusCompleted,
+			ToolCallOrder: []string{},
+			ToolCalls:     map[string]*events.ToolCallState{},
+		}
+		for callIdx := 1; callIdx <= 10; callIdx++ {
+			ordinal := ((turnIdx - 1) * 10) + callIdx
+			callID := fmt.Sprintf("call-%02d", ordinal)
+			turn.ToolCallOrder = append(turn.ToolCallOrder, callID)
+			turn.ToolCalls[callID] = &events.ToolCallState{
+				CallID:    callID,
+				ToolName:  "bash",
+				Input:     fmt.Sprintf(`{"cmd":"cmd-%02d","workdir":"/repo"}`, ordinal),
+				Output:    fmt.Sprintf("output-%02d", ordinal),
+				Declared:  true,
+				Completed: true,
+				Succeeded: true,
+			}
+		}
+		turns[turnID] = turn
+	}
+	state := events.SessionState{
+		SessionID:     "session-1",
+		WorkspaceRoot: "/repo",
+		TurnOrder:     []string{"turn-1", "turn-2"},
+		Turns:         turns,
+	}
+	model.projector = events.NewProjectorFromSnapshot(state)
+
+	dialog := newShellToolsDialog(model, state)
+	dialog.SetFrame(96, 13)
+	updatedDialog, _ := dialog.Update(tea.KeyPressMsg{Code: tea.KeyEnd})
+	dialog = updatedDialog.(*shellToolsDialog)
+	rendered := renderTestDialogContentPlain(dialog)
+	if !strings.Contains(rendered, "20 tools · 16-20") {
+		t.Fatalf("tools popup missing scrolled range\nrendered:\n%s", rendered)
+	}
+	if !strings.Contains(rendered, "cmd-20") || strings.Contains(rendered, "cmd-01") {
+		t.Fatalf("tools popup did not page to the last window\nrendered:\n%s", rendered)
+	}
+
+	_, cmd := dialog.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if cmd == nil {
+		t.Fatal("enter returned nil cmd, want last tool selection")
+	}
+	closed, ok := cmd().(dialogClosedMsg)
+	if !ok {
+		t.Fatalf("cmd() = %#v, want dialogClosedMsg", cmd())
+	}
+	result, ok := closed.result.(shellToolsDialogResult)
+	if !ok {
+		t.Fatalf("dialog result = %#v, want shellToolsDialogResult", closed.result)
+	}
+	if result.Ref.TurnID != "turn-2" || result.Ref.CallID != "call-20" {
+		t.Fatalf("selected ref = %#v, want turn-2/call-20", result.Ref)
 	}
 }
 
