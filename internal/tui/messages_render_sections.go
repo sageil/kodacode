@@ -42,26 +42,21 @@ func renderTurnTranscriptSectionsWithOptions(m Model, state events.SessionState,
 		}
 		switch entry.Kind {
 		case events.TranscriptEntryUser:
-			if body := strings.TrimSpace(entry.Text); body != "" {
-				sections = append(sections, transcriptSection{
-					content:        renderUserSection(m, width, body),
-					selectionLines: transcriptRailSelectionLines(m, body, width),
-				})
+			row := newUserTranscriptMessageRow(turnID, entry, i, width)
+			if section, ok := row.section(m, turn); ok {
+				sections = append(sections, section)
 				maybeRenderFallbackCompaction()
 			}
 		case events.TranscriptEntryAssistant, events.TranscriptEntryWorklog:
 			if entry.Kind == events.TranscriptEntryAssistant && suppressAssistantEntryForStructuredReview(turn, i) {
 				continue
 			}
-			streamKey := assistantTranscriptEntryStreamKey(state.SessionID, turnID, i)
-			if assistant := renderAssistantTranscriptSectionWithStreamKey(m, turn, entry.Text, width, streamKey); assistant != "" {
+			row := newAssistantTranscriptMessageRow(state, turnID, entry, i, width)
+			if section, ok := row.section(m, turn); ok {
 				if !isTurnContinuationTranscriptEntry(turn, entry) {
 					maybeRenderFallbackCompaction()
 				}
-				sections = append(sections, transcriptSection{
-					content:        assistant,
-					selectionLines: assistantTranscriptSelectionLinesWithStreamKey(m, strings.TrimRight(strings.TrimSpace(entry.Text), "\n"), width, streamKey),
-				})
+				sections = append(sections, section)
 				if isTurnContinuationTranscriptEntry(turn, entry) {
 					maybeRenderFallbackCompaction()
 				}
@@ -116,12 +111,9 @@ func renderTurnTranscriptSectionsWithOptions(m Model, state events.SessionState,
 	if !compactionRendered {
 		maybeRenderFallbackCompaction()
 	}
-	previewStreamKey := assistantPreviewTranscriptStreamKey(state.SessionID, turnID)
-	if assistant := renderAssistantPreviewTranscriptSectionWithStreamKey(m, turn, turn.StreamingText, width, previewStreamKey); assistant != "" {
-		sections = append(sections, transcriptSection{
-			content:        assistant,
-			selectionLines: assistantTranscriptSelectionLinesWithStreamKey(m, strings.TrimRight(strings.TrimSpace(turn.StreamingText), "\n"), width, previewStreamKey),
-		})
+	previewRow := newAssistantPreviewTranscriptMessageRow(state, turnID, turn, width)
+	if section, ok := previewRow.section(m, turn); ok {
+		sections = append(sections, section)
 	}
 	sections = append(sections, renderLiveToolCallPreviewSections(m, state, turnID, turn, width)...)
 	if delegation := renderDelegationSection(m, turn, width); delegation != "" {
