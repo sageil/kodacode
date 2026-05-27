@@ -13,6 +13,11 @@ func (m *Model) syncTranscriptStructureWithState(state events.SessionState) {
 	}
 	contentWidth := max(m.messages.Width(), 1)
 	followBottom := m.messages.AtBottom()
+	if isWideShell(*m) {
+		rendered := renderTranscriptLayout(*m, state, contentWidth)
+		m.applyTranscriptLayout(rendered.layout, rendered.rendered, followBottom)
+		return
+	}
 	layout := m.buildVisibleTranscriptLayout(state, contentWidth)
 	m.applyVirtualTranscriptLayout(layout, followBottom)
 }
@@ -50,6 +55,9 @@ func (m *Model) applyVirtualTranscriptLayout(layout transcriptLayout, followBott
 
 func (m *Model) syncVisibleTranscriptChunksIfNeeded() {
 	if m == nil || len(m.transcriptView.layout.chunks) == 0 {
+		return
+	}
+	if isWideShell(*m) {
 		return
 	}
 	state := m.projector.CurrentState()
@@ -119,6 +127,10 @@ func (m *Model) applyTranscriptRefreshPlanWithState(state events.SessionState, p
 		m.syncTranscriptStructureWithState(state)
 		return true
 	case transcriptRefreshTurns:
+		if isWideShell(*m) {
+			m.syncTranscriptStructureWithState(state)
+			return true
+		}
 		layout, ok := m.transcriptLayoutForTurnRefresh(state, plan.turnIDs...)
 		if !ok {
 			m.err = ErrTranscriptIncrementalRefreshInvariant

@@ -582,6 +582,43 @@ func TestTranscriptSyncUsesVirtualBacking(t *testing.T) {
 	}
 }
 
+func TestWideTranscriptSyncUsesRenderedBacking(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	state := events.SessionState{
+		SessionID:     "session-1",
+		WorkspaceRoot: "/repo",
+		TurnOrder:     []string{"turn-1", "turn-2"},
+		Turns: map[string]*events.TurnState{
+			"turn-1": {TurnID: "turn-1", Transcript: []events.TranscriptEntryState{{Kind: events.TranscriptEntryAssistant, Text: numberedLines("previous", 40)}}},
+			"turn-2": {TurnID: "turn-2", Transcript: []events.TranscriptEntryState{{Kind: events.TranscriptEntryAssistant, Text: "current"}}},
+		},
+	}
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context:       ctx,
+		Theme:         &defaultTheme,
+		SessionID:     "session-1",
+		TurnID:        "turn-2",
+		WorkspaceRoot: "/repo",
+	})
+	model.projector = events.NewProjectorFromSnapshot(state)
+	modelIface, _ := model.Update(tea.WindowSizeMsg{Width: 160, Height: 32})
+	model = modelIface.(Model)
+
+	if !isWideShell(model) {
+		t.Fatal("test setup did not enter wide transcript layout")
+	}
+	if model.messages.virtual != nil {
+		t.Fatal("wide transcript used virtual placeholder backing")
+	}
+	rendered := ansi.Strip(strings.Join(model.messages.RawLines(), "\n"))
+	if !strings.Contains(rendered, "previous") || !strings.Contains(rendered, "current") {
+		t.Fatalf("wide transcript missing rendered turn content:\n%s", rendered)
+	}
+}
+
 func TestTranscriptSyncKeepsOffscreenTurnsAsVirtualPlaceholders(t *testing.T) {
 	defaultTheme := theme.StaticDefault()
 	ctx, cancel := context.WithCancel(context.TODO())
