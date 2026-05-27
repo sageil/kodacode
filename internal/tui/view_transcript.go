@@ -9,9 +9,10 @@ import (
 )
 
 const (
-	transcriptScrollbarWidth      = 1
-	transcriptScrollbarThumbGlyph = "▎"
+	transcriptScrollbarWidth = 1
 )
+
+var transcriptScrollbarThumbGlyph = terminalIcon(terminalIconScrollThumb)
 
 func transcriptViewportWidth(width int) int {
 	return transcriptViewportContentWidth(width, true)

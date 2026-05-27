@@ -16,6 +16,16 @@ const (
 	terminalIconToolPending terminalIconID = "tool_pending"
 	terminalIconBranch      terminalIconID = "branch"
 	terminalIconBullet      terminalIconID = "bullet"
+	terminalIconSelected    terminalIconID = "selected"
+	terminalIconUnselected  terminalIconID = "unselected"
+	terminalIconCursor      terminalIconID = "cursor"
+	terminalIconExpanded    terminalIconID = "expanded"
+	terminalIconCollapsed   terminalIconID = "collapsed"
+	terminalIconCheck       terminalIconID = "check"
+	terminalIconWarning     terminalIconID = "warning"
+	terminalIconGitBranch   terminalIconID = "git_branch"
+	terminalIconPromptRail  terminalIconID = "prompt_rail"
+	terminalIconScrollThumb terminalIconID = "scroll_thumb"
 )
 
 func terminalIcon(id terminalIconID) string {
@@ -34,6 +44,26 @@ func terminalIcon(id terminalIconID) string {
 		return terminalSafeGlyph("↳", ">")
 	case terminalIconBullet:
 		return terminalSafeGlyph("•", "*")
+	case terminalIconSelected:
+		return terminalSafeGlyph("●", "*")
+	case terminalIconUnselected:
+		return terminalSafeGlyph("○", "o")
+	case terminalIconCursor:
+		return terminalSafeGlyph("▸", ">")
+	case terminalIconExpanded:
+		return terminalSafeGlyph("▾", "v")
+	case terminalIconCollapsed:
+		return terminalSafeGlyph("▸", ">")
+	case terminalIconCheck:
+		return terminalSafeGlyph("✓", "*")
+	case terminalIconWarning:
+		return terminalSafeGlyph("⚠", "!")
+	case terminalIconGitBranch:
+		return terminalSafeGlyph("⎇", "#")
+	case terminalIconPromptRail:
+		return terminalSafeGlyph("▌", "|")
+	case terminalIconScrollThumb:
+		return terminalSafeGlyph("▎", "|")
 	default:
 		return "?"
 	}

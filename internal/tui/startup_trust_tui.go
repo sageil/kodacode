@@ -360,7 +360,7 @@ func (m startupTrustPromptModel) canContinue() bool {
 
 func checkedLabel(value bool) string {
 	if value {
-		return "[●]"
+		return "[" + terminalIcon(terminalIconSelected) + "]"
 	}
-	return "[○]"
+	return "[" + terminalIcon(terminalIconUnselected) + "]"
 }

@@ -122,10 +122,10 @@ func renderInlineDecisionPrompt(m Model, width int, title string, details []stri
 
 	optionWidth := max(min(width-10, 96), 18)
 	for idx, option := range choices {
-		bullet := "○ "
+		bullet := terminalIcon(terminalIconUnselected) + " "
 		style := optionStyle
 		if idx == m.interaction.cursor {
-			bullet = "● "
+			bullet = terminalIcon(terminalIconSelected) + " "
 			style = selectedStyle
 		}
 		number := fmt.Sprintf("%d.", idx+1)

@@ -49,10 +49,10 @@ func renderInlineQuestionPrompt(m Model, width int) string {
 
 	optionWidth := max(min(width-10, 96), 18)
 	for idx, option := range pending.Options {
-		bullet := "○ "
+		bullet := terminalIcon(terminalIconUnselected) + " "
 		style := optionStyle
 		if idx == m.interaction.cursor {
-			bullet = "● "
+			bullet = terminalIcon(terminalIconSelected) + " "
 			style = selectedStyle
 		}
 		number := fmt.Sprintf("%d.", idx+1)

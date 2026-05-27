@@ -49,7 +49,7 @@ func footerStatusSegments(m Model, state events.SessionState) []transcriptStatus
 	if git := footerGitStatus(m.footerStatus.workspace); git != nil {
 		if branch := strings.TrimSpace(git.Branch); branch != "" {
 			segments = append(segments, transcriptStatusSegment{
-				Text:  "⎇ " + branch,
+				Text:  terminalIcon(terminalIconGitBranch) + " " + branch,
 				Color: colorFor(m.theme, "success", "#90e5b4"),
 			})
 		}
@@ -89,7 +89,7 @@ func footerStatusSegments(m Model, state events.SessionState) []transcriptStatus
 	}
 	if pendingLoopQuestionFromState(state) != nil {
 		segments = append(segments, transcriptStatusSegment{
-			Text:  "⚠ loop",
+			Text:  terminalIcon(terminalIconWarning) + " loop",
 			Color: colorFor(m.theme, "warning", "#ffd28f"),
 			Bold:  true,
 		})

@@ -23,9 +23,10 @@ func renderUserPromptBlock(m Model, width int, body string) string {
 	)
 }
 
-const userPromptContentPrefixValue = userPromptRailGlyph + userPromptInnerPadding
-
-var userPromptContentPrefixGraphemeCount = transcriptGraphemeCount(userPromptContentPrefixValue)
+var (
+	userPromptContentPrefixValue         = userPromptRailGlyph + userPromptInnerPadding
+	userPromptContentPrefixGraphemeCount = transcriptGraphemeCount(userPromptContentPrefixValue)
+)
 
 func transcriptRailSelectionLines(m Model, body string, width int) []transcriptSelectionLine {
 	bodyLines := wrapTranscriptText(body, max(width-ansi.StringWidth(userPromptContentPrefix()), 1))

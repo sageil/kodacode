@@ -273,7 +273,7 @@ func renderWideAgentsList(m Model, state events.SessionState, width int) string 
 	header := renderWidePaneTitle(m, "Agents", "", width, colorFor(m.theme, "thinking", "#bd93f9"))
 	lines := make([]string, 0, len(rows))
 	for _, row := range rows {
-		prefix := "▸ "
+		prefix := terminalIcon(terminalIconCursor) + " "
 		if row.depth > 0 {
 			prefix = strings.Repeat("  ", row.depth) + toolStatusSymbol(row.status) + " "
 		}

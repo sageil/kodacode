@@ -209,8 +209,8 @@ func (d *reasoningVariantDialog) bodyView() string {
 	selected := dialogSelectedItemStyle(d.theme)
 	normal := dialogItemStyle(d.theme)
 	subtle := dialogHintStyle(d.theme)
-	cursorGlyph := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colorFor(d.theme, "primary", "#7aa2f7"))).Render("▸")
-	activeGlyph := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#9ece6a")).Render("✓")
+	cursorGlyph := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colorFor(d.theme, "primary", "#7aa2f7"))).Render(terminalIcon(terminalIconCursor))
+	activeGlyph := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#9ece6a")).Render(terminalIcon(terminalIconCheck))
 
 	maxLabelWidth := 0
 	for _, opt := range d.options {

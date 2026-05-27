@@ -170,7 +170,7 @@ func inspectorTaskTreePrefix(branchState []bool) string {
 	if len(branchState) == 0 {
 		return ""
 	}
-	return strings.Repeat("  ", len(branchState)-1) + " ↳ "
+	return strings.Repeat("  ", len(branchState)-1) + " " + terminalIcon(terminalIconBranch) + " "
 }
 
 func renderInspectorTaskRow(m Model, row inspectorTaskRow, width int) string {
@@ -200,7 +200,7 @@ func renderInspectorTaskRow(m Model, row inspectorTaskRow, width int) string {
 func taskStatusBadge(status string) string {
 	switch strings.TrimSpace(status) {
 	case "done":
-		return "[✓]"
+		return "[" + terminalIcon(terminalIconCheck) + "]"
 	case "running":
 		return "[>]"
 	case "blocked":

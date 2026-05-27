@@ -53,8 +53,9 @@ type transcriptLayoutRender struct {
 }
 
 const transcriptBottomPadding = "\n\n"
-const userPromptRailGlyph = "▌"
 const userPromptInnerPadding = "  "
+
+var userPromptRailGlyph = terminalIcon(terminalIconPromptRail)
 
 func renderTranscriptMessages(m Model, state events.SessionState, width int) transcriptRender {
 	return renderTranscriptLayout(m, state, width).rendered

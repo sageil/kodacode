@@ -107,24 +107,24 @@ func terminalStatusLine(m Model, call *events.ToolCallState, spinner string) (st
 		case events.ExecutionBackgroundStatusRunning:
 			return colorFor(m.theme, "warning", "#ffb86c"), spinner + " running"
 		case events.ExecutionBackgroundStatusReady:
-			return colorFor(m.theme, "success", "#50fa7b"), "● ready"
+			return colorFor(m.theme, "success", "#50fa7b"), terminalIcon(terminalIconSelected) + " ready"
 		case events.ExecutionBackgroundStatusSupervisionLost:
-			return colorFor(m.theme, "error", "#ff5555"), "✗ supervision lost"
+			return colorFor(m.theme, "error", "#ff5555"), terminalIcon(terminalIconToolError) + " supervision lost"
 		case events.ExecutionBackgroundStatusExited:
 			if strings.TrimSpace(background.Error) != "" || (background.ExitCode != nil && *background.ExitCode != 0) {
-				return colorFor(m.theme, "error", "#ff5555"), "✗ exited"
+				return colorFor(m.theme, "error", "#ff5555"), terminalIcon(terminalIconToolError) + " exited"
 			}
-			return colorFor(m.theme, "success", "#50fa7b"), "✓ exited"
+			return colorFor(m.theme, "success", "#50fa7b"), terminalIcon(terminalIconCheck) + " exited"
 		}
 	}
 	statusTone := colorFor(m.theme, "warning", "#ffb86c")
 	statusText := spinner + " running"
 	if call != nil && call.Completed && strings.TrimSpace(call.Error) != "" {
 		statusTone = colorFor(m.theme, "error", "#ff5555")
-		statusText = "✗ error"
+		statusText = terminalIcon(terminalIconToolError) + " error"
 	} else if call != nil && call.Completed {
 		statusTone = colorFor(m.theme, "success", "#50fa7b")
-		statusText = "✓ done"
+		statusText = terminalIcon(terminalIconCheck) + " done"
 	}
 	return statusTone, statusText
 }
