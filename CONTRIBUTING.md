@@ -6,7 +6,6 @@ Thanks for your interest in contributing. This guide covers everything you need 
 
 - **Go 1.25+** [go.dev/dl](https://go.dev/dl/)
 - **Task** (go-task) [taskfile.dev/installation](https://taskfile.dev/installation/)
-- **Universal Ctags** required for search index tests (`brew install universal-ctags`)
 
 ## Getting Started
 
@@ -59,6 +58,7 @@ tools/              Tooling modules, including pinned golangci-lint
 ## Development Workflow
 
 1. **Create a branch** from `main`:
+
    ```bash
    git checkout -b feat/my-feature
    ```
@@ -66,17 +66,20 @@ tools/              Tooling modules, including pinned golangci-lint
 2. **Make your changes.** Follow the existing code style. There is no linter config, so match what's already there.
 
 3. **Run tests:**
+
    ```bash
    task test
    ```
 
 4. **Build and verify:**
+
    ```bash
    task build
    ./bin/kodacode
    ```
 
 5. **Commit** with a clear message following [Conventional Commits](https://www.conventionalcommits.org/):
+
    ```
    feat: add rate limiting to API endpoints
    fix: prevent sandbox escape via symlinks
