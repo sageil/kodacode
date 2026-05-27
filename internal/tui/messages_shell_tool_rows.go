@@ -171,7 +171,15 @@ func renderShellTurnToolOutcomeSections(m Model, state events.SessionState, refs
 			}
 			continue
 		}
-		content := renderShellToolOutcomeLine(m, state, row, call, width, selectedToolMatchesSession(m, state.SessionID, row.Ref))
+		selected := selectedToolMatchesSession(m, state.SessionID, row.Ref)
+		if selected {
+			if content := strings.TrimSpace(renderShellFocusedToolTranscriptSection(m, row.Ref, state, call, width)); content != "" {
+				flushCompact()
+				sections = append(sections, transcriptSection{content: content, toolRefs: []sessionToolCallRef{row.Ref}})
+				continue
+			}
+		}
+		content := renderShellToolOutcomeLine(m, state, row, call, width, selected)
 		if strings.TrimSpace(content) == "" {
 			continue
 		}
@@ -202,11 +210,25 @@ func renderShellToolTranscriptSection(m Model, state events.SessionState, ref se
 			}
 			continue
 		}
-		if line := strings.TrimSpace(renderShellToolOutcomeLine(m, state, row, rowCall, width, selectedToolMatchesSession(m, state.SessionID, row.Ref))); line != "" {
+		selected := selectedToolMatchesSession(m, state.SessionID, row.Ref)
+		if selected {
+			if content := strings.TrimSpace(renderShellFocusedToolTranscriptSection(m, row.Ref, state, rowCall, width)); content != "" {
+				lines = append(lines, content)
+				continue
+			}
+		}
+		if line := strings.TrimSpace(renderShellToolOutcomeLine(m, state, row, rowCall, width, selected)); line != "" {
 			lines = append(lines, line)
 		}
 	}
 	return strings.Join(lines, "\n")
+}
+
+func renderShellFocusedToolTranscriptSection(m Model, ref sessionToolCallRef, state events.SessionState, call *events.ToolCallState, width int) string {
+	if call != nil && strings.TrimSpace(call.ToolName) == "bash" && outcomeCategoryForTool(call) == toolOutcomeExploration {
+		return renderWideToolDetailTranscriptSection(m, ref, state, call, width)
+	}
+	return renderFocusedToolTranscriptSection(m, ref, state, call, width)
 }
 
 func renderShellMutationToolTranscriptSection(m Model, state events.SessionState, ref sessionToolCallRef, call *events.ToolCallState, width int) string {

@@ -216,6 +216,7 @@ func TestShellLayoutInlineToolCallsRenderAsCompactRows(t *testing.T) {
 	model.projector = events.NewProjectorFromSnapshot(state)
 	modelIface, _ := model.Update(tea.WindowSizeMsg{Width: 100, Height: 28})
 	model = modelIface.(Model)
+	model.chrome.focus = focusTranscript
 
 	rendered := ansi.Strip(renderModelView(model))
 	if !strings.Contains(rendered, "bash") || !strings.Contains(rendered, "npm test") {
@@ -231,11 +232,11 @@ func TestShellLayoutInlineToolCallsRenderAsCompactRows(t *testing.T) {
 	updated, _ := model.Update(tea.KeyPressMsg{Text: "j", Code: 'j'})
 	model = updated.(Model)
 	rendered = ansi.Strip(renderModelView(model))
-	if !strings.Contains(rendered, "enter") {
-		t.Fatalf("selected shell tool row missing detail hint:\n%s", rendered)
+	if !strings.Contains(rendered, "all tests passed") {
+		t.Fatalf("selected shell tool row did not expand inline:\n%s", rendered)
 	}
-	if strings.Contains(rendered, "Succeeded") || strings.Contains(rendered, "Tool •") {
-		t.Fatalf("selected shell tool row expanded inline instead of staying compact:\n%s", rendered)
+	if strings.Contains(rendered, "Tool •") || strings.Contains(rendered, "TOOL •") {
+		t.Fatalf("selected shell tool row used classic block title:\n%s", rendered)
 	}
 }
 
