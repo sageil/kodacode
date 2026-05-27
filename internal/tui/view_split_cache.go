@@ -19,7 +19,7 @@ func splitWideViewCacheKeyForLayout(m Model, state events.SessionState, layout s
 	if !layout.showInspector {
 		leftWidth = layout.totalWidth
 	}
-	borderless := splitTranscriptPaneBorderless(m, layout)
+	borderless := !layout.showInspector
 
 	hasher := fnv.New64a()
 	writeTranscriptSignatureString(hasher, "split-wide-view")

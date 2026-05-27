@@ -1425,7 +1425,7 @@ func TestRenderSplitTranscriptPaneDoesNotForceFullPaneFill(t *testing.T) {
 	}
 }
 
-func TestRenderSplitTranscriptPaneDropsBordersAndScrollbarInWideShell(t *testing.T) {
+func TestRenderSplitTranscriptPaneDropsBordersAndScrollbarWhenDrawerHidden(t *testing.T) {
 	defaultTheme := theme.StaticDefault()
 	ctx, cancel := context.WithCancel(context.TODO())
 	defer cancel()
@@ -1475,20 +1475,18 @@ func TestRenderSplitTranscriptPaneDropsBordersAndScrollbarInWideShell(t *testing
 		t.Fatalf("layout.showInspector = false, want true")
 	}
 	visible := ansi.Strip(renderSplitTranscriptPane(model, layout.centerWidth, splitWidePanelHeight(layout)))
-	for _, unwanted := range []string{
+	for _, wanted := range []string{
 		lipgloss.RoundedBorder().TopLeft,
 		lipgloss.RoundedBorder().TopRight,
-		lipgloss.RoundedBorder().BottomLeft,
-		lipgloss.RoundedBorder().BottomRight,
 		"│",
-		"█",
 	} {
-		if strings.Contains(visible, unwanted) {
-			t.Fatalf("visible transcript unexpectedly contains %q:\n%s", unwanted, visible)
+		if !strings.Contains(visible, wanted) {
+			t.Fatalf("visible transcript missing %q:\n%s", wanted, visible)
 		}
 	}
-	if model.messages.width != layout.centerWidth {
-		t.Fatalf("messages width with visible drawer = %d, want %d", model.messages.width, layout.centerWidth)
+	expectedVisibleWidth := transcriptViewportWidth(max(layout.centerWidth-4, 1))
+	if model.messages.width != expectedVisibleWidth {
+		t.Fatalf("messages width with visible drawer = %d, want %d", model.messages.width, expectedVisibleWidth)
 	}
 }
 
@@ -1716,7 +1714,7 @@ func TestSyncViewportLayoutReservesTranscriptHeightForStatusBar(t *testing.T) {
 	model.syncViewportLayout()
 	state := model.projector.Snapshot()
 	layout := normalizeWideShellLayout(model, state, resolveShellLayout(model, state))
-	expected := max(splitWidePanelHeight(layout)-transcriptStatusBarHeight(model, state, layout.centerWidth), 1)
+	expected := max(splitWidePanelHeight(layout)-3-transcriptStatusBarHeight(model, state, max(layout.centerWidth-4, 1)), 1)
 	if model.messages.height != expected {
 		t.Fatalf("messages height = %d, want %d", model.messages.height, expected)
 	}
@@ -1825,7 +1823,7 @@ func TestHandleWatchEventsRelayoutsWhenPermissionPromptClosesInWideMode(t *testi
 		t.Fatalf("requested layout.showInspector = false, want true")
 	}
 	narrowWidth := model.messages.width
-	expectedNarrowWidth := max(requestedLayout.centerWidth, 1)
+	expectedNarrowWidth := transcriptViewportWidth(max(requestedLayout.centerWidth-4, 1))
 	if narrowWidth != expectedNarrowWidth {
 		t.Fatalf("messages width with permission prompt = %d, want %d", narrowWidth, expectedNarrowWidth)
 	}
