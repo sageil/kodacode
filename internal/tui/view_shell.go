@@ -10,9 +10,26 @@ import (
 func renderKodaShellView(m Model, state events.SessionState, layout shellLayout) string {
 	width := max(layout.totalWidth, 1)
 	header := renderKodaShellHeader(m, state, width)
-	body, status := renderTranscriptPaneSectionsWithOptions(m, state, width, transcriptPaneRenderOptions{showScrollbar: false})
+	body := renderKodaShellTranscriptBody(m, state, width)
+	status := renderKodaShellTranscriptStatus(m, state, width)
 	footer := renderKodaShellFooter(m, state, width, status)
 	return renderPresizedToneBlock(m.theme, toneBG, max(m.width, 1), max(m.height, 1), header+"\n"+body+"\n"+footer)
+}
+
+func renderKodaShellTranscriptBody(m Model, state events.SessionState, width int) string {
+	width = max(width, 1)
+	body := renderTranscriptViewportWithOptions(m, width, transcriptPaneRenderOptions{showScrollbar: false})
+	if panel := renderInlinePermissionPrompt(m, state, width); panel != "" {
+		body = panel + "\n\n" + body
+	}
+	if panel := renderInlineQuestionPrompt(m, width); panel != "" {
+		body = panel + "\n\n" + body
+	}
+	return body
+}
+
+func renderKodaShellTranscriptStatus(m Model, state events.SessionState, width int) string {
+	return strings.TrimSpace(renderTranscriptStatusBar(m, state, max(width, 1)))
 }
 
 func renderKodaShellHeader(m Model, state events.SessionState, width int) string {
@@ -126,8 +143,7 @@ func renderShellText(m Model, text, token, fallback string, bold bool) string {
 }
 
 func kodaShellFooterHeight(m Model, state events.SessionState, width int) int {
-	_, status := renderTranscriptPaneSectionsWithOptions(m, state, width, transcriptPaneRenderOptions{showScrollbar: false})
-	return max(lipgloss.Height(renderKodaShellFooter(m, state, width, status)), 1)
+	return max(lipgloss.Height(renderKodaShellFooter(m, state, width, renderKodaShellTranscriptStatus(m, state, width))), 1)
 }
 
 func kodaShellHeaderHeight(m Model, state events.SessionState, width int) int {

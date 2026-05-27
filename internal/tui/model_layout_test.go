@@ -464,6 +464,32 @@ func TestShellToolTranscriptRowCachePartsTrackRenderState(t *testing.T) {
 	}
 }
 
+func TestKodaShellTranscriptBodyUsesVisibleViewportLines(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context:       ctx,
+		Theme:         &defaultTheme,
+		Layout:        "shell",
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: "/repo",
+	})
+	model.messages.SetSize(80, 2)
+	model.messages.Sync("hidden-line\nvisible-one\nvisible-two\nhidden-bottom", false)
+	model.messages.GotoLine(1)
+
+	rendered := ansi.Strip(renderKodaShellTranscriptBody(model, events.SessionState{SessionID: "session-1"}, 80))
+	if !strings.Contains(rendered, "visible-one") || !strings.Contains(rendered, "visible-two") {
+		t.Fatalf("shell transcript body missing visible viewport lines:\n%s", rendered)
+	}
+	if strings.Contains(rendered, "hidden-line") || strings.Contains(rendered, "hidden-bottom") {
+		t.Fatalf("shell transcript body rendered hidden transcript content:\n%s", rendered)
+	}
+}
+
 func TestShellLayoutWriteToolShowsSideBySideDiff(t *testing.T) {
 	defaultTheme := theme.StaticDefault()
 	ctx, cancel := context.WithCancel(context.TODO())
