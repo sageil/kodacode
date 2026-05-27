@@ -1740,7 +1740,7 @@ func TestHandleWatchEventsDefersLiveTranscriptRefreshWhileScrolledOffBottom(t *t
 		t.Fatal("AtBottom = true, want false after paging up")
 	}
 
-	before := model.messages.raw
+	before := messageContentForTest(model.messages)
 	event := draftEvent(3, events.TypeAssistantPreviewDelta, "session-1", "turn-1", events.AssistantPreviewDeltaPayload{
 		Content: "stream update",
 	})
@@ -1750,7 +1750,8 @@ func TestHandleWatchEventsDefersLiveTranscriptRefreshWhileScrolledOffBottom(t *t
 	if !next.transcriptRefresh.deferred {
 		t.Fatalf("transcriptRefreshDeferred = false, want true while off-bottom during live update (busy=%v focus=%q atBottom=%v)", next.busy, next.chrome.focus, next.messages.AtBottom())
 	}
-	if next.messages.raw != before {
+	after := messageContentForTest(next.messages)
+	if after != before {
 		t.Fatalf("transcript content changed while off-bottom; want live refresh deferred (busy=%v focus=%q atBottom=%v deferred=%v)", next.busy, next.chrome.focus, next.messages.AtBottom(), next.transcriptRefresh.deferred)
 	}
 
@@ -1759,8 +1760,9 @@ func TestHandleWatchEventsDefersLiveTranscriptRefreshWhileScrolledOffBottom(t *t
 	if next.transcriptRefresh.deferred {
 		t.Fatal("transcriptRefreshDeferred = true, want false after syncing at bottom")
 	}
-	if !strings.Contains(next.messages.raw, "stream update") {
-		t.Fatalf("transcript content missing deferred preview after syncing at bottom:\n%s", next.messages.raw)
+	rendered := messageContentForTest(next.messages)
+	if !strings.Contains(rendered, "stream update") {
+		t.Fatalf("transcript content missing deferred preview after syncing at bottom:\n%s", rendered)
 	}
 }
 
@@ -2586,7 +2588,7 @@ func TestHandleWatchEventsDefersLiveTranscriptRefreshWhileComposerFocusedOffBott
 		t.Fatal("AtBottom = true, want false after paging up")
 	}
 
-	before := model.messages.raw
+	before := messageContentForTest(model.messages)
 	event := draftEvent(3, events.TypeAssistantPreviewDelta, "session-1", "turn-1", events.AssistantPreviewDeltaPayload{
 		Content: "stream update",
 	})
@@ -2596,8 +2598,9 @@ func TestHandleWatchEventsDefersLiveTranscriptRefreshWhileComposerFocusedOffBott
 	if !next.transcriptRefresh.deferred {
 		t.Fatalf("transcriptRefreshDeferred = false, want true while off-bottom during live update with composer focus (busy=%v focus=%q atBottom=%v)", next.busy, next.chrome.focus, next.messages.AtBottom())
 	}
-	if next.messages.raw != before {
-		t.Fatalf("transcript content changed while off-bottom with composer focus; want live refresh deferred\nbefore:\n%s\n\nafter:\n%s", before, next.messages.raw)
+	after := messageContentForTest(next.messages)
+	if after != before {
+		t.Fatalf("transcript content changed while off-bottom with composer focus; want live refresh deferred\nbefore:\n%s\n\nafter:\n%s", before, after)
 	}
 }
 

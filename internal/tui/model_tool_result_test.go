@@ -55,8 +55,9 @@ func TestToolResultLoadedMsgRefreshesTranscriptForSelectedTool(t *testing.T) {
 	model.syncViewportLayout()
 	_ = model.selectToolCall(ref)
 
-	if !strings.Contains(model.messages.raw, "partial output") {
-		t.Fatalf("initial transcript missing preview output\nrendered:\n%s", model.messages.raw)
+	rendered := messageContentForTest(model.messages)
+	if !strings.Contains(rendered, "partial output") {
+		t.Fatalf("initial transcript missing preview output\nrendered:\n%s", rendered)
 	}
 
 	model.transcriptRefresh.lastAt = time.Time{}
@@ -70,11 +71,12 @@ func TestToolResultLoadedMsgRefreshesTranscriptForSelectedTool(t *testing.T) {
 	if next.transcriptRefresh.lastAt.IsZero() {
 		t.Fatal("lastTranscriptRefreshAt not updated for selected tool result load")
 	}
-	if !strings.Contains(next.messages.raw, "full output line 1") {
-		t.Fatalf("transcript missing refreshed full output\nrendered:\n%s", next.messages.raw)
+	rendered = messageContentForTest(next.messages)
+	if !strings.Contains(rendered, "full output line 1") {
+		t.Fatalf("transcript missing refreshed full output\nrendered:\n%s", rendered)
 	}
-	if strings.Contains(next.messages.raw, "partial output") {
-		t.Fatalf("transcript still shows stale preview output\nrendered:\n%s", next.messages.raw)
+	if strings.Contains(rendered, "partial output") {
+		t.Fatalf("transcript still shows stale preview output\nrendered:\n%s", rendered)
 	}
 }
 
@@ -121,7 +123,7 @@ func TestToolResultLoadedMsgSkipsTranscriptRefreshForUnselectedTool(t *testing.T
 	model.height = 32
 	model.syncViewportLayout()
 
-	before := model.messages.raw
+	before := messageContentForTest(model.messages)
 	model.transcriptRefresh.lastAt = time.Time{}
 	updated, _ := model.Update(toolResultLoadedMsg{
 		sessionID: "session-1",
@@ -133,8 +135,9 @@ func TestToolResultLoadedMsgSkipsTranscriptRefreshForUnselectedTool(t *testing.T
 	if !next.transcriptRefresh.lastAt.IsZero() {
 		t.Fatalf("lastTranscriptRefreshAt = %v, want zero when unselected tool result loads", next.transcriptRefresh.lastAt)
 	}
-	if next.messages.raw != before {
-		t.Fatalf("transcript changed for unselected tool result load\nbefore:\n%s\n\nafter:\n%s", before, next.messages.raw)
+	after := messageContentForTest(next.messages)
+	if after != before {
+		t.Fatalf("transcript changed for unselected tool result load\nbefore:\n%s\n\nafter:\n%s", before, after)
 	}
 	if loaded, ok := next.toolHydration.loadedResults[scopedToolKey(next.sessionID, ref)]; !ok || !strings.Contains(loaded.Output, "full output line 1") {
 		t.Fatalf("loaded tool result not stored after toolResultLoadedMsg: %+v", loaded)

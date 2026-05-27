@@ -39,7 +39,7 @@ func TestHandleWatchEventsThrottlesLiveTranscriptPreviewRefresh(t *testing.T) {
 	model.messages.GotoBottom()
 	model.transcriptRefresh.lastAt = time.Now()
 
-	before := model.messages.raw
+	before := messageContentForTest(model.messages)
 	event := draftEvent(3, events.TypeAssistantPreviewDelta, "session-1", "turn-1", events.AssistantPreviewDeltaPayload{
 		Content: "stream update",
 	})
@@ -49,8 +49,9 @@ func TestHandleWatchEventsThrottlesLiveTranscriptPreviewRefresh(t *testing.T) {
 	if cmd == nil {
 		t.Fatal("cmd = nil, want watch continuation with throttled refresh tick")
 	}
-	if next.messages.raw != before {
-		t.Fatalf("transcript changed immediately during throttled preview update\nbefore:\n%s\n\nafter:\n%s", before, next.messages.raw)
+	after := messageContentForTest(next.messages)
+	if after != before {
+		t.Fatalf("transcript changed immediately during throttled preview update\nbefore:\n%s\n\nafter:\n%s", before, after)
 	}
 	if !next.transcriptRefresh.pending {
 		t.Fatal("transcriptRefreshPending = false, want pending throttled refresh")
@@ -65,8 +66,9 @@ func TestHandleWatchEventsThrottlesLiveTranscriptPreviewRefresh(t *testing.T) {
 	if flushed.transcriptRefresh.pending {
 		t.Fatal("transcriptRefreshPending = true, want false after throttled flush")
 	}
-	if !strings.Contains(ansi.Strip(flushed.messages.raw), "stream update") {
-		t.Fatalf("transcript content missing preview after throttled flush:\n%s", ansi.Strip(flushed.messages.raw))
+	rendered := ansi.Strip(messageContentForTest(flushed.messages))
+	if !strings.Contains(rendered, "stream update") {
+		t.Fatalf("transcript content missing preview after throttled flush:\n%s", rendered)
 	}
 }
 
@@ -160,8 +162,9 @@ func TestHandleWatchEventsDoesNotThrottleAssistantCommit(t *testing.T) {
 	if next.transcriptRefresh.pending {
 		t.Fatal("transcriptRefreshPending = true, want immediate commit refresh")
 	}
-	if !strings.Contains(ansi.Strip(next.messages.raw), "final answer") {
-		t.Fatalf("transcript missing committed assistant output:\n%s", ansi.Strip(next.messages.raw))
+	rendered := ansi.Strip(messageContentForTest(next.messages))
+	if !strings.Contains(rendered, "final answer") {
+		t.Fatalf("transcript missing committed assistant output:\n%s", rendered)
 	}
 }
 
@@ -192,7 +195,7 @@ func TestHandleWatchEventsThrottledRefreshCarriesAffectedTurnIDs(t *testing.T) {
 	model.messages.GotoBottom()
 	model.transcriptRefresh.lastAt = time.Now()
 
-	before := model.messages.raw
+	before := messageContentForTest(model.messages)
 	event := draftEvent(3, events.TypeAssistantPreviewDelta, "session-1", "turn-1", events.AssistantPreviewDeltaPayload{
 		Content: "stream update",
 	})
@@ -202,8 +205,9 @@ func TestHandleWatchEventsThrottledRefreshCarriesAffectedTurnIDs(t *testing.T) {
 	if cmd == nil {
 		t.Fatal("cmd = nil, want watch continuation with throttled refresh tick")
 	}
-	if next.messages.raw != before {
-		t.Fatalf("transcript changed immediately during throttled preview update\nbefore:\n%s\n\nafter:\n%s", before, next.messages.raw)
+	after := messageContentForTest(next.messages)
+	if after != before {
+		t.Fatalf("transcript changed immediately during throttled preview update\nbefore:\n%s\n\nafter:\n%s", before, after)
 	}
 	if !next.transcriptRefresh.pending {
 		t.Fatal("transcriptRefreshPending = false, want pending throttled refresh")
@@ -224,8 +228,9 @@ func TestHandleWatchEventsThrottledRefreshCarriesAffectedTurnIDs(t *testing.T) {
 	if flushed.transcriptRefresh.plan.kind != transcriptRefreshNone {
 		t.Fatalf("transcriptRefreshPlan.kind = %v, want %v after flush", flushed.transcriptRefresh.plan.kind, transcriptRefreshNone)
 	}
-	if !strings.Contains(ansi.Strip(flushed.messages.raw), "stream update") {
-		t.Fatalf("transcript content missing preview after throttled flush:\n%s", ansi.Strip(flushed.messages.raw))
+	rendered := ansi.Strip(messageContentForTest(flushed.messages))
+	if !strings.Contains(rendered, "stream update") {
+		t.Fatalf("transcript content missing preview after throttled flush:\n%s", rendered)
 	}
 }
 
@@ -318,7 +323,7 @@ func TestHandleWatchEventsDoesNotDeferStructureTranscriptRefreshWhileScrolledOff
 		}),
 	}, false)
 	next := updated.(Model)
-	rendered := ansi.Strip(next.messages.raw)
+	rendered := ansi.Strip(messageContentForTest(next.messages))
 
 	if next.transcriptRefresh.deferred {
 		t.Fatal("transcriptRefreshDeferred = true, want false for structure refresh while off-bottom")
@@ -362,9 +367,9 @@ func TestHandleWatchEventsDoesNotRefreshTranscriptForContextCompactionStarted(t 
 	model.messages.GotoBottom()
 	model.transcriptRefresh.lastAt = time.Time{}
 
-	beforeRaw := model.messages.raw
+	beforeRaw := messageContentForTest(model.messages)
 	if beforeRaw == "" {
-		t.Fatal("messages.raw = empty, want seeded transcript content")
+		t.Fatal("transcript content = empty, want seeded transcript content")
 	}
 
 	updated, _ := model.handleWatchEvents(model.watchID, []events.Event{
@@ -378,8 +383,9 @@ func TestHandleWatchEventsDoesNotRefreshTranscriptForContextCompactionStarted(t 
 	}, false)
 	next := updated.(Model)
 
-	if next.messages.raw != beforeRaw {
-		t.Fatalf("transcript changed for compaction-start status event\nbefore:\n%s\n\nafter:\n%s", beforeRaw, next.messages.raw)
+	afterRaw := messageContentForTest(next.messages)
+	if afterRaw != beforeRaw {
+		t.Fatalf("transcript changed for compaction-start status event\nbefore:\n%s\n\nafter:\n%s", beforeRaw, afterRaw)
 	}
 	if !next.transcriptRefresh.lastAt.IsZero() {
 		t.Fatalf("lastTranscriptRefreshAt = %v, want zero when compaction-start only changes status", next.transcriptRefresh.lastAt)
@@ -410,8 +416,9 @@ func TestHandleWatchEventsDoesNotRefreshTranscriptForContextCompactionStarted(t 
 	if flushed.transcriptRefresh.pending {
 		t.Fatal("transcriptRefreshPending = true, want immediate live refresh after compaction-start status event")
 	}
-	if !strings.Contains(ansi.Strip(flushed.messages.raw), "stream update") {
-		t.Fatalf("transcript missing streamed assistant content after compaction-start:\n%s", ansi.Strip(flushed.messages.raw))
+	rendered := ansi.Strip(messageContentForTest(flushed.messages))
+	if !strings.Contains(rendered, "stream update") {
+		t.Fatalf("transcript missing streamed assistant content after compaction-start:\n%s", rendered)
 	}
 	if !flushed.messages.AtBottom() {
 		t.Fatalf("messages.AtBottom() = false, want transcript to keep following bottom after compaction-start; yOffset=%d", flushed.messages.YOffset())
@@ -460,8 +467,9 @@ func TestHandleWatchEventsKeepsFollowingTailAfterContextCompacted(t *testing.T) 
 	}, false)
 	next := updated.(Model)
 
-	if !strings.Contains(ansi.Strip(next.messages.raw), "earlier work compacted") {
-		t.Fatalf("transcript missing compaction summary after context_compacted:\n%s", ansi.Strip(next.messages.raw))
+	rendered := ansi.Strip(messageContentForTest(next.messages))
+	if !strings.Contains(rendered, "earlier work compacted") {
+		t.Fatalf("transcript missing compaction summary after context_compacted:\n%s", rendered)
 	}
 	if visible := ansi.Strip(strings.Join(next.messages.VisibleLines(), "\n")); !strings.Contains(visible, historyCompactionCardTitle) {
 		t.Fatalf("visible transcript missing compaction summary after context_compacted:\n%s", visible)
@@ -486,8 +494,9 @@ func TestHandleWatchEventsKeepsFollowingTailAfterContextCompacted(t *testing.T) 
 	if flushed.transcriptRefresh.deferred {
 		t.Fatal("transcriptRefreshDeferred = true, want follow-tail refresh after context_compacted")
 	}
-	if !strings.Contains(ansi.Strip(flushed.messages.raw), "stream update after compaction") {
-		t.Fatalf("transcript missing streamed assistant content after context_compacted:\n%s", ansi.Strip(flushed.messages.raw))
+	rendered = ansi.Strip(messageContentForTest(flushed.messages))
+	if !strings.Contains(rendered, "stream update after compaction") {
+		t.Fatalf("transcript missing streamed assistant content after context_compacted:\n%s", rendered)
 	}
 	if !flushed.messages.AtBottom() {
 		t.Fatalf("messages.AtBottom() = false, want transcript to keep following bottom after context_compacted; yOffset=%d", flushed.messages.YOffset())

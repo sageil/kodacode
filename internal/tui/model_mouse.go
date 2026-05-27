@@ -1,8 +1,6 @@
 package tui
 
 import (
-	"strings"
-
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -234,7 +232,7 @@ func (m Model) transcriptViewportRect() (inputMouseRect, bool) {
 
 	rect.width = max(m.messages.Width(), 1)
 	rect.height = max(m.messages.Height(), 1)
-	if strings.TrimSpace(m.messages.raw) == "" {
+	if m.messages.TotalLineCount() == 0 {
 		rect.height = 0
 	}
 	return rect, rect.width > 0 && rect.height > 0

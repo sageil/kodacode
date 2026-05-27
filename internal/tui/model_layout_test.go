@@ -491,19 +491,8 @@ func TestKodaShellTranscriptBodyUsesVisibleViewportLines(t *testing.T) {
 	}
 }
 
-func TestShellLayoutSyncUsesVirtualTranscriptBacking(t *testing.T) {
+func TestTranscriptSyncUsesVirtualBacking(t *testing.T) {
 	defaultTheme := theme.StaticDefault()
-	ctx, cancel := context.WithCancel(context.TODO())
-	defer cancel()
-
-	model := NewModel(&fakeController{}, ModelConfig{
-		Context:       ctx,
-		Theme:         &defaultTheme,
-		Layout:        "shell",
-		SessionID:     "session-1",
-		TurnID:        "turn-1",
-		WorkspaceRoot: "/repo",
-	})
 	state := events.SessionState{
 		SessionID:     "session-1",
 		WorkspaceRoot: "/repo",
@@ -519,19 +508,41 @@ func TestShellLayoutSyncUsesVirtualTranscriptBacking(t *testing.T) {
 			},
 		},
 	}
-	model.projector = events.NewProjectorFromSnapshot(state)
-	modelIface, _ := model.Update(tea.WindowSizeMsg{Width: 96, Height: 24})
-	model = modelIface.(Model)
 
-	if model.messages.virtual == nil {
-		t.Fatal("shell layout messages virtual backing = nil")
-	}
-	if strings.TrimSpace(model.messages.raw) != "" {
-		t.Fatalf("shell layout stored raw transcript content: %q", model.messages.raw)
-	}
-	rendered := ansi.Strip(strings.Join(model.messages.VisibleLines(), "\n"))
-	if !strings.Contains(rendered, "first") || !strings.Contains(rendered, "second") {
-		t.Fatalf("virtual transcript backing missing rendered content:\n%s", rendered)
+	for _, tt := range []struct {
+		name   string
+		layout string
+	}{
+		{name: "classic"},
+		{name: "shell", layout: "shell"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.TODO())
+			defer cancel()
+
+			model := NewModel(&fakeController{}, ModelConfig{
+				Context:       ctx,
+				Theme:         &defaultTheme,
+				Layout:        tt.layout,
+				SessionID:     "session-1",
+				TurnID:        "turn-1",
+				WorkspaceRoot: "/repo",
+			})
+			model.projector = events.NewProjectorFromSnapshot(state)
+			modelIface, _ := model.Update(tea.WindowSizeMsg{Width: 96, Height: 24})
+			model = modelIface.(Model)
+
+			if model.messages.virtual == nil {
+				t.Fatal("messages virtual backing = nil")
+			}
+			if strings.TrimSpace(model.messages.raw) != "" {
+				t.Fatalf("stored raw transcript content: %q", model.messages.raw)
+			}
+			rendered := ansi.Strip(strings.Join(model.messages.VisibleLines(), "\n"))
+			if !strings.Contains(rendered, "first") || !strings.Contains(rendered, "second") {
+				t.Fatalf("virtual transcript backing missing rendered content:\n%s", rendered)
+			}
+		})
 	}
 }
 

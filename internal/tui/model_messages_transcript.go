@@ -13,11 +13,7 @@ func (m *Model) syncTranscriptStructureWithState(state events.SessionState) {
 	}
 	contentWidth := max(m.messages.Width(), 1)
 	layout := buildTranscriptLayout(*m, state, contentWidth)
-	if shellLayoutEnabled(*m) {
-		m.applyVirtualTranscriptLayout(layout, m.messages.AtBottom())
-		return
-	}
-	m.applyTranscriptLayout(layout, layout.rendered(), m.messages.AtBottom())
+	m.applyVirtualTranscriptLayout(layout, m.messages.AtBottom())
 }
 
 func (m *Model) applyTranscriptLayout(layout transcriptLayout, rendered transcriptRender, followBottom bool) {
@@ -90,11 +86,7 @@ func (m *Model) applyTranscriptRefreshPlanWithState(state events.SessionState, p
 			m.err = ErrTranscriptIncrementalRefreshInvariant
 			return false
 		}
-		if shellLayoutEnabled(*m) {
-			m.applyVirtualTranscriptLayout(layout, m.messages.AtBottom())
-			return true
-		}
-		m.applyTranscriptLayout(layout, layout.rendered(), m.messages.AtBottom())
+		m.applyVirtualTranscriptLayout(layout, m.messages.AtBottom())
 		return true
 	default:
 		m.err = ErrTranscriptIncrementalRefreshInvariant

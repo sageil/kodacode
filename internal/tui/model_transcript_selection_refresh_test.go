@@ -37,7 +37,7 @@ func TestApplyTranscriptRefreshPlanRefreshesSelectedTurnChunks(t *testing.T) {
 	model.height = 24
 	model.syncViewportLayout()
 
-	initial := ansi.Strip(model.messages.raw)
+	initial := ansi.Strip(messageContentForTest(model.messages))
 	if strings.Contains(initial, "first output") || strings.Contains(initial, "second output") {
 		t.Fatalf("initial transcript unexpectedly included hidden tool detail output\nrendered:\n%s", initial)
 	}
@@ -52,7 +52,7 @@ func TestApplyTranscriptRefreshPlanRefreshesSelectedTurnChunks(t *testing.T) {
 	if ok := model.applyTranscriptRefreshPlan(transcriptTurnRefreshPlan("turn-2")); !ok {
 		t.Fatal("applyTranscriptRefreshPlan() = false, want true for cached turn chunk refresh")
 	}
-	secondSelected := ansi.Strip(model.messages.raw)
+	secondSelected := ansi.Strip(messageContentForTest(model.messages))
 	if model.transcriptRefresh.lastAt.IsZero() {
 		t.Fatal("lastTranscriptRefreshAt not updated after partial selection refresh")
 	}
@@ -73,7 +73,7 @@ func TestApplyTranscriptRefreshPlanRefreshesSelectedTurnChunks(t *testing.T) {
 	if ok := model.applyTranscriptRefreshPlan(transcriptTurnRefreshPlan("turn-2", "turn-1")); !ok {
 		t.Fatal("applyTranscriptRefreshPlan() = false, want true for multi-turn selection handoff")
 	}
-	firstSelected := ansi.Strip(model.messages.raw)
+	firstSelected := ansi.Strip(messageContentForTest(model.messages))
 	if model.transcriptRefresh.lastAt.IsZero() {
 		t.Fatal("lastTranscriptRefreshAt not updated after multi-turn partial selection refresh")
 	}
