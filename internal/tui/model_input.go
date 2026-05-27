@@ -182,7 +182,7 @@ func (m Model) handleShellToolsShortcut(msg tea.KeyPressMsg) (tea.Model, tea.Cmd
 	case "ctrl+t":
 		return m, m.openShellToolsDialog(), true
 	case "t":
-		if m.chrome.focus == focusComposer {
+		if m.chrome.focus != focusTranscript || m.transcriptView.visualActive {
 			return m, nil, false
 		}
 		return m, m.openShellToolsDialog(), true

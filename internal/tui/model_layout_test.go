@@ -668,6 +668,43 @@ func TestShellLayoutToolsPopupEmptyState(t *testing.T) {
 	}
 }
 
+func TestShellLayoutTShortcutOnlyOpensToolsFromTranscriptFocus(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context:       ctx,
+		Theme:         &defaultTheme,
+		Layout:        "shell",
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: "/repo",
+	})
+	model.projector = events.NewProjectorFromSnapshot(events.SessionState{
+		SessionID:     "session-1",
+		WorkspaceRoot: "/repo",
+		Turns:         map[string]*events.TurnState{},
+	})
+	model.width = 96
+	model.height = 28
+	model.chrome.focus = focusInspector
+	model.syncViewportLayout()
+
+	updated, _ := model.Update(tea.KeyPressMsg{Text: "t", Code: 't'})
+	next := updated.(Model)
+	if next.dialog != nil {
+		t.Fatalf("dialog = %#v, want nil outside transcript focus", next.dialog)
+	}
+
+	next.chrome.focus = focusTranscript
+	updated, _ = next.Update(tea.KeyPressMsg{Text: "t", Code: 't'})
+	next = updated.(Model)
+	if next.dialog == nil || next.dialog.ID() != dialogIDShellTools {
+		t.Fatalf("dialog = %#v, want shell tools popup from transcript focus", next.dialog)
+	}
+}
+
 func TestShellLayoutToolsPopupPaginatesAndOpensLastTool(t *testing.T) {
 	defaultTheme := theme.StaticDefault()
 	ctx, cancel := context.WithCancel(context.TODO())
