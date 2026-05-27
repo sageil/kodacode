@@ -15,7 +15,6 @@ func (m *Model) syncTranscriptStructureWithState(state events.SessionState) {
 	followBottom := m.messages.AtBottom()
 	layout := m.buildVisibleTranscriptLayout(state, contentWidth)
 	m.applyVirtualTranscriptLayout(layout, followBottom)
-	m.syncVisibleTranscriptChunksAfterViewportSettle(state, contentWidth, followBottom)
 }
 
 func (m *Model) applyTranscriptLayout(layout transcriptLayout, rendered transcriptRender, followBottom bool) {
@@ -55,32 +54,14 @@ func (m *Model) syncVisibleTranscriptChunksIfNeeded() {
 	}
 	state := m.projector.CurrentState()
 	contentWidth := max(m.messages.Width(), 1)
-	m.syncVisibleTranscriptChunksWithState(state, contentWidth, false)
-}
-
-func (m *Model) syncVisibleTranscriptChunksAfterViewportSettle(state events.SessionState, contentWidth int, followBottom bool) {
-	for i := 0; i < 4; i++ {
-		if !m.syncVisibleTranscriptChunksWithState(state, contentWidth, followBottom) {
-			return
-		}
-	}
-}
-
-func (m *Model) syncVisibleTranscriptChunksWithState(state events.SessionState, contentWidth int, followBottom bool) bool {
-	if m == nil || len(m.transcriptView.layout.chunks) == 0 {
-		return false
-	}
 	layout := m.buildVisibleTranscriptLayout(state, contentWidth)
 	if transcriptLayoutsEquivalentForVirtualContent(m.transcriptView.layout, layout) {
-		return false
+		return
 	}
 	offset := m.messages.YOffset()
-	m.applyVirtualTranscriptLayout(layout, followBottom)
-	if !followBottom {
-		m.messages.GotoLine(offset)
-		m.syncTranscriptVisualState()
-	}
-	return true
+	m.applyVirtualTranscriptLayout(layout, false)
+	m.messages.GotoLine(offset)
+	m.syncTranscriptVisualState()
 }
 
 func transcriptLayoutsEquivalentForVirtualContent(left, right transcriptLayout) bool {
@@ -145,8 +126,8 @@ func (m *Model) applyTranscriptRefreshPlanWithState(state events.SessionState, p
 		}
 		contentWidth := max(m.messages.Width(), 1)
 		followBottom := m.messages.AtBottom()
+		layout = m.renderLayoutVisibleTurnPlaceholders(state, contentWidth, layout, followBottom)
 		m.applyVirtualTranscriptLayout(layout, followBottom)
-		m.syncVisibleTranscriptChunksAfterViewportSettle(state, contentWidth, followBottom)
 		return true
 	default:
 		m.err = ErrTranscriptIncrementalRefreshInvariant
@@ -305,7 +286,7 @@ func (m Model) buildVisibleTranscriptLayout(state events.SessionState, width int
 			lineCount: transcriptRenderLineCount(rendered),
 		})
 	}
-	return layout
+	return m.renderLayoutVisibleTurnPlaceholders(state, width, layout, m.messages.AtBottom())
 }
 
 func (m Model) buildInitialVisibleTranscriptLayout(state events.SessionState, width int, turnIDs []string, wide bool) transcriptLayout {
@@ -405,7 +386,69 @@ func (m Model) buildInitialVisibleTranscriptLayout(state events.SessionState, wi
 			lineCount: transcriptRenderLineCount(rendered),
 		})
 	}
+	return m.renderLayoutVisibleTurnPlaceholders(state, width, layout, m.messages.AtBottom())
+}
+
+func (m Model) renderLayoutVisibleTurnPlaceholders(state events.SessionState, width int, layout transcriptLayout, followBottom bool) transcriptLayout {
+	width = max(width, 1)
+	for i := 0; i < 4; i++ {
+		offset := max(m.messages.YOffset(), 0)
+		if followBottom {
+			offset = max(transcriptLayoutVirtualLineCount(layout)-max(m.messages.Height(), 1), 0)
+		}
+		window := transcriptViewportRenderWindow(offset, m.messages.Height())
+		lineStarts := layout.turnLineStarts()
+		changed := false
+		for index, chunk := range layout.chunks {
+			if chunk.kind != transcriptLayoutChunkTurn || strings.TrimSpace(chunk.rendered.content) != "" {
+				continue
+			}
+			turnID := strings.TrimSpace(chunk.turnID)
+			start, ok := lineStarts[turnID]
+			if !ok || !transcriptLineRangeIntersects(start, transcriptLayoutChunkLineCount(chunk), window.start, window.end) {
+				continue
+			}
+			turn := state.Turns[turnID]
+			if turn == nil {
+				continue
+			}
+			options := transcriptTurnRenderOptions{}
+			if shouldSuppressHistoryCompactionBeforeContinuation(state, turnID, nextTranscriptLayoutTurnID(layout, turnID)) {
+				options.suppressHistoryCompaction = true
+			}
+			ctx := transcriptTurnChunkLifecycle{
+				state:   state,
+				turnID:  turnID,
+				turn:    turn,
+				width:   width,
+				options: options,
+				start:   start,
+				window:  window,
+			}
+			rendered, ok := chunk.renderTurn(m, ctx)
+			if !ok {
+				continue
+			}
+			layout.chunks[index] = rendered
+			changed = true
+		}
+		if !changed {
+			return layout
+		}
+	}
 	return layout
+}
+
+func transcriptLayoutVirtualLineCount(layout transcriptLayout) int {
+	total := 0
+	for _, chunk := range virtualTranscriptRender(layout).chunks {
+		if chunk.blankLines > 0 {
+			total += chunk.blankLines
+			continue
+		}
+		total += virtualContentLineCount(chunk.content)
+	}
+	return total
 }
 
 func newTranscriptLayoutShell(m Model, width int, wide bool) transcriptLayout {
