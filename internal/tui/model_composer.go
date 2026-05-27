@@ -24,7 +24,7 @@ func newComposer(th *theme.Theme) textarea.Model {
 	composer := textarea.New()
 	composer.SetVirtualCursor(false)
 	composer.Placeholder = "Ask kodacode…"
-	composer.Prompt = "┃ "
+	composer.Prompt = "  "
 	composer.ShowLineNumbers = false
 	composer.DynamicHeight = false
 	composer.MinHeight = composerMinHeight
