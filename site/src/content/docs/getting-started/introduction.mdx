@@ -18,6 +18,7 @@ Then go deeper based on what you need:
 - [Agents](/features/agents/) if you want to understand `builder`, `engineer`, `reviewer`, or custom agents
 - [Project Memory & Instructions](/features/project-memory/) if you want the exact difference between repo instructions, global instructions, and explicit saved memory
 - [Sandbox & Permissions](/features/sandbox/) if you care about trust, approvals, and external access
+- [MCP Servers](/features/mcp/) and [Skills](/features/skills/) if you want to extend KodaCode with external tools or reusable workflows
 - [Sessions](/features/sessions/) if you want resume, replay, and persistence behavior
 - [Budgets](/features/budgets/) and [Cost Tracking & Optimization](/features/cost-tracking/) if you care about spend guardrails and cost reduction
 - [Configuration](/reference/configuration/) if you want to set defaults for models, budgets, permissions, or search
@@ -65,6 +66,8 @@ KodaCode ships four built-in agents:
 - Use `response_style: default` only if you want to opt out of the default terse reply style
 - Let the runtime compact long session history automatically to keep context usable
 - Search, read, patch, test, and inspect Git state with built-in tools
+- Add stdio MCP servers for external systems while keeping startup trust explicit
+- Mention skills with `$name` when you want reusable workflow guidance for one turn
 - Resume workspace sessions from persisted SQLite-backed history
 - Inspect per-turn cost, token savings, and cache activity from inside the TUI
 - Extend the tool surface through MCP under the same permission model

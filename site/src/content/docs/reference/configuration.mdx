@@ -433,6 +433,32 @@ That config expects an auth entry named `research`, not `exa`.
 
 There is currently no persisted top-level `lsp` config area.
 
+## MCP server example
+
+`mcp.servers` configures external Model Context Protocol tools. Current
+releases support stdio servers:
+
+```yaml
+mcp:
+  servers:
+    - name: docs
+      type: stdio
+      command: node
+      args:
+        - /Users/me/tools/company-docs-mcp/dist/server.js
+      env:
+        DOCS_TOKEN: "replace-with-your-token"
+      tool_hints:
+        search:
+          summary: Search internal product documentation.
+          guidance: Use for billing, plan, and support-procedure questions.
+```
+
+Startup trust is per workspace and per server fingerprint. If `type`,
+`command`, `args`, or environment variable keys change, KodaCode asks for trust
+again. See [MCP Servers](/features/mcp/) for the user workflow and agent
+permission examples.
+
 ## OpenAI Responses state
 
 The OpenAI Platform provider may opt into longer-lived prompt cache retention
@@ -642,10 +668,23 @@ repository into the prompt or repeating stable metadata every turn.
 - `enabled_sections`: list of bounded runtime sections to inject; default `[]`
 - supported section keys: `repo`, `git`, `git_dirty_summary`, `diagnostics`
 
+Section meanings:
+
+| Section | Includes | Helps with |
+| --- | --- | --- |
+| `repo` | Workspace name and Git detected/not detected | Basic orientation without an initial discovery call |
+| `git` | Branch and changed-file count | Quick awareness of current worktree scale |
+| `git_dirty_summary` | Bounded changed-file list with Git status codes | Review, debugging, planning, and prompts that depend on the current changed files |
+| `diagnostics` | Bounded LSP diagnostics for changed files when the request is diagnostics-related | Failure, lint, compile, typecheck, and test questions |
+
 The current sections only include repository metadata, branch/change counts,
 at most 20 changed-file entries, and a diagnostics summary for at most three
 changed files when the user request is diagnostics-related. They never include
 file contents or patch hunks.
+
+Because these sections add input tokens, they are useful only when they avoid
+more expensive repeated discovery. If the request is already under input
+pressure, runtime omits the packet and records the omitted token estimate.
 
 Section refresh is intentionally conservative:
 
@@ -657,9 +696,6 @@ Section refresh is intentionally conservative:
 - `diagnostics` is collected only for bounded changed files when the user asks
   about failures, diagnostics, compile/typecheck/lint issues, or tests.
 - runtime continuation turns do not re-inject the packet.
-
-If the assembled provider request is already under input pressure, kodacode
-omits the packet and records the omitted token estimate in usage details.
 
 ## Workflow settings
 

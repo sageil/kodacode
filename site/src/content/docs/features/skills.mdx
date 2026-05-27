@@ -1,0 +1,135 @@
+---
+title: Skills
+description: Reusable workflow instructions that can be mentioned per turn
+---
+
+Skills are reusable instruction packs. They are different from tools, agents,
+and project memory:
+
+| Surface | Best for | Loaded when |
+| --- | --- | --- |
+| Agent | Role and authority for the whole turn | You select the agent |
+| Skill | Reusable workflow guidance for a specific kind of task | You mention it or the agent discovers it |
+| Project memory | Small durable facts about this workspace | Runtime injects saved memory |
+| Tool | Runtime action such as read, patch, search, or MCP call | The model calls it and runtime approves it |
+
+Use skills when a workflow is useful across projects but should not apply to
+every turn.
+
+## Where skills live
+
+Global skills:
+
+```text
+~/.config/kodacode/skills/<skill-id>/SKILL.md
+```
+
+Project skills:
+
+```text
+<workspace>/.kodacode/skills/<skill-id>/SKILL.md
+```
+
+Each skill directory needs a `SKILL.md` file. Keep the description short and
+specific, because KodaCode lists available skill metadata in the prompt without
+loading every full skill body.
+
+## Minimal skill
+
+```md
+---
+name: migration
+description: Plan and implement small database migrations with tests.
+---
+
+Use this skill when a task changes schema, migrations, seed data, or persisted
+records.
+
+Workflow:
+
+1. Inspect the existing migration framework and test setup.
+2. Identify backward-compatibility constraints before editing.
+3. Add the migration and the smallest useful test coverage.
+4. Run the relevant migration or persistence tests before finishing.
+```
+
+Then mention it in the composer:
+
+```text
+$migration add a nullable billing_status column and update the tests
+```
+
+Or use it from the one-shot CLI path:
+
+```bash
+kodacode --skill migration "add a nullable billing_status column and update the tests"
+```
+
+## Mention syntax
+
+Use either form:
+
+- `$migration`
+- `${migration}`
+
+The mention selects that skill for the turn. This is the most predictable way
+to use skills because the full skill content is loaded only when requested.
+
+## Skill discovery tools
+
+KodaCode also has `search_skills` and `skill` tools. Agents can use those tools
+to discover and load a relevant skill during a turn.
+
+That is useful when you have a large catalog and do not know the exact skill
+name. It is less predictable than an explicit `$skill` mention because it gives
+the agent discretion to search and load guidance.
+
+## Good skill shape
+
+Good skills are compact and operational:
+
+- one clear trigger
+- a short workflow
+- repo-agnostic guidance
+- references to scripts or templates when needed
+- explicit stop conditions for risky work
+
+Avoid skills that duplicate your always-on repo instructions. Put permanent
+project policy in `AGENTS.md` instead.
+
+## Example prompts
+
+Use a project-local skill for a release checklist:
+
+```text
+$release prepare the 1.8.0 release notes from the current branch
+```
+
+Use a global skill for a repeated debugging workflow:
+
+```text
+$perf-debug investigate why the dashboard query regressed after this branch
+```
+
+Let the agent discover a skill when you only know the domain:
+
+```text
+Find the right skill for accessibility review, then audit the changed React components.
+```
+
+## Cost behavior
+
+Available skill metadata is cheap compared with loading full skill content.
+Explicit `$skill` mentions load the full `SKILL.md` for that turn, so long
+skills still have input-token cost.
+
+Keep large reference material in normal files inside the skill directory and
+point to it from `SKILL.md`. The agent can read those files only when they are
+actually needed.
+
+## Related pages
+
+- [Project Memory & Instructions](/features/project-memory/)
+- [Agents](/features/agents/)
+- [Built-in Tools](/features/tools/)
+- [Quick Start](/getting-started/quick-start/)

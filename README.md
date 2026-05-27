@@ -16,9 +16,16 @@
 
 ## How It Works
 
-Use builder when the task is clear and contained. Use engineer when the task is broad, risky, architectural, or needs an approved plan before edits
+Run `kodacode` inside a repository, choose a provider and model, then ask for
+real work. KodaCode keeps orchestration, permissions, tool execution, and prompt
+assembly in runtime code and durable events instead of hidden prompt behavior.
 
-Goal:
+Use `builder` when the task is clear and contained. Use `engineer` when the task
+is broad, risky, architectural, or needs an approved plan before edits.
+
+Example prompt:
+
+```text
 Build a calculator that estimates monthly payment, total interest, and affordability range.
 
 Acceptance criteria:
@@ -30,26 +37,32 @@ Acceptance criteria:
 - Add focused tests for payment calculation, DTI calculation, and edge cases.
 - Do not use fake values or hardcoded backend state.
 - Run the relevant test suite before finishing.
+```
 
-Before editing:
+For a plan-first flow, select the `engineer` agent in the TUI and ask:
 
-- Inspect the existing app structure.
-- Propose a short implementation plan.
-- Wait for approval before making code changes.
+```text
+Before editing, inspect the app structure, propose a short implementation plan,
+and wait for approval before making code changes.
+```
 
 ## Agents
 
-- builder Default, project path sandboxed agent for development work
-- Planner Read-only research and advisory agent
-- [More Agents](https://kodacode.dev/features/agents/)
+- `builder`: default project-sandboxed coding agent
+- `engineer`: structured planning, task tracking, and delegation
+- `reviewer`: read-focused review and acceptance checks
+- `planner`: read-only repository analysis and implementation planning
+- [More about agents](https://kodacode.dev/features/agents/)
 
 ## Features
 
 - [Sandbox by default](https://kodacode.dev/features/sandbox/)
 - [Model Routing](https://kodacode.dev/features/model-routing/)
 - [Built-in Tools](https://kodacode.dev/features/tools/)
+- [MCP Servers](https://kodacode.dev/features/mcp/)
+- [Skills](https://kodacode.dev/features/skills/)
 - [Cost Tracking](https://kodacode.dev/features/cost-tracking/)
-- [Project Memory](https://kodacode.dev/features/memory/)
+- [Project Memory & Instructions](https://kodacode.dev/features/project-memory/)
 - [Context Management](https://kodacode.dev/features/context/)
 
 ## Install
@@ -80,6 +93,23 @@ Configure providers with `/connect`, then choose a model route such as
 for provider IDs and OAuth-specific routes.
 
 Type your message and press Enter. KodaCode handles the rest.
+
+Useful first commands:
+
+- `/connect`: configure a provider
+- `/model`: choose the active model
+- `/init`: create workspace instructions
+- `/trace`: inspect what happened in a turn
+- `/cost`: inspect spend and token savings
+
+One-shot CLI examples:
+
+```bash
+kodacode "summarize this repository"
+kodacode --resume "continue the previous refactor"
+kodacode --add-dir ../shared "inspect both repos before editing"
+kodacode --skill migration "add the schema change and focused tests"
+```
 
 ## Documentation
 

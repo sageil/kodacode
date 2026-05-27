@@ -4,6 +4,6 @@ dist/
 .tmp/
 .kodacode/go-build-cache/
 bin/
-docs/
+/docs/
 .cache/
 .pnpm-store/

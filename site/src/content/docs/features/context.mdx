@@ -69,6 +69,34 @@ This is why `Summarizing History` can appear while the header still shows a mode
 
 After summarization, KodaCode keeps a compact summary instead of replaying the older raw turns it replaced. That means stored-history pressure can move from roughly 80% down to well below 60% in one step. A large drop is normal when the rebuilt summary is much smaller than the raw history it replaced.
 
+## Automatic request shaping
+
+KodaCode also performs smaller automatic request-shaping steps before sending a
+provider request. These are cost controls, but they are not user-toggled
+features:
+
+- structured prompt fragments may get a compact provider-facing form
+- provider-facing tool schemas may drop nested descriptions while keeping the
+  callable shape intact
+- older large tool results can be replaced with placeholders in later requests
+  from the same active turn
+- a deterministic context packet can be omitted when the request is already
+  under input pressure
+
+The full local event log remains the source of truth. These steps affect what
+is sent to the model, not whether the turn remains inspectable.
+
+For example, after a broad search result has already guided later reads and
+edits, a later provider request in the same turn may carry this kind of
+placeholder instead of the full old search output:
+
+```text
+[older retained output from search turn-3 call-abc pruned for prompt budget]
+```
+
+Use `/cost` to see the token savings totals and `/trace [turn-number]` to see
+the request mix for one turn.
+
 ## Utility-model involvement
 
 KodaCode may use the configured utility model to improve the durable history summary, but the utility model is optional.
@@ -148,11 +176,63 @@ The runtime emits explicit events for context operations:
 
 These are stored in the session log, so you can inspect what the model saw at any point rather than guessing why a session drifted.
 
+## Deterministic context packet
+
+`context_packet` is disabled by default. When enabled, it adds small,
+deterministic runtime facts to a request so the model can avoid some discovery
+calls for basic workspace state. It is not free: the packet uses a small number
+of input tokens. The value comes from avoiding repeated tool calls for facts the
+runtime already knows.
+
+Example:
+
+```yaml
+context_packet:
+  enabled_sections:
+    - repo
+    - git
+    - git_dirty_summary
+```
+
+What those sections mean:
+
+| Section | What it includes | User value |
+| --- | --- | --- |
+| `repo` | Workspace name and whether Git was detected | Helps the model orient itself without first asking for basic workspace metadata |
+| `git` | Current branch, when available, and changed-file count | Helps the model know whether it is looking at a dirty branch and roughly how large the change is |
+| `git_dirty_summary` | A bounded list of changed files and their Git status, up to the runtime limit | Helps review, debugging, and planning prompts start with the files already in play |
+
+Example packet content is closer to this than to a file dump:
+
+```text
+name: kodacode
+git: detected
+
+branch: docs-refresh
+changed_files: 3
+
+total_changed_files: 3
+files:
+- M README.md
+- M site/src/content/docs/features/context.mdx
+- ?? site/src/content/docs/features/skills.mdx
+```
+
+The current packet sections are intentionally bounded. They can include
+repository metadata, branch and changed-file counts, a limited changed-file
+list, and a small diagnostics summary for changed files when the request is
+diagnostics-related. They do not include file contents or patch hunks.
+
+If the request is already close to the model input limit, runtime omits the
+packet and records the omitted token estimate in `/cost`.
+
 ## Request Limits
 
 This setting limits wasteful turn churn:
 
 - `max_provider_requests_per_turn`: stops one turn from making provider requests forever
+- `max_output_continuations`: controls automatic continuation after a provider
+  stops solely because the output limit was reached
 
 ## Inspection
 

@@ -1,0 +1,154 @@
+---
+title: MCP Servers
+description: Extend KodaCode with Model Context Protocol tools under the same runtime permission model
+---
+
+KodaCode can load tools from stdio MCP servers and expose them beside the
+built-in tools. MCP is not a separate trust path: server startup, tool
+discovery, tool calls, and output still flow through KodaCode's runtime-owned
+session and approval model.
+
+Use MCP when you need a tool that is not built in, such as an internal API
+client, issue tracker integration, database explorer, or product-specific
+documentation lookup.
+
+## Minimal example
+
+Configure MCP servers in `~/.config/kodacode/config.yaml`:
+
+```yaml
+version: 1
+
+mcp:
+  servers:
+    - name: docs
+      type: stdio
+      command: node
+      args:
+        - /Users/me/tools/company-docs-mcp/dist/server.js
+      env:
+        DOCS_TOKEN: "replace-with-your-token"
+```
+
+Then start KodaCode in a workspace:
+
+```bash
+kodacode
+```
+
+On startup, KodaCode asks whether to trust the workspace and the configured MCP
+server. Trust is stored per workspace and per server fingerprint.
+
+## What gets fingerprinted
+
+An MCP server trust entry is tied to:
+
+- server type
+- command
+- arguments
+- environment variable keys
+
+Changing one of those values invalidates the previous trust decision and
+surfaces the startup trust prompt again. Environment values are not shown in the
+prompt; only the keys are included in the fingerprint display.
+
+Use `/trust` to inspect or revoke workspace and MCP trust later.
+
+## Supported transport
+
+Current releases support stdio MCP servers:
+
+```yaml
+mcp:
+  servers:
+    - name: local-api
+      type: stdio
+      command: npx
+      args:
+        - -y
+        - @acme/local-api-mcp
+      enabled: true
+```
+
+`enabled` defaults to `true`. Set `enabled: false` to keep a server in your
+config without starting it.
+
+`env` values are passed to the MCP process as configured. They are not shell
+expanded, so put the value KodaCode should pass to the server in the YAML file.
+
+## Tool names and permissions
+
+Discovered MCP tools are named with the server name as a prefix. If a server
+named `docs` exposes a tool named `search`, the runtime tool name is
+`mcp_docs_search`.
+
+That matters for custom agents. You can allow or deny MCP tools by exact name
+or with MCP-specific wildcard policy in the agent definition:
+
+```md
+---
+name: planner
+tools: readonly
+---
+
+<mcp>
+allow mcp_docs_search when external product docs are needed.
+deny all other MCP tools.
+</mcp>
+```
+
+See [Agents](/features/agents/) for the full custom-agent permission semantics.
+
+## Tool hints
+
+`tool_hints` let you make noisy or generic MCP tools easier for the model to
+choose correctly:
+
+```yaml
+mcp:
+  servers:
+    - name: docs
+      type: stdio
+      command: node
+      args: [/Users/me/tools/company-docs-mcp/dist/server.js]
+      tool_hints:
+        search:
+          summary: Search the internal product documentation index.
+          guidance: Use before answering questions about billing, plans, or support procedures.
+          triggers:
+            - billing docs
+            - support runbook
+          file_exts:
+            - md
+            - mdx
+```
+
+Hints do not grant extra authority. They only improve tool descriptions and
+selection guidance.
+
+## Output and failure behavior
+
+MCP server startup is bounded. If one server fails, KodaCode logs the warning
+and continues with any tools that were discovered successfully.
+
+MCP tool output is capped before it reaches the model. Large text output is
+truncated to protect the context budget. If you need a long artifact, prefer an
+MCP tool that writes a file or returns a short summary plus a path.
+
+## When to use built-in tools instead
+
+Prefer built-in tools for normal repository work:
+
+- file reading and edits: `read`, `write`, `apply_patch`, `mkdir`
+- code search: `search`, `locate`
+- code intelligence: `symbols`, `definition`, `refs`, `trace`, `diagnostics`
+- Git inspection: `git_status`, `git_diff`, `git_show`
+
+Use MCP for external systems or domain-specific actions that KodaCode does not
+ship directly.
+
+## Related pages
+
+- [Built-in Tools](/features/tools/)
+- [Sandbox & Permissions](/features/sandbox/)
+- [Configuration](/reference/configuration/)

@@ -43,6 +43,8 @@ export default defineConfig({
 							{ label: 'Project Memory & Instructions', slug: 'features/project-memory' },
 							{ label: 'Sandbox & Permissions', slug: 'features/sandbox' },
 							{ label: 'Built-in Tools', slug: 'features/tools' },
+							{ label: 'MCP Servers', slug: 'features/mcp' },
+							{ label: 'Skills', slug: 'features/skills' },
 							{ label: 'Code Intelligence & LSP', slug: 'features/lsp' },
 							{ label: 'Semantic Search', slug: 'features/search' },
 							{ label: 'Model Routing', slug: 'features/model-routing' },

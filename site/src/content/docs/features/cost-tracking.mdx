@@ -26,6 +26,36 @@ These are the highest-leverage user-facing cost controls:
 
 One reason the product defaults to terse mode is that it is usually the cheapest and simplest output-side cost cut.
 
+## Automatic Savings
+
+KodaCode also cuts cost automatically. These optimizations try to remove
+repetition, schema clutter, or old raw output, not useful task context. `/cost`
+and `/trace` show the labels when savings apply.
+
+| Label | What saves cost | Quality impact |
+| --- | --- | --- |
+| `prompt compaction` | Sends a shorter rule-based copy of structured instructions | Best when instructions use headings and bullets. Long prose with subtle nuance may compress less safely. |
+| `history compaction` | Replays a durable summary of older turns instead of full raw history | Keeps long sessions usable. Exact old details may need to be recovered from files or `/trace`. |
+| `current-turn projection` | Replaces earlier large tool results in the same turn with placeholders after later work has used them | Reduces noise. If exact old output matters again, the model may need to re-read or rerun a focused tool call. |
+| `tool catalog compression` | Shortens provider-facing tool schemas and descriptions while preserving required fields | Usually improves focus. Tools that need rich guidance keep it. |
+| `batch efficiency` | Handles compatible independent tool calls in one tool step | Does not remove information. Mutating and blocking tools still create runtime boundaries. |
+
+These savings are estimates, not provider invoices. KodaCode converts avoided
+input tokens to estimated dollars only when model pricing is known.
+
+For best results, keep durable instructions concise and structured:
+
+```md
+## Engineering Priorities
+
+- Correctness first
+- Clear ownership boundaries
+- Run focused tests before finishing
+```
+
+Avoid burying important policy in long repeated prose. It is harder to compact
+and harder for humans to maintain.
+
 ## Terse mode
 
 `response_style: terse` reduces ordinary model reply length, which directly cuts output token cost for interactive sessions. This is already the default:
@@ -105,20 +135,6 @@ workflow:
 
 This reduces the cost of review passes while keeping the main model for implementation turns.
 
-## History summaries and prompt savings
-
-Each time the runtime summarizes older stored session history, it records how many tokens were avoided on that turn compared to replaying the full history. The `/cost` dialog shows:
-
-- tokens saved by prompt compaction
-- tokens saved by replaying a history summary instead of full history
-- tokens saved by stripping tool descriptions and schemas from the prompt
-
-If model pricing is configured, these savings are also converted to an estimated dollar figure so you can see the cost of a long session versus what it would have cost without compaction.
-
-History summarization is one of KodaCode's more important cost controls because it reduces the cost of continuing long sessions without pretending the old turns never happened. The summary is durable and inspectable.
-
-This is separate from the header `ctx` meter. `ctx` shows the current shaped model request. History summarization maintains older stored turns for future continuity, so the TUI can show `Summarizing History` even when the current request is not near the model limit.
-
 ## Durable workspace compression
 
 `/compress` rewrites workspace `AGENTS.md` and project memory entries through the same utility-model path used for other runtime text tasks. Unlike prompt compaction, this changes the durable source files on disk, so future turns start from smaller inputs instead of only receiving a provider-compacted rendering.
@@ -182,7 +198,8 @@ The cost dialog shows:
 - provider steps and call attempts
 - utility compaction cost separated from agent turn cost
 - provider-reported usage where available (fully or partially reported)
-- input token savings from compaction and tool schema stripping
+- input token savings from prompt compaction, history compaction, current-turn projection, and tool catalog compression
+- batch efficiency for compatible multi-tool steps
 - estimated cache discounts where cache pricing was applied
 - the highest-cost turn and the highest-token turn without pricing
 
