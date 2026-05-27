@@ -120,8 +120,9 @@ func renderTurnTranscriptSectionsWithOptions(m Model, state events.SessionState,
 		sections = append(sections, section)
 	}
 	sections = append(sections, renderLiveToolCallPreviewSections(m, state, turnID, turn, width)...)
-	if delegation := renderDelegationSection(m, turn, width); delegation != "" {
-		sections = append(sections, transcriptSection{content: delegation})
+	delegationRow := newDelegationTranscriptRow(turnID, turn, m.selection.handoffID, width)
+	if section, ok := delegationRow.section(m); ok {
+		sections = append(sections, section)
 	}
 	return sections
 }

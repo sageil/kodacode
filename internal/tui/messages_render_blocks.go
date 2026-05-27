@@ -86,29 +86,6 @@ func renderSystemSection(m Model, title, body string, width int) string {
 	})
 }
 
-func renderDelegationSection(m Model, turn *events.TurnState, width int) string {
-	if turn == nil || len(turn.HandoffOrder) == 0 {
-		return ""
-	}
-
-	selectedID := ""
-	if handoff := explicitSelectedHandoff(turn, m.selection.handoffID); handoff != nil {
-		selectedID = handoff.HandoffID
-	}
-	rows := make([]string, 0, len(turn.HandoffOrder))
-	for _, handoffID := range turn.HandoffOrder {
-		handoff := turn.Handoffs[handoffID]
-		if !shouldRenderDelegationRowInTranscript(handoff, selectedID) {
-			continue
-		}
-		rows = append(rows, renderDelegationRow(m, handoff, width, handoff.HandoffID == selectedID))
-	}
-	if len(rows) == 0 {
-		return ""
-	}
-	return renderTranscriptBlock(m, "Delegation", strings.Join(rows, "\n"), width, transcriptBlockStyle{})
-}
-
 func shouldRenderDelegationRowInTranscript(handoff *events.AgentHandoffState, selectedID string) bool {
 	if handoff == nil {
 		return false
