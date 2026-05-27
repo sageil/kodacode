@@ -26,8 +26,12 @@ func renderTurnTranscriptSectionsWithOptions(m Model, state events.SessionState,
 		if options.suppressHistoryCompaction || hasCompactionTranscriptEntry || compactionRendered {
 			return
 		}
-		if section := renderHistoryCompactionSection(m, state, turnID, turn, width); section != "" {
-			sections = append(sections, transcriptSection{content: section})
+		row, ok := newFallbackHistoryCompactionTranscriptRow(state, turnID, turn, width)
+		if !ok {
+			return
+		}
+		if section, ok := row.section(m); ok {
+			sections = append(sections, section)
 			compactionRendered = true
 		}
 	}
@@ -67,8 +71,9 @@ func renderTurnTranscriptSectionsWithOptions(m Model, state events.SessionState,
 			if options.suppressHistoryCompaction {
 				continue
 			}
-			if section := renderHistoryCompactionSummarySection(m, entry.Text, width); section != "" {
-				sections = append(sections, transcriptSection{content: section})
+			row := newHistoryCompactionTranscriptRow(turnID, entry, i, width)
+			if section, ok := row.section(m); ok {
+				sections = append(sections, section)
 				compactionRendered = true
 			}
 		case events.TranscriptEntryReview:
@@ -81,8 +86,9 @@ func renderTurnTranscriptSectionsWithOptions(m Model, state events.SessionState,
 			}
 		case events.TranscriptEntryReasoning:
 			maybeRenderFallbackCompaction()
-			if reasoning := renderReasoningTranscriptSection(m, entry.Text, width, isTurnFinished(turn)); reasoning != "" {
-				sections = append(sections, transcriptSection{content: reasoning})
+			row := newReasoningTranscriptRow(turnID, entry, i, width, isTurnFinished(turn))
+			if section, ok := row.section(m); ok {
+				sections = append(sections, section)
 			}
 		case events.TranscriptEntryTool:
 			maybeRenderFallbackCompaction()
@@ -230,17 +236,6 @@ func previousQuestionAnswerMatchesUserEntry(state events.SessionState, turn *eve
 		}
 	}
 	return false
-}
-
-func renderHistoryCompactionSection(m Model, state events.SessionState, turnID string, turn *events.TurnState, width int) string {
-	if suppressInheritedHistoryContinuation(turn) {
-		return ""
-	}
-	compaction := effectiveTurnHistoryContinuation(state, turnID, turn)
-	if turn == nil || compaction == nil {
-		return ""
-	}
-	return renderHistoryCompactionSummarySection(m, historyCompactionSummaryText(compaction), width)
 }
 
 func suppressInheritedHistoryContinuation(turn *events.TurnState) bool {
