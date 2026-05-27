@@ -27,11 +27,14 @@ type toolOutcomeRow struct {
 }
 
 func visibleToolSelectionRefs(m Model, state events.SessionState) []sessionToolCallRef {
-	if shellLayoutEnabled(m) && m.shellToolCallsVisible {
-		refs := visibleTranscriptToolRefs(m)
-		if len(refs) > 0 {
+	if shellLayoutEnabled(m) {
+		if !m.shellToolCallsVisible {
+			return nil
+		}
+		if refs := visibleTranscriptToolRefs(m); len(refs) > 0 {
 			return refs
 		}
+		return ungroupedSessionToolSelectionRefs(state)
 	}
 	if isWideShell(m) {
 		rows := deriveSessionToolOutcomeRows(state)
@@ -47,6 +50,18 @@ func visibleToolSelectionRefs(m Model, state events.SessionState) []sessionToolC
 		}
 	}
 	return orderedSessionToolCallRefs(state)
+}
+
+func ungroupedSessionToolSelectionRefs(state events.SessionState) []sessionToolCallRef {
+	rows := deriveUngroupedToolOutcomeRows(state, orderedAllSessionToolCallRefs(state))
+	refs := make([]sessionToolCallRef, 0, len(rows))
+	for _, row := range rows {
+		if strings.TrimSpace(row.Ref.TurnID) == "" || strings.TrimSpace(row.Ref.CallID) == "" {
+			continue
+		}
+		refs = append(refs, row.Ref)
+	}
+	return refs
 }
 
 func visibleTranscriptToolRefs(m Model) []sessionToolCallRef {
