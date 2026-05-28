@@ -2302,8 +2302,8 @@ func TestToolDetailDialogShowsRenderedTaskOutputOnly(t *testing.T) {
 	for _, want := range []string{
 		"Task: Review TaskController query path • done • turn 1",
 		"Output",
-		"Task: task-115",
-		"Title: Review TaskController query path",
+		"Task: Review TaskController query path",
+		"Task ID: task-115",
 		"Status: completed",
 		"Progress: Confirmed controller uses populated repository reads",
 		"Review: accepted",

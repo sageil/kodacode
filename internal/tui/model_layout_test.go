@@ -609,7 +609,7 @@ func TestTranscriptToolNavigationSkipsMutationToolCalls(t *testing.T) {
 	}
 }
 
-func TestShellToolCompactRowsFitWidthsAndShowActiveStatuses(t *testing.T) {
+func TestShellToolCompactRowsFitWidthsAndRelyOnStatusIcons(t *testing.T) {
 	defaultTheme := theme.StaticDefault()
 	ctx, cancel := context.WithCancel(context.TODO())
 	defer cancel()
@@ -629,12 +629,12 @@ func TestShellToolCompactRowsFitWidthsAndShowActiveStatuses(t *testing.T) {
 		Turns:         map[string]*events.TurnState{"turn-1": {TurnID: "turn-1"}},
 	}
 	for _, tt := range []struct {
-		name       string
-		row        toolOutcomeRow
-		width      int
-		want       string
-		notWant    string
-		wantStatus string
+		name      string
+		row       toolOutcomeRow
+		width     int
+		want      string
+		notWant   string
+		notStatus string
 	}{
 		{
 			name: "narrow running",
@@ -644,9 +644,9 @@ func TestShellToolCompactRowsFitWidthsAndShowActiveStatuses(t *testing.T) {
 				Status: "running",
 				Ref:    sessionToolCallRef{TurnID: "turn-1", CallID: "call-running"},
 			},
-			width:      32,
-			want:       "npm",
-			wantStatus: "running",
+			width:     32,
+			want:      "npm",
+			notStatus: "running",
 		},
 		{
 			name: "medium error",
@@ -656,9 +656,9 @@ func TestShellToolCompactRowsFitWidthsAndShowActiveStatuses(t *testing.T) {
 				Status: "error",
 				Ref:    sessionToolCallRef{TurnID: "turn-1", CallID: "call-error"},
 			},
-			width:      52,
-			want:       "npm test",
-			wantStatus: "error",
+			width:     52,
+			want:      "npm test",
+			notStatus: "error",
 		},
 		{
 			name: "done omits success prose",
@@ -681,11 +681,11 @@ func TestShellToolCompactRowsFitWidthsAndShowActiveStatuses(t *testing.T) {
 			if !strings.Contains(rendered, tt.want) {
 				t.Fatalf("row missing %q\nrendered: %q", tt.want, rendered)
 			}
-			if tt.wantStatus != "" && !strings.Contains(rendered, tt.wantStatus) {
-				t.Fatalf("row missing status %q\nrendered: %q", tt.wantStatus, rendered)
-			}
 			if tt.notWant != "" && strings.Contains(rendered, tt.notWant) {
 				t.Fatalf("row contains unwanted %q\nrendered: %q", tt.notWant, rendered)
+			}
+			if tt.notStatus != "" && strings.Contains(rendered, tt.notStatus) {
+				t.Fatalf("row contains redundant status text %q\nrendered: %q", tt.notStatus, rendered)
 			}
 		})
 	}
@@ -724,6 +724,41 @@ func TestShellToolCompactRowsUseConfiguredASCIIIcons(t *testing.T) {
 	}
 	if strings.Contains(rendered, "✓") {
 		t.Fatalf("ascii shell tool row rendered unicode status icon:\n%s", rendered)
+	}
+}
+
+func TestShellToolCompactRowsOmitTaskWorkflowKind(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context:       ctx,
+		Theme:         &defaultTheme,
+		Layout:        "shell",
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: "/repo",
+	})
+	state := events.SessionState{
+		SessionID:     "session-1",
+		WorkspaceRoot: "/repo",
+		TurnOrder:     []string{"turn-1"},
+		Turns:         map[string]*events.TurnState{"turn-1": {TurnID: "turn-1"}},
+	}
+	call := &events.ToolCallState{
+		ToolName: "task_workflow",
+		Input:    `{"action":"update","task_id":"task-57","status":"in_progress"}`,
+		Output:   `{"task":{"task_id":"task-57","title":"Implement initial index and query changes","status":"in_progress"}}`,
+	}
+	row := genericOutcomeRow(state, sessionToolCallRef{TurnID: "turn-1", CallID: "call-1"}, call)
+
+	rendered := ansi.Strip(renderShellToolOutcomeLine(model, state, row, call, 120, false))
+	if !strings.Contains(rendered, "Task: Implement initial index and query changes") {
+		t.Fatalf("shell task row missing task label:\n%s", rendered)
+	}
+	if strings.Contains(rendered, "task_workflow") {
+		t.Fatalf("shell task row includes redundant tool kind:\n%s", rendered)
 	}
 }
 

@@ -367,37 +367,131 @@ func taskToolErrorDisplayText(call *events.ToolCallState, rawError string) strin
 }
 
 func renderTaskToolOutputMarkdown(raw string) (string, bool) {
-	if _, ok := parseTaskToolViewListOutput(raw); ok {
-		return renderStructuredPayloadMarkdown("## Output", raw)
+	if tasks, ok := parseTaskToolViewListOutput(raw); ok {
+		lines := []string{"## Output"}
+		if len(tasks) == 0 {
+			lines = append(lines, "", "- No tasks")
+			return strings.Join(lines, "\n"), true
+		}
+		lines = append(lines, "", "**Tasks:**")
+		for _, task := range tasks {
+			lines = append(lines, "- "+taskToolListItemMarkdownLabel(task))
+		}
+		return strings.Join(lines, "\n"), true
 	}
 	record, ok := parseTaskToolViewOutput(raw)
 	if !ok {
 		return "", false
 	}
 	lines := []string{"## Output"}
-	appendField := func(label, value string) {
-		value = strings.TrimSpace(value)
-		if value == "" {
-			return
-		}
-		if strings.Contains(value, "\n") {
-			lines = append(lines, "", "**"+label+":**", "", value)
-			return
-		}
-		lines = append(lines, "", "- "+label+": "+value)
-	}
-
-	appendField("Task", record.TaskID)
-	appendField("Title", record.Title)
-	appendField("Kind", record.Kind)
-	appendField("Status", record.Status)
-	appendField("Progress", record.Progress)
-	appendField("Block Reason", record.BlockReason)
-	appendField("Review", record.ReviewStatus)
-	appendField("Review Summary", record.ReviewSummary)
-	appendField("Notes", record.Notes)
+	appendTaskToolMarkdownField(&lines, "Task", taskToolDisplayTitle(record))
+	appendTaskToolMarkdownField(&lines, "Task ID", record.TaskID)
+	appendTaskToolMarkdownField(&lines, "Kind", record.Kind)
+	appendTaskToolMarkdownField(&lines, "Status", record.Status)
+	appendTaskToolMarkdownField(&lines, "Progress", record.Progress)
+	appendTaskToolMarkdownField(&lines, "Block Reason", record.BlockReason)
+	appendTaskToolMarkdownField(&lines, "Review", record.ReviewStatus)
+	appendTaskToolMarkdownField(&lines, "Review Summary", record.ReviewSummary)
+	appendTaskToolMarkdownField(&lines, "Notes", record.Notes)
 
 	return strings.Join(lines, "\n"), true
+}
+
+func renderTaskToolInputTranscript(call *events.ToolCallState, width int) (string, bool) {
+	input, ok := parseTaskToolViewInput(call.Input)
+	if !ok {
+		return "", false
+	}
+	record := resolveTaskToolViewRecord(call)
+	lines := make([]string, 0, 10)
+	appendTaskToolTranscriptField(&lines, width, "Action", input.Action)
+	appendTaskToolTranscriptField(&lines, width, "Task", taskToolDisplayTitle(record))
+	appendTaskToolTranscriptField(&lines, width, "Task ID", record.TaskID)
+	appendTaskToolTranscriptField(&lines, width, "Kind", record.Kind)
+	appendTaskToolTranscriptField(&lines, width, "Status", record.Status)
+	appendTaskToolTranscriptField(&lines, width, "Progress", record.Progress)
+	appendTaskToolTranscriptField(&lines, width, "Summary", input.Summary)
+	appendTaskToolTranscriptField(&lines, width, "Block Reason", record.BlockReason)
+	appendTaskToolTranscriptField(&lines, width, "Review", record.ReviewStatus)
+	appendTaskToolTranscriptField(&lines, width, "Review Summary", record.ReviewSummary)
+	appendTaskToolTranscriptField(&lines, width, "Notes", record.Notes)
+	return strings.Join(lines, "\n"), len(lines) > 0
+}
+
+func renderTaskToolOutputTranscript(raw string, width int) (string, bool) {
+	if tasks, ok := parseTaskToolViewListOutput(raw); ok {
+		if len(tasks) == 0 {
+			return "Tasks: none", true
+		}
+		lines := []string{"Tasks:"}
+		for _, task := range tasks {
+			lines = append(lines, "  "+taskToolListItemTranscriptLabel(task, width-2))
+		}
+		return strings.Join(lines, "\n"), true
+	}
+	record, ok := parseTaskToolViewOutput(raw)
+	if !ok {
+		return "", false
+	}
+	lines := make([]string, 0, 9)
+	appendTaskToolTranscriptField(&lines, width, "Task", taskToolDisplayTitle(record))
+	appendTaskToolTranscriptField(&lines, width, "Task ID", record.TaskID)
+	appendTaskToolTranscriptField(&lines, width, "Kind", record.Kind)
+	appendTaskToolTranscriptField(&lines, width, "Status", record.Status)
+	appendTaskToolTranscriptField(&lines, width, "Progress", record.Progress)
+	appendTaskToolTranscriptField(&lines, width, "Block Reason", record.BlockReason)
+	appendTaskToolTranscriptField(&lines, width, "Review", record.ReviewStatus)
+	appendTaskToolTranscriptField(&lines, width, "Review Summary", record.ReviewSummary)
+	appendTaskToolTranscriptField(&lines, width, "Notes", record.Notes)
+	return strings.Join(lines, "\n"), len(lines) > 0
+}
+
+func appendTaskToolMarkdownField(lines *[]string, label, value string) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return
+	}
+	if strings.Contains(value, "\n") {
+		*lines = append(*lines, "", "**"+label+":**", "", value)
+		return
+	}
+	*lines = append(*lines, "", "- "+label+": "+value)
+}
+
+func appendTaskToolTranscriptField(lines *[]string, width int, label, value string) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return
+	}
+	prefix := strings.TrimSpace(label) + ": "
+	wrapWidth := max(width-len(prefix), 24)
+	wrapped := wrapStructuredText(value, wrapWidth)
+	if len(wrapped) == 0 {
+		return
+	}
+	*lines = append(*lines, prefix+wrapped[0])
+	for _, line := range wrapped[1:] {
+		*lines = append(*lines, strings.Repeat(" ", len(prefix))+line)
+	}
+}
+
+func taskToolDisplayTitle(record taskToolViewRecord) string {
+	if title := strings.TrimSpace(record.Title); title != "" {
+		return title
+	}
+	return strings.TrimSpace(record.TaskID)
+}
+
+func taskToolListItemMarkdownLabel(record taskToolViewRecord) string {
+	label := taskToolListItemLabel(record)
+	if status := strings.TrimSpace(record.Status); status != "" {
+		label += " · " + status
+	}
+	return label
+}
+
+func taskToolListItemTranscriptLabel(record taskToolViewRecord, width int) string {
+	return truncateEnd(taskToolListItemMarkdownLabel(record), max(width, 16))
 }
 
 func resolveTaskToolViewRecord(call *events.ToolCallState) taskToolViewRecord {

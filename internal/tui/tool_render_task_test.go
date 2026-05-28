@@ -114,7 +114,7 @@ func TestRenderTaskToolDetailMarkdownUsesStructuredTaskError(t *testing.T) {
 	}
 }
 
-func TestRenderTaskToolDetailMarkdownPrettyPrintsTaskListJSON(t *testing.T) {
+func TestRenderTaskToolDetailMarkdownRendersTaskList(t *testing.T) {
 	call := &events.ToolCallState{
 		ToolName: "task_workflow",
 		Input:    `{"action":"list"}`,
@@ -125,15 +125,56 @@ func TestRenderTaskToolDetailMarkdownPrettyPrintsTaskListJSON(t *testing.T) {
 	for _, want := range []string{
 		"## Output",
 		"**Tasks:**",
-		`"task_id": "task-99"`,
-		`"title": "Backend optimization"`,
-		`"task_id": "task-100"`,
+		"task-99 · Backend optimization · completed",
+		"task-100 · Frontend optimization · pending",
 	} {
 		if !strings.Contains(rendered, want) {
 			t.Fatalf("renderTaskToolDetailMarkdown() missing %q\nrendered:\n%s", want, rendered)
 		}
 	}
-	if strings.Contains(rendered, `{"tasks":[{"task_id":"task-99"`) {
-		t.Fatalf("renderTaskToolDetailMarkdown() still rendered one-line JSON\nrendered:\n%s", rendered)
+	for _, unwanted := range []string{
+		`{"tasks":[{"task_id":"task-99"`,
+		`"task_id": "task-99"`,
+	} {
+		if strings.Contains(rendered, unwanted) {
+			t.Fatalf("renderTaskToolDetailMarkdown() still rendered JSON %q\nrendered:\n%s", unwanted, rendered)
+		}
+	}
+}
+
+func TestTaskToolTranscriptRendersTaskFieldsInsteadOfJSON(t *testing.T) {
+	call := &events.ToolCallState{
+		ToolName: "task_workflow",
+		Input:    `{"action":"update","task_id":"task-57","status":"in_progress","notes":"Typecheck passed. Next: run unit tests and prepare PR notes."}`,
+		Output:   `{"task":{"task_id":"task-57","title":"Implement initial index and query changes (text indexes, lean, projections)","status":"in_progress","notes":"Typecheck passed. Next: run unit tests and prepare PR notes."}}`,
+	}
+
+	input, ok := renderTaskToolInputTranscript(call, 120)
+	if !ok {
+		t.Fatal("renderTaskToolInputTranscript() returned false")
+	}
+	output, ok := renderTaskToolOutputTranscript(call.Output, 120)
+	if !ok {
+		t.Fatal("renderTaskToolOutputTranscript() returned false")
+	}
+	rendered := input + "\n\n" + output
+	for _, want := range []string{
+		"Action: update",
+		"Task: Implement initial index and query changes (text indexes, lean, projections)",
+		"Task ID: task-57",
+		"Status: in_progress",
+		"Notes: Typecheck passed. Next: run unit tests and prepare PR notes.",
+	} {
+		if !strings.Contains(rendered, want) {
+			t.Fatalf("task transcript missing %q\nrendered:\n%s", want, rendered)
+		}
+	}
+	for _, unwanted := range []string{
+		`{"action":"update"`,
+		`{"task":{"task_id"`,
+	} {
+		if strings.Contains(rendered, unwanted) {
+			t.Fatalf("task transcript still rendered JSON %q\nrendered:\n%s", unwanted, rendered)
+		}
 	}
 }

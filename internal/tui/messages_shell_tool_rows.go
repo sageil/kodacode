@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
 
@@ -67,26 +66,7 @@ func (r shellToolTranscriptRow) cacheParts() []string {
 }
 
 func (r shellToolTranscriptRow) renderUncached(m Model) string {
-	right := r.rightText()
-	left := r.leftText(m, max(r.width-lipgloss.Width(right)-1, 1))
-	if right == "" {
-		return left
-	}
-	return joinBar(left, right, r.width)
-}
-
-func (r shellToolTranscriptRow) rightText() string {
-	parts := make([]string, 0, 2)
-	if r.turnOrdinal > 0 {
-		parts = append(parts, fmt.Sprintf("t%d", r.turnOrdinal))
-	}
-	switch {
-	case r.selected:
-		parts = append(parts, "enter")
-	case normalizeOutcomeStatus(r.status) != "done":
-		parts = append(parts, shellToolStatusLabel(r.status))
-	}
-	return strings.Join(parts, " · ")
+	return r.leftText(m, r.width)
 }
 
 func (r shellToolTranscriptRow) leftText(m Model, width int) string {
@@ -98,7 +78,7 @@ func (r shellToolTranscriptRow) leftText(m Model, width int) string {
 	kindWidth := shellToolRowKindWidth(width)
 	icon := m.toolStatusSymbol(r.status)
 	prefixPlain := marker + " " + icon + " "
-	if kindWidth > 0 {
+	if kindWidth > 0 && strings.TrimSpace(r.kind) != "" {
 		prefixPlain += padRight(truncateEnd(r.kind, kindWidth), kindWidth) + " "
 	}
 	labelWidth := max(width-lipgloss.Width(prefixPlain), 1)
@@ -121,7 +101,7 @@ func (r shellToolTranscriptRow) leftText(m Model, width int) string {
 		iconStyle.Render(icon),
 		" ",
 	}
-	if kindWidth > 0 {
+	if kindWidth > 0 && strings.TrimSpace(r.kind) != "" {
 		parts = append(parts, kindStyle.Render(padRight(truncateEnd(r.kind, kindWidth), kindWidth)), " ")
 	}
 	parts = append(parts, labelStyle.Render(text))
@@ -471,6 +451,9 @@ func titleCaseASCII(value string) string {
 }
 
 func shellToolRowKind(row toolOutcomeRow, call *events.ToolCallState) string {
+	if isTaskToolCall(call) {
+		return ""
+	}
 	switch row.Kind {
 	case toolOutcomeExploration:
 		if call != nil {

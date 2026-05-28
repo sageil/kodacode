@@ -80,6 +80,9 @@ func toolDetailTranscriptBody(m Model, ref sessionToolCallRef, call *events.Tool
 }
 
 func toolDetailTranscriptMetaLines(call *events.ToolCallState) []string {
+	if isTaskToolCall(call) {
+		return nil
+	}
 	params := toolInspectorParams(call)
 	lines := make([]string, 0, len(params)*2)
 	for _, param := range params {
@@ -121,6 +124,11 @@ func toolDetailTranscriptInput(call *events.ToolCallState, width int) string {
 	if call == nil {
 		return ""
 	}
+	if isTaskToolCall(call) {
+		if rendered, ok := renderTaskToolInputTranscript(call, width); ok {
+			return rendered
+		}
+	}
 	if isMCPToolCall(call) {
 		if structured, ok := renderStructuredPayloadTranscript(call.Input, width); ok {
 			return structured
@@ -154,7 +162,11 @@ func toolDetailTranscriptOutput(m Model, ref *sessionToolCallRef, call *events.T
 	switch {
 	case output != "" && errorText != "":
 		renderedOutput := output
-		if isMCPToolCall(call) {
+		if isTaskToolCall(call) {
+			if structured, ok := renderTaskToolOutputTranscript(output, width); ok {
+				renderedOutput = structured
+			}
+		} else if isMCPToolCall(call) {
 			if structured, ok := renderStructuredPayloadTranscriptDelta(output, call.Input, width); ok {
 				renderedOutput = structured
 			} else if structured, ok := renderStructuredPayloadTranscript(output, width); ok {
@@ -171,6 +183,14 @@ func toolDetailTranscriptOutput(m Model, ref *sessionToolCallRef, call *events.T
 		}
 		return body
 	case output != "":
+		if isTaskToolCall(call) {
+			if structured, ok := renderTaskToolOutputTranscript(output, width); ok {
+				if notice != "" {
+					return structured + "\n\n(" + notice + ")"
+				}
+				return structured
+			}
+		}
 		if isMCPToolCall(call) {
 			if structured, ok := renderStructuredPayloadTranscriptDelta(output, call.Input, width); ok {
 				if notice != "" {
