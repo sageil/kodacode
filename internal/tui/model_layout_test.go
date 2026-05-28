@@ -220,6 +220,83 @@ func TestShellLayoutEnterExpandsSelectedToolInline(t *testing.T) {
 	}
 }
 
+func TestShellLayoutFailedApplyPatchShowsBoundedErrorAndExpands(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context:       ctx,
+		Theme:         &defaultTheme,
+		Layout:        "shell",
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: "/repo",
+	})
+	errorText := "`apply_patch` failed. line 31: invalid patch syntax."
+	state := events.SessionState{
+		SessionID:     "session-1",
+		WorkspaceRoot: "/repo",
+		TurnOrder:     []string{"turn-1"},
+		Turns: map[string]*events.TurnState{
+			"turn-1": {
+				TurnID:        "turn-1",
+				Status:        events.TurnStatusCompleted,
+				Transcript:    []events.TranscriptEntryState{{Kind: events.TranscriptEntryTool, CallID: "patch-1"}},
+				ToolCallOrder: []string{"patch-1"},
+				ToolCalls: map[string]*events.ToolCallState{
+					"patch-1": {
+						CallID:   "patch-1",
+						ToolName: "apply_patch",
+						Input: "*** Begin Patch\n" +
+							"*** Update File: src/app.ts\n" +
+							"@@\n" +
+							"-old\n" +
+							"+new\n" +
+							"*** End Patch",
+						Error:     errorText,
+						Declared:  true,
+						Completed: true,
+						Succeeded: false,
+					},
+				},
+			},
+		},
+	}
+	model.projector = events.NewProjectorFromSnapshot(state)
+	modelIface, _ := model.Update(tea.WindowSizeMsg{Width: 64, Height: 28})
+	model = modelIface.(Model)
+	model.chrome.focus = focusTranscript
+
+	rendered := ansi.Strip(renderModelView(model))
+	if !strings.Contains(rendered, "Edit failed") || !strings.Contains(rendered, "Line 31: invalid patch syntax.") {
+		t.Fatalf("failed apply_patch did not render collapsed error\nrendered:\n%s", rendered)
+	}
+	if strings.Contains(rendered, "apply_patch failed") || strings.Contains(rendered, "`apply_patch` failed") {
+		t.Fatalf("failed apply_patch rendered internal tool name\nrendered:\n%s", rendered)
+	}
+	for _, line := range strings.Split(renderShellApplyPatchFailureTranscriptSection(model, state.Turns["turn-1"].ToolCalls["patch-1"], 32, false), "\n") {
+		if width := ansi.StringWidth(ansi.Strip(line)); width > 32 {
+			t.Fatalf("failed apply_patch line width = %d, want <= 32: %q", width, ansi.Strip(line))
+		}
+	}
+
+	updated, _ := model.Update(tea.KeyPressMsg{Text: "j", Code: 'j'})
+	model = updated.(Model)
+	if model.selection.callID != "patch-1" {
+		t.Fatalf("selected call after j = %q, want patch-1", model.selection.callID)
+	}
+	updated, _ = model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	model = updated.(Model)
+	if model.selection.expandedCallID != "patch-1" {
+		t.Fatalf("expanded call after enter = %q, want patch-1", model.selection.expandedCallID)
+	}
+	rendered = ansi.Strip(renderModelView(model))
+	if !strings.Contains(rendered, "Error") || !strings.Contains(rendered, "*** Update File: src/app.ts") {
+		t.Fatalf("expanded failed apply_patch missing detail\nrendered:\n%s", rendered)
+	}
+}
+
 func TestShellLayoutEnterExpansionAnchorsSelectedToolStart(t *testing.T) {
 	defaultTheme := theme.StaticDefault()
 	ctx, cancel := context.WithCancel(context.TODO())
@@ -579,6 +656,72 @@ func TestShellLayoutSelectedNonMutationToolScrollsIntoView(t *testing.T) {
 	visible := ansi.Strip(strings.Join(model.messages.VisibleLines(), "\n"))
 	if !strings.Contains(visible, "target-2") {
 		t.Fatalf("selected non-mutation tool was not visible after jump; offset=%d\nvisible:\n%s", model.messages.YOffset(), visible)
+	}
+}
+
+func TestShellLayoutInitialToolNavigationStartsFromViewport(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context:       ctx,
+		Theme:         &defaultTheme,
+		Layout:        "shell",
+		SessionID:     "session-1",
+		TurnID:        "turn-6",
+		WorkspaceRoot: "/repo",
+	})
+
+	state := events.SessionState{
+		SessionID:     "session-1",
+		WorkspaceRoot: "/repo",
+		TurnOrder:     []string{},
+		Turns:         map[string]*events.TurnState{},
+	}
+	for i := 1; i <= 6; i++ {
+		turnID := fmt.Sprintf("turn-%d", i)
+		callID := fmt.Sprintf("search-%d", i)
+		state.TurnOrder = append(state.TurnOrder, turnID)
+		state.Turns[turnID] = &events.TurnState{
+			TurnID: turnID,
+			Status: events.TurnStatusCompleted,
+			Transcript: []events.TranscriptEntryState{
+				{Kind: events.TranscriptEntryUser, Text: fmt.Sprintf("find target %d", i)},
+				{Kind: events.TranscriptEntryAssistant, Text: strings.Repeat(fmt.Sprintf("assistant text %d. ", i), 16)},
+				{Kind: events.TranscriptEntryTool, CallID: callID},
+			},
+			ToolCallOrder: []string{callID},
+			ToolCalls: map[string]*events.ToolCallState{
+				callID: {
+					CallID:    callID,
+					ToolName:  "search",
+					Input:     fmt.Sprintf(`{"query":"target-%d","path":"src"}`, i),
+					Output:    fmt.Sprintf("src/main.go:1:target-%d\n", i),
+					Declared:  true,
+					Completed: true,
+					Succeeded: true,
+				},
+			},
+		}
+	}
+
+	model.projector = events.NewProjectorFromSnapshot(state)
+	modelIface, _ := model.Update(tea.WindowSizeMsg{Width: 100, Height: 18})
+	model = modelIface.(Model)
+	model.chrome.focus = focusTranscript
+	target := sessionToolCallRef{TurnID: "turn-6", CallID: "search-6"}
+	line, ok := model.transcriptView.toolLines[target]
+	if !ok {
+		t.Fatalf("target tool missing from transcript tool lines: %#v", model.transcriptView.toolLines)
+	}
+	model.messages.GotoLine(line)
+	model.syncVisibleTranscriptChunksIfNeeded()
+
+	updated, _ := model.Update(tea.KeyPressMsg{Text: "j", Code: 'j'})
+	model = updated.(Model)
+	if model.selection.callID != "search-6" {
+		t.Fatalf("initial j selected call %q, want first visible viewport call search-6", model.selection.callID)
 	}
 }
 

@@ -131,7 +131,11 @@ func (m Model) handleTranscriptInput(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 func (m *Model) moveSelectedTool(delta int) tea.Cmd {
 	state := m.projector.Snapshot()
-	return m.moveSelectedToolAcross(visibleToolSelectionRefs(*m, state), delta, true)
+	refs := visibleToolSelectionRefs(*m, state)
+	if ref, ok := m.initialViewportToolSelectionRef(refs); ok {
+		return m.selectToolCall(ref)
+	}
+	return m.moveSelectedToolAcross(refs, delta, true)
 }
 
 func (m *Model) moveSelectedInspectorTool(delta int) tea.Cmd {
@@ -216,6 +220,42 @@ func (m *Model) moveSelectedToolAcross(refs []sessionToolCallRef, delta int, cle
 		index = max(min(index+delta, len(refs)-1), 0)
 	}
 	return m.selectToolCall(refs[index])
+}
+
+func (m *Model) initialViewportToolSelectionRef(refs []sessionToolCallRef) (sessionToolCallRef, bool) {
+	if m == nil || !shellLayoutEnabled(*m) || len(refs) == 0 {
+		return sessionToolCallRef{}, false
+	}
+	top := max(m.messages.YOffset(), 0)
+	bottom := top + max(m.messages.Height(), 1)
+	selected := sessionToolCallRef{
+		SessionID: selectedToolSessionID(*m),
+		TurnID:    strings.TrimSpace(m.selection.callTurnID),
+		CallID:    strings.TrimSpace(m.selection.callID),
+	}
+	if m.toolRefStartsInViewport(selected, top, bottom) {
+		return sessionToolCallRef{}, false
+	}
+	for _, ref := range refs {
+		if !m.toolRefStartsInViewport(ref, top, bottom) {
+			continue
+		}
+		return ref, true
+	}
+	return sessionToolCallRef{}, false
+}
+
+func (m *Model) toolRefStartsInViewport(ref sessionToolCallRef, top, bottom int) bool {
+	if m == nil || strings.TrimSpace(ref.TurnID) == "" || strings.TrimSpace(ref.CallID) == "" {
+		return false
+	}
+	line, ok := m.transcriptView.toolLines[ref]
+	if !ok {
+		withoutSession := ref
+		withoutSession.SessionID = ""
+		line, ok = m.transcriptView.toolLines[withoutSession]
+	}
+	return ok && line >= top && line < bottom
 }
 
 func (m *Model) selectToolCall(ref sessionToolCallRef) tea.Cmd {

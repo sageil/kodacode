@@ -140,6 +140,22 @@ func renderShellTurnToolOutcomeSections(m Model, state events.SessionState, refs
 			}
 			continue
 		}
+		if isFailedApplyPatchToolCall(call) {
+			selected := selectedToolMatchesSession(m, state.SessionID, row.Ref)
+			expanded := expandedToolMatchesSession(m, state.SessionID, row.Ref)
+			content := ""
+			if expanded {
+				content = strings.TrimSpace(renderShellFocusedToolTranscriptSection(m, row.Ref, state, call, width))
+			}
+			if content == "" {
+				content = strings.TrimSpace(renderShellApplyPatchFailureTranscriptSection(m, call, width, selected))
+			}
+			if content != "" {
+				flushCompact()
+				sections = append(sections, transcriptSection{content: content, toolRefs: []sessionToolCallRef{row.Ref}})
+			}
+			continue
+		}
 		if row.Kind == toolOutcomeMutation || isMutationToolCall(call) {
 			if content := strings.TrimSpace(renderShellMutationToolTranscriptSection(m, state, row.Ref, call, width)); content != "" {
 				if transcriptRenderedLineCount(content) == 1 {
@@ -250,6 +266,9 @@ func appendShellChildToolRowsForState(m Model, childSessionID string, childState
 		if expanded {
 			content = strings.TrimSpace(renderShellFocusedToolTranscriptSection(m, childRef, childState, childCall, max(width-2, 1)))
 		}
+		if content == "" && isFailedApplyPatchToolCall(childCall) {
+			content = strings.TrimSpace(renderShellApplyPatchFailureTranscriptSection(m, childCall, max(width-2, 1), selected))
+		}
 		if content == "" {
 			content = strings.TrimSpace(renderShellToolOutcomeLine(m, childState, childRow, childCall, max(width-2, 1), selected))
 		}
@@ -303,6 +322,20 @@ func renderShellToolTranscriptSection(m Model, state events.SessionState, ref se
 		if rowCall == nil {
 			rowCall = call
 		}
+		if isFailedApplyPatchToolCall(rowCall) {
+			selected := selectedToolMatchesSession(m, state.SessionID, row.Ref)
+			expanded := expandedToolMatchesSession(m, state.SessionID, row.Ref)
+			if expanded {
+				if content := strings.TrimSpace(renderShellFocusedToolTranscriptSection(m, row.Ref, state, rowCall, width)); content != "" {
+					lines = append(lines, content)
+					continue
+				}
+			}
+			if content := strings.TrimSpace(renderShellApplyPatchFailureTranscriptSection(m, rowCall, width, selected)); content != "" {
+				lines = append(lines, content)
+			}
+			continue
+		}
 		if row.Kind == toolOutcomeMutation || isMutationToolCall(rowCall) {
 			if content := strings.TrimSpace(renderShellMutationToolTranscriptSection(m, state, row.Ref, rowCall, width)); content != "" {
 				lines = append(lines, content)
@@ -343,6 +376,60 @@ func renderShellMutationToolTranscriptSection(m Model, state events.SessionState
 		return renderMutationToolTimelineSection(m, state.WorkspaceRoot, call, width)
 	}
 	return strings.Join(lines, "\n")
+}
+
+func renderShellApplyPatchFailureTranscriptSection(m Model, call *events.ToolCallState, width int, selected bool) string {
+	if call == nil {
+		return ""
+	}
+	width = max(width, 1)
+	title := "Edit failed"
+	if selected {
+		title = "> " + title
+	}
+	errorStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(colorFor(m.theme, "error", "#ff9aa6")))
+	titleStyle := errorStyle.Bold(true)
+	lines := []string{titleStyle.Render(truncateEnd(title, width))}
+	for _, line := range wrapTranscriptText(applyPatchFailureDisplayError(call.Error), width) {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		lines = append(lines, errorStyle.Render(truncateEnd(line, width)))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func applyPatchFailureDisplayError(errorText string) string {
+	errorText = strings.TrimSpace(errorText)
+	for _, prefix := range []string{
+		"`apply_patch` failed",
+		"apply_patch failed",
+		"`apply_patch` error",
+		"apply_patch error",
+	} {
+		if !strings.HasPrefix(errorText, prefix) {
+			continue
+		}
+		errorText = strings.TrimSpace(strings.TrimLeft(strings.TrimSpace(strings.TrimPrefix(errorText, prefix)), ".:;- "))
+		break
+	}
+	if errorText == "" {
+		return "The edit could not be applied."
+	}
+	return uppercaseFirstASCII(errorText)
+}
+
+func uppercaseFirstASCII(text string) string {
+	if text == "" {
+		return ""
+	}
+	first := text[0]
+	if first >= 'a' && first <= 'z' {
+		return string(first-'a'+'A') + text[1:]
+	}
+	return text
 }
 
 func renderShellMutationSuccessLines(m Model, state events.SessionState, ref sessionToolCallRef, call *events.ToolCallState, width int) []string {
