@@ -23,6 +23,25 @@ func applyThemeCmd(ctx context.Context, backend Backend, name string) tea.Cmd {
 	}
 }
 
+func persistTUILayoutCmd(ctx context.Context, backend Backend, layout string) tea.Cmd {
+	if backend == nil {
+		return nil
+	}
+	return func() tea.Msg {
+		if err := backend.SetTUILayout(ctx, tuiLayoutConfigValue(layout)); err != nil {
+			return layoutPersistedMsg{err: err}
+		}
+		return layoutPersistedMsg{}
+	}
+}
+
+func tuiLayoutConfigValue(layout string) string {
+	if strings.TrimSpace(layout) == tuiLayoutShell {
+		return "shell"
+	}
+	return "classic"
+}
+
 func setPrimaryModelCmd(ctx context.Context, backend Backend, view sessionView, ref provider.ModelRef, watchID int) tea.Cmd {
 	return func() tea.Msg {
 		if strings.TrimSpace(view.SessionID) == "" {

@@ -95,6 +95,34 @@ func TestLocalBackendSetThemeNamePersistsThemeSelection(t *testing.T) {
 	}
 }
 
+func TestLocalBackendSetTUILayoutPersistsLayoutSelection(t *testing.T) {
+	setRuntimeHomes(t)
+
+	backend := NewLocalBackend(LocalBackendConfig{Getenv: os.Getenv})
+	if err := backend.SetTUILayout(context.Background(), "classic"); err != nil {
+		t.Fatalf("SetTUILayout(classic) error = %v", err)
+	}
+
+	configFile, err := app.NewConfigStore().Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if configFile.TUI.Layout != "classic" {
+		t.Fatalf("saved layout = %q, want classic", configFile.TUI.Layout)
+	}
+
+	if err := backend.SetTUILayout(context.Background(), "shell"); err != nil {
+		t.Fatalf("SetTUILayout(shell) error = %v", err)
+	}
+	configFile, err = app.NewConfigStore().Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if configFile.TUI.Layout != "shell" {
+		t.Fatalf("saved layout = %q, want shell", configFile.TUI.Layout)
+	}
+}
+
 func TestLocalBackendStartTurnForwardsAttachments(t *testing.T) {
 	setRuntimeHomes(t)
 

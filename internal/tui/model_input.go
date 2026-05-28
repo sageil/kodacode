@@ -197,7 +197,11 @@ func (m Model) toggleLayoutMode() (tea.Model, tea.Cmd) {
 		}
 	}
 	m.syncViewportLayout()
-	return m, tea.Batch(m.syncComposerFocus(), m.showFooterActivity(label, footerActivityToneInfo, ""))
+	return m, tea.Batch(
+		m.syncComposerFocus(),
+		m.showFooterActivity(label, footerActivityToneInfo, ""),
+		persistTUILayoutCmd(m.ctx, m.backend, m.layout),
+	)
 }
 
 func (m Model) handleShellToolsShortcut(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool) {

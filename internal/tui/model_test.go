@@ -57,6 +57,7 @@ type fakeController struct {
 	completeGitHubCopilotErr      error
 	saveProviderErr               error
 	removeProviderErr             error
+	setTUILayoutErr               error
 	loadToolResultErr             error
 	loadToolMutationDetailErr     error
 	dialogStateSet                bool
@@ -79,6 +80,7 @@ type fakeController struct {
 	delegatedResolveCalls        []resolveDelegatedCall
 	reuseCalls                   []reuseCall
 	deleteSessionCalls           []string
+	setTUILayoutCalls            []string
 	setPrimaryModelCalls         []setPrimaryModelCall
 	setUtilityModelCalls         []setUtilityModelCall
 	setReviewerModelCalls        []setReviewerModelCall
@@ -616,6 +618,11 @@ func (f *fakeController) DeleteSession(_ context.Context, sessionID string) erro
 }
 
 func (f *fakeController) SetThemeName(_ context.Context, _ string) error { return nil }
+
+func (f *fakeController) SetTUILayout(_ context.Context, layout string) error {
+	f.setTUILayoutCalls = append(f.setTUILayoutCalls, layout)
+	return f.setTUILayoutErr
+}
 
 func (f *fakeController) SetPrimaryModel(_ context.Context, sessionID string, model provider.ModelRef) error {
 	f.setPrimaryModelCalls = append(f.setPrimaryModelCalls, setPrimaryModelCall{

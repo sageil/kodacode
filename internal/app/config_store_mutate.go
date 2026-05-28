@@ -13,6 +13,17 @@ func (s *ConfigStore) SetTheme(name string) error {
 	})
 }
 
+func (s *ConfigStore) SetTUILayout(layout string) error {
+	return s.update(func(root *yaml.Node) {
+		value := "shell"
+		if strings.ToLower(strings.TrimSpace(layout)) == "classic" {
+			value = "classic"
+		}
+		tui := ensureMappingValue(root, "tui")
+		setMappingScalar(tui, "layout", value)
+	})
+}
+
 func (s *ConfigStore) SetModelRoute(primary string) error {
 	return s.update(func(root *yaml.Node) {
 		model := ensureMappingValue(root, "model")

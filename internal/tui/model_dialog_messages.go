@@ -35,3 +35,7 @@ type themeAppliedMsg struct {
 	name  string
 	theme *tuitheme.Theme
 }
+
+type layoutPersistedMsg struct {
+	err error
+}

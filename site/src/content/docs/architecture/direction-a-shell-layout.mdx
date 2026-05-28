@@ -16,8 +16,9 @@ disclosure instead of occupying permanent screen real estate.
 
 ## Decision
 
-`tui.layout = "shell"` defines a single-plane layout. It is not a rearranged
-version of the classic sidebar UI.
+Shell layout defines a single-plane layout. It is not a rearranged version of
+the classic sidebar UI. It is the default TUI layout; `tui.layout = "classic"`
+opts back into the persistent inspector layout.
 
 Transcript rows are the primary UX unit for conversation flow, but they are not
 the only way to reach tool calls. Shell layout must offer a dedicated tools

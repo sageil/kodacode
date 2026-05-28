@@ -431,6 +431,10 @@ func (m Model) Init() tea.Cmd {
 	}
 	if m.bootstrapped {
 		cmds = append(cmds, watchSessionCmd(m.ctx, m.controller, m.sessionID, m.projector.Snapshot().LastSequence, m.startTurn, m.nextWatch))
+		cmds = append(cmds,
+			m.ensureRelevantDelegatedSessionSnapshotsLoadedCmd(m.projector.Snapshot()),
+			m.ensureSelectedDelegatedSessionSnapshotLoadedCmd(),
+		)
 		return tea.Batch(cmds...)
 	}
 	cmds = append(cmds, openSessionCmd(m.ctx, m.controller, m.currentView(), m.startTurn, m.nextWatch))

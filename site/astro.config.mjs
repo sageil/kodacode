@@ -58,6 +58,7 @@ export default defineConfig({
 					label: 'Reference',
 					items: [
 						{ label: 'Configuration', slug: 'reference/configuration' },
+						{ label: 'TUI Layouts', slug: 'reference/layouts' },
 						{ label: 'Slash Commands', slug: 'reference/commands' },
 						{ label: 'Navigation Keys', slug: 'reference/navigation' },
 					],

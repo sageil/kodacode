@@ -71,6 +71,7 @@ type Backend interface {
 	ListPromptHistory(ctx context.Context, limit int) ([]app.PromptHistoryEntry, error)
 	DeleteSession(ctx context.Context, sessionID string) error
 	SetThemeName(ctx context.Context, themeName string) error
+	SetTUILayout(ctx context.Context, layout string) error
 	SetPrimaryModel(ctx context.Context, sessionID string, model provider.ModelRef) error
 	SetUtilityModel(ctx context.Context, model provider.ModelRef) error
 	SetReviewerModel(ctx context.Context, model provider.ModelRef) error

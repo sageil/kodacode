@@ -18,6 +18,10 @@ func (b *LocalBackend) SetThemeName(_ context.Context, themeName string) error {
 	return app.NewConfigStore().SetTheme(strings.TrimSpace(themeName))
 }
 
+func (b *LocalBackend) SetTUILayout(_ context.Context, layout string) error {
+	return app.NewConfigStore().SetTUILayout(layout)
+}
+
 func (b *LocalBackend) SaveProvider(_ context.Context, input app.ProviderConnectionInput) error {
 	providerID := strings.TrimSpace(input.ProviderID)
 	if providerID == "" {

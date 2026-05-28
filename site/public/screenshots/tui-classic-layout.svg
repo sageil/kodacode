@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">KodaCode classic layout screenshot</title>
+  <desc id="desc">Classic view with transcript on the left and Details, Tools, and Tasks inspector tabs on the right.</desc>
+  <rect width="1600" height="900" fill="#0b0d14"/>
+  <rect x="0" y="0" width="1600" height="44" fill="#11121b"/>
+  <rect x="14" y="13" width="68" height="20" fill="#d7ac45"/>
+  <text x="28" y="29" font-family="JetBrains Mono, monospace" font-size="14" font-weight="700" fill="#17140e">NORMAL</text>
+  <text x="106" y="29" font-family="JetBrains Mono, monospace" font-size="16" font-weight="700" fill="#d7ac45">KodaCode</text>
+  <text x="190" y="29" font-family="JetBrains Mono, monospace" font-size="16" font-weight="700" fill="#b8b6bd">Database Index Review Optimization Suggestions</text>
+  <text x="612" y="29" font-family="JetBrains Mono, monospace" font-size="16" fill="#54b8e8">openai-codex</text>
+  <text x="735" y="29" font-family="JetBrains Mono, monospace" font-size="16" fill="#d7bd63">gpt-5.4</text>
+  <text x="810" y="29" font-family="JetBrains Mono, monospace" font-size="16" fill="#6f6b7d">xhigh  1.1M  R T V</text>
+  <rect x="1024" y="13" width="82" height="20" fill="#171b26"/>
+  <rect x="1024" y="13" width="51" height="20" fill="#b3934c"/>
+  <text x="1120" y="29" font-family="JetBrains Mono, monospace" font-size="16" fill="#d7bd63">ctx peak 41.2k/64.0k 64%</text>
+  <text x="1372" y="29" font-family="JetBrains Mono, monospace" font-size="16" fill="#777489">314.8k down 4.9k</text>
+  <text x="1517" y="29" font-family="JetBrains Mono, monospace" font-size="16" fill="#8dd777">est. $0.4097</text>
+  <line x1="0" y1="44" x2="1600" y2="44" stroke="#232438"/>
+  <rect x="1174" y="44" width="2" height="748" fill="#d7ac45"/>
+  <rect x="1208" y="62" width="386" height="720" rx="4" fill="#0d1018" stroke="#1f2231"/>
+  <rect x="1208" y="62" width="117" height="36" fill="#0a0c13" stroke="#1f2231"/>
+  <rect x="1332" y="62" width="118" height="36" fill="#11141c" stroke="#1f2231"/>
+  <rect x="1456" y="62" width="138" height="36" fill="#0a0c13" stroke="#1f2231"/>
+  <text x="1240" y="84" font-family="JetBrains Mono, monospace" font-size="15" fill="#5f6277">Details</text>
+  <text x="1370" y="84" font-family="JetBrains Mono, monospace" font-size="15" fill="#c7c2c7">Tools</text>
+  <text x="1498" y="84" font-family="JetBrains Mono, monospace" font-size="15" fill="#5f6277">Tasks</text>
+  <text x="1222" y="120" font-family="JetBrains Mono, monospace" font-size="14" fill="#74758b">Used</text>
+  <text x="1222" y="140" font-family="JetBrains Mono, monospace" font-size="14" fill="#f07178">x Task: Review database indexes and perfor...</text>
+  <text x="1222" y="160" font-family="JetBrains Mono, monospace" font-size="14" fill="#aaa6af">Task: Review database indexes and perfor...</text>
+  <text x="1222" y="180" font-family="JetBrains Mono, monospace" font-size="14" fill="#aaa6af">Task: Audit indexes and query patterns</text>
+  <text x="1248" y="205" font-family="JetBrains Mono, monospace" font-size="15" font-weight="700" fill="#d7ac45">Reviewer</text>
+  <text x="1248" y="225" font-family="JetBrains Mono, monospace" font-size="14" fill="#d7ac45">Audit the repository's database indexe...</text>
+  <text x="1248" y="250" font-family="JetBrains Mono, monospace" font-size="15" font-weight="700" fill="#d7ac45">Explored</text>
+  <g font-family="JetBrains Mono, monospace" font-size="14" fill="#aaa6af">
+    <text x="1222" y="270">Locate .ts under src/models - 8 paths</text>
+    <text x="1222" y="290">Read Comment.ts (lines 1-100)</text>
+    <text x="1222" y="310">Read Notification.ts (lines 1-70)</text>
+    <text x="1222" y="330">Read Project.ts (lines 1-62)</text>
+    <text x="1222" y="350">Read Proposal.ts (lines 1-54)</text>
+    <text x="1222" y="370">Read Role.ts (lines 1-63)</text>
+    <text x="1222" y="390">Read Task.ts (lines 1-70)</text>
+    <text x="1222" y="410">Read TimeEntry.ts (lines 1-40)</text>
+    <text x="1222" y="430">Read User.ts (lines 1-37)</text>
+    <text x="1222" y="450">Search src/ for find( - 30 matches</text>
+    <text x="1222" y="470">Read CommentRepository.ts</text>
+    <text x="1222" y="490">Read NotificationRepository.ts</text>
+    <text x="1222" y="510">Read ProjectRepository.ts</text>
+    <text x="1222" y="530">Read TaskRepository.ts</text>
+  </g>
+  <text x="31" y="118" font-family="JetBrains Mono, monospace" font-size="16" fill="#f07178">Task: Review database indexes and performance recommendations - task_workflow failed: create does not accept summary.</text>
+  <text x="31" y="154" font-family="JetBrains Mono, monospace" font-size="16" fill="#aaa6af">Task: Review database indexes and performance recommendations - action: create task: task-18 status: in_progress</text>
+  <text x="31" y="190" font-family="JetBrains Mono, monospace" font-size="16" fill="#aaa6af">Task: Audit indexes and query patterns - action: create task: task-26 status: in_progress</text>
+  <rect x="31" y="212" width="1125" height="510" fill="#11141c"/>
+  <text x="48" y="244" font-family="JetBrains Mono, monospace" font-size="16" font-weight="700" fill="#55c4f2">Audit the repository's database indexes and query patterns. Identify existing MongoDB/Mongoose indexes, how they...</text>
+  <text x="48" y="280" font-family="JetBrains Mono, monospace" font-size="16" font-weight="700" fill="#55c4f2">Model: <tspan fill="#74758b" font-weight="400">openai-codex/gpt-5.4</tspan></text>
+  <g font-family="JetBrains Mono, monospace" font-size="16" fill="#c5c2c9">
+    <text x="48" y="322"><tspan fill="#55c4f2">-</tspan> <tspan font-weight="700">[P1] src/models/Project.ts:27 Missing text index for project search</tspan></text>
+    <text x="66" y="346">Project queries support $regex search on <tspan fill="#55c4f2">name</tspan> and <tspan fill="#55c4f2">description</tspan>, but there is no text index defined.</text>
+    <text x="48" y="418"><tspan fill="#55c4f2">-</tspan> <tspan font-weight="700">[P2] src/models/User.ts:16 Missing text index for user search</tspan></text>
+    <text x="66" y="442">User queries allow searching on <tspan fill="#55c4f2">name</tspan> and <tspan fill="#55c4f2">email</tspan> via $regex, but no text index is present.</text>
+    <text x="48" y="514"><tspan fill="#55c4f2">-</tspan> <tspan font-weight="700">[P2] src/models/TimeEntry.ts:29 Potential redundant/overlapping indexes</tspan></text>
+    <text x="66" y="538">Multiple indexes exist on task, user, startTime, and createdAt, which may cause unnecessary MongoDB index bloat.</text>
+    <text x="48" y="610"><tspan fill="#55c4f2">-</tspan> <tspan font-weight="700">[P2] src/models/Task.ts:40 Potentially redundant compound indexes on Task</tspan></text>
+    <text x="66" y="634">Several overlapping indexes on project, status, priority, deletedAt, and createdAt should be audited.</text>
+    <text x="48" y="686"><tspan fill="#55c4f2" font-weight="700">Overall correctness:</tspan> incorrect</text>
+  </g>
+  <text x="31" y="754" font-family="JetBrains Mono, monospace" font-size="16" fill="#aaa6af">Explored - 5 search - 2 read - 3 shell</text>
+  <line x1="14" y1="820" x2="1586" y2="820" stroke="#1f2231"/>
+  <text x="31" y="842" font-family="JetBrains Mono, monospace" font-size="16" fill="#d7ac45">--: Waiting for model <tspan fill="#777489">(1m 47s - esc to interrupt)</tspan></text>
+  <text x="14" y="866" font-family="JetBrains Mono, monospace" font-size="16" fill="#cba6f7">}</text>
+  <text x="31" y="866" font-family="JetBrains Mono, monospace" font-size="16" fill="#777489">Ask kodacode...</text>
+  <text x="14" y="892" font-family="JetBrains Mono, monospace" font-size="16" fill="#d7ac45">engineer - ./ main - 18 roundtrips - 33 tools - search:warm - mode:auto</text>
+</svg>

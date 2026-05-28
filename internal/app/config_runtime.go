@@ -114,10 +114,12 @@ func normalizedTUIDisplayTurns(value int) int {
 
 func normalizedTUILayout(value string) string {
 	switch strings.ToLower(strings.TrimSpace(value)) {
-	case "shell":
+	case "", "shell":
 		return "shell"
-	default:
+	case "classic":
 		return ""
+	default:
+		return "shell"
 	}
 }
 

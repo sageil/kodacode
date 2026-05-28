@@ -499,6 +499,7 @@
         },
         "layout": {
           "type": "string",
+          "description": "TUI layout. Omit or use shell for the default single-plane shell view; use classic for the persistent inspector layout.",
           "enum": [
             "classic",
             "shell"

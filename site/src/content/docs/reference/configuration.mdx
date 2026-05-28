@@ -82,7 +82,7 @@ permissions:
 
 tui:
   theme: ayu-dark
-  # layout: classic  # or shell
+  # layout: shell    # default; use classic for the persistent inspector
   # shell_tool_calls: true
   # display_turns: 6
 ```
@@ -95,6 +95,7 @@ Why this works well:
 - `sessions.response_style` defaults to `terse`, which trims normal model prose without affecting safety-critical explanations
 - `execution.network: disabled` keeps command-backed tools conservative by default
 - `permissions` lets runtime default repeated safe cases to `allow`, `ask`, or `deny` without moving permission ownership into prompts
+- `tui.layout` defaults to `shell`; use `classic` when you want the persistent side inspector
 
 ## OpenAI account types
 
@@ -238,6 +239,22 @@ Why you would reach for this:
 - leaving `response_style` unset keeps the default `terse` behavior; set it to `default` only when you want fuller ordinary narration
 - compaction thresholds keep long sessions usable without hiding what changed
 - debug logging gives you a real trail when provider routing or tool execution needs investigation
+
+## TUI layout
+
+`tui.layout` controls the main terminal surface:
+
+| Value | Behavior |
+| --- | --- |
+| unset | Use shell view |
+| `shell` | Use the single-plane shell view |
+| `classic` | Use the persistent inspector layout |
+
+Inside the TUI, `Ctrl+L` switches between shell and classic and persists the
+selected layout back to `config.yaml`.
+
+See [TUI Layouts](/reference/layouts/) for screenshots and the interaction
+differences between the two views.
 - `permissions` reduces repeat approval churn while keeping the runtime as the permission authority
 - `search.prewarm_embeddings: true` spends background work up front so hybrid search can feel faster in active workspaces
 - `search.skip_dirs` adds extra exact directory names to ignore while keeping built-in skips for `.git`, `node_modules`, and `vendor`

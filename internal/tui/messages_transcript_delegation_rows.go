@@ -17,19 +17,36 @@ type transcriptDelegationRow struct {
 }
 
 func newDelegationTranscriptRow(turnID string, turn *events.TurnState, selectedHandoffID string, width int) transcriptDelegationRow {
+	if turn == nil || len(turn.HandoffOrder) == 0 {
+		return transcriptDelegationRow{
+			turnID: strings.TrimSpace(turnID),
+			width:  max(width, 1),
+		}
+	}
+	handoffs := make([]*events.AgentHandoffState, 0, len(turn.HandoffOrder))
+	for _, handoffID := range turn.HandoffOrder {
+		handoffs = append(handoffs, turn.Handoffs[handoffID])
+	}
+	return newDelegationTranscriptRowForHandoffs(turnID, handoffs, selectedHandoffID, width)
+}
+
+func newDelegationTranscriptRowForHandoffs(turnID string, handoffs []*events.AgentHandoffState, selectedHandoffID string, width int) transcriptDelegationRow {
 	row := transcriptDelegationRow{
 		turnID: strings.TrimSpace(turnID),
 		width:  max(width, 1),
 	}
-	if turn == nil || len(turn.HandoffOrder) == 0 {
+	if len(handoffs) == 0 {
 		return row
 	}
-	if handoff := explicitSelectedHandoff(turn, selectedHandoffID); handoff != nil {
-		row.selectedID = strings.TrimSpace(handoff.HandoffID)
-	}
-	row.handoffs = make([]*events.AgentHandoffState, 0, len(turn.HandoffOrder))
-	for _, handoffID := range turn.HandoffOrder {
-		handoff := turn.Handoffs[handoffID]
+	selectedID := strings.TrimSpace(selectedHandoffID)
+	row.handoffs = make([]*events.AgentHandoffState, 0, len(handoffs))
+	for _, handoff := range handoffs {
+		if handoff == nil {
+			continue
+		}
+		if selectedID != "" && strings.TrimSpace(handoff.HandoffID) == selectedID {
+			row.selectedID = selectedID
+		}
 		if !shouldRenderDelegationRowInTranscript(handoff, row.selectedID) {
 			continue
 		}

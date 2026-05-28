@@ -24,6 +24,7 @@ execution:
 
 tui:
   theme: ayu-dark
+  layout: shell
   # display_turns: 6
 
 # Optional examples:

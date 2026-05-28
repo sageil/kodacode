@@ -216,10 +216,20 @@ func renderShellDelegatedToolOutcomeSections(m Model, turn *events.TurnState, wi
 	if !shellLayoutEnabled(m) || !m.shellToolCallsVisible || turn == nil || len(turn.HandoffOrder) == 0 {
 		return nil
 	}
-	lines := make([]string, 0, len(turn.HandoffOrder)*2)
-	lineRefs := make(map[sessionToolCallRef]int)
+	handoffs := make([]*events.AgentHandoffState, 0, len(turn.HandoffOrder))
 	for _, handoffID := range orderedHandoffIDs(turn) {
-		handoff := turn.Handoffs[handoffID]
+		handoffs = append(handoffs, turn.Handoffs[handoffID])
+	}
+	return renderShellDelegatedToolOutcomeSectionsForHandoffs(m, handoffs, width)
+}
+
+func renderShellDelegatedToolOutcomeSectionsForHandoffs(m Model, handoffs []*events.AgentHandoffState, width int) []transcriptSection {
+	if !shellLayoutEnabled(m) || !m.shellToolCallsVisible || len(handoffs) == 0 {
+		return nil
+	}
+	lines := make([]string, 0, len(handoffs)*2)
+	lineRefs := make(map[sessionToolCallRef]int)
+	for _, handoff := range handoffs {
 		if handoff == nil {
 			continue
 		}

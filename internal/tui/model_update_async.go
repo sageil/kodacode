@@ -354,6 +354,7 @@ func (m Model) handleSessionSnapshotRefreshedMsg(msg sessionSnapshotRefreshedMsg
 		m.syncToolDetailDialog()
 		m.syncHandoffDetailDialog()
 		m.syncInspectorBody(false)
+		m.syncViewportLayout()
 		return m, tea.Batch(
 			pendingRefreshCmd,
 			loadSessionUsageSummaryCmd(m.ctx, m.controller, m.sessionID),

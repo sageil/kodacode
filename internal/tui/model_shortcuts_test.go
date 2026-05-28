@@ -141,7 +141,8 @@ func TestCtrlLTogglesLayoutMode(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.TODO())
 	defer cancel()
 
-	model := NewModel(&fakeController{}, ModelConfig{
+	controller := &fakeController{}
+	model := NewModel(controller, ModelConfig{
 		Context:       ctx,
 		Theme:         &defaultTheme,
 		SessionID:     "session-1",
@@ -162,12 +163,47 @@ func TestCtrlLTogglesLayoutMode(t *testing.T) {
 	if cmd == nil {
 		t.Fatal("layout toggle cmd = nil")
 	}
+	layoutPersistedFromCmd(t, cmd)
+	if got := controller.setTUILayoutCalls; len(got) != 1 || got[0] != "shell" {
+		t.Fatalf("setTUILayoutCalls = %#v, want [shell]", got)
+	}
 
-	updated, _ = next.Update(tea.KeyPressMsg{Code: 'l', Mod: tea.ModCtrl})
+	updated, cmd = next.Update(tea.KeyPressMsg{Code: 'l', Mod: tea.ModCtrl})
 	next = updated.(Model)
 	if next.layout != tuiLayoutClassic {
 		t.Fatalf("layout = %q, want classic layout", next.layout)
 	}
+	layoutPersistedFromCmd(t, cmd)
+	if got := controller.setTUILayoutCalls; len(got) != 2 || got[1] != "classic" {
+		t.Fatalf("setTUILayoutCalls = %#v, want second classic", got)
+	}
+}
+
+func layoutPersistedFromCmd(t *testing.T, cmd tea.Cmd) layoutPersistedMsg {
+	t.Helper()
+	if cmd == nil {
+		t.Fatal("cmd = nil, want layoutPersistedMsg")
+	}
+	msg := cmd()
+	if persisted, ok := msg.(layoutPersistedMsg); ok {
+		return persisted
+	}
+	if batch, ok := msg.(tea.BatchMsg); ok {
+		for idx := len(batch) - 1; idx >= 0; idx-- {
+			subcmd := batch[idx]
+			if subcmd == nil {
+				continue
+			}
+			if persisted, ok := subcmd().(layoutPersistedMsg); ok {
+				if persisted.err != nil {
+					t.Fatalf("layout persist error = %v", persisted.err)
+				}
+				return persisted
+			}
+		}
+	}
+	t.Fatalf("cmd() msg = %#v, want layoutPersistedMsg or tea.BatchMsg containing one", msg)
+	return layoutPersistedMsg{}
 }
 
 func TestEscapeFocusesTranscriptWhenTurnNotRunning(t *testing.T) {

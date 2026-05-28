@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">KodaCode shell layout screenshot</title>
+  <desc id="desc">Shell view with one continuous transcript plane, compact tool rows, and no persistent side inspector.</desc>
+  <rect width="1600" height="900" fill="#0b0d14"/>
+  <rect x="0" y="0" width="1600" height="44" fill="#11121b"/>
+  <text x="82" y="29" font-family="JetBrains Mono, monospace" font-size="16" font-weight="700" fill="#d7ac45">KodaCode</text>
+  <text x="172" y="29" font-family="JetBrains Mono, monospace" font-size="16" fill="#777489">@kairo on</text>
+  <text x="270" y="29" font-family="JetBrains Mono, monospace" font-size="16" fill="#8dd777">./ main</text>
+  <text x="390" y="29" font-family="JetBrains Mono, monospace" font-size="16" font-weight="700" fill="#b8b6bd">Database Index Review Optimization Suggestions</text>
+  <text x="725" y="29" font-family="JetBrains Mono, monospace" font-size="16" fill="#54b8e8">openai-codex</text>
+  <text x="848" y="29" font-family="JetBrains Mono, monospace" font-size="16" fill="#d7bd63">gpt-5.4</text>
+  <text x="925" y="29" font-family="JetBrains Mono, monospace" font-size="16" fill="#6f6b7d">xhigh  1.1M  R T V</text>
+  <rect x="1132" y="13" width="86" height="20" fill="#171b26"/>
+  <rect x="1132" y="13" width="53" height="20" fill="#b3934c"/>
+  <text x="1235" y="29" font-family="JetBrains Mono, monospace" font-size="16" fill="#d7bd63">ctx 39.7k/64.0k 62%</text>
+  <text x="1430" y="29" font-family="JetBrains Mono, monospace" font-size="16" fill="#7d7a8c">up 78.4k down 2.5k</text>
+  <line x1="14" y1="44" x2="1586" y2="44" stroke="#232438"/>
+  <rect x="15" y="54" width="4" height="18" fill="#f1cc68"/>
+  <text x="40" y="69" font-family="JetBrains Mono, monospace" font-size="16" fill="#c7c2c7">Review the database indexes and recommend performance enhancements</text>
+  <g font-family="JetBrains Mono, monospace" font-size="16">
+    <text x="31" y="108" fill="#f07178">x task_wo... Task: Review database indexes and performance recommendations - task_workflow failed: create does not accept summary.</text>
+    <text x="31" y="128" fill="#8dd777">+ <tspan fill="#aaa6af">task_wo... Task: Review database indexes and performance recommendations - action: create task: task-18 status: in_progress</tspan></text>
+    <text x="31" y="148" fill="#8dd777">+ <tspan fill="#aaa6af">task_wo... Task: Audit indexes and query patterns - action: create task: task-26 status: in_progress</tspan></text>
+  </g>
+  <text x="14" y="187" font-family="JetBrains Mono, monospace" font-size="15" fill="#171b26">DELEGATION</text>
+  <text x="14" y="208" font-family="JetBrains Mono, monospace" font-size="16" font-weight="700" fill="#c7c2c7">- reviewer <tspan fill="#d7ac45">[running]</tspan></text>
+  <text x="31" y="232" font-family="JetBrains Mono, monospace" font-size="16" fill="#777489">Audit the repository's database indexes and query patterns. Identify existing MongoDB/Mongoose indexes, how they align with filters/sorts/uniqueness constraints, any missing or</text>
+  <text x="31" y="252" font-family="JetBrains Mono, monospace" font-size="16" fill="#777489">suboptimal compound/partial/text indexes, any redundant or risky indexes, and recommend prioritized performance enhancements with concrete file references and rationale.</text>
+  <text x="31" y="274" font-family="JetBrains Mono, monospace" font-size="16" fill="#d7ac45">activity: finalizing response</text>
+  <text x="31" y="294" font-family="JetBrains Mono, monospace" font-size="16" fill="#777489">preview: ...et me know if you want a detailed index optimization plan or explain-focused revie...</text>
+  <g font-family="JetBrains Mono, monospace" font-size="16">
+    <text x="48" y="334" fill="#8dd777">+ <tspan fill="#777489">locate</tspan> <tspan fill="#c7c2c7">.ts under src/models - 8 paths</tspan><tspan x="1540" fill="#777489">t1</tspan></text>
+    <text x="48" y="356" fill="#8dd777">+ <tspan fill="#777489">read</tspan>   <tspan fill="#c7c2c7">Comment.ts - lines 1-100</tspan><tspan x="1540" fill="#777489">t1</tspan></text>
+    <text x="48" y="378" fill="#8dd777">+ <tspan fill="#777489">read</tspan>   <tspan fill="#c7c2c7">Notification.ts - lines 1-70</tspan><tspan x="1540" fill="#777489">t1</tspan></text>
+    <text x="48" y="400" fill="#8dd777">+ <tspan fill="#777489">read</tspan>   <tspan fill="#c7c2c7">Project.ts - lines 1-62</tspan><tspan x="1540" fill="#777489">t1</tspan></text>
+    <text x="48" y="422" fill="#8dd777">+ <tspan fill="#777489">read</tspan>   <tspan fill="#c7c2c7">Proposal.ts - lines 1-54</tspan><tspan x="1540" fill="#777489">t1</tspan></text>
+    <text x="48" y="444" fill="#8dd777">+ <tspan fill="#777489">read</tspan>   <tspan fill="#c7c2c7">Role.ts - lines 1-63</tspan><tspan x="1540" fill="#777489">t1</tspan></text>
+    <text x="48" y="466" fill="#8dd777">+ <tspan fill="#777489">read</tspan>   <tspan fill="#c7c2c7">Task.ts - lines 1-70</tspan><tspan x="1540" fill="#777489">t1</tspan></text>
+    <text x="48" y="488" fill="#8dd777">+ <tspan fill="#777489">read</tspan>   <tspan fill="#c7c2c7">TimeEntry.ts - lines 1-40</tspan><tspan x="1540" fill="#777489">t1</tspan></text>
+    <text x="48" y="510" fill="#8dd777">+ <tspan fill="#777489">read</tspan>   <tspan fill="#c7c2c7">User.ts - lines 1-37</tspan><tspan x="1540" fill="#777489">t1</tspan></text>
+    <text x="48" y="532" fill="#8dd777">+ <tspan fill="#777489">search</tspan> <tspan fill="#c7c2c7">src/ for find( - 30 matches</tspan><tspan x="1540" fill="#777489">t1</tspan></text>
+    <text x="48" y="554" fill="#8dd777">+ <tspan fill="#777489">read</tspan>   <tspan fill="#c7c2c7">CommentRepository.ts - lines 1-131</tspan><tspan x="1540" fill="#777489">t1</tspan></text>
+    <text x="48" y="576" fill="#8dd777">+ <tspan fill="#777489">read</tspan>   <tspan fill="#c7c2c7">ProjectRepository.ts - lines 1-206</tspan><tspan x="1540" fill="#777489">t1</tspan></text>
+    <text x="48" y="598" fill="#8dd777">+ <tspan fill="#777489">read</tspan>   <tspan fill="#c7c2c7">TaskRepository.ts - lines 1-350</tspan><tspan x="1540" fill="#777489">t1</tspan></text>
+  </g>
+  <line x1="14" y1="820" x2="1586" y2="820" stroke="#1f2231"/>
+  <text x="31" y="842" font-family="JetBrains Mono, monospace" font-size="16" fill="#d7ac45">--: Running tools <tspan fill="#777489">(54s - esc to interrupt)</tspan></text>
+  <text x="14" y="866" font-family="JetBrains Mono, monospace" font-size="16" fill="#cba6f7">}</text>
+  <text x="31" y="866" font-family="JetBrains Mono, monospace" font-size="16" fill="#777489">Ask kodacode...</text>
+  <text x="14" y="892" font-family="JetBrains Mono, monospace" font-size="16" fill="#d7ac45">running reviewer...</text>
+  <text x="820" y="892" font-family="JetBrains Mono, monospace" font-size="16" fill="#777489">t tools - T inline tools - h/l chars - v select - i insert - ctrl+l layout - ctrl+s sessions</text>
+</svg>

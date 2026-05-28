@@ -39,6 +39,12 @@ func (m Model) updateChromeMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 			m.clearFooterError()
 		}
 		return m, nil, true
+	case layoutPersistedMsg:
+		if typed.err != nil {
+			m.setFooterError(typed.err.Error())
+			return m, nil, true
+		}
+		return m, nil, true
 	case primaryModelSetMsg:
 		if typed.err != nil {
 			m.setFooterError(typed.err.Error())

@@ -928,11 +928,29 @@ func TestLoadTUISettingsWithSourcesNormalizesNegativeDisplayTurns(t *testing.T) 
 	if settings.DisplayTurns != 0 {
 		t.Fatalf("display turns = %d, want 0", settings.DisplayTurns)
 	}
+	if settings.Layout != "shell" {
+		t.Fatalf("layout = %q, want shell", settings.Layout)
+	}
 	if settings.TerminalIcons != "auto" {
 		t.Fatalf("terminal icons = %q, want auto", settings.TerminalIcons)
 	}
 	if !settings.ShellToolCalls {
 		t.Fatal("shell tool calls should default to true")
+	}
+}
+
+func TestLoadTUISettingsWithSourcesPreservesClassicLayoutOptOut(t *testing.T) {
+	settings, err := LoadTUISettingsWithSources(
+		func(string) string { return "" },
+		fakeStoredConfigLoader{config: StoredConfig{
+			TUI: StoredTUIConfig{Layout: "classic"},
+		}},
+	)
+	if err != nil {
+		t.Fatalf("LoadTUISettingsWithSources() error = %v", err)
+	}
+	if settings.Layout != "" {
+		t.Fatalf("layout = %q, want classic sentinel", settings.Layout)
 	}
 }
 

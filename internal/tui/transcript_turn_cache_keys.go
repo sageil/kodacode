@@ -78,6 +78,8 @@ func turnTranscriptChunkCacheKeyWithOptions(m Model, state events.SessionState, 
 		b.WriteString(strings.TrimSpace(m.selection.expandedCallID))
 	}
 	b.WriteString("\x00")
+	appendDelegatedShellTurnCacheKey(&b, m, turn)
+	b.WriteString("\x00")
 	if explicitSelectedHandoff(turn, strings.TrimSpace(m.selection.handoffID)) != nil {
 		b.WriteString(strings.TrimSpace(m.selection.handoffID))
 	}
@@ -95,6 +97,90 @@ func turnTranscriptChunkCacheKeyWithOptions(m Model, state events.SessionState, 
 		b.WriteString(toolResultDetailSignature(loaded))
 	}
 	return b.String()
+}
+
+func appendDelegatedShellTurnCacheKey(b *strings.Builder, m Model, turn *events.TurnState) {
+	if b == nil || turn == nil || !shellLayoutEnabled(m) || !m.shellToolCallsVisible || len(turn.HandoffOrder) == 0 {
+		return
+	}
+	selectedSessionID := strings.TrimSpace(selectedToolSessionID(m))
+	expandedSessionID := strings.TrimSpace(expandedToolSessionID(m))
+	for _, handoffID := range orderedHandoffIDs(turn) {
+		handoff := turn.Handoffs[handoffID]
+		if handoff == nil {
+			continue
+		}
+		childSessionID := strings.TrimSpace(handoff.ChildSessionID)
+		if childSessionID == "" {
+			continue
+		}
+		b.WriteString("delegate_child:")
+		b.WriteString(strings.TrimSpace(handoff.HandoffID))
+		b.WriteString("\x00")
+		b.WriteString(childSessionID)
+		b.WriteString("\x00")
+		if m.delegatedSnapshots.loading[childSessionID] {
+			b.WriteString("loading")
+		}
+		if childState, ok := m.delegatedSnapshot(childSessionID); ok {
+			appendDelegatedChildSnapshotCacheKey(b, childState)
+		}
+		if selectedSessionID == childSessionID {
+			b.WriteString("\x00selected_child:")
+			b.WriteString(strings.TrimSpace(m.selection.callTurnID))
+			b.WriteString("\x00")
+			b.WriteString(strings.TrimSpace(m.selection.callID))
+		}
+		if expandedSessionID == childSessionID {
+			b.WriteString("\x00expanded_child:")
+			b.WriteString(strings.TrimSpace(m.selection.expandedCallTurnID))
+			b.WriteString("\x00")
+			b.WriteString(strings.TrimSpace(m.selection.expandedCallID))
+			appendDelegatedLoadedToolResultCacheKey(b, m, childSessionID, sessionToolCallRef{
+				TurnID: strings.TrimSpace(m.selection.expandedCallTurnID),
+				CallID: strings.TrimSpace(m.selection.expandedCallID),
+			})
+		}
+		b.WriteString("\x00")
+	}
+}
+
+func appendDelegatedChildSnapshotCacheKey(b *strings.Builder, state events.SessionState) {
+	if b == nil {
+		return
+	}
+	b.WriteString("snapshot:")
+	b.WriteString(strings.TrimSpace(state.SessionID))
+	b.WriteString("\x00")
+	b.WriteString(strings.TrimSpace(state.WorkspaceRoot))
+	for _, turnID := range orderedSessionTurnIDs(state) {
+		turn := state.Turns[turnID]
+		if turn == nil {
+			continue
+		}
+		b.WriteString("\x00")
+		b.WriteString(strings.TrimSpace(turnID))
+		b.WriteString("\x00")
+		b.WriteString(string(turn.Status))
+		b.WriteString("\x00")
+		b.WriteString(strconv.FormatUint(buildTurnTranscriptSourceSignature(turn), 16))
+	}
+}
+
+func appendDelegatedLoadedToolResultCacheKey(b *strings.Builder, m Model, sessionID string, ref sessionToolCallRef) {
+	if b == nil || strings.TrimSpace(ref.TurnID) == "" || strings.TrimSpace(ref.CallID) == "" {
+		return
+	}
+	loaded, ok := m.toolHydration.loadedResults[scopedToolKey(sessionID, ref)]
+	if !ok {
+		return
+	}
+	b.WriteString("\x00loaded_child:")
+	b.WriteString(strings.TrimSpace(ref.TurnID))
+	b.WriteString("\x00")
+	b.WriteString(strings.TrimSpace(ref.CallID))
+	b.WriteString("\x00")
+	b.WriteString(toolResultDetailSignature(loaded))
 }
 
 func (m Model) transcriptTurnSourceKey(turnID string, turn *events.TurnState) string {
