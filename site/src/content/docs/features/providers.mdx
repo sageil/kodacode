@@ -1,0 +1,178 @@
+---
+title: Providers
+description: Configure model providers, credentials, and provider IDs
+---
+
+KodaCode separates provider identity from provider credentials.
+
+- `config.yaml` declares which providers exist and which model routes to use.
+- `auth.yaml` stores API keys and OAuth state.
+- Model references use `provider_id/model_id`, such as `openai/gpt-5`.
+
+The fastest setup path is the `/connect` dialog inside the TUI. It writes the
+provider entry and credential entry for you. You can also edit the files
+manually when you want repeatable machine setup.
+
+## Files
+
+Default locations:
+
+| File | Purpose |
+| --- | --- |
+| `~/.config/kodacode/config.yaml` | Provider IDs, base URLs, model routes, budgets, and runtime settings |
+| `~/.config/kodacode/auth.yaml` | API keys, OAuth tokens, and provider account state |
+
+Credentials do not belong in `config.yaml`.
+
+## Built-in providers
+
+The `/connect` dialog includes native providers and OpenAI-compatible presets:
+
+| Provider ID | Name | Notes |
+| --- | --- | --- |
+| `openai` | OpenAI | OpenAI Platform API key |
+| `openai-codex` | OpenAI Codex OAuth | ChatGPT/Codex OAuth account created by the OpenAI `/connect` flow |
+| `anthropic` | Anthropic | Native Anthropic Messages API |
+| `google` | Google | Native Gemini API |
+| `nvidia` | NVIDIA | NVIDIA API endpoint |
+| `github-copilot` | GitHub Copilot | OAuth/token-backed GitHub Copilot route |
+| `deepseek` | DeepSeek | DeepSeek API route |
+| `qwencloud` | QwenCloud | OpenAI-compatible preset |
+| `openrouter` | OpenRouter | OpenAI-compatible preset |
+| `togetherai` | Together AI | OpenAI-compatible preset |
+| `groq` | Groq | OpenAI-compatible preset |
+| `fireworks-ai` | Fireworks AI | OpenAI-compatible preset |
+| `mistral` | Mistral | OpenAI-compatible preset |
+| `cerebras` | Cerebras | OpenAI-compatible preset |
+| `deepinfra` | Deep Infra | OpenAI-compatible preset |
+| `moonshotai` | Moonshot AI (Kimi) | OpenAI-compatible preset |
+| `venice` | Venice AI | OpenAI-compatible preset |
+| `zai-coding-plan` | Z.AI | OpenAI-compatible preset |
+| `ollama-cloud` | Ollama Cloud | OpenAI-compatible preset |
+| `ollama` | Ollama | Local OpenAI-compatible preset; API key is optional |
+| `lmstudio` | LM Studio | Local OpenAI-compatible preset; API key is optional |
+| `llamacpp` | llama.cpp | Local OpenAI-compatible preset; API key is optional |
+| custom ID | Custom Compatible | Any OpenAI-compatible endpoint with your chosen provider ID |
+
+`openai` and `openai-codex` are intentionally separate routes. `openai` uses an
+OpenAI Platform API key. `openai-codex` uses ChatGPT/Codex OAuth state from the
+OpenAI connect flow.
+
+## API key setup
+
+Manual API-key setup uses matching provider IDs in both files.
+
+`config.yaml`:
+
+```yaml
+version: 1
+
+providers:
+  - id: openai
+  - id: anthropic
+
+model:
+  primary: openai/gpt-5
+
+utility_model: openai/gpt-5-mini
+```
+
+`auth.yaml`:
+
+```yaml
+openai:
+  type: api
+  access: "sk-..."
+
+anthropic:
+  type: api
+  access: "sk-ant-..."
+```
+
+The key under `auth.yaml` must match the provider `id` from `config.yaml`.
+
+## Compatible providers
+
+OpenAI-compatible providers use an `id` plus `base_url` in `config.yaml`.
+
+```yaml
+version: 1
+
+providers:
+  - id: openrouter
+    base_url: https://openrouter.ai/api/v1
+  - id: ollama
+    base_url: http://localhost:11434/v1
+
+model:
+  primary: openrouter/openai/gpt-5
+```
+
+`auth.yaml`:
+
+```yaml
+openrouter:
+  type: api
+  access: "sk-or-..."
+
+ollama:
+  type: api
+  access: ""
+```
+
+Local providers such as Ollama, LM Studio, and llama.cpp can use an empty API
+key when the local endpoint does not require authentication.
+
+## Model routes
+
+After a provider is connected, select models from inside the TUI:
+
+- `/model` changes the primary model route.
+- `/utility-model` changes the background utility model route.
+- `/reviewer-model` changes the model used for reviewer turns.
+
+For durable defaults, set the same routes in `config.yaml`:
+
+```yaml
+model:
+  primary: anthropic/claude-sonnet-4-6
+
+utility_model: openai/gpt-5-mini
+
+workflow:
+  review_model:
+    primary: openai/gpt-5-mini
+```
+
+See [Model Routing](/features/model-routing/) for routing behavior,
+`model_overrides`, reasoning controls, and model catalog refresh details.
+
+## Provider metadata
+
+KodaCode refreshes remote model catalogs and caches them in the data directory.
+Some compatible providers return incomplete model metadata. When context
+windows, output caps, capabilities, or pricing are missing, add
+`model_overrides` in `config.yaml`.
+
+```yaml
+model_overrides:
+  - ref: qwencloud/qwen3.6-plus
+    name: Qwen3.6 Plus
+    context_size: 1000000
+    max_input_tokens: 1000000
+    max_output_tokens: 64000
+    default_output_tokens: 16000
+    reasoning: true
+    tool_calls: true
+    vision: true
+```
+
+See [Configuration](/reference/configuration/) for the full persisted
+configuration surface.
+
+## Web search providers
+
+Model providers are separate from `web_search` providers. Configure Exa or
+Parallel under `web_search.providers`, not top-level `providers:`.
+
+See [Web Search](/features/web-search/) for web-search provider examples.
