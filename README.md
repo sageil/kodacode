@@ -105,7 +105,6 @@ go install github.com/sageil/kodacode/cmd/kodacode@latest
 
 kodacode .
 
-````
 
 Configure providers with `/connect` (will auto run after fresh install), then choose a model route such as
 `openai/gpt-5`. See the [model routing docs](https://kodacode.dev/features/model-routing/)
@@ -128,7 +127,7 @@ kodacode "summarize this repository"
 kodacode --resume "continue the previous refactor"
 kodacode --add-dir ../shared "inspect both repos before editing"
 kodacode --skill migration "add the schema change and focused tests"
-````
+```
 
 ## Documentation
 
