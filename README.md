@@ -1,8 +1,8 @@
 <div align="center">
 
-<picture>
-  <img alt="KodaCode" src="assets/kodacode-interface-tour.svg">
-</picture>
+| Shell layout | Classic layout |
+| --- | --- |
+| <img alt="KodaCode shell layout showing a full-width transcript with inline tool and diff output" src="site/public/screenshots/tui-shell-layout.svg"> | <img alt="KodaCode classic layout showing the transcript beside Details, Tools, and Tasks inspector tabs" src="site/public/screenshots/tui-classic-layout.svg"> |
 
 [![Go](https://img.shields.io/badge/Go-1.25-00ADD8?logo=go&logoColor=white)](https://go.dev)
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
@@ -13,6 +13,23 @@
 </div>
 
 ## Turns AI from "suggestion generator" into "work executor"
+
+## Layouts
+
+KodaCode has two TUI layouts for different working styles:
+
+- **Shell layout** is the default single-plane workflow. It keeps the transcript,
+  tool activity, diffs, and final responses in one continuous terminal surface.
+  It is built for keyboard-heavy use with vi-like transcript navigation,
+  including `h` / `l` for character movement, `j` / `k` for tool selection,
+  `v` for visual selection, and `i` to return to insert mode.
+- **Classic layout** keeps a persistent right-side inspector with `Details`,
+  `Tools`, and `Tasks` tabs. It is useful when you want the main transcript and
+  structured tool/task state visible at the same time.
+
+Switch layouts from the TUI with `Ctrl+L`, or set a default in
+`~/.config/kodacode/config.yaml` with `tui.layout: shell` or
+`tui.layout: classic`.
 
 ## How It Works
 
