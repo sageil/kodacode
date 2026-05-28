@@ -220,6 +220,76 @@ func TestShellLayoutEnterExpandsSelectedToolInline(t *testing.T) {
 	}
 }
 
+func TestShellLayoutEnterExpansionAnchorsSelectedToolStart(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	outputLines := make([]string, 0, 60)
+	for i := 1; i <= 60; i++ {
+		outputLines = append(outputLines, fmt.Sprintf("line-%02d", i))
+	}
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context:       ctx,
+		Theme:         &defaultTheme,
+		Layout:        "shell",
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: "/repo",
+	})
+	state := events.SessionState{
+		SessionID:     "session-1",
+		WorkspaceRoot: "/repo",
+		TurnOrder:     []string{"turn-1"},
+		Turns: map[string]*events.TurnState{
+			"turn-1": {
+				TurnID:        "turn-1",
+				Status:        events.TurnStatusCompleted,
+				Transcript:    []events.TranscriptEntryState{{Kind: events.TranscriptEntryTool, CallID: "call-1"}},
+				ToolCallOrder: []string{"call-1"},
+				ToolCalls: map[string]*events.ToolCallState{
+					"call-1": {
+						CallID:    "call-1",
+						ToolName:  "bash",
+						Input:     `{"cmd":"cat long-file.txt","workdir":"/repo"}`,
+						Output:    strings.Join(outputLines, "\n"),
+						Declared:  true,
+						Completed: true,
+						Succeeded: true,
+					},
+				},
+			},
+		},
+	}
+	model.projector = events.NewProjectorFromSnapshot(state)
+	model.width = 120
+	model.height = 16
+	model.chrome.focus = focusTranscript
+	model.syncViewportLayout()
+
+	updated, _ := model.Update(tea.KeyPressMsg{Text: "j", Code: 'j'})
+	next := updated.(Model)
+	if !next.messages.AtBottom() {
+		t.Fatalf("selected compact tool should begin from a bottom-clamped viewport; yOffset=%d", next.messages.YOffset())
+	}
+
+	updated, _ = next.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	next = updated.(Model)
+	ref := sessionToolCallRef{TurnID: "turn-1", CallID: "call-1"}
+	line, ok := next.transcriptView.toolLines[ref]
+	if !ok {
+		t.Fatalf("expanded transcript missing selected tool line ref: %#v", next.transcriptView.toolLines)
+	}
+	if got := next.messages.YOffset(); got != line {
+		t.Fatalf("expanded tool yOffset = %d, want selected tool start line %d", got, line)
+	}
+	rendered := ansi.Strip(next.messages.View())
+	if strings.Contains(rendered, "line-60") {
+		t.Fatalf("expanded viewport jumped to tool tail instead of start:\n%s", rendered)
+	}
+}
+
 func TestShellLayoutCanHideInlineToolCalls(t *testing.T) {
 	defaultTheme := theme.StaticDefault()
 	ctx, cancel := context.WithCancel(context.TODO())
