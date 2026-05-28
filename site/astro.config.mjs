@@ -40,6 +40,7 @@ export default defineConfig({
 						label: 'Features',
 						items: [
 							{ label: 'Agents', slug: 'features/agents' },
+							{ label: 'Providers', slug: 'features/providers' },
 							{ label: 'Project Memory & Instructions', slug: 'features/project-memory' },
 							{ label: 'Sandbox & Permissions', slug: 'features/sandbox' },
 							{ label: 'Built-in Tools', slug: 'features/tools' },
