@@ -182,12 +182,14 @@ func (m *Model) toggleSelectedTranscriptToolExpansion() (tea.Cmd, bool) {
 	if expandedToolMatchesSession(*m, sessionID, ref) {
 		m.clearExpandedToolCall()
 		m.refreshToolSelectionTranscript(oldExpandedTurnID)
+		m.jumpTranscriptToSelectedTool()
 		return nil, true
 	}
 	m.selection.expandedCallSessionID = sessionID
 	m.selection.expandedCallTurnID = strings.TrimSpace(ref.TurnID)
 	m.selection.expandedCallID = strings.TrimSpace(ref.CallID)
 	m.refreshToolSelectionTranscript(oldExpandedTurnID, ref.TurnID)
+	m.jumpTranscriptToSelectedTool()
 	return m.ensureSelectedToolResultLoadedCmd(), true
 }
 
