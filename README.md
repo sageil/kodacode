@@ -26,11 +26,11 @@ Switch layouts from the TUI with `Ctrl+L`, or set a default in
 `~/.config/kodacode/config.yaml` with `tui.layout: shell` or `tui.layout: classic`.
 
 <picture>
-  <img alt="KodaCode shell layout showing a full-width transcript with inline tool and diff output" src="site/public/screenshots/tui-shell-layout.svg">
+  <img alt="KodaCode shell layout showing a full-width transcript with inline tool and diff output" src="site/public/screenshots/readme-shell-layout.png">
 </picture>
 
 <picture>
-  <img alt="KodaCode classic layout showing the transcript beside Details, Tools, and Tasks inspector tabs" src="site/public/screenshots/tui-classic-layout.svg">
+  <img alt="KodaCode classic layout showing the transcript beside Details, Tools, and Tasks inspector tabs" src="site/public/screenshots/readme-classic-layout.png">
 </picture>
 
 
