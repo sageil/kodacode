@@ -115,8 +115,8 @@ review turn:
   `engineer` turn completes, every current task is already completed, and at
   least one completed task still lacks a review outcome
 
-`workflow.review_model` can route that automatic review turn to a cheaper model
-without changing the main implementation route.
+`workflow.review_model` can route that automatic review turn to a designated
+review model without changing the main implementation route.
 
 ## Switching agents
 
@@ -364,7 +364,6 @@ In the TUI:
 
 - `Enter` opens the selected child session
 - `Backspace` returns to the parent session
-- `r` reuses a completed child result in the parent context
 
 Examples:
 

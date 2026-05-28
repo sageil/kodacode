@@ -21,7 +21,7 @@ These are the highest-leverage user-facing cost controls:
 | `utility_model` | Routes runtime utility text work to a cheaper model | You want to keep the main coding model but reduce background cost |
 | `output_budgets` | Caps the output tokens requested by role | Provider/model ceilings are much larger than your normal turn needs |
 | `compaction_threshold` and `/compact` | Summarizes older stored history so long sessions do not replay full history forever | You work in long-lived sessions |
-| `workflow.review_model` | Sends review passes to a cheaper model | You use `engineer` with review flow and do not need the full primary model for review |
+| `workflow.review_model` | Sends review passes to a designated review model | You use `engineer` with review flow and want reviews on a separate model from the main agent |
 | `budget` and `total_budget` | Warns early and stops future turns | You want hard spending guardrails |
 
 One reason the product defaults to terse mode is that it is usually the cheapest and simplest output-side cost cut.
@@ -124,7 +124,7 @@ agent-turn request, and KodaCode clamps it to the ceiling.
 
 ## Review model
 
-If you use `engineer` workflow review, you can configure a cheaper review model without changing the main agent model:
+If you use `engineer` workflow review, you can configure a designated review model without changing the main agent model:
 
 ```yaml
 workflow:
@@ -133,7 +133,7 @@ workflow:
     primary: openai/gpt-5-mini
 ```
 
-This reduces the cost of review passes while keeping the main model for implementation turns.
+This routes review passes separately while keeping the main model for implementation turns.
 
 ## Durable workspace compression
 

@@ -1,0 +1,129 @@
+---
+title: Web Search
+description: Configure query-based web discovery providers for the web_search tool
+---
+
+`web_search` is the query-based web discovery tool. It finds candidate URLs and
+lightweight snippets. Use `web_fetch` after that when the model needs the
+contents of a specific page.
+
+`web_search` is only available when runtime has at least one configured
+web-search provider and a matching `auth.yaml` credential. Auth alone does not
+enable the tool.
+
+## Supported providers
+
+KodaCode currently ships these built-in web-search backends:
+
+| Provider kind | Default `base_url` | Auth entry `type` | Notes |
+| --- | --- | --- | --- |
+| `exa` | `https://api.exa.ai` | `api` | Uses Exa search and returns candidate URLs with lightweight snippets. |
+| `parallel` | `https://api.parallel.ai` | `api` | Uses Parallel search and surfaces provider warnings as result notices. |
+
+Provider IDs are local names under `web_search.providers`. The provider `kind`
+selects the backend implementation. For example, a provider ID named `research`
+can still use `kind: exa`.
+
+## Config rules
+
+- `web_search.providers` configures web-search backends, not model providers.
+- `providers:` is only for model and embedding providers.
+- Each configured `web_search.providers` entry needs a `kind`.
+- Supported kinds are `exa` and `parallel`.
+- `base_url` is optional.
+- `timeout_ms` is optional and defaults to `15000`.
+- If exactly one provider is configured, `default_provider` may be omitted.
+- If more than one provider is configured, `default_provider` is required.
+- Every configured provider needs an API key at startup, even if it is not the default provider.
+
+## Complete example
+
+This config enables every supported provider and uses Exa by default:
+
+```yaml
+# ~/.config/kodacode/config.yaml
+web_search:
+  default_provider: exa
+  providers:
+    exa:
+      kind: exa
+      base_url: https://api.exa.ai        # optional; shown for clarity
+      timeout_ms: 15000                   # optional; default is 15000
+    parallel:
+      kind: parallel
+      base_url: https://api.parallel.ai   # optional; shown for clarity
+      timeout_ms: 15000                   # optional; default is 15000
+```
+
+Matching credentials:
+
+```yaml
+# ~/.config/kodacode/auth.yaml
+exa:
+  type: api
+  access: YOUR_EXA_API_KEY
+
+parallel:
+  type: api
+  access: YOUR_PARALLEL_API_KEY
+```
+
+Current multi-provider behavior is runtime-owned and simple: KodaCode always
+uses `web_search.default_provider`. The model does not choose between Exa and
+Parallel per call.
+
+## Single provider
+
+When only one provider is configured, `default_provider` is optional:
+
+```yaml
+web_search:
+  providers:
+    exa:
+      kind: exa
+```
+
+This expects an auth entry named `exa`:
+
+```yaml
+exa:
+  type: api
+  access: YOUR_EXA_API_KEY
+```
+
+## Custom provider IDs
+
+Auth lookup uses the provider ID key under `web_search.providers`, not the
+vendor kind.
+
+```yaml
+web_search:
+  providers:
+    research:
+      kind: exa
+```
+
+That config expects an auth entry named `research`:
+
+```yaml
+research:
+  type: api
+  access: YOUR_EXA_API_KEY
+```
+
+## Tool behavior
+
+The model calls `web_search` with a query and optional filters:
+
+- `limit` or `max_results`
+- `domains`
+- `exclude_domains`
+- `freshness_days`
+
+Results are intentionally lightweight. They include candidate page metadata and
+snippets so the model can decide which URLs to fetch next with `web_fetch`.
+
+`web_search` is intentionally not a granular permission subject. If you enable
+it by configuring a provider and credentials, the model may use it for public
+query-based discovery. Direct URL retrieval still goes through `web_fetch` and
+its own permission controls.

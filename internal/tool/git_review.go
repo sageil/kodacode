@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-const gitReviewOutputLimit = 16000
+const gitReviewOutputLimit = 0
 const gitReviewTimeout = 30 * time.Second
 
 var ErrGitRepositoryRequired = errors.New("workspace directory is not inside a git repository")

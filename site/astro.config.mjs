@@ -47,6 +47,7 @@ export default defineConfig({
 							{ label: 'Skills', slug: 'features/skills' },
 							{ label: 'Code Intelligence & LSP', slug: 'features/lsp' },
 							{ label: 'Semantic Search', slug: 'features/search' },
+							{ label: 'Web Search', slug: 'features/web-search' },
 							{ label: 'Model Routing', slug: 'features/model-routing' },
 							{ label: 'Sessions', slug: 'features/sessions' },
 							{ label: 'Budgets', slug: 'features/budgets' },

@@ -59,6 +59,60 @@ func TestRenderAssistantContentLinesKeepsShortOrdinaryListAsMarkdown(t *testing.
 	}
 }
 
+func TestRenderAssistantContentLinesIndentsWrappedListItems(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context: ctx,
+		Theme:   &defaultTheme,
+	})
+
+	text := "- This is a long recommendation that should wrap underneath the bullet marker instead of restarting at the left edge."
+	rendered := ansi.Strip(strings.Join(renderAssistantContentLines(model, text, 36, ""), "\n"))
+	lines := strings.Split(rendered, "\n")
+	foundContinuation := false
+	for _, line := range lines {
+		if strings.HasPrefix(line, "  ") && strings.Contains(line, "underneath") {
+			foundContinuation = true
+		}
+		if got := ansi.StringWidth(line); got > 36 {
+			t.Fatalf("rendered list line width = %d, want <= 36\n%s", got, rendered)
+		}
+	}
+	if !foundContinuation {
+		t.Fatalf("wrapped list item did not indent continuation lines:\n%s", rendered)
+	}
+}
+
+func TestRenderAssistantContentLinesRepairsMultilineInlineCodeListItems(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context: ctx,
+		Theme:   &defaultTheme,
+	})
+
+	text := "- `{ administrator\r\n  1, status: 1, updatedAt: -1\r\n }`"
+	rendered := ansi.Strip(strings.Join(renderAssistantContentLines(model, text, 48, ""), "\n"))
+	for _, want := range []string{"• ┌", "│ { administrator", "│ 1, status: 1, updatedAt: -1", "│ }", "└"} {
+		if !strings.Contains(rendered, want) {
+			t.Fatalf("rendered repaired code list missing %q:\n%s", want, rendered)
+		}
+	}
+	if strings.Contains(rendered, "`") {
+		t.Fatalf("rendered leaked raw inline-code fence:\n%s", rendered)
+	}
+	for _, line := range strings.Split(rendered, "\n") {
+		if got := ansi.StringWidth(line); got > 48 {
+			t.Fatalf("rendered code list line width = %d, want <= 48\n%s", got, rendered)
+		}
+	}
+}
+
 func TestRenderAssistantContentLinesPreservesFencedCodeBlocks(t *testing.T) {
 	defaultTheme := theme.StaticDefault()
 	ctx, cancel := context.WithCancel(context.Background())

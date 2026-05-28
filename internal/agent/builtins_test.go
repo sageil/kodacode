@@ -168,6 +168,8 @@ func TestNewBuiltinsCatalogIncludesBuiltinsAndSubagents(t *testing.T) {
 		"If a delegated review task asks for an implementation plan",
 		"do not ask the user whether to create or\nsave a file",
 		"Treat `question` and `task_review` as logical jobs",
+		"Format reports as readable GitHub-flavored Markdown",
+		"do not use inline backticks around multi-line\n  snippets",
 	} {
 		if !strings.Contains(reviewer.PromptFragment().Content, want) {
 			t.Fatalf("reviewer prompt missing guidance %q: %q", want, reviewer.PromptFragment().Content)

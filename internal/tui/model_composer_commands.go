@@ -43,7 +43,7 @@ var composerCommands = []composerCommand{
 	{ID: "history", Name: "/history", Description: "search recent prompts"},
 	{ID: "review", Name: "/review", Description: "review current changes", Usage: "/review [instructions]", FreeformArg: true, StageOnSelect: true},
 	{ID: "compact", Name: "/compact", Description: "rebuild saved history summary now"},
-	{ID: "compress", Name: "/compress", Description: "compress AGENTS.md and project memory", Usage: "/compress --yes", StageOnSelect: true},
+	{ID: "compress", Name: "/compress", Description: "compress AGENTS.md and project memory", StageOnSelect: true},
 	{ID: "quit", Name: "/quit", Description: "exit kodacode"},
 }
 
@@ -53,7 +53,6 @@ const compactBlockedMessage = "Finish the active turn before rebuilding history 
 const compactUnavailableMessage = "Start a session before rebuilding history summary"
 const initBlockedMessage = "Finish the active turn before initializing workspace instructions"
 const compressBlockedMessage = "Finish the active turn before compressing workspace instructions"
-const compressConfirmMessage = "Compression rewrites AGENTS.md and project memories; run /compress --yes to confirm"
 const reviewBlockedMessage = "Finish the active turn before starting a review"
 const reasoningVariantUnavailableMessage = "/variant is unavailable for the current model and tool setup"
 const thinkingUnavailableMessage = "/thinking is unavailable for the current model and tool setup"
@@ -251,12 +250,6 @@ func (m *Model) runComposerCommand(invocation composerCommandInvocation) (tea.Mo
 			m.setComposerError(compressBlockedMessage)
 			return *m, nil
 		}
-		if !compressCommandConfirmed(invocation.Argument) {
-			m.clearFooterError()
-			m.stageComposerSlashCommand(invocation.Command, "")
-			m.setComposerError(compressConfirmMessage)
-			return *m, nil
-		}
 		modelRoute, routeOK := effectiveSelectedAgentModelRoute(*m, m.projector.CurrentState())
 		m.clearComposerError()
 		m.clearFooterError()
@@ -361,15 +354,6 @@ func (m *Model) runComposerCommand(invocation composerCommandInvocation) (tea.Mo
 		return m.submitComposerReview(invocation.Argument)
 	default:
 		return *m, nil
-	}
-}
-
-func compressCommandConfirmed(argument string) bool {
-	switch strings.TrimSpace(strings.ToLower(argument)) {
-	case "--yes", "yes":
-		return true
-	default:
-		return false
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 )
 
 func renderMarkdownLinesOnSurface(m Model, text string, width int, bg string) []string {
@@ -109,8 +110,14 @@ func renderMarkdownLinesOnSurfaceUncached(m Model, raw string, width int, bg str
 				bulletStyle = bulletStyle.Background(lipgloss.Color(bg))
 			}
 			bullet := bulletStyle.Render("•")
-			styled := renderInlineMarkdownOnSurface(m, trimmed[2:], bg)
-			output = append(output, splitWrappedStyledLines(bullet+" "+styled, max(width, 1))...)
+			rest := trimmed[2:]
+			if codeLines, next, ok := collectMarkdownMultilineCodeSpan(inputLines, i, rest); ok {
+				output = appendMarkdownListItemCodeBlockLines(m, output, bullet, codeLines, width, bg)
+				i = next - 1
+				continue
+			}
+			styled := renderInlineMarkdownOnSurface(m, rest, bg)
+			output = appendMarkdownListItemLines(output, bullet, styled, width)
 			continue
 		}
 
@@ -121,8 +128,13 @@ func renderMarkdownLinesOnSurfaceUncached(m Model, raw string, width int, bg str
 				markerStyle = markerStyle.Background(lipgloss.Color(bg))
 			}
 			marker := markerStyle.Render(num)
+			if codeLines, next, ok := collectMarkdownMultilineCodeSpan(inputLines, i, rest); ok {
+				output = appendMarkdownListItemCodeBlockLines(m, output, marker, codeLines, width, bg)
+				i = next - 1
+				continue
+			}
 			styled := renderInlineMarkdownOnSurface(m, rest, bg)
-			output = append(output, splitWrappedStyledLines(marker+" "+styled, max(width, 1))...)
+			output = appendMarkdownListItemLines(output, marker, styled, width)
 			continue
 		}
 
@@ -135,6 +147,77 @@ func renderMarkdownLinesOnSurfaceUncached(m Model, raw string, width int, bg str
 
 	if len(output) == 0 {
 		return []string{""}
+	}
+	return output
+}
+
+func collectMarkdownMultilineCodeSpan(lines []string, start int, first string) ([]string, int, bool) {
+	first = strings.TrimSpace(first)
+	if !strings.HasPrefix(first, "`") || strings.Count(first, "`") != 1 {
+		return nil, start, false
+	}
+
+	codeLines := []string{strings.TrimSpace(strings.TrimPrefix(first, "`"))}
+	for i := start + 1; i < len(lines); i++ {
+		line := strings.TrimRight(lines[i], "\r")
+		if end := strings.IndexByte(line, '`'); end >= 0 {
+			codeLines = append(codeLines, strings.TrimSpace(line[:end]))
+			return trimEmptyCodeSpanLines(codeLines), i + 1, true
+		}
+		codeLines = append(codeLines, strings.TrimSpace(line))
+	}
+	return nil, start, false
+}
+
+func trimEmptyCodeSpanLines(lines []string) []string {
+	for len(lines) > 0 && strings.TrimSpace(lines[0]) == "" {
+		lines = lines[1:]
+	}
+	for len(lines) > 0 && strings.TrimSpace(lines[len(lines)-1]) == "" {
+		lines = lines[:len(lines)-1]
+	}
+	if len(lines) == 0 {
+		return []string{""}
+	}
+	return lines
+}
+
+func appendMarkdownListItemLines(output []string, marker, content string, width int) []string {
+	width = max(width, 1)
+	prefix := marker + " "
+	prefixWidth := ansi.StringWidth(prefix)
+	if prefixWidth <= 0 || prefixWidth >= width {
+		return append(output, splitWrappedStyledLines(prefix+content, width)...)
+	}
+
+	wrapped := splitWrappedStyledLines(content, max(width-prefixWidth, 1))
+	continuationPrefix := strings.Repeat(" ", prefixWidth)
+	for idx, line := range wrapped {
+		if idx == 0 {
+			output = append(output, prefix+line)
+			continue
+		}
+		output = append(output, continuationPrefix+line)
+	}
+	return output
+}
+
+func appendMarkdownListItemCodeBlockLines(m Model, output []string, marker string, codeLines []string, width int, bg string) []string {
+	width = max(width, 1)
+	prefix := marker + " "
+	prefixWidth := ansi.StringWidth(prefix)
+	if prefixWidth <= 0 || prefixWidth >= width {
+		return append(output, renderCodeBlockLinesOnSurface(m, codeLines, "text-wrap", width, bg)...)
+	}
+
+	blockLines := renderCodeBlockLinesOnSurface(m, codeLines, "text-wrap", max(width-prefixWidth, 1), bg)
+	continuationPrefix := strings.Repeat(" ", prefixWidth)
+	for idx, line := range blockLines {
+		if idx == 0 {
+			output = append(output, prefix+line)
+			continue
+		}
+		output = append(output, continuationPrefix+line)
 	}
 	return output
 }
@@ -168,6 +251,8 @@ func renderLiteralLinesOnSurfaceUncached(m Model, raw string, width int, bg stri
 }
 
 func normalizeMarkdownSurfaceInput(text string) string {
+	text = strings.ReplaceAll(text, "\r\n", "\n")
+	text = strings.ReplaceAll(text, "\r", "\n")
 	text = strings.ReplaceAll(text, "<br />", "  \n")
 	text = strings.ReplaceAll(text, "<br/>", "  \n")
 	text = strings.ReplaceAll(text, "<br>", "  \n")

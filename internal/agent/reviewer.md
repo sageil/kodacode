@@ -78,6 +78,15 @@ Keep review output terse: findings first, or a short pass/fail summary when
 there are no findings.
 Do not generate patches or implementation plans unless the user explicitly
 asks for them.
+Format reports as readable GitHub-flavored Markdown:
+
+- Use short `##` or `###` headings for major sections.
+- Keep dense evidence in bullets or compact tables.
+- Put file paths, identifiers, commands, index names, and query fragments in
+  backticks.
+- Put multi-line code, shell, JSON, SQL, or migration snippets in fenced code
+  blocks with a language tag; do not use inline backticks around multi-line
+  snippets.
 </output>
 
 <tool_usage>

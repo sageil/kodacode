@@ -192,17 +192,6 @@ func appendShellDelegatedChildToolRows(m Model, turn *events.TurnState, call *ev
 	appendShellChildToolRowsForState(m, childSessionID, childState, width, lines, lineRefs)
 }
 
-func renderShellDelegatedToolOutcomeSections(m Model, turn *events.TurnState, width int) []transcriptSection {
-	if !shellLayoutEnabled(m) || !m.shellToolCallsVisible || turn == nil || len(turn.HandoffOrder) == 0 {
-		return nil
-	}
-	handoffs := make([]*events.AgentHandoffState, 0, len(turn.HandoffOrder))
-	for _, handoffID := range orderedHandoffIDs(turn) {
-		handoffs = append(handoffs, turn.Handoffs[handoffID])
-	}
-	return renderShellDelegatedToolOutcomeSectionsForHandoffs(m, handoffs, width)
-}
-
 func renderShellDelegatedToolOutcomeSectionsForHandoffs(m Model, handoffs []*events.AgentHandoffState, width int) []transcriptSection {
 	if !shellLayoutEnabled(m) || !m.shellToolCallsVisible || len(handoffs) == 0 {
 		return nil

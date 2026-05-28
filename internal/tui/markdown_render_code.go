@@ -9,28 +9,29 @@ import (
 
 func renderCodeBlockLinesOnSurface(m Model, lines []string, language string, width int, bg string) []string {
 	border := renderCodeBlockSurfaceBorder(m, bg)
-	contentWidth := max(width-2, 1)
+	contentWidth := max(width-4, 1)
 	if wrapLanguage, ok := codeBlockWrapLanguage(language); ok {
-		return renderWrappedCodeBlockLinesOnSurface(m, lines, wrapLanguage, border, contentWidth, bg)
+		body := renderWrappedCodeBlockLinesOnSurface(m, lines, wrapLanguage, border, contentWidth, bg)
+		return frameCodeBlockLinesOnSurface(m, body, wrapLanguage, contentWidth, bg)
 	}
+	var body []string
 	if len(lines) == 0 {
-		return []string{renderCodeBlockLineWithBorder(border, "", contentWidth)}
+		body = []string{renderCodeBlockLineWithBorder(border, "", contentWidth)}
+	} else if sections, ok := splitMultiFileCodeSections(lines); ok {
+		body = renderMultiFileCodeBlockLinesOnSurface(m, sections, border, contentWidth, bg)
+	} else {
+		lexer := syntaxHighlightLexer(language, strings.Join(lines, "\n"))
+		style := syntaxHighlightStyle(m.theme)
+		body = make([]string, 0, len(lines))
+		for _, line := range lines {
+			body = append(body, renderCodeBlockLineWithBorder(
+				border,
+				syntaxHighlightCodeLine(line, lexer, style, colorFor(m.theme, "soft", softTextColor), bg),
+				contentWidth,
+			))
+		}
 	}
-	if sections, ok := splitMultiFileCodeSections(lines); ok {
-		return renderMultiFileCodeBlockLinesOnSurface(m, sections, border, contentWidth, bg)
-	}
-
-	lexer := syntaxHighlightLexer(language, strings.Join(lines, "\n"))
-	style := syntaxHighlightStyle(m.theme)
-	output := make([]string, 0, len(lines))
-	for _, line := range lines {
-		output = append(output, renderCodeBlockLineWithBorder(
-			border,
-			syntaxHighlightCodeLine(line, lexer, style, colorFor(m.theme, "soft", softTextColor), bg),
-			contentWidth,
-		))
-	}
-	return output
+	return frameCodeBlockLinesOnSurface(m, body, language, contentWidth, bg)
 }
 
 func codeBlockWrapLanguage(language string) (string, bool) {
@@ -57,7 +58,7 @@ func renderWrappedCodeBlockLinesOnSurface(m Model, lines []string, language stri
 	output := make([]string, 0, len(lines))
 	for _, line := range lines {
 		if line == "" {
-			output = append(output, renderCodeBlockLineWithBorder(border, "", contentWidth))
+			output = append(output, renderWrappedCodeBlockLineWithBorder(border, "", contentWidth))
 			continue
 		}
 		wrapped := strings.Split(strings.TrimRight(ansi.Wrap(line, contentWidth, ""), "\n"), "\n")
@@ -65,11 +66,11 @@ func renderWrappedCodeBlockLinesOnSurface(m Model, lines []string, language stri
 			if strings.TrimSpace(language) != "" {
 				segment = syntaxHighlightCodeLine(segment, lexer, style, defaultFG, bg)
 			}
-			output = append(output, renderCodeBlockLineWithBorder(border, segment, contentWidth))
+			output = append(output, renderWrappedCodeBlockLineWithBorder(border, segment, contentWidth))
 		}
 	}
 	if len(output) == 0 {
-		return []string{renderCodeBlockLineWithBorder(border, "", contentWidth)}
+		return []string{renderWrappedCodeBlockLineWithBorder(border, "", contentWidth)}
 	}
 	return output
 }
@@ -108,17 +109,63 @@ func renderMultiFileCodeBlockLinesOnSurface(m Model, sections []codeBlockSection
 }
 
 func renderCodeBlockSurfaceBorder(m Model, bg string) string {
+	return renderCodeBlockSurfaceGlyph(m, bg, "│")
+}
+
+func renderCodeBlockSurfaceGlyph(m Model, bg string, glyph string) string {
 	borderStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(lineTone(m)))
 	if strings.TrimSpace(bg) != "" {
 		borderStyle = borderStyle.Background(lipgloss.Color(bg))
 	}
-	return borderStyle.Render("│")
+	return borderStyle.Render(glyph)
 }
 
 func renderCodeBlockLineWithBorder(border string, line string, contentWidth int) string {
 	if ansi.StringWidth(line) > contentWidth {
 		line = ansi.Truncate(line, contentWidth, "…")
 	}
+	padding := max(contentWidth-ansi.StringWidth(line), 0)
+	return border + " " + line + strings.Repeat(" ", padding) + " " + border
+}
+
+func renderWrappedCodeBlockLineWithBorder(border string, line string, contentWidth int) string {
 	return border + " " + line
+}
+
+func frameCodeBlockLinesOnSurface(m Model, body []string, language string, contentWidth int, bg string) []string {
+	if len(body) == 0 {
+		body = []string{renderCodeBlockLineWithBorder(renderCodeBlockSurfaceBorder(m, bg), "", contentWidth)}
+	}
+	output := make([]string, 0, len(body)+2)
+	output = append(output, renderCodeBlockFrameLineOnSurface(m, "top", language, contentWidth, bg))
+	output = append(output, body...)
+	output = append(output, renderCodeBlockFrameLineOnSurface(m, "bottom", "", contentWidth, bg))
+	return output
+}
+
+func renderCodeBlockFrameLineOnSurface(m Model, position string, language string, contentWidth int, bg string) string {
+	left, right := "├", "┤"
+	switch position {
+	case "top":
+		left, right = "┌", "┐"
+	case "bottom":
+		left, right = "└", "┘"
+	}
+
+	innerWidth := max(contentWidth+2, 1)
+	label := strings.TrimSpace(language)
+	if label != "" && position == "top" {
+		label = " " + label + " "
+	}
+	if label == "" || ansi.StringWidth(label) >= innerWidth {
+		label = ""
+	}
+
+	ruleWidth := innerWidth - ansi.StringWidth(label)
+	if label != "" {
+		ruleWidth = max(ruleWidth, 0)
+	}
+	line := left + label + strings.Repeat("─", max(ruleWidth, 0)) + right
+	return renderCodeBlockSurfaceGlyph(m, bg, line)
 }

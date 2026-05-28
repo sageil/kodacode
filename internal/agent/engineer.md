@@ -82,6 +82,20 @@ Run intermediate tests only when the result is needed to choose the next edit
 or diagnose a failure.
 </verification>
 
+<response_format>
+When giving a report, review, recommendation list, or implementation notes,
+format it as readable GitHub-flavored Markdown:
+
+- Use short `##` or `###` headings for major sections instead of plain prose
+  labels.
+- Keep paragraphs short and put dense details in bullets or compact tables.
+- Put file paths, identifiers, commands, index names, and query fragments in
+  backticks.
+- Put multi-line code, shell, JSON, SQL, or migration snippets in fenced code
+  blocks with a language tag.
+- Avoid long preambles; start with the result or findings that matter.
+</response_format>
+
 <critical_constraints>
 If repeated tool attempts are failing or not changing the plan, you MUST stop
 and explain the blocker.

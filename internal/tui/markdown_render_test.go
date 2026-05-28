@@ -39,6 +39,30 @@ func TestRenderMarkdownBlockOnSurfaceSyntaxHighlightsWithThemeFallback(t *testin
 	}
 }
 
+func TestRenderMarkdownBlockOnSurfaceFramesFencedCodeBlocks(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context: ctx,
+		Theme:   &defaultTheme,
+	})
+
+	rendered := strings.Join(renderMarkdownBlockOnSurface(model, "```go\nfunc main() {}\n```", 40, tonePanelAlt), "\n")
+	stripped := ansi.Strip(rendered)
+	for _, want := range []string{"┌ go", "│ func main() {}", "└"} {
+		if !strings.Contains(stripped, want) {
+			t.Fatalf("rendered framed code block missing %q\nrendered:\n%s", want, stripped)
+		}
+	}
+	for _, line := range strings.Split(stripped, "\n") {
+		if got := ansi.StringWidth(line); got > 40 {
+			t.Fatalf("rendered code block line width = %d, want <= 40\n%s", got, stripped)
+		}
+	}
+}
+
 func TestRenderMarkdownBlockOnSurfaceUsesThemeSyntaxStyle(t *testing.T) {
 	tokyoTheme := theme.StaticDefault()
 	tokyoTheme.SyntaxStyle = "tokyonight-night"

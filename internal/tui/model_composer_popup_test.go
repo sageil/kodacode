@@ -2229,7 +2229,7 @@ func TestComposerSlashCommandCompressesWorkspacePromptSources(t *testing.T) {
 		WorkspaceRoot: "/repo",
 	})
 	model.chrome.focus = focusComposer
-	model.composer.SetValue("/compress --yes")
+	model.composer.SetValue("/compress")
 
 	next, cmd := model.submitComposer()
 	if cmd == nil {
@@ -2254,38 +2254,6 @@ func TestComposerSlashCommandCompressesWorkspacePromptSources(t *testing.T) {
 	nextModel := next.(Model)
 	if nextModel.composer.Value() != "" {
 		t.Fatalf("composer value = %q, want empty", nextModel.composer.Value())
-	}
-}
-
-func TestComposerSlashCommandCompressRequiresExplicitConfirmation(t *testing.T) {
-	defaultTheme := theme.StaticDefault()
-	ctx, cancel := context.WithCancel(context.TODO())
-	defer cancel()
-
-	controller := &fakeController{}
-	model := NewModel(controller, ModelConfig{
-		Context:       ctx,
-		Theme:         &defaultTheme,
-		SessionID:     "session-1",
-		TurnID:        "turn-1",
-		WorkspaceRoot: "/repo",
-	})
-	model.chrome.focus = focusComposer
-	model.composer.SetValue("/compress")
-
-	next, cmd := model.submitComposer()
-	if cmd != nil {
-		t.Fatalf("submitComposer cmd = %#v, want nil", cmd)
-	}
-	nextModel := next.(Model)
-	if len(controller.compressPromptSourceCalls) != 0 {
-		t.Fatalf("compressPromptSourceCalls = %#v, want none before confirmation", controller.compressPromptSourceCalls)
-	}
-	if !strings.Contains(nextModel.composerState.err, "run /compress --yes") {
-		t.Fatalf("composer error = %q, want confirmation guidance", nextModel.composerState.err)
-	}
-	if got := nextModel.composer.Value(); got != "/compress " {
-		t.Fatalf("composer value = %q, want staged confirmation command", got)
 	}
 }
 

@@ -359,7 +359,9 @@ The public search config surface is intentionally small:
 ## Web search
 
 `web_search` is a separate runtime capability for query-based web discovery. It
-is not configured through the top-level `providers:` block.
+is not configured through the top-level `providers:` block. See
+[Web Search](/features/web-search/) for supported providers, examples, and
+matching `auth.yaml` entries.
 
 Keep these boundaries in mind:
 
@@ -370,28 +372,7 @@ Keep these boundaries in mind:
 `web_search` is only registered when runtime has at least one valid
 `web_search` provider plus matching auth. Auth alone does not enable it.
 
-Current built-in `web_search` backends:
-
-- `exa`
-- `parallel`
-
-Provider requirements:
-
-- each configured `web_search.providers` entry needs a `kind`
-- supported kinds are `exa` and `parallel`
-- `base_url` is optional
-- `timeout_ms` is optional
-- if exactly one provider is configured, `default_provider` may be omitted
-- if more than one provider is configured, `default_provider` is required
-- every configured provider needs an API key at startup, even if it is not the default provider
-
-Default backend values when you omit them:
-
-- Exa `base_url`: `https://api.exa.ai`
-- Parallel `base_url`: `https://api.parallel.ai`
-- `timeout_ms`: `15000`
-
-Single-provider example:
+Minimal example:
 
 ```yaml
 web_search:
@@ -400,35 +381,13 @@ web_search:
       kind: exa
 ```
 
-Two-provider example with Exa as the default:
+The matching `auth.yaml` key must be `exa`:
 
 ```yaml
-web_search:
-  default_provider: exa
-  providers:
-    exa:
-      kind: exa
-      base_url: https://api.exa.ai
-    parallel:
-      kind: parallel
-      base_url: https://api.parallel.ai
+exa:
+  type: api
+  access: YOUR_EXA_API_KEY
 ```
-
-Current multi-provider behavior is runtime-owned and simple: `kodacode` always
-uses `web_search.default_provider`. The model does not choose between Exa and
-Parallel per call.
-
-One subtle but important rule: auth lookup uses the provider ID key under
-`web_search.providers`, not the vendor kind. For example:
-
-```yaml
-web_search:
-  providers:
-    research:
-      kind: exa
-```
-
-That config expects an auth entry named `research`, not `exa`.
 
 ## Top-level config areas
 
@@ -737,7 +696,7 @@ workflow:
   only when all current tasks are already completed and at least one completed
   task still lacks a durable review outcome
 
-`review_model` is optional. When set, the review turn uses that model instead of the session primary. A cheaper model here reduces the cost of review passes without affecting agent turns.
+`review_model` is optional. When set, the review turn uses that designated model instead of the session primary without affecting agent turns.
 
 ## Execution settings
 

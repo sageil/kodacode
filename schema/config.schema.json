@@ -129,6 +129,33 @@
           }
         }
       ]
+    },
+    "webSearchProvider": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "exa",
+            "parallel"
+          ],
+          "description": "Built-in web search backend kind."
+        },
+        "base_url": {
+          "type": "string",
+          "format": "uri",
+          "description": "Optional backend base URL. Omit to use the built-in default for the selected kind."
+        },
+        "timeout_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Optional HTTP timeout in milliseconds. Omit or set 0 to use the default 15000ms timeout."
+        }
+      }
     }
   },
   "properties": {
@@ -357,6 +384,25 @@
           }
         }
       ]
+    },
+    "web_search": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Configurable web-search backends. Credentials live in auth.yaml under keys matching provider IDs.",
+      "properties": {
+        "default_provider": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "description": "Provider ID from web_search.providers to use by default. Required when more than one provider is configured."
+        },
+        "providers": {
+          "type": "object",
+          "description": "Provider IDs mapped to built-in web search backend configs.",
+          "additionalProperties": {
+            "$ref": "#/$defs/webSearchProvider"
+          }
+        }
+      }
     },
     "context_packet": {
       "type": "object",

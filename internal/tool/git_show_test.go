@@ -94,6 +94,35 @@ func TestGitShowToolExecuteScopesToNestedWorkspaceRoot(t *testing.T) {
 	}
 }
 
+func TestGitShowToolExecuteDoesNotTruncateLargeCommit(t *testing.T) {
+	ensureGitAvailable(t)
+
+	root := t.TempDir()
+	initGitRepo(t, root)
+	lines := make([]string, 0, 2400)
+	for i := 0; i < 2400; i++ {
+		lines = append(lines, "large git show line")
+	}
+	writeTestFile(t, filepath.Join(root, "large.txt"), strings.Join(lines, "\n")+"\n")
+	gitCommitAll(t, root, "large")
+
+	scope, err := workspace.New(root)
+	if err != nil {
+		t.Fatalf("workspace.New() error = %v", err)
+	}
+
+	result, err := NewGitShowTool().Execute(context.Background(), ExecutionContext{Workspace: scope}, json.RawMessage(`{"rev":"HEAD"}`))
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if strings.Contains(result.Output, "[output truncated]") {
+		t.Fatalf("git_show output was truncated:\n%s", result.Output)
+	}
+	if count := strings.Count(result.Output, "+large git show line"); count != 2400 {
+		t.Fatalf("git_show output contains %d added lines, want 2400", count)
+	}
+}
+
 func TestGitShowToolExecuteReturnsStructuredErrorOutsideRepository(t *testing.T) {
 	ensureGitAvailable(t)
 

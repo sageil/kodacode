@@ -94,7 +94,9 @@ still fail because truncation would not preserve a valid result.
 `web_search` is configuration-gated. It is only advertised when runtime has at
 least one valid `web_search` backend plus matching auth configured. It is not
 the same tool as `web_fetch`: `web_search` discovers candidate pages, while
-`web_fetch` reads one specific URL.
+`web_fetch` reads one specific URL. Built-in `web_search` backends are Exa and
+Parallel; see [Web Search](/features/web-search/) for provider examples and
+matching `auth.yaml` entries.
 
 The TUI also has a user-initiated local shell path: submit `!<command>` in the
 composer. That does not ask the model to call `bash`; it starts an execution
