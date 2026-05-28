@@ -6,14 +6,14 @@
   <text x="82" y="29" font-family="JetBrains Mono, monospace" font-size="16" font-weight="700" fill="#d7ac45">KodaCode</text>
   <text x="172" y="29" font-family="JetBrains Mono, monospace" font-size="16" fill="#777489">@kairo on</text>
   <text x="270" y="29" font-family="JetBrains Mono, monospace" font-size="16" fill="#8dd777">./ main</text>
-  <text x="390" y="29" font-family="JetBrains Mono, monospace" font-size="16" font-weight="700" fill="#b8b6bd">Database Index Review Optimization Suggestions</text>
-  <text x="725" y="29" font-family="JetBrains Mono, monospace" font-size="16" fill="#54b8e8">openai-codex</text>
-  <text x="848" y="29" font-family="JetBrains Mono, monospace" font-size="16" fill="#d7bd63">gpt-5.4</text>
-  <text x="925" y="29" font-family="JetBrains Mono, monospace" font-size="16" fill="#6f6b7d">xhigh  1.1M  R T V</text>
-  <rect x="1132" y="13" width="86" height="20" fill="#171b26"/>
-  <rect x="1132" y="13" width="53" height="20" fill="#b3934c"/>
-  <text x="1235" y="29" font-family="JetBrains Mono, monospace" font-size="16" fill="#d7bd63">ctx 39.7k/64.0k 62%</text>
-  <text x="1430" y="29" font-family="JetBrains Mono, monospace" font-size="16" fill="#7d7a8c">up 78.4k down 2.5k</text>
+  <text x="390" y="29" font-family="JetBrains Mono, monospace" font-size="16" font-weight="700" fill="#b8b6bd">Database Index Review Optimization</text>
+  <text x="760" y="29" font-family="JetBrains Mono, monospace" font-size="16" fill="#54b8e8">openai-codex</text>
+  <text x="883" y="29" font-family="JetBrains Mono, monospace" font-size="16" fill="#d7bd63">gpt-5.4</text>
+  <text x="960" y="29" font-family="JetBrains Mono, monospace" font-size="16" fill="#6f6b7d">xhigh  1.1M  R T V</text>
+  <rect x="1167" y="13" width="86" height="20" fill="#171b26"/>
+  <rect x="1167" y="13" width="53" height="20" fill="#b3934c"/>
+  <text x="1270" y="29" font-family="JetBrains Mono, monospace" font-size="16" fill="#d7bd63">ctx 39.7k/64.0k 62%</text>
+  <text x="1465" y="29" font-family="JetBrains Mono, monospace" font-size="16" fill="#7d7a8c">up 78.4k</text>
   <line x1="14" y1="44" x2="1586" y2="44" stroke="#232438"/>
   <rect x="15" y="54" width="4" height="18" fill="#f1cc68"/>
   <text x="40" y="69" font-family="JetBrains Mono, monospace" font-size="16" fill="#c7c2c7">Review the database indexes and recommend performance enhancements</text>

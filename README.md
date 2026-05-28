@@ -1,18 +1,4 @@
-<div align="center">
-
-| Shell layout | Classic layout |
-| --- | --- |
-| <img alt="KodaCode shell layout showing a full-width transcript with inline tool and diff output" src="site/public/screenshots/tui-shell-layout.svg"> | <img alt="KodaCode classic layout showing the transcript beside Details, Tools, and Tasks inspector tabs" src="site/public/screenshots/tui-classic-layout.svg"> |
-
-[![Go](https://img.shields.io/badge/Go-1.25-00ADD8?logo=go&logoColor=white)](https://go.dev)
-[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
-[![Release](https://img.shields.io/github/v/release/sageil/kodacode)](https://github.com/sageil/kodacode/releases)
-[![Homebrew](https://img.shields.io/badge/Homebrew-tap-FBB040?logo=homebrew&logoColor=white)](https://github.com/sageil/homebrew-tap)
-[![Docs](https://img.shields.io/badge/Docs-kodacode.dev-8B5CF6)](https://kodacode.dev)
-
-</div>
-
-## Turns AI from "suggestion generator" into "work executor"
+## Turns AI coding from *suggestion generator* into *work executor*
 
 ## Layouts
 
@@ -28,8 +14,25 @@ KodaCode has two TUI layouts for different working styles:
   structured tool/task state visible at the same time.
 
 Switch layouts from the TUI with `Ctrl+L`, or set a default in
-`~/.config/kodacode/config.yaml` with `tui.layout: shell` or
-`tui.layout: classic`.
+`~/.config/kodacode/config.yaml` with `tui.layout: shell` or `tui.layout: classic`.
+
+<picture>
+  <img alt="KodaCode shell layout showing a full-width transcript with inline tool and diff output" src="site/public/screenshots/tui-shell-layout.svg">
+</picture>
+
+<picture>
+  <img alt="KodaCode classic layout showing the transcript beside Details, Tools, and Tasks inspector tabs" src="site/public/screenshots/tui-classic-layout.svg">
+</picture>
+
+<div align="center">
+
+[![Go](https://img.shields.io/badge/Go-1.25-00ADD8?logo=go&logoColor=white)](https://go.dev)
+[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/sageil/kodacode)](https://github.com/sageil/kodacode/releases)
+[![Homebrew](https://img.shields.io/badge/Homebrew-tap-FBB040?logo=homebrew&logoColor=white)](https://github.com/sageil/homebrew-tap)
+[![Docs](https://img.shields.io/badge/Docs-kodacode.dev-8B5CF6)](https://kodacode.dev)
+
+</div>
 
 ## How It Works
 

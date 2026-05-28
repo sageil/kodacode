@@ -6,15 +6,15 @@
   <rect x="14" y="13" width="68" height="20" fill="#d7ac45"/>
   <text x="28" y="29" font-family="JetBrains Mono, monospace" font-size="14" font-weight="700" fill="#17140e">NORMAL</text>
   <text x="106" y="29" font-family="JetBrains Mono, monospace" font-size="16" font-weight="700" fill="#d7ac45">KodaCode</text>
-  <text x="190" y="29" font-family="JetBrains Mono, monospace" font-size="16" font-weight="700" fill="#b8b6bd">Database Index Review Optimization Suggestions</text>
-  <text x="612" y="29" font-family="JetBrains Mono, monospace" font-size="16" fill="#54b8e8">openai-codex</text>
-  <text x="735" y="29" font-family="JetBrains Mono, monospace" font-size="16" fill="#d7bd63">gpt-5.4</text>
-  <text x="810" y="29" font-family="JetBrains Mono, monospace" font-size="16" fill="#6f6b7d">xhigh  1.1M  R T V</text>
-  <rect x="1024" y="13" width="82" height="20" fill="#171b26"/>
-  <rect x="1024" y="13" width="51" height="20" fill="#b3934c"/>
-  <text x="1120" y="29" font-family="JetBrains Mono, monospace" font-size="16" fill="#d7bd63">ctx peak 41.2k/64.0k 64%</text>
-  <text x="1372" y="29" font-family="JetBrains Mono, monospace" font-size="16" fill="#777489">314.8k down 4.9k</text>
-  <text x="1517" y="29" font-family="JetBrains Mono, monospace" font-size="16" fill="#8dd777">est. $0.4097</text>
+  <text x="190" y="29" font-family="JetBrains Mono, monospace" font-size="16" font-weight="700" fill="#b8b6bd">Database Index Review Optimization</text>
+  <text x="560" y="29" font-family="JetBrains Mono, monospace" font-size="16" fill="#54b8e8">openai-codex</text>
+  <text x="683" y="29" font-family="JetBrains Mono, monospace" font-size="16" fill="#d7bd63">gpt-5.4</text>
+  <text x="758" y="29" font-family="JetBrains Mono, monospace" font-size="16" fill="#6f6b7d">xhigh  1.1M  R T V</text>
+  <rect x="972" y="13" width="82" height="20" fill="#171b26"/>
+  <rect x="972" y="13" width="51" height="20" fill="#b3934c"/>
+  <text x="1068" y="29" font-family="JetBrains Mono, monospace" font-size="16" fill="#d7bd63">ctx peak 41.2k/64.0k 64%</text>
+  <text x="1320" y="29" font-family="JetBrains Mono, monospace" font-size="16" fill="#777489">314.8k down 4.9k</text>
+  <text x="1465" y="29" font-family="JetBrains Mono, monospace" font-size="16" fill="#8dd777">est. $0.4097</text>
   <line x1="0" y1="44" x2="1600" y2="44" stroke="#232438"/>
   <rect x="1174" y="44" width="2" height="748" fill="#d7ac45"/>
   <rect x="1208" y="62" width="386" height="720" rx="4" fill="#0d1018" stroke="#1f2231"/>
