@@ -19,12 +19,7 @@ func (m Model) updateChromeMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 			return m, nil, true
 		}
 		m.clearFooterError()
-		m.dialog = typed.dialog
-		m.resetDialogRefreshState()
-		if m.dialog != nil {
-			m.dialog.ApplyTheme(m.theme)
-			m.syncDialogFrameWithState(m.projector.CurrentState())
-		}
+		m.openDialog(typed.dialog)
 		if initial, ok := m.dialog.(dialogInitialCommander); ok {
 			return m, initial.InitialCmd(), true
 		}

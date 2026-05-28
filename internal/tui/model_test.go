@@ -46,7 +46,6 @@ type fakeController struct {
 	answerDelegatedQuestionResult app.AnswerDelegatedSessionQuestionResult
 	resolveErr                    error
 	delegatedResolveErr           error
-	reuseErr                      error
 	dialogStateErr                error
 	listSessionsErr               error
 	deleteSessionErr              error
@@ -78,7 +77,6 @@ type fakeController struct {
 	watchCalls                   []watchCall
 	resolveCalls                 []resolveCall
 	delegatedResolveCalls        []resolveDelegatedCall
-	reuseCalls                   []reuseCall
 	deleteSessionCalls           []string
 	setTUILayoutCalls            []string
 	setPrimaryModelCalls         []setPrimaryModelCall
@@ -224,11 +222,6 @@ type resolveDelegatedCall struct {
 	ExecutionDecision      events.ExecutionApprovalDecision
 	ExecutionExecPolicy    *events.ExecutionPolicyAmendment
 	ExecutionNetworkPolicy *events.ExecutionNetworkPolicyAmendment
-}
-
-type reuseCall struct {
-	SessionID string
-	HandoffID string
 }
 
 type promptHistoryCall struct {
@@ -574,14 +567,6 @@ func (f *fakeController) ResolveDelegatedPermission(
 		ExecutionNetworkPolicy: executionNetworkPolicy,
 	})
 	return f.delegatedResolveErr
-}
-
-func (f *fakeController) ReuseDelegatedResult(_ context.Context, sessionID, handoffID string) error {
-	f.reuseCalls = append(f.reuseCalls, reuseCall{
-		SessionID: sessionID,
-		HandoffID: handoffID,
-	})
-	return f.reuseErr
 }
 
 func (f *fakeController) OpenWorkspaceSession(_ context.Context, workspaceRoot string, _ []string, resume bool) (app.OpenWorkspaceSessionResult, error) {

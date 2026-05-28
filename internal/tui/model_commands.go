@@ -57,14 +57,6 @@ func compactSessionHistoryCmd(ctx context.Context, controller controller, sessio
 	}
 }
 
-func reuseDelegatedResultCmd(ctx context.Context, controller controller, sessionID, handoffID string) tea.Cmd {
-	return func() tea.Msg {
-		return operationDoneMsg{
-			err: controller.ReuseDelegatedResult(ctx, sessionID, handoffID),
-		}
-	}
-}
-
 func resolvePermissionCmd(
 	ctx context.Context,
 	controller controller,

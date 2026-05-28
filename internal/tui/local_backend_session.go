@@ -211,14 +211,6 @@ func (b *LocalBackend) ResolveDelegatedPermission(
 	return err
 }
 
-func (b *LocalBackend) ReuseDelegatedResult(ctx context.Context, sessionID, handoffID string) error {
-	_, err := b.runtime.ReuseDelegatedResult(ctx, app.ReuseDelegatedResultInput{
-		ParentSessionID: sessionID,
-		HandoffID:       handoffID,
-	})
-	return err
-}
-
 func (b *LocalBackend) DialogState(_ context.Context) (app.DialogState, error) {
 	return b.runtime.DialogState()
 }

@@ -41,6 +41,11 @@ func (m *Model) applyTheme(th *tuitheme.Theme) {
 	if m.dialog != nil {
 		m.dialog.ApplyTheme(th)
 	}
+	for _, dialog := range m.dialogStack {
+		if dialog != nil {
+			dialog.ApplyTheme(th)
+		}
+	}
 	m.syncViewportLayout()
 }
 
@@ -58,6 +63,58 @@ func (m *Model) syncDialogFrameWithState(state events.SessionState) {
 	}
 	width, height := dialogRenderSize(*m, state)
 	m.dialog.SetFrame(width, height)
+}
+
+func (m *Model) openDialog(dialog dialogModel) {
+	if m == nil {
+		return
+	}
+	if dialog == nil {
+		m.closeCurrentDialogPreservingStack()
+		return
+	}
+	if m.dialog != nil {
+		m.dialogStack = append(m.dialogStack, m.dialog)
+	}
+	m.dialog = dialog
+	m.resetDialogRefreshState()
+	m.dialog.ApplyTheme(m.theme)
+	m.syncDialogFrameWithState(m.projector.CurrentState())
+}
+
+func (m *Model) closeCurrentDialogPreservingStack() {
+	if m == nil {
+		return
+	}
+	m.dialog = nil
+	m.resetDialogRefreshState()
+}
+
+func (m *Model) closeAllDialogs() {
+	if m == nil {
+		return
+	}
+	m.dialog = nil
+	m.dialogStack = nil
+	m.resetDialogRefreshState()
+}
+
+func (m *Model) restorePreviousDialogOrClose() {
+	if m == nil {
+		return
+	}
+	m.resetDialogRefreshState()
+	if len(m.dialogStack) == 0 {
+		m.dialog = nil
+		return
+	}
+	last := len(m.dialogStack) - 1
+	m.dialog = m.dialogStack[last]
+	m.dialogStack = m.dialogStack[:last]
+	if m.dialog != nil {
+		m.dialog.ApplyTheme(m.theme)
+		m.syncDialogFrameWithState(m.projector.CurrentState())
+	}
 }
 
 func normalizedThemeSelection(name string) string {

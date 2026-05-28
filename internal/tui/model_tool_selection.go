@@ -115,20 +115,12 @@ func (m Model) handleTranscriptInput(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			}
 		}
 		return m.startChildSessionView()
-	case "r":
-		return m.reuseSelectedHandoffResult()
 	case "backspace":
 		return m.returnToParentSessionView()
 	case "k":
 		return m, m.moveSelectedTool(-1)
 	case "j":
 		return m, m.moveSelectedTool(1)
-	case "{":
-		m.moveSelectedHandoff(-1)
-		return m, m.ensureSelectedDelegatedSessionSnapshotLoadedCmd()
-	case "]":
-		m.moveSelectedHandoff(1)
-		return m, m.ensureSelectedDelegatedSessionSnapshotLoadedCmd()
 	case "v":
 		m.startTranscriptVisualSelection()
 		return m, nil
@@ -275,7 +267,7 @@ func (m *Model) openToolCallDialogForSession(sessionID string, state events.Sess
 	dialog := newToolDetailDialogForSession(*m, sessionID, state, ref, call)
 	width, height := dialogRenderSize(*m, state)
 	dialog.SetFrame(width, height)
-	m.dialog = dialog
+	m.openDialog(dialog)
 	return tea.Batch(
 		loadResultCmd,
 		m.ensureToolMutationDetailLoadedForSessionCmd(sessionID, ref, call),

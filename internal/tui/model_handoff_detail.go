@@ -52,7 +52,7 @@ func (m *Model) openHandoffDetailDialogForSession(sessionID string, state events
 	dialog := newHandoffDetailDialog(*m, sessionID, state, target, handoff)
 	width, height := dialogRenderSize(*m, state)
 	dialog.SetFrame(width, height)
-	m.dialog = dialog
+	m.openDialog(dialog)
 	return nil
 }
 

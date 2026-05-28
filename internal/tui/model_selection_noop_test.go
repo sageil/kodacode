@@ -91,50 +91,6 @@ func TestClearSelectedToolCallWithoutSelectionSkipsTranscriptRefresh(t *testing.
 	}
 }
 
-func TestMoveSelectedHandoffRootNoopSkipsTranscriptRefresh(t *testing.T) {
-	defaultTheme := theme.StaticDefault()
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	model := newSelectionNoopTestModel(ctx, &defaultTheme)
-	model.projector = events.NewProjectorFromSnapshot(events.SessionState{
-		SessionID:     "session-1",
-		WorkspaceRoot: "/repo",
-		TurnOrder:     []string{"turn-1"},
-		Turns: map[string]*events.TurnState{
-			"turn-1": {
-				TurnID:     "turn-1",
-				Status:     events.TurnStatusCompleted,
-				Transcript: []events.TranscriptEntryState{{Kind: events.TranscriptEntryAssistant, Text: "done"}},
-				ToolCalls:  map[string]*events.ToolCallState{},
-				HandoffOrder: []string{
-					"handoff-1",
-				},
-				Handoffs: map[string]*events.AgentHandoffState{
-					"handoff-1": {
-						HandoffID:     "handoff-1",
-						ChildAgentID:  "planner",
-						Status:        events.AgentResultStatusCompleted,
-						AssistantText: "delegated result",
-					},
-				},
-			},
-		},
-	})
-	model.syncViewportLayout()
-	model.selection.detailTurnID = "turn-1"
-	model.transcriptRefresh.lastAt = time.Time{}
-
-	model.moveSelectedHandoff(-1)
-
-	if !model.transcriptRefresh.lastAt.IsZero() {
-		t.Fatalf("lastTranscriptRefreshAt = %v, want zero when cycling handoff at root no-op", model.transcriptRefresh.lastAt)
-	}
-	if model.selection.handoffID != "" {
-		t.Fatalf("selectedHandoffID = %q, want empty after root no-op", model.selection.handoffID)
-	}
-}
-
 func newSelectionNoopTestModel(ctx context.Context, th *theme.Theme) Model {
 	model := NewModel(&fakeController{}, ModelConfig{
 		Context:       ctx,

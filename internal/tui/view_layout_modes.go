@@ -64,7 +64,7 @@ func shellStatusHints(m Model, state events.SessionState) string {
 			}
 			return toolHint + " · h/l chars · v select · i insert · ctrl+l layout · ctrl+s sessions · ctrl+n new"
 		}
-		return "drag/v select · h/l chars · ↑↓ lines · j/k tools · {/]} handoffs · i insert · ctrl+l layout · ctrl+\\ drawer · ctrl+s sessions · ctrl+n new"
+		return "drag/v select · h/l chars · ↑↓ lines · j/k tools · i insert · ctrl+l layout · ctrl+\\ drawer · ctrl+s sessions · ctrl+n new"
 	}
 }
 

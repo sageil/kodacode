@@ -174,12 +174,11 @@ func (m *Model) openTrustDialog() tea.Cmd {
 }
 
 func (m *Model) handleDialogClosed(msg dialogClosedMsg) (tea.Model, tea.Cmd) {
-	m.dialog = nil
-	m.resetDialogRefreshState()
 	if msg.id == dialogIDToolDetail {
 		m.clearToolMutationDetailCache()
 	}
 	if msg.result == nil {
+		m.restorePreviousDialogOrClose()
 		return *m, m.syncComposerFocus()
 	}
 
@@ -187,8 +186,10 @@ func (m *Model) handleDialogClosed(msg dialogClosedMsg) (tea.Model, tea.Cmd) {
 		switch typed := msg.result.(type) {
 		case agentItem:
 			if m.currentTurnRunning() {
+				m.closeAllDialogs()
 				return *m, nil
 			}
+			m.closeAllDialogs()
 			m.agentID = typed.ID
 			m.resetInspectorAgentSelectionToCurrentTurn()
 			if err := m.refreshAvailableAgents(); err != nil {
@@ -201,10 +202,12 @@ func (m *Model) handleDialogClosed(msg dialogClosedMsg) (tea.Model, tea.Cmd) {
 			return *m, nil
 		case provider.ModelRef:
 			if m.currentTurnRunning() {
+				m.closeAllDialogs()
 				return *m, nil
 			}
 			model, ok := availableModelForRef(*m, typed)
 			if !ok || len(model.SupportedReasoningVariants) == 0 {
+				m.closeAllDialogs()
 				m.reasoningVariant = ""
 				return *m, tea.Batch(
 					m.focusComposerAfterDialogSelection(),
@@ -214,22 +217,27 @@ func (m *Model) handleDialogClosed(msg dialogClosedMsg) (tea.Model, tea.Cmd) {
 			return *m, m.openReasoningVariantDialog(typed, model.SupportedReasoningVariants, true, m.currentView())
 		case utilityModelSelectionResult:
 			if m.currentTurnRunning() {
+				m.closeAllDialogs()
 				return *m, nil
 			}
+			m.closeAllDialogs()
 			return *m, tea.Batch(
 				m.focusComposerAfterDialogSelection(),
 				setUtilityModelCmd(m.ctx, m.backend, typed.Ref),
 			)
 		case reviewerModelSelectionResult:
 			if m.currentTurnRunning() {
+				m.closeAllDialogs()
 				return *m, nil
 			}
+			m.closeAllDialogs()
 			return *m, tea.Batch(
 				m.focusComposerAfterDialogSelection(),
 				setReviewerModelCmd(m.ctx, m.backend, typed.Ref),
 			)
 		case commandPaletteActionResult:
 			if m.currentTurnRunning() && (typed.ActionID == "select-model" || typed.ActionID == "select-agent" || typed.ActionID == "manage-sessions" || typed.ActionID == "new-session" || typed.ActionID == "select-utility-model" || typed.ActionID == "unset-utility-model" || typed.ActionID == "select-reviewer-model" || typed.ActionID == "unset-reviewer-model") {
+				m.closeAllDialogs()
 				return *m, nil
 			}
 			switch typed.ActionID {
@@ -250,6 +258,7 @@ func (m *Model) handleDialogClosed(msg dialogClosedMsg) (tea.Model, tea.Cmd) {
 			case "select-utility-model":
 				return *m, m.openUtilityModelDialog()
 			case "unset-utility-model":
+				m.closeAllDialogs()
 				return *m, tea.Batch(
 					m.focusComposerAfterDialogSelection(),
 					setUtilityModelCmd(m.ctx, m.backend, provider.ModelRef{}),
@@ -257,12 +266,14 @@ func (m *Model) handleDialogClosed(msg dialogClosedMsg) (tea.Model, tea.Cmd) {
 			case "select-reviewer-model":
 				return *m, m.openReviewerModelDialog()
 			case "unset-reviewer-model":
+				m.closeAllDialogs()
 				return *m, tea.Batch(
 					m.focusComposerAfterDialogSelection(),
 					setReviewerModelCmd(m.ctx, m.backend, provider.ModelRef{}),
 				)
 			}
 		}
+		m.closeAllDialogs()
 		return *m, nil
 	}
 
@@ -270,22 +281,27 @@ func (m *Model) handleDialogClosed(msg dialogClosedMsg) (tea.Model, tea.Cmd) {
 	case dialogIDShellTools:
 		result, ok := msg.result.(shellToolsDialogResult)
 		if !ok {
+			m.closeCurrentDialogPreservingStack()
 			return *m, nil
 		}
 		return *m, m.openShellToolsDialogResult(result)
 	case dialogIDTheme:
 		item, ok := msg.result.(themeItem)
 		if !ok {
+			m.closeCurrentDialogPreservingStack()
 			return *m, nil
 		}
+		m.closeAllDialogs()
 		return *m, tea.Batch(m.focusComposerAfterDialogSelection(), applyThemeCmd(m.ctx, m.backend, item.Name))
 	case dialogIDSessions:
 		result, ok := msg.result.(sessionsDialogResult)
 		if !ok {
+			m.closeCurrentDialogPreservingStack()
 			return *m, nil
 		}
 		switch {
 		case strings.TrimSpace(result.OpenSessionID) != "":
+			m.closeAllDialogs()
 			m.busy = true
 			return *m, switchSessionCmd(m.ctx, m.backend, sessionSwitchRequest{
 				SessionID:        result.OpenSessionID,
@@ -299,6 +315,7 @@ func (m *Model) handleDialogClosed(msg dialogClosedMsg) (tea.Model, tea.Cmd) {
 				WatchID:          m.nextWatch,
 			})
 		case result.Create:
+			m.closeAllDialogs()
 			m.busy = true
 			return *m, openWorkspaceSessionCmd(m.ctx, m.backend, workspaceSessionOpenRequest{
 				WorkspaceRoot:    m.workspace,
@@ -314,15 +331,19 @@ func (m *Model) handleDialogClosed(msg dialogClosedMsg) (tea.Model, tea.Cmd) {
 				WatchID:          m.nextWatch,
 			})
 		case strings.TrimSpace(result.DeleteID) != "":
+			m.closeCurrentDialogPreservingStack()
 			return *m, deleteSessionAndReopenDialogCmd(m.ctx, m.backend, m.sessionID, result.DeleteID, m.theme, m.width, m.height)
 		case len(result.PurgeIDs) > 0:
+			m.closeCurrentDialogPreservingStack()
 			return *m, purgeSessionsAndReopenDialogCmd(m.ctx, m.backend, m.sessionID, result.PurgeIDs, m.theme, m.width, m.height)
 		}
 	case dialogIDSkills:
 		result, ok := msg.result.(skillsDialogResult)
 		if !ok {
+			m.closeCurrentDialogPreservingStack()
 			return *m, nil
 		}
+		m.closeAllDialogs()
 		m.skillIDs = append([]string(nil), result.SkillIDs...)
 		m.clearFooterError()
 		m.syncInspectorBody(true)
@@ -334,9 +355,11 @@ func (m *Model) handleDialogClosed(msg dialogClosedMsg) (tea.Model, tea.Cmd) {
 		switch typed := msg.result.(type) {
 		case connectDialogResult:
 			if typed.Save != nil {
+				m.closeAllDialogs()
 				return *m, saveProviderCmd(m.ctx, m.backend, *typed.Save)
 			}
 			if strings.TrimSpace(typed.Remove) != "" {
+				m.closeAllDialogs()
 				return *m, removeProviderCmd(m.ctx, m.backend, typed.Remove)
 			}
 		case openAIAuthDialogRequest:
@@ -347,8 +370,10 @@ func (m *Model) handleDialogClosed(msg dialogClosedMsg) (tea.Model, tea.Cmd) {
 	case dialogIDOpenAIAuth:
 		result, ok := msg.result.(openAIAuthDialogResult)
 		if !ok {
+			m.closeCurrentDialogPreservingStack()
 			return *m, nil
 		}
+		m.closeAllDialogs()
 		m.cacheDialogState(result.State)
 		m.clearFooterError()
 		return *m, tea.Batch(
@@ -358,8 +383,10 @@ func (m *Model) handleDialogClosed(msg dialogClosedMsg) (tea.Model, tea.Cmd) {
 	case dialogIDGitHubCopilotAuth:
 		result, ok := msg.result.(gitHubCopilotAuthDialogResult)
 		if !ok {
+			m.closeCurrentDialogPreservingStack()
 			return *m, nil
 		}
+		m.closeAllDialogs()
 		m.cacheDialogState(result.State)
 		m.clearFooterError()
 		return *m, tea.Batch(
@@ -369,14 +396,18 @@ func (m *Model) handleDialogClosed(msg dialogClosedMsg) (tea.Model, tea.Cmd) {
 	case dialogIDTrust:
 		result, ok := msg.result.(trustDialogResult)
 		if !ok {
+			m.closeCurrentDialogPreservingStack()
 			return *m, nil
 		}
+		m.closeCurrentDialogPreservingStack()
 		return *m, revokeTrustAndReopenDialogCmd(m.ctx, m.backend, m.sessionID, m.workspace, result, m.theme, m.terminalIcons, m.width, m.height)
 	case dialogIDReasoningVariant:
 		result, ok := msg.result.(reasoningVariantDialogResult)
 		if !ok {
+			m.closeCurrentDialogPreservingStack()
 			return *m, nil
 		}
+		m.closeAllDialogs()
 		m.reasoningVariant = strings.TrimSpace(strings.ToLower(result.Variant))
 		if result.ApplyModel {
 			return *m, tea.Batch(
@@ -389,5 +420,6 @@ func (m *Model) handleDialogClosed(msg dialogClosedMsg) (tea.Model, tea.Cmd) {
 			m.showFooterActivity(reasoningVariantFooterLabel(m.reasoningVariant), footerActivityToneInfo, ""),
 		)
 	}
+	m.closeCurrentDialogPreservingStack()
 	return *m, nil
 }

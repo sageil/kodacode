@@ -10,7 +10,9 @@ KodaCode is easiest to learn if you think in terms of **focus**:
 - the **composer** for typing prompts
 - **dialogs** for sessions, models, trust, and detailed views
 
-If you get lost, `Ctrl+]` returns focus to the transcript.
+If you get lost, `Ctrl+]` returns focus to the transcript. `Esc` does the same
+when no turn is running; when a turn is running, `Esc` requests cancellation
+instead.
 
 KodaCode has two layouts. Shell view is the default single-plane terminal
 surface. Classic view keeps a persistent inspector side panel. See
@@ -34,29 +36,28 @@ These work outside the composer and apply across the normal TUI:
 | `Ctrl+O` | Also open sessions |
 | `Ctrl+N` | Start a new session |
 | `Ctrl+P` or `/` | Open the command palette |
-| `s` | Toggle the session rail |
+| `s` | Open sessions |
 | `i` | Enter insert mode and move focus to the composer |
 | `Ctrl+C` | Quit |
 
-When a turn is actively running, `Esc` requests cancellation.
+When a turn is actively running, `Esc` requests cancellation. Otherwise, `Esc`
+leaves insert/select focus and returns to normal transcript mode.
 
 ## Transcript
 
-Use the transcript when you want to read what happened, browse tool activity, or move across delegated work:
+Use the transcript when you want to read what happened and browse tool activity:
 
 | Key | Action |
 | --- | --- |
-| `Left` / `Right` | Move the transcript text cursor by character |
+| `Left` / `Right` or `h` / `l` | Move the transcript text cursor by character |
 | `Up` / `Down` | Scroll the transcript |
 | `PgUp` / `PgDn` | Page through the transcript |
 | `Ctrl+U` / `Ctrl+D` | Also page up or down |
 | `Home` / `End` | Jump to the top or bottom |
 | `0` / `$` | Jump to the start or end of the current transcript line |
 | `j` / `k` | Move between visible tool calls |
-| `{` / `]` | Move between visible handoffs |
-| `Enter` | Open a selected child session |
+| `Enter` | Open a selected child session; in shell view with inline tools visible, expand or collapse the selected tool first |
 | `Backspace` | Return to the parent session |
-| `r` | Reuse the selected handoff result |
 | `v` | Start visual transcript selection from the current text cursor |
 | `Left click` | Focus the transcript, place the text cursor, and start visual selection |
 
@@ -74,7 +75,7 @@ The inspector has three tabs: `Details`, `Tools`, and `Tasks`.
 | `Left` / `Right` | Also switch tabs |
 | `Up` / `Down` | Scroll the inspector |
 | `PgUp` / `PgDn` | Page through the inspector |
-| `Ctrl+U` / `Ctrl+D` | Also page up or down |
+| `K` / `J` | Also page up or down |
 | `Home` / `End` | Jump to the top or bottom of the inspector viewport |
 
 ### Tools tab
@@ -90,6 +91,34 @@ The inspector has three tabs: `Details`, `Tools`, and `Tasks`.
 | --- | --- |
 | `j` / `k` | Move between visible tasks |
 | `Enter` | Open the selected task detail dialog |
+
+## Shell tools popup
+
+Shell view uses a popup for session tool navigation instead of a persistent
+tools sidebar. Open it from normal transcript mode with `t`, or from either
+insert or normal mode with `Ctrl+T`.
+
+| Key | Action |
+| --- | --- |
+| `j` / `k` or `Up` / `Down` | Move through tool calls |
+| `PgUp` / `PgDn` or `Ctrl+U` / `Ctrl+D` | Page through tool calls |
+| `g` / `G` or `Home` / `End` | Jump to the first or last tool call |
+| `/` or typed text | Start searching tool calls |
+| `Enter` | Open details for the selected tool call |
+| `q` or `Esc` | Close the popup |
+
+While search is active:
+
+| Key | Action |
+| --- | --- |
+| Typed text | Extend the search query |
+| `Backspace` or `Ctrl+H` | Delete the previous search character |
+| `Ctrl+U` | Clear the search query |
+| `Esc` | Leave search and keep the popup open |
+| `Enter` | Open details for the selected tool call |
+
+Inline shell tool rows are toggled with `T` from normal mode. Transcript `j` /
+`k` skips mutation rows such as writes and patches when selecting tools.
 
 ## Composer
 
@@ -183,7 +212,7 @@ Tool detail, task detail, cost, and trace dialogs all use the same navigation:
 
 | Key | Action |
 | --- | --- |
-| `q`, `Esc`, or `Ctrl+C` | Close the dialog |
+| `q` or `Esc` | Close the dialog |
 | `Up` / `Down` | Scroll line by line |
 | `j` / `k` | Also scroll line by line |
 | `PgUp` / `PgDn` | Page up or down |
@@ -221,7 +250,7 @@ This is the in-app trust dialog opened from the command palette.
 | `A` | Revoke all trust |
 | `Enter` or `y` | Confirm a revoke action |
 | `Esc` or `n` | Cancel a revoke action |
-| `q` or `Ctrl+C` | Close the dialog |
+| `q` or `Esc` | Close the dialog |
 
 ## Copy and Paste
 
@@ -279,7 +308,7 @@ Typing `v` in the composer inserts the character `v`; visual selection only acti
 If you prefer vi-style movement, these are the main bindings to remember:
 
 - `h` / `l`: switch inspector tabs
-- `j` / `k`: move through tools, tasks, trust rows, approvals, and transcript tool selections
+- `j` / `k`: move through tools, tasks, trust rows, approvals, shell tool popup rows, and transcript tool selections
 - `g` / `G`: jump to the top or bottom in detail and trust dialogs
 
 One important limitation: the **command palette itself uses arrow keys**, not `j` / `k`.

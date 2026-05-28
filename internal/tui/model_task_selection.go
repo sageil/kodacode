@@ -74,7 +74,7 @@ func (m *Model) openTaskDialog(taskID string) tea.Cmd {
 	dialog := newTaskDetailDialog(*m, state, taskID, task)
 	width, height := dialogRenderSize(*m, state)
 	dialog.SetFrame(width, height)
-	m.dialog = dialog
+	m.openDialog(dialog)
 	return nil
 }
 

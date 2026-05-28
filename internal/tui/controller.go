@@ -54,5 +54,4 @@ type controller interface {
 		executionExecPolicy *events.ExecutionPolicyAmendment,
 		executionNetworkPolicy *events.ExecutionNetworkPolicyAmendment,
 	) error
-	ReuseDelegatedResult(ctx context.Context, sessionID, handoffID string) error
 }

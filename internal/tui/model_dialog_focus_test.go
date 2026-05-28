@@ -91,6 +91,113 @@ func TestCommandPaletteModelSelectionOpensVariantDialogFromAvailableModel(t *tes
 	}
 }
 
+func TestDialogEscapeRestoresPreviousDialog(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context:       ctx,
+		Theme:         &defaultTheme,
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: "/repo",
+	})
+	parent := &staticDialog{id: dialogIDCommandPalette, content: "palette"}
+	child := &staticDialog{id: dialogIDConnect, content: "connect"}
+	model.dialog = parent
+
+	opened, _, handled := model.updateChromeMsg(dialogOpenedMsg{dialog: child})
+	if !handled {
+		t.Fatal("dialogOpenedMsg was not handled")
+	}
+	if opened.dialog != child {
+		t.Fatalf("current dialog = %#v, want child", opened.dialog)
+	}
+	if len(opened.dialogStack) != 1 || opened.dialogStack[0] != parent {
+		t.Fatalf("dialog stack = %#v, want parent", opened.dialogStack)
+	}
+
+	restored, _ := opened.handleDialogClosed(dialogClosedMsg{id: dialogIDConnect})
+	next := restored.(Model)
+	if next.dialog != parent {
+		t.Fatalf("current dialog = %#v, want restored parent", next.dialog)
+	}
+	if len(next.dialogStack) != 0 {
+		t.Fatalf("dialog stack = %#v, want empty", next.dialogStack)
+	}
+}
+
+func TestCommandPaletteChildDialogEscapeRestoresPalette(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context:       ctx,
+		Theme:         &defaultTheme,
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: "/repo",
+	})
+	palette := &staticDialog{id: dialogIDCommandPalette, content: "palette"}
+	child := &staticDialog{id: dialogIDConnect, content: "connect"}
+	model.dialog = palette
+
+	kept, cmd := model.handleDialogClosed(dialogClosedMsg{
+		id:     dialogIDCommandPalette,
+		result: commandPaletteActionResult{ActionID: "connect-provider"},
+	})
+	keptModel := kept.(Model)
+	if keptModel.dialog != palette {
+		t.Fatalf("palette was not kept under child-open action: %#v", keptModel.dialog)
+	}
+	if cmd == nil {
+		t.Fatal("child-open command = nil")
+	}
+
+	opened, _, handled := keptModel.updateChromeMsg(dialogOpenedMsg{dialog: child})
+	if !handled {
+		t.Fatal("dialogOpenedMsg was not handled")
+	}
+	restored, _ := opened.handleDialogClosed(dialogClosedMsg{id: dialogIDConnect})
+	next := restored.(Model)
+	if next.dialog != palette {
+		t.Fatalf("current dialog = %#v, want restored palette", next.dialog)
+	}
+}
+
+func TestDialogSelectionClearsDialogStack(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context:       ctx,
+		Theme:         &defaultTheme,
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: "/repo",
+	})
+	model.dialogStack = []dialogModel{&staticDialog{id: dialogIDCommandPalette, content: "palette"}}
+	model.dialog = &staticDialog{id: dialogIDTheme, content: "theme"}
+
+	next, cmd := model.handleDialogClosed(dialogClosedMsg{
+		id:     dialogIDTheme,
+		result: themeItem{Name: "ayu-dark"},
+	})
+	updated := next.(Model)
+	if updated.dialog != nil {
+		t.Fatalf("dialog = %#v, want nil", updated.dialog)
+	}
+	if len(updated.dialogStack) != 0 {
+		t.Fatalf("dialog stack = %#v, want empty", updated.dialogStack)
+	}
+	if cmd == nil {
+		t.Fatal("theme selection command = nil")
+	}
+}
+
 func TestSessionOpenedMsgFocusesComposerAfterRestore(t *testing.T) {
 	defaultTheme := theme.StaticDefault()
 	ctx, cancel := context.WithCancel(context.Background())

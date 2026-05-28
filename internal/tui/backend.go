@@ -65,7 +65,6 @@ type Backend interface {
 		executionExecPolicy *events.ExecutionPolicyAmendment,
 		executionNetworkPolicy *events.ExecutionNetworkPolicyAmendment,
 	) error
-	ReuseDelegatedResult(ctx context.Context, sessionID, handoffID string) error
 	DialogState(ctx context.Context) (app.DialogState, error)
 	ListSessions(ctx context.Context) ([]app.SessionSummary, error)
 	ListPromptHistory(ctx context.Context, limit int) ([]app.PromptHistoryEntry, error)

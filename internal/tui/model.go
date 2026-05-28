@@ -94,6 +94,7 @@ type Model struct {
 	footerStatus       footerStatusState
 	inspector          inspectorState
 	dialog             dialogModel
+	dialogStack        []dialogModel
 	footerNotice       footerNoticeState
 	shuttingDown       bool
 	err                error
