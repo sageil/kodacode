@@ -219,6 +219,13 @@ func isMutationToolCall(call *events.ToolCallState) bool {
 	}
 }
 
+func isFailedApplyPatchToolCall(call *events.ToolCallState) bool {
+	return call != nil &&
+		strings.TrimSpace(call.ToolName) == "apply_patch" &&
+		call.Completed &&
+		strings.TrimSpace(call.Error) != ""
+}
+
 func isFailedMutationToolCall(call *events.ToolCallState) bool {
 	return isMutationToolCall(call) && call.Completed && strings.TrimSpace(call.Error) != ""
 }

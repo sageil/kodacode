@@ -108,7 +108,10 @@ func filterNonMutationToolSelectionRefs(m Model, state events.SessionState, refs
 			continue
 		}
 		_, _, call := toolCallForSelectionRef(m, state, ref)
-		if call == nil || outcomeCategoryForTool(call) == toolOutcomeMutation {
+		if call == nil {
+			continue
+		}
+		if outcomeCategoryForTool(call) == toolOutcomeMutation && (!shellLayoutEnabled(m) || !isFailedApplyPatchToolCall(call)) {
 			continue
 		}
 		filtered = append(filtered, ref)
