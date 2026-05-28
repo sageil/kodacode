@@ -35,25 +35,67 @@ func renderKodaShellTranscriptStatus(m Model, state events.SessionState, width i
 
 func renderKodaShellHeader(m Model, state events.SessionState, width int) string {
 	width = max(width, 1)
-	leftParts := []string{
+	baseParts := []string{
 		renderShellText(m, "KodaCode", "primary", "#e6b450", true),
 		renderShellText(m, shellWorkspaceHandle(state.WorkspaceRoot, m.workspace), "subtext", "#9da8ca", false),
 	}
 	if branch := shellHeaderBranchLabel(m, state); branch != "" {
-		leftParts = append(leftParts, renderShellText(m, "on", "subtext", "#9da8ca", false))
-		leftParts = append(leftParts, renderShellText(m, branch, "success", "#90e5b4", false))
+		baseParts = append(baseParts, renderShellText(m, "on", "subtext", "#9da8ca", false))
+		baseParts = append(baseParts, renderShellText(m, branch, "success", "#90e5b4", false))
 	}
-	leftParts = append(leftParts, renderShellSeparator(m))
-	leftParts = append(leftParts, renderShellText(m, shellSessionLabel(m, state), "text", "#f8f8f2", false))
 
-	right := headerContextMetricsZone(m, state)
-	if modelZone := headerModelZone(m, state, width); modelZone != "" {
-		leftParts = append(leftParts, renderShellSeparator(m))
-		leftParts = append(leftParts, modelZone)
-	}
-	left := strings.Join(compactTextParts(leftParts), " ")
-	row := lipgloss.NewStyle().Width(width).Render(joinBar(truncateVisibleEnd(left, max(width-visibleTextWidth(right)-1, 1)), right, width))
+	modelZone := headerModelZone(m, state, max(width/3, 8))
+	metricsZone := headerContextMetricsZone(m, state)
+	content := renderKodaShellHeaderContent(m, state, baseParts, modelZone, metricsZone, width)
+	row := renderCenteredShellHeaderRow(content, width)
 	return row + "\n" + renderHeaderDividerForState(m, state, width)
+}
+
+func renderKodaShellHeaderContent(m Model, state events.SessionState, baseParts []string, modelZone, metricsZone string, width int) string {
+	modelMetrics := headerCenterZone(modelZone, " "+renderShellSeparator(m)+" ", metricsZone)
+	title := shellSessionLabel(m, state)
+	titleWidth := len([]rune(title))
+	for titleWidth > 0 {
+		candidate := buildKodaShellHeaderContent(m, baseParts, truncateEnd(title, titleWidth), modelMetrics)
+		if lipgloss.Width(candidate) <= width {
+			return candidate
+		}
+		titleWidth--
+	}
+	if candidate := buildKodaShellHeaderContent(m, baseParts, "", modelMetrics); lipgloss.Width(candidate) <= width {
+		return candidate
+	}
+	if strings.TrimSpace(metricsZone) != "" && strings.TrimSpace(modelZone) != "" {
+		for modelWidth := lipgloss.Width(modelZone) - 1; modelWidth > 0; modelWidth-- {
+			shrunkModelZone := headerModelZone(m, state, modelWidth)
+			candidate := buildKodaShellHeaderContent(m, baseParts, "", headerCenterZone(shrunkModelZone, " "+renderShellSeparator(m)+" ", metricsZone))
+			if lipgloss.Width(candidate) <= width {
+				return candidate
+			}
+		}
+	}
+	return truncateVisibleEnd(buildKodaShellHeaderContent(m, baseParts, "", modelMetrics), width)
+}
+
+func buildKodaShellHeaderContent(m Model, baseParts []string, title, modelMetrics string) string {
+	parts := append([]string(nil), baseParts...)
+	if strings.TrimSpace(title) != "" {
+		parts = append(parts, renderShellSeparator(m), renderShellText(m, title, "text", "#f8f8f2", false))
+	}
+	if strings.TrimSpace(modelMetrics) != "" {
+		parts = append(parts, renderShellSeparator(m), modelMetrics)
+	}
+	return strings.Join(compactTextParts(parts), " ")
+}
+
+func renderCenteredShellHeaderRow(content string, width int) string {
+	width = max(width, 1)
+	contentWidth := lipgloss.Width(content)
+	if contentWidth >= width {
+		return lipgloss.NewStyle().Width(width).Render(content)
+	}
+	left := centeredZoneStart(width, contentWidth)
+	return strings.Repeat(" ", left) + content + strings.Repeat(" ", max(width-left-contentWidth, 0))
 }
 
 func shellWorkspaceHandle(workspaceRoot, fallback string) string {

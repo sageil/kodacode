@@ -20,6 +20,7 @@ type shellToolsDialog struct {
 	icons       terminalIconProfile
 	sessionID   string
 	state       events.SessionState
+	delegated   map[string]events.SessionState
 	allRefs     []sessionToolCallRef
 	refs        []sessionToolCallRef
 	search      string
@@ -42,14 +43,16 @@ func newShellToolsDialog(m Model, state events.SessionState) *shellToolsDialog {
 		icons:       m.terminalIcons,
 		sessionID:   strings.TrimSpace(m.sessionID),
 		state:       state,
-		allRefs:     shellToolsDialogRefs(state),
+		delegated:   m.delegatedSnapshots.snapshots,
+		allRefs:     shellToolsDialogRefs(m, state),
 		frameWidth:  96,
 		frameHeight: shellToolsDialogDefaultHeight,
 	}
 	dialog.applySearchFilter(sessionToolCallRef{})
 	selected := sessionToolCallRef{
-		TurnID: strings.TrimSpace(m.selection.callTurnID),
-		CallID: strings.TrimSpace(m.selection.callID),
+		SessionID: selectedToolSessionID(m),
+		TurnID:    strings.TrimSpace(m.selection.callTurnID),
+		CallID:    strings.TrimSpace(m.selection.callID),
 	}
 	if idx := indexOfToolCallRef(dialog.refs, selected); idx >= 0 {
 		dialog.cursor = idx
@@ -58,7 +61,7 @@ func newShellToolsDialog(m Model, state events.SessionState) *shellToolsDialog {
 	return dialog
 }
 
-func shellToolsDialogRefs(state events.SessionState) []sessionToolCallRef {
+func shellToolsDialogRefs(m Model, state events.SessionState) []sessionToolCallRef {
 	refs := orderedAllSessionToolCallRefs(state)
 	out := make([]sessionToolCallRef, 0, len(refs))
 	for _, ref := range refs {
@@ -67,6 +70,26 @@ func shellToolsDialogRefs(state events.SessionState) []sessionToolCallRef {
 			continue
 		}
 		out = append(out, ref)
+		if !isDelegateToolCall(call) {
+			continue
+		}
+		turn, _ := sessionToolCall(state, ref)
+		handoff := delegateHandoffForCall(turn, call)
+		if handoff == nil || strings.TrimSpace(handoff.ChildSessionID) == "" {
+			continue
+		}
+		childSessionID := strings.TrimSpace(handoff.ChildSessionID)
+		childState, ok := m.delegatedSnapshot(childSessionID)
+		if !ok {
+			continue
+		}
+		for _, childRef := range orderedDelegatedChildToolCallRefs(childState) {
+			_, childCall := sessionToolCall(childState, childRef)
+			if childCall == nil {
+				continue
+			}
+			out = append(out, toolRefForSession(childSessionID, childRef))
+		}
 	}
 	return out
 }
@@ -197,7 +220,8 @@ func (d *shellToolsDialog) Sync(m Model, state events.SessionState) {
 	d.theme = m.theme
 	d.sessionID = strings.TrimSpace(m.sessionID)
 	d.state = state
-	d.allRefs = shellToolsDialogRefs(state)
+	d.delegated = m.delegatedSnapshots.snapshots
+	d.allRefs = shellToolsDialogRefs(m, state)
 	d.applySearchFilter(selected)
 	switch {
 	case len(d.refs) == 0:
@@ -222,9 +246,11 @@ func (d *shellToolsDialog) OverlayCacheKey() uint64 {
 	writeTranscriptSignatureInt(hasher, d.cursor)
 	writeTranscriptSignatureInt(hasher, d.offset)
 	for _, ref := range d.refs {
+		writeTranscriptSignatureString(hasher, ref.SessionID)
 		writeTranscriptSignatureString(hasher, ref.TurnID)
 		writeTranscriptSignatureString(hasher, ref.CallID)
-		_, call := sessionToolCall(d.state, ref)
+		refState := d.stateForRef(ref)
+		_, call := sessionToolCall(refState, ref)
 		if call == nil {
 			continue
 		}
@@ -309,7 +335,7 @@ func (d *shellToolsDialog) applySearchFilter(selected sessionToolCallRef) {
 	if query == "" {
 		d.refs = append([]sessionToolCallRef(nil), d.allRefs...)
 	} else {
-		d.refs = shellToolsDialogFilterRefs(d.state, d.allRefs, query)
+		d.refs = d.filterRefs(d.allRefs, query)
 	}
 	switch {
 	case len(d.refs) == 0:
@@ -395,11 +421,12 @@ func (d *shellToolsDialog) renderBody(width, height int) string {
 	end := min(d.offset+height, len(d.refs))
 	for idx := d.offset; idx < end; idx++ {
 		ref := d.refs[idx]
-		_, call := sessionToolCall(d.state, ref)
+		refState := d.stateForRef(ref)
+		_, call := sessionToolCall(refState, ref)
 		if call == nil {
 			continue
 		}
-		lines = append(lines, d.renderRow(ref, call, idx == d.cursor, width))
+		lines = append(lines, d.renderRow(refState, ref, call, idx == d.cursor, width))
 	}
 	for len(lines) < height {
 		lines = append(lines, "")
@@ -407,11 +434,21 @@ func (d *shellToolsDialog) renderBody(width, height int) string {
 	return strings.Join(lines, "\n")
 }
 
-func (d *shellToolsDialog) renderRow(ref sessionToolCallRef, call *events.ToolCallState, selected bool, width int) string {
+func (d *shellToolsDialog) stateForRef(ref sessionToolCallRef) events.SessionState {
+	sessionID := strings.TrimSpace(ref.SessionID)
+	if sessionID != "" && sessionID != strings.TrimSpace(d.state.SessionID) {
+		if state, ok := d.delegated[sessionID]; ok {
+			return state
+		}
+	}
+	return d.state
+}
+
+func (d *shellToolsDialog) renderRow(state events.SessionState, ref sessionToolCallRef, call *events.ToolCallState, selected bool, width int) string {
 	width = max(width, 1)
 	status := toolStatus(call)
-	rightText := d.renderRowRightText(ref, status)
-	left := d.renderRowLeft(call, status, max(width-lipgloss.Width(rightText)-1, 1))
+	rightText := d.renderRowRightText(state, ref, status)
+	left := d.renderRowLeft(state, ref, call, status, max(width-lipgloss.Width(rightText)-1, 1))
 	line := joinShellToolRow(left, rightText, width)
 	if selected {
 		return dialogSelectedItemStyle(d.theme).Width(width).Render(line)
@@ -422,13 +459,16 @@ func (d *shellToolsDialog) renderRow(ref sessionToolCallRef, call *events.ToolCa
 		Render(line)
 }
 
-func (d *shellToolsDialog) renderRowLeft(call *events.ToolCallState, status string, width int) string {
+func (d *shellToolsDialog) renderRowLeft(state events.SessionState, ref sessionToolCallRef, call *events.ToolCallState, status string, width int) string {
 	icon := d.icons.ToolStatusSymbol(status)
 	kind := shellToolKind(call)
 	prefix := icon + " " + padRight(truncateEnd(kind, 10), 10) + " "
-	label := shellToolPrimaryLabel(d.state, call)
+	label := shellToolPrimaryLabel(state, call)
 	if label == "" {
 		label = kind
+	}
+	if sessionID := strings.TrimSpace(ref.SessionID); sessionID != "" && sessionID != strings.TrimSpace(d.sessionID) {
+		label = delegatedShellToolDialogLabel(state, label)
 	}
 	if detail := strings.TrimSpace(groupedToolItemResultDetail(call)); detail != "" && !strings.Contains(label, detail) {
 		label += " · " + detail
@@ -436,13 +476,23 @@ func (d *shellToolsDialog) renderRowLeft(call *events.ToolCallState, status stri
 	return prefix + truncateEnd(label, max(width-lipgloss.Width(prefix), 1))
 }
 
-func (d *shellToolsDialog) renderRowRightText(ref sessionToolCallRef, status string) string {
+func (d *shellToolsDialog) renderRowRightText(state events.SessionState, ref sessionToolCallRef, status string) string {
 	parts := make([]string, 0, 2)
-	if ordinal := sessionToolTurnOrdinal(d.state, ref.TurnID); ordinal > 0 {
+	if ordinal := sessionToolTurnOrdinal(state, ref.TurnID); ordinal > 0 {
 		parts = append(parts, fmt.Sprintf("t%d", ordinal))
+	}
+	if sessionID := strings.TrimSpace(ref.SessionID); sessionID != "" && sessionID != strings.TrimSpace(d.sessionID) {
+		parts = append(parts, "delegated")
 	}
 	parts = append(parts, shellToolStatusLabel(status))
 	return strings.Join(parts, " · ")
+}
+
+func delegatedShellToolDialogLabel(state events.SessionState, label string) string {
+	if sessionID := strings.TrimSpace(state.SessionID); sessionID != "" {
+		return sessionID + ": " + label
+	}
+	return "delegated: " + label
 }
 
 func shellToolKind(call *events.ToolCallState) string {
@@ -501,18 +551,19 @@ func shellToolsDialogSearchText(msg tea.KeyPressMsg) string {
 	return text
 }
 
-func shellToolsDialogFilterRefs(state events.SessionState, refs []sessionToolCallRef, query string) []sessionToolCallRef {
+func (d *shellToolsDialog) filterRefs(refs []sessionToolCallRef, query string) []sessionToolCallRef {
 	tokens := strings.Fields(strings.ToLower(strings.TrimSpace(query)))
 	if len(tokens) == 0 {
 		return append([]sessionToolCallRef(nil), refs...)
 	}
 	filtered := make([]sessionToolCallRef, 0, len(refs))
 	for _, ref := range refs {
-		_, call := sessionToolCall(state, ref)
+		refState := d.stateForRef(ref)
+		_, call := sessionToolCall(refState, ref)
 		if call == nil {
 			continue
 		}
-		haystack := strings.ToLower(shellToolsDialogSearchTextForCall(state, ref, call))
+		haystack := strings.ToLower(shellToolsDialogSearchTextForCall(refState, ref, call))
 		matches := true
 		for _, token := range tokens {
 			if !strings.Contains(haystack, token) {
@@ -529,6 +580,7 @@ func shellToolsDialogFilterRefs(state events.SessionState, refs []sessionToolCal
 
 func shellToolsDialogSearchTextForCall(state events.SessionState, ref sessionToolCallRef, call *events.ToolCallState) string {
 	parts := []string{
+		ref.SessionID,
 		ref.TurnID,
 		ref.CallID,
 		call.ToolName,

@@ -124,6 +124,7 @@ func renderTurnTranscriptSectionsWithOptions(m Model, state events.SessionState,
 	if section, ok := delegationRow.section(m); ok {
 		sections = append(sections, section)
 	}
+	sections = append(sections, renderShellDelegatedToolOutcomeSections(m, turn, width)...)
 	return sections
 }
 

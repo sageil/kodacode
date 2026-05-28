@@ -299,8 +299,9 @@ func toolCallVisibleInRuntime(turn *events.TurnState, call *events.ToolCallState
 }
 
 type sessionToolCallRef struct {
-	TurnID string
-	CallID string
+	SessionID string
+	TurnID    string
+	CallID    string
 }
 
 func orderedSessionTurnIDs(state events.SessionState) []string {
@@ -362,6 +363,7 @@ func sessionToolCall(state events.SessionState, ref sessionToolCallRef) (*events
 }
 
 func selectedSessionToolCall(state events.SessionState, m Model) (string, sessionToolCallRef, *events.TurnState, *events.ToolCallState, bool) {
+	sessionID := selectedToolSessionID(m)
 	ref := sessionToolCallRef{
 		TurnID: strings.TrimSpace(m.selection.callTurnID),
 		CallID: strings.TrimSpace(m.selection.callID),
@@ -369,7 +371,6 @@ func selectedSessionToolCall(state events.SessionState, m Model) (string, sessio
 	if ref.TurnID == "" || ref.CallID == "" {
 		return "", sessionToolCallRef{}, nil, nil, false
 	}
-	sessionID := selectedToolSessionID(m)
 	if sessionID != "" && sessionID != strings.TrimSpace(state.SessionID) {
 		childState, ok := m.delegatedSnapshot(sessionID)
 		if !ok {

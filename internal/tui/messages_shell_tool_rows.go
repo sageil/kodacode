@@ -55,6 +55,7 @@ func (r shellToolTranscriptRow) render(m Model) string {
 
 func (r shellToolTranscriptRow) cacheParts() []string {
 	return []string{
+		strings.TrimSpace(r.ref.SessionID),
 		strings.TrimSpace(r.ref.TurnID),
 		strings.TrimSpace(r.ref.CallID),
 		strings.TrimSpace(r.kind),
@@ -151,7 +152,7 @@ func renderShellTurnToolOutcomeSections(m Model, state events.SessionState, refs
 		clear(compactRefs)
 	}
 	for _, row := range rows {
-		_, call := sessionToolCall(state, row.Ref)
+		turn, call := sessionToolCall(state, row.Ref)
 		if call != nil && strings.TrimSpace(call.ToolName) == "question" {
 			flushCompact()
 			if content := strings.TrimSpace(renderQuestionOutcomeTranscriptSection(m, state, row.Ref, call, width)); content != "" {
@@ -162,7 +163,7 @@ func renderShellTurnToolOutcomeSections(m Model, state events.SessionState, refs
 		if row.Kind == toolOutcomeMutation || isMutationToolCall(call) {
 			if content := strings.TrimSpace(renderShellMutationToolTranscriptSection(m, state, row.Ref, call, width)); content != "" {
 				if transcriptRenderedLineCount(content) == 1 {
-					compactRefs[row.Ref] = len(compactLines)
+					compactRefs[row.Ref] = shellCompactLineOffset(compactLines)
 					compactLines = append(compactLines, content)
 					continue
 				}
@@ -184,11 +185,129 @@ func renderShellTurnToolOutcomeSections(m Model, state events.SessionState, refs
 		if strings.TrimSpace(content) == "" {
 			continue
 		}
-		compactRefs[row.Ref] = len(compactLines)
+		compactRefs[row.Ref] = shellCompactLineOffset(compactLines)
 		compactLines = append(compactLines, content)
+		appendShellDelegatedChildToolRows(m, turn, call, width, &compactLines, compactRefs)
 	}
 	flushCompact()
 	return sections
+}
+
+func appendShellDelegatedChildToolRows(m Model, turn *events.TurnState, call *events.ToolCallState, width int, lines *[]string, lineRefs map[sessionToolCallRef]int) {
+	if lines == nil || lineRefs == nil {
+		return
+	}
+	handoff := delegateHandoffForCall(turn, call)
+	if handoff == nil || strings.TrimSpace(handoff.ChildSessionID) == "" {
+		return
+	}
+	childSessionID := strings.TrimSpace(handoff.ChildSessionID)
+	childState, ok := m.delegatedSnapshot(childSessionID)
+	if !ok {
+		if loading := strings.TrimSpace(delegatedInspectorLoadingLabel(m, handoff)); loading != "" {
+			*lines = append(*lines, renderShellDelegatedInfoLine(m, loading, width))
+		}
+		return
+	}
+	appendShellChildToolRowsForState(m, childSessionID, childState, width, lines, lineRefs)
+}
+
+func renderShellDelegatedToolOutcomeSections(m Model, turn *events.TurnState, width int) []transcriptSection {
+	if !shellLayoutEnabled(m) || !m.shellToolCallsVisible || turn == nil || len(turn.HandoffOrder) == 0 {
+		return nil
+	}
+	lines := make([]string, 0, len(turn.HandoffOrder)*2)
+	lineRefs := make(map[sessionToolCallRef]int)
+	for _, handoffID := range orderedHandoffIDs(turn) {
+		handoff := turn.Handoffs[handoffID]
+		if handoff == nil {
+			continue
+		}
+		appendShellDelegatedHandoffToolRows(m, handoff, width, &lines, lineRefs)
+	}
+	if len(lines) == 0 {
+		return nil
+	}
+	return []transcriptSection{{
+		content:      strings.Join(lines, "\n"),
+		toolLineRefs: lineRefs,
+	}}
+}
+
+func appendShellDelegatedHandoffToolRows(m Model, handoff *events.AgentHandoffState, width int, lines *[]string, lineRefs map[sessionToolCallRef]int) {
+	if lines == nil || lineRefs == nil || handoff == nil {
+		return
+	}
+	childSessionID := strings.TrimSpace(handoff.ChildSessionID)
+	if childSessionID == "" {
+		return
+	}
+	childState, ok := m.delegatedSnapshot(childSessionID)
+	if !ok {
+		if loading := strings.TrimSpace(delegatedInspectorLoadingLabel(m, handoff)); loading != "" {
+			*lines = append(*lines, renderShellDelegatedInfoLine(m, loading, width))
+		}
+		return
+	}
+	appendShellChildToolRowsForState(m, childSessionID, childState, width, lines, lineRefs)
+}
+
+func appendShellChildToolRowsForState(m Model, childSessionID string, childState events.SessionState, width int, lines *[]string, lineRefs map[sessionToolCallRef]int) {
+	childRefs := filterPendingQuestionToolRefs(m, orderedDelegatedChildToolCallRefs(childState))
+	if len(childRefs) == 0 {
+		return
+	}
+	childRows := deriveUngroupedToolOutcomeRows(childState, childRefs)
+	for _, childRow := range childRows {
+		_, childCall := sessionToolCall(childState, childRow.Ref)
+		if childCall == nil {
+			continue
+		}
+		childRef := toolRefForSession(childSessionID, childRow.Ref)
+		childRow.Ref = childRef
+		selected := selectedToolMatchesSession(m, childSessionID, childRef)
+		expanded := expandedToolMatchesSession(m, childSessionID, childRef)
+		content := ""
+		if expanded {
+			content = strings.TrimSpace(renderShellFocusedToolTranscriptSection(m, childRef, childState, childCall, max(width-2, 1)))
+		}
+		if content == "" {
+			content = strings.TrimSpace(renderShellToolOutcomeLine(m, childState, childRow, childCall, max(width-2, 1), selected))
+		}
+		if content == "" {
+			continue
+		}
+		lineRefs[childRef] = shellCompactLineOffset(*lines)
+		*lines = append(*lines, indentShellDelegatedToolBlock(content))
+	}
+}
+
+func shellCompactLineOffset(lines []string) int {
+	offset := 0
+	for _, line := range lines {
+		offset += transcriptRenderedLineCount(line)
+	}
+	return offset
+}
+
+func renderShellDelegatedInfoLine(m Model, text string, width int) string {
+	width = max(width, 1)
+	return lipgloss.NewStyle().
+		Foreground(lipgloss.Color(colorFor(m.theme, "subtext", "#9da8ca"))).
+		Width(width).
+		Render("  " + truncateEnd(text, max(width-2, 1)))
+}
+
+func indentShellDelegatedToolBlock(block string) string {
+	block = strings.TrimRight(block, "\n")
+	if strings.TrimSpace(block) == "" {
+		return ""
+	}
+	lines := strings.Split(block, "\n")
+	for idx, line := range lines {
+		lines[idx] = "  " + line
+	}
+	return strings.Join(lines, "\n")
 }
 
 func renderShellToolTranscriptSection(m Model, state events.SessionState, ref sessionToolCallRef, call *events.ToolCallState, width int) string {

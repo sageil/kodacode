@@ -417,6 +417,14 @@ func (m Model) toggleDrawerVisibility() (tea.Model, tea.Cmd) {
 		return m, tea.Batch(m.syncComposerFocus(), m.ensureRelevantDelegatedSessionSnapshotsLoadedCmd(m.projector.Snapshot()))
 	}
 
+	if !shellLayoutEnabled(m) && (m.chrome.wideSidebarOpen || m.chrome.inspectorOpen) {
+		m.chrome.wideSidebarOpen = true
+		m.chrome.inspectorOpen = true
+		m.chrome.focus = focusInspector
+		m.syncViewportLayout()
+		return m, tea.Batch(m.syncComposerFocus(), m.ensureRelevantDelegatedSessionSnapshotsLoadedCmd(m.projector.Snapshot()))
+	}
+
 	if m.chrome.wideSidebarOpen || m.chrome.inspectorOpen {
 		m.chrome.wideSidebarOpen = false
 		m.chrome.inspectorOpen = false

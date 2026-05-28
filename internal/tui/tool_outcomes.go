@@ -31,10 +31,10 @@ func visibleToolSelectionRefs(m Model, state events.SessionState) []sessionToolC
 		if !m.shellToolCallsVisible {
 			return nil
 		}
-		if refs := filterNonMutationToolSelectionRefs(state, visibleTranscriptToolRefs(m)); len(refs) > 0 {
+		if refs := filterNonMutationToolSelectionRefs(m, state, visibleTranscriptToolRefs(m)); len(refs) > 0 {
 			return refs
 		}
-		return filterNonMutationToolSelectionRefs(state, ungroupedSessionToolSelectionRefs(state))
+		return filterNonMutationToolSelectionRefs(m, state, ungroupedSessionToolSelectionRefs(state))
 	}
 	if isWideShell(m) {
 		rows := deriveSessionToolOutcomeRows(state)
@@ -52,7 +52,7 @@ func visibleToolSelectionRefs(m Model, state events.SessionState) []sessionToolC
 			return refs
 		}
 	}
-	return filterNonMutationToolSelectionRefs(state, orderedSessionToolCallRefs(state))
+	return filterNonMutationToolSelectionRefs(m, state, orderedSessionToolCallRefs(state))
 }
 
 func ungroupedSessionToolSelectionRefs(state events.SessionState) []sessionToolCallRef {
@@ -98,7 +98,7 @@ func visibleTranscriptToolRefs(m Model) []sessionToolCallRef {
 	return refs
 }
 
-func filterNonMutationToolSelectionRefs(state events.SessionState, refs []sessionToolCallRef) []sessionToolCallRef {
+func filterNonMutationToolSelectionRefs(m Model, state events.SessionState, refs []sessionToolCallRef) []sessionToolCallRef {
 	if len(refs) == 0 {
 		return nil
 	}
@@ -107,13 +107,27 @@ func filterNonMutationToolSelectionRefs(state events.SessionState, refs []sessio
 		if strings.TrimSpace(ref.TurnID) == "" || strings.TrimSpace(ref.CallID) == "" {
 			continue
 		}
-		_, call := sessionToolCall(state, ref)
+		_, _, call := toolCallForSelectionRef(m, state, ref)
 		if call == nil || outcomeCategoryForTool(call) == toolOutcomeMutation {
 			continue
 		}
 		filtered = append(filtered, ref)
 	}
 	return filtered
+}
+
+func toolCallForSelectionRef(m Model, state events.SessionState, ref sessionToolCallRef) (events.SessionState, *events.TurnState, *events.ToolCallState) {
+	sessionID := strings.TrimSpace(ref.SessionID)
+	if sessionID != "" && sessionID != strings.TrimSpace(state.SessionID) {
+		childState, ok := m.delegatedSnapshot(sessionID)
+		if !ok {
+			return events.SessionState{}, nil, nil
+		}
+		turn, call := sessionToolCall(childState, ref)
+		return childState, turn, call
+	}
+	turn, call := sessionToolCall(state, ref)
+	return state, turn, call
 }
 
 func deriveSessionToolOutcomeRows(state events.SessionState) []toolOutcomeRow {

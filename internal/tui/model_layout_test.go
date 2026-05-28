@@ -66,6 +66,93 @@ func TestShellLayoutRendersSinglePlanePrompt(t *testing.T) {
 	}
 }
 
+func TestShellHeaderKeepsModelMetadataSnugWithContextGauge(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context:       ctx,
+		Theme:         &defaultTheme,
+		Layout:        "shell",
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: "/repo",
+	})
+	model.providerCatalog.models = map[string]app.AvailableModel{
+		"github-copilot/gpt-4.1": {
+			Ref:       provider.ModelRef{ProviderID: "github-copilot", ModelID: "gpt-4.1"},
+			Capacity:  provider.NormalizeModelCapacity(128000, 64000, 0),
+			ToolCalls: true,
+			Vision:    true,
+		},
+	}
+
+	state := events.SessionState{
+		Title: "Project Review Improvement Recommendations With A Very Long Working Session Title",
+		Model: "github-copilot/gpt-4.1",
+		TurnOrder: []string{
+			"turn-1",
+		},
+		Turns: map[string]*events.TurnState{
+			"turn-1": {
+				TurnID: "turn-1",
+				Status: events.TurnStatusRunning,
+				ProviderAttempts: []events.TurnProviderAttemptState{{
+					RequestTokens:      13100,
+					RequestTokenSource: "exact",
+					InputLimitTokens:   64000,
+				}},
+			},
+		},
+	}
+
+	rendered := ansi.Strip(renderKodaShellHeader(model, state, 220))
+	headerLine := strings.Split(rendered, "\n")[0]
+	modelLabel := "github-copilot/gpt-4.1"
+	caps := "128.0k · ✓T ✓V"
+	ctxLabel := "ctx 13.1k/64.0k 20%"
+	centerIdx := strings.Index(headerLine, modelLabel)
+	capsIdx := strings.Index(headerLine, caps)
+	ctxIdx := strings.Index(headerLine, ctxLabel)
+	if capsIdx == -1 || ctxIdx == -1 {
+		t.Fatalf("shell header missing model metadata or context gauge\nrendered:\n%s", rendered)
+	}
+	if centerIdx == -1 {
+		t.Fatalf("shell header missing model label\nrendered:\n%s", rendered)
+	}
+	center := headerCenterZone(
+		headerModelZone(model, state, max(220/3, 8)),
+		" "+renderShellSeparator(model)+" ",
+		headerContextMetricsZone(model, state),
+	)
+	if center == "" {
+		t.Fatalf("shell header center metadata is empty\nrendered:\n%s", rendered)
+	}
+	if !strings.Contains(headerLine, state.Title) {
+		t.Fatalf("shell header should keep the full title when it fits\nrendered:\n%s", rendered)
+	}
+	content := strings.TrimSpace(headerLine)
+	contentStart := len(headerLine) - len(strings.TrimLeft(headerLine, " "))
+	wantContentStart := centeredZoneStart(220, ansi.StringWidth(content))
+	if contentStart != wantContentStart {
+		t.Fatalf("shell header content start = %d, want %d\nrendered:\n%s", contentStart, wantContentStart, rendered)
+	}
+	if capsIdx >= ctxIdx {
+		t.Fatalf("shell header should keep model metadata before context gauge\nrendered:\n%s", rendered)
+	}
+	between := headerLine[capsIdx+len(caps) : ctxIdx]
+	if strings.Contains(between, "    ") {
+		t.Fatalf("shell header has excessive spacing between model metadata and context gauge\nbetween=%q\nrendered:\n%s", between, rendered)
+	}
+
+	narrowRendered := ansi.Strip(renderKodaShellHeader(model, state, 72))
+	narrowHeaderLine := strings.Split(narrowRendered, "\n")[0]
+	if !strings.Contains(narrowHeaderLine, ctxLabel) {
+		t.Fatalf("shell header should preserve context gauge before truncating fixed metadata\nrendered:\n%s", narrowRendered)
+	}
+}
+
 func TestShellLayoutEnterExpandsSelectedToolInline(t *testing.T) {
 	defaultTheme := theme.StaticDefault()
 	ctx, cancel := context.WithCancel(context.TODO())

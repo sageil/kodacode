@@ -15,7 +15,7 @@ func (m *Model) openShellToolsDialog() tea.Cmd {
 	width, height := dialogRenderSize(*m, state)
 	dialog.SetFrame(width, height)
 	m.dialog = dialog
-	return nil
+	return m.ensureRelevantDelegatedSessionSnapshotsLoadedCmd(state)
 }
 
 func (m *Model) syncShellToolsDialog() {
@@ -36,8 +36,9 @@ func (m *Model) openShellToolsDialogResult(result shellToolsDialogResult) tea.Cm
 		return nil
 	}
 	ref := sessionToolCallRef{
-		TurnID: strings.TrimSpace(result.Ref.TurnID),
-		CallID: strings.TrimSpace(result.Ref.CallID),
+		SessionID: strings.TrimSpace(result.Ref.SessionID),
+		TurnID:    strings.TrimSpace(result.Ref.TurnID),
+		CallID:    strings.TrimSpace(result.Ref.CallID),
 	}
 	if ref.TurnID == "" || ref.CallID == "" {
 		return nil

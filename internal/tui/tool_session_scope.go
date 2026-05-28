@@ -32,6 +32,11 @@ func scopedToolKey(sessionID string, ref sessionToolCallRef) scopedToolCallKey {
 	}
 }
 
+func toolRefForSession(sessionID string, ref sessionToolCallRef) sessionToolCallRef {
+	ref.SessionID = strings.TrimSpace(sessionID)
+	return ref
+}
+
 func normalizeToolTargetSessionID(currentSessionID, sessionID string) string {
 	sessionID = strings.TrimSpace(sessionID)
 	if sessionID != "" {
@@ -246,6 +251,12 @@ func (m Model) relevantDelegatedSessionSnapshotIDs(state events.SessionState) []
 
 	layout := resolveShellLayout(m, state)
 	if layout.showInspector && effectiveInspectorTab(m) == inspectorTabTools {
+		for _, sessionID := range orderedDelegatedSessionIDs(state) {
+			appendSessionID(sessionID)
+		}
+	}
+	_, shellToolsDialogOpen := m.dialog.(*shellToolsDialog)
+	if shellLayoutEnabled(m) && (m.shellToolCallsVisible || shellToolsDialogOpen) {
 		for _, sessionID := range orderedDelegatedSessionIDs(state) {
 			appendSessionID(sessionID)
 		}

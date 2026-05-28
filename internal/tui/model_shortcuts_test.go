@@ -49,6 +49,7 @@ func TestCtrlBackslashTogglesDrawerClosedFromInspector(t *testing.T) {
 	model := NewModel(&fakeController{}, ModelConfig{
 		Context:       ctx,
 		Theme:         &defaultTheme,
+		Layout:        "shell",
 		SessionID:     "session-1",
 		TurnID:        "turn-1",
 		WorkspaceRoot: "/repo",
@@ -69,6 +70,38 @@ func TestCtrlBackslashTogglesDrawerClosedFromInspector(t *testing.T) {
 	}
 	if next.chrome.inspectorOpen {
 		t.Fatal("inspectorOpen = true, want false")
+	}
+}
+
+func TestCtrlBackslashDoesNotHideClassicSidePanel(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context:       ctx,
+		Theme:         &defaultTheme,
+		Layout:        "classic",
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: "/repo",
+	})
+
+	model.chrome.focus = focusInspector
+	model.chrome.wideSidebarOpen = true
+	model.chrome.inspectorOpen = true
+
+	updated, _ := model.Update(tea.KeyPressMsg{Text: "\\", Code: '\\', Mod: tea.ModCtrl})
+	next := updated.(Model)
+
+	if next.chrome.focus != focusInspector {
+		t.Fatalf("focus = %q, want %q", next.chrome.focus, focusInspector)
+	}
+	if !next.chrome.wideSidebarOpen {
+		t.Fatal("wideSidebarOpen = false, want true")
+	}
+	if !next.chrome.inspectorOpen {
+		t.Fatal("inspectorOpen = false, want true")
 	}
 }
 

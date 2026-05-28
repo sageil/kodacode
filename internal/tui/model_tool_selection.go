@@ -208,8 +208,9 @@ func (m *Model) moveSelectedToolAcross(refs []sessionToolCallRef, delta int, cle
 	}
 
 	selected := sessionToolCallRef{
-		TurnID: strings.TrimSpace(m.selection.callTurnID),
-		CallID: strings.TrimSpace(m.selection.callID),
+		SessionID: selectedToolSessionID(*m),
+		TurnID:    strings.TrimSpace(m.selection.callTurnID),
+		CallID:    strings.TrimSpace(m.selection.callID),
 	}
 	index := indexOfToolCallRef(refs, selected)
 	switch {
@@ -225,16 +226,18 @@ func (m *Model) moveSelectedToolAcross(refs []sessionToolCallRef, delta int, cle
 
 func (m *Model) selectToolCall(ref sessionToolCallRef) tea.Cmd {
 	ref = sessionToolCallRef{
-		TurnID: strings.TrimSpace(ref.TurnID),
-		CallID: strings.TrimSpace(ref.CallID),
+		SessionID: strings.TrimSpace(ref.SessionID),
+		TurnID:    strings.TrimSpace(ref.TurnID),
+		CallID:    strings.TrimSpace(ref.CallID),
 	}
 	if ref.TurnID == "" || ref.CallID == "" {
 		m.clearSelectedToolCall()
 		return nil
 	}
+	sessionID := normalizeToolTargetSessionID(m.sessionID, ref.SessionID)
 	if strings.TrimSpace(m.selection.callTurnID) == ref.TurnID &&
 		strings.TrimSpace(m.selection.callID) == ref.CallID &&
-		selectedToolSessionID(*m) == strings.TrimSpace(m.sessionID) &&
+		selectedToolSessionID(*m) == sessionID &&
 		strings.TrimSpace(m.selection.handoffID) == "" {
 		return m.ensureSelectedToolResultLoadedCmd()
 	}
@@ -244,7 +247,7 @@ func (m *Model) selectToolCall(ref sessionToolCallRef) tea.Cmd {
 	if strings.TrimSpace(m.selection.handoffID) != "" {
 		selectedHandoffTurnID = strings.TrimSpace(m.turnID)
 	}
-	m.selection.callSessionID = strings.TrimSpace(m.sessionID)
+	m.selection.callSessionID = sessionID
 	m.selection.callTurnID = ref.TurnID
 	m.selection.callID = ref.CallID
 	m.clearExpandedToolCall()
@@ -256,6 +259,9 @@ func (m *Model) selectToolCall(ref sessionToolCallRef) tea.Cmd {
 }
 
 func (m *Model) openToolCallDialog(ref sessionToolCallRef) tea.Cmd {
+	if sessionID := strings.TrimSpace(ref.SessionID); sessionID != "" && sessionID != strings.TrimSpace(m.sessionID) {
+		return m.openInspectorToolTargetDialog(inspectorToolTarget{SessionID: sessionID, Ref: ref})
+	}
 	return m.openToolCallDialogForSession(m.sessionID, m.projector.Snapshot(), ref)
 }
 
@@ -369,13 +375,19 @@ func (m *Model) jumpTranscriptToSelectedTool() {
 		return
 	}
 	ref := sessionToolCallRef{
-		TurnID: strings.TrimSpace(m.selection.callTurnID),
-		CallID: strings.TrimSpace(m.selection.callID),
+		SessionID: selectedToolSessionID(*m),
+		TurnID:    strings.TrimSpace(m.selection.callTurnID),
+		CallID:    strings.TrimSpace(m.selection.callID),
 	}
 	if ref.TurnID == "" || ref.CallID == "" {
 		return
 	}
-	if line, ok := m.transcriptView.toolLines[ref]; ok {
+	line, ok := m.transcriptView.toolLines[ref]
+	if !ok {
+		ref.SessionID = ""
+		line, ok = m.transcriptView.toolLines[ref]
+	}
+	if ok {
 		m.messages.GotoLine(line)
 		m.syncVisibleTranscriptChunksIfNeeded()
 		m.transcriptView.cursorLine = line
@@ -437,11 +449,21 @@ func indexOfString(values []string, needle string) int {
 
 func indexOfToolCallRef(values []sessionToolCallRef, needle sessionToolCallRef) int {
 	for idx, value := range values {
-		if value.TurnID == needle.TurnID && value.CallID == needle.CallID {
+		if sameToolCallRef(value, needle) {
 			return idx
 		}
 	}
 	return -1
+}
+
+func sameToolCallRef(value, needle sessionToolCallRef) bool {
+	if strings.TrimSpace(value.TurnID) != strings.TrimSpace(needle.TurnID) ||
+		strings.TrimSpace(value.CallID) != strings.TrimSpace(needle.CallID) {
+		return false
+	}
+	valueSessionID := strings.TrimSpace(value.SessionID)
+	needleSessionID := strings.TrimSpace(needle.SessionID)
+	return valueSessionID == "" || needleSessionID == "" || valueSessionID == needleSessionID
 }
 
 func indexOfInspectorToolTarget(values []inspectorToolTarget, needle inspectorToolTarget) int {
