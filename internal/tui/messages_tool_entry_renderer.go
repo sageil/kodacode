@@ -37,7 +37,7 @@ func (shellTranscriptToolEntryRenderer) ToolCallsVisible(m Model) bool {
 
 func (shellTranscriptToolEntryRenderer) ShouldRenderCall(_ Model, turn *events.TurnState, callID string, call *events.ToolCallState) bool {
 	if isMutationToolCall(call) && transcriptOwnsToolCallRow(call) {
-		return true
+		return !shouldHideSupersededMutationFailure(turn, callID, call)
 	}
 	return shouldRenderToolCallInTranscript(turn, callID, call)
 }

@@ -275,7 +275,8 @@ func TestShellLayoutFailedApplyPatchShowsBoundedErrorAndExpands(t *testing.T) {
 	if strings.Contains(rendered, "apply_patch failed") || strings.Contains(rendered, "`apply_patch` failed") {
 		t.Fatalf("failed apply_patch rendered internal tool name\nrendered:\n%s", rendered)
 	}
-	for _, line := range strings.Split(renderShellApplyPatchFailureTranscriptSection(model, state.Turns["turn-1"].ToolCalls["patch-1"], 32, false), "\n") {
+	ref := sessionToolCallRef{TurnID: "turn-1", CallID: "patch-1"}
+	for _, line := range strings.Split(renderShellApplyPatchFailureTranscriptSection(model, state, ref, state.Turns["turn-1"].ToolCalls["patch-1"], 32, false), "\n") {
 		if width := ansi.StringWidth(ansi.Strip(line)); width > 32 {
 			t.Fatalf("failed apply_patch line width = %d, want <= 32: %q", width, ansi.Strip(line))
 		}
@@ -294,6 +295,161 @@ func TestShellLayoutFailedApplyPatchShowsBoundedErrorAndExpands(t *testing.T) {
 	rendered = ansi.Strip(renderModelView(model))
 	if !strings.Contains(rendered, "Error") || !strings.Contains(rendered, "*** Update File: src/app.ts") {
 		t.Fatalf("expanded failed apply_patch missing detail\nrendered:\n%s", rendered)
+	}
+}
+
+func TestShellLayoutHidesFailedApplyPatchWhenSameFileLaterSucceeds(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context:       ctx,
+		Theme:         &defaultTheme,
+		Layout:        "shell",
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: "/repo",
+	})
+	state := events.SessionState{
+		SessionID:     "session-1",
+		WorkspaceRoot: "/repo",
+		TurnOrder:     []string{"turn-1"},
+		Turns: map[string]*events.TurnState{
+			"turn-1": {
+				TurnID: "turn-1",
+				Status: events.TurnStatusCompleted,
+				Transcript: []events.TranscriptEntryState{
+					{Kind: events.TranscriptEntryTool, CallID: "patch-failed"},
+					{Kind: events.TranscriptEntryTool, CallID: "patch-success"},
+				},
+				ToolCallOrder: []string{"patch-failed", "patch-success"},
+				ToolCalls: map[string]*events.ToolCallState{
+					"patch-failed": {
+						CallID:   "patch-failed",
+						ToolName: "apply_patch",
+						Input: "*** Begin Patch\n" +
+							"*** Update File: src/app.ts\n" +
+							"@@\n" +
+							"-old\n" +
+							"+new\n" +
+							"*** End Patch",
+						Error:     "`apply_patch` failed. hunk did not match.",
+						Declared:  true,
+						Completed: true,
+						Succeeded: false,
+					},
+					"patch-success": {
+						CallID:    "patch-success",
+						ToolName:  "apply_patch",
+						Declared:  true,
+						Completed: true,
+						Succeeded: true,
+						WriteMutations: []events.WriteMutation{{
+							Path:    "/repo/src/app.ts",
+							Existed: true,
+							DiffPreview: &textdiff.Preview{
+								OldStartLine: 1,
+								NewStartLine: 1,
+								Ops: []textdiff.PreviewOp{
+									{Kind: textdiff.OpDelete, Text: "old"},
+									{Kind: textdiff.OpInsert, Text: "new"},
+								},
+							},
+						}},
+					},
+				},
+			},
+		},
+	}
+	model.projector = events.NewProjectorFromSnapshot(state)
+	modelIface, _ := model.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	model = modelIface.(Model)
+
+	rendered := ansi.Strip(renderModelView(model))
+	if strings.Contains(rendered, "Edit failed") || strings.Contains(rendered, "hunk did not match") {
+		t.Fatalf("shell transcript kept superseded failed apply_patch:\n%s", rendered)
+	}
+	if !strings.Contains(rendered, "Changed src/app.ts (+1 -1)") {
+		t.Fatalf("shell transcript missing successful apply_patch result:\n%s", rendered)
+	}
+}
+
+func TestShellLayoutConsecutiveFailedApplyPatchRowsAreCompact(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context:       ctx,
+		Theme:         &defaultTheme,
+		Layout:        "shell",
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: "/repo",
+	})
+	state := events.SessionState{
+		SessionID:     "session-1",
+		WorkspaceRoot: "/repo",
+		TurnOrder:     []string{"turn-1"},
+		Turns: map[string]*events.TurnState{
+			"turn-1": {
+				TurnID: "turn-1",
+				Status: events.TurnStatusCompleted,
+				Transcript: []events.TranscriptEntryState{
+					{Kind: events.TranscriptEntryTool, CallID: "patch-a"},
+					{Kind: events.TranscriptEntryTool, CallID: "patch-b"},
+				},
+				ToolCallOrder: []string{"patch-a", "patch-b"},
+				ToolCalls: map[string]*events.ToolCallState{
+					"patch-a": {
+						CallID:   "patch-a",
+						ToolName: "apply_patch",
+						Input: "*** Begin Patch\n" +
+							"*** Update File: src/a.ts\n" +
+							"@@\n" +
+							"-old\n" +
+							"+new\n" +
+							"*** End Patch",
+						Error:     "`apply_patch` failed. hunk did not match in src/a.ts.",
+						Declared:  true,
+						Completed: true,
+						Succeeded: false,
+					},
+					"patch-b": {
+						CallID:   "patch-b",
+						ToolName: "apply_patch",
+						Input: "*** Begin Patch\n" +
+							"*** Update File: src/b.ts\n" +
+							"@@\n" +
+							"-old\n" +
+							"+new\n" +
+							"*** End Patch",
+						Error:     "`apply_patch` failed. hunk did not match in src/b.ts.",
+						Declared:  true,
+						Completed: true,
+						Succeeded: false,
+					},
+				},
+			},
+		},
+	}
+	model.projector = events.NewProjectorFromSnapshot(state)
+	modelIface, _ := model.Update(tea.WindowSizeMsg{Width: 100, Height: 24})
+	model = modelIface.(Model)
+
+	lines := strings.Split(ansi.Strip(renderModelView(model)), "\n")
+	errorLines := make([]int, 0, 2)
+	for idx, line := range lines {
+		if strings.Contains(line, "Edit failed") {
+			errorLines = append(errorLines, idx)
+		}
+	}
+	if len(errorLines) != 2 {
+		t.Fatalf("error line count = %d, want 2\nrendered:\n%s", len(errorLines), strings.Join(lines, "\n"))
+	}
+	if errorLines[1] != errorLines[0]+1 {
+		t.Fatalf("failed edit rows should be adjacent, got lines %v\nrendered:\n%s", errorLines, strings.Join(lines, "\n"))
 	}
 }
 

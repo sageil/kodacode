@@ -148,9 +148,14 @@ func renderShellTurnToolOutcomeSections(m Model, state events.SessionState, refs
 				content = strings.TrimSpace(renderShellFocusedToolTranscriptSection(m, row.Ref, state, call, width))
 			}
 			if content == "" {
-				content = strings.TrimSpace(renderShellApplyPatchFailureTranscriptSection(m, call, width, selected))
+				content = strings.TrimSpace(renderShellApplyPatchFailureTranscriptSection(m, state, row.Ref, call, width, selected))
 			}
 			if content != "" {
+				if !expanded && transcriptRenderedLineCount(content) == 1 {
+					compactRefs[row.Ref] = shellCompactLineOffset(compactLines)
+					compactLines = append(compactLines, content)
+					continue
+				}
 				flushCompact()
 				sections = append(sections, transcriptSection{content: content, toolRefs: []sessionToolCallRef{row.Ref}})
 			}
@@ -267,7 +272,7 @@ func appendShellChildToolRowsForState(m Model, childSessionID string, childState
 			content = strings.TrimSpace(renderShellFocusedToolTranscriptSection(m, childRef, childState, childCall, max(width-2, 1)))
 		}
 		if content == "" && isFailedApplyPatchToolCall(childCall) {
-			content = strings.TrimSpace(renderShellApplyPatchFailureTranscriptSection(m, childCall, max(width-2, 1), selected))
+			content = strings.TrimSpace(renderShellApplyPatchFailureTranscriptSection(m, childState, childRef, childCall, max(width-2, 1), selected))
 		}
 		if content == "" {
 			content = strings.TrimSpace(renderShellToolOutcomeLine(m, childState, childRow, childCall, max(width-2, 1), selected))
@@ -331,7 +336,7 @@ func renderShellToolTranscriptSection(m Model, state events.SessionState, ref se
 					continue
 				}
 			}
-			if content := strings.TrimSpace(renderShellApplyPatchFailureTranscriptSection(m, rowCall, width, selected)); content != "" {
+			if content := strings.TrimSpace(renderShellApplyPatchFailureTranscriptSection(m, state, row.Ref, rowCall, width, selected)); content != "" {
 				lines = append(lines, content)
 			}
 			continue
@@ -378,27 +383,24 @@ func renderShellMutationToolTranscriptSection(m Model, state events.SessionState
 	return strings.Join(lines, "\n")
 }
 
-func renderShellApplyPatchFailureTranscriptSection(m Model, call *events.ToolCallState, width int, selected bool) string {
+func renderShellApplyPatchFailureTranscriptSection(m Model, state events.SessionState, ref sessionToolCallRef, call *events.ToolCallState, width int, selected bool) string {
 	if call == nil {
 		return ""
 	}
-	width = max(width, 1)
-	title := "Edit failed"
-	if selected {
-		title = "> " + title
+	label := "Edit failed"
+	if detail := strings.TrimSpace(applyPatchFailureDisplayError(call.Error)); detail != "" {
+		label += " · " + detail
 	}
-	errorStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(colorFor(m.theme, "error", "#ff9aa6")))
-	titleStyle := errorStyle.Bold(true)
-	lines := []string{titleStyle.Render(truncateEnd(title, width))}
-	for _, line := range wrapTranscriptText(applyPatchFailureDisplayError(call.Error), width) {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-		lines = append(lines, errorStyle.Render(truncateEnd(line, width)))
+	row := shellToolTranscriptRow{
+		ref:         ref,
+		kind:        "edit",
+		label:       singleLineToolText(label),
+		status:      normalizeOutcomeStatus(toolStatus(call)),
+		selected:    selected,
+		turnOrdinal: sessionToolTurnOrdinal(state, ref.TurnID),
+		width:       max(width, 1),
 	}
-	return strings.Join(lines, "\n")
+	return row.render(m)
 }
 
 func applyPatchFailureDisplayError(errorText string) string {
