@@ -22,7 +22,9 @@ var (
 func main() {
 	log.SetPrefix("kodacode " + buildInfo() + " ")
 	if shouldPrintBuildInfo(os.Args[1:]) {
-		fmt.Fprintln(os.Stdout, "kodacode "+buildInfo())
+		if _, err := fmt.Fprintln(os.Stdout, "kodacode "+buildInfo()); err != nil {
+			log.Fatal(err)
+		}
 		return
 	}
 
