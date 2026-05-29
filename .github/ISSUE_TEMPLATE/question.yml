@@ -1,0 +1,45 @@
+name: Question or support
+description: Ask for help using or configuring KodaCode.
+title: "question: "
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not include API keys, access tokens, private repository contents, or other secrets.
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: What are you trying to do?
+    validations:
+      required: true
+  - type: textarea
+    id: attempted
+    attributes:
+      label: What you tried
+      description: Include commands, prompts, or UI actions you already tried.
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Output or error
+      description: Paste relevant output with secrets removed.
+      render: text
+  - type: textarea
+    id: config
+    attributes:
+      label: Relevant configuration
+      description: Paste only the relevant config with tokens, keys, and private paths removed.
+      render: yaml
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Output from `kodacode --version`, or the commit SHA if running from source.
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: "OS, terminal, install method, provider/model if relevant"

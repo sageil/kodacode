@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/sageil/kodacode/security/advisories/new
+    about: Report sandbox escapes, credential leaks, permission bypasses, and other security issues privately.
+  - name: Documentation
+    url: https://kodacode.dev
+    about: Read the KodaCode documentation, configuration reference, and feature guides.
+  - name: Releases
+    url: https://github.com/sageil/kodacode/releases
+    about: Check the latest published release before reporting version-specific issues.

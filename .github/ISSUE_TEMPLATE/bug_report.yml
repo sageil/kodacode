@@ -1,0 +1,104 @@
+name: Bug report
+description: Report a reproducible problem with KodaCode.
+title: "bug: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug.
+
+        Do not report sandbox escapes, credential leaks, permission bypasses, or other security vulnerabilities here. Use GitHub private vulnerability reporting instead:
+        https://github.com/sageil/kodacode/security/advisories/new
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What happened?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Provide the smallest sequence of commands or UI actions that reproduces the issue.
+      placeholder: |
+        1. Run `kodacode ...`
+        2. Select ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should have happened?
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What happened instead? Include relevant error output, logs, or screenshots.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Output from `kodacode --version`, or the commit SHA if running from source.
+      placeholder: "kodacode version ..."
+    validations:
+      required: true
+  - type: dropdown
+    id: install_method
+    attributes:
+      label: Install method
+      options:
+        - Homebrew
+        - install.sh
+        - go install
+        - Built from source
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: OS
+      placeholder: "macOS 15.5, Ubuntu 24.04, etc."
+    validations:
+      required: true
+  - type: input
+    id: terminal
+    attributes:
+      label: Terminal
+      placeholder: "Terminal.app, iTerm2, Ghostty, WezTerm, VS Code terminal, etc."
+  - type: dropdown
+    id: layout
+    attributes:
+      label: TUI layout
+      description: If the issue is visible in the terminal UI.
+      options:
+        - Not applicable
+        - Shell
+        - Classic
+        - Both
+        - Unsure
+  - type: input
+    id: provider_model
+    attributes:
+      label: Provider and model
+      description: If provider behavior is involved, include the provider and model route with secrets removed.
+      placeholder: "openai/gpt-5, anthropic/..., local/..."
+  - type: textarea
+    id: config
+    attributes:
+      label: Relevant configuration
+      description: Paste only the relevant config with tokens, keys, and private paths removed.
+      render: yaml
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: Anything else that helps explain the problem.
