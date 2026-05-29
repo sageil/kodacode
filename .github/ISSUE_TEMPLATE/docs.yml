@@ -1,0 +1,30 @@
+name: Documentation issue
+description: Report missing, incorrect, or confusing documentation.
+title: "docs: "
+labels: ["documentation"]
+body:
+  - type: textarea
+    id: location
+    attributes:
+      label: Location
+      description: Link the page or name the file where the issue appears.
+      placeholder: "README.md, site/src/content/docs/..., https://kodacode.dev/..."
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What is missing, incorrect, outdated, or confusing?
+    validations:
+      required: true
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested change
+      description: What should the documentation say instead?
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Link related issues, PRs, commands, config fields, or features.

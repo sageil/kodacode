@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -20,6 +21,10 @@ var (
 
 func main() {
 	log.SetPrefix("kodacode " + buildInfo() + " ")
+	if shouldPrintBuildInfo(os.Args[1:]) {
+		fmt.Fprintln(os.Stdout, "kodacode "+buildInfo())
+		return
+	}
 
 	ctx, stop := signal.NotifyContext(context.TODO(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -39,4 +44,8 @@ func main() {
 
 func buildInfo() string {
 	return "version=" + version + " commit=" + commit + " date=" + date
+}
+
+func shouldPrintBuildInfo(args []string) bool {
+	return len(args) == 1 && (args[0] == "--version" || args[0] == "version")
 }

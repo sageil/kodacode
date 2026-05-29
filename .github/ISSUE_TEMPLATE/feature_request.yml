@@ -1,0 +1,57 @@
+name: Feature request
+description: Suggest a new capability or improvement.
+title: "feat: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What workflow is blocked, slow, confusing, or painful?
+    validations:
+      required: true
+  - type: textarea
+    id: current_workaround
+    attributes:
+      label: Current workaround
+      description: How do you handle this today?
+  - type: textarea
+    id: proposed_behavior
+    attributes:
+      label: Proposed behavior
+      description: What should KodaCode do?
+    validations:
+      required: true
+  - type: checkboxes
+    id: affected_areas
+    attributes:
+      label: Affected area
+      options:
+        - label: CLI
+        - label: TUI
+        - label: Agents
+        - label: Providers or model routing
+        - label: MCP
+        - label: Skills
+        - label: Permissions or sandboxing
+        - label: Search or context
+        - label: Documentation
+        - label: Install, release, or packaging
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other approaches or designs you considered.
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: What must be true for this to be considered done?
+      placeholder: |
+        - ...
+        - ...
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Screenshots, examples from other tools, links, or related issues.
