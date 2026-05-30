@@ -85,6 +85,7 @@ and wait for approval before making code changes.
 - [Cost Tracking](https://kodacode.dev/features/cost-tracking/)
 - [Project Memory & Instructions](https://kodacode.dev/features/project-memory/)
 - [Context Management](https://kodacode.dev/features/context/)
+- [Sessions, Resume & Timeline Branching](https://kodacode.dev/features/sessions/)
 
 ## Install
 
@@ -117,6 +118,7 @@ Useful first commands:
 - `/connect`: configure a provider
 - `/model`: choose the active model
 - `/init`: create workspace instructions
+- `/timeline`: branch from an earlier completed turn, navigate related branches, or explicitly summarize a branch with the utility model
 - `/trace`: inspect what happened in a turn
 - `/cost`: inspect spend and token savings
 

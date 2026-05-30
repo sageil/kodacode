@@ -12,6 +12,7 @@ Use the workflow that matches your current job:
 - First-time setup: install, connect a provider, choose a model, and create workspace instructions
 - Daily coding session: open a repo, ask for implementation work, and inspect what happened
 - Resume paused work: continue an existing workspace session instead of starting over
+- Try another path: branch from a completed turn without losing the original session
 - Review a change: use a read-focused agent and inspect the turn trace before trusting the result
 - Explore a repo safely: inspect architecture or answer questions without editing files
 
@@ -75,6 +76,37 @@ Related pages:
 - [Quick Start](/getting-started/quick-start/)
 - [Sessions](/features/sessions/)
 - [Context Management](/features/context/)
+
+## Try another path
+
+Use timeline branching when a session reached a useful point and you want to
+compare a different implementation or recovery path.
+
+1. Open `/timeline`.
+2. Move to the completed turn you want as the branch point.
+3. Press `t` if you want to inspect the turn first.
+4. Press `Enter` or `b` to create the branch.
+5. Continue in the new session.
+
+After branches exist, `/timeline` also becomes the branch navigator. Child branch
+sessions appear under the turn they came from, nested branches use tree glyphs,
+and branched sessions show their parent at the top. Selected branch rows preview
+status, update age, parent turn, session id, and child branch count. Press
+`Enter` on those branch rows to move between related sessions. Use `/` to search,
+`f` to filter, `Space` / `Left` / `Right` to fold nested branches, and `e` to
+label a branch once its purpose is clear.
+
+Branching is better than starting fresh when:
+
+- the earlier turns contain useful repo exploration
+- the later turns went in the wrong direction
+- you want to compare two implementation paths while preserving both histories
+
+Related pages:
+
+- [Sessions](/features/sessions/)
+- [Slash Commands](/reference/commands/)
+- [Navigation Keys](/reference/navigation/)
 
 ## Review a change
 

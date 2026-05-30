@@ -24,6 +24,15 @@ type reviewerModelSetMsg struct {
 	err   error
 }
 
+type sessionTitleSetMsg struct {
+	err error
+}
+
+type branchSummaryGeneratedMsg struct {
+	result app.GenerateBranchSummaryResult
+	err    error
+}
+
 type modelCatalogRefreshedMsg struct {
 	state    app.DialogState
 	query    string

@@ -32,7 +32,8 @@ behavior.
 | `/connect` | Connect or configure a provider | Fastest path to initial provider setup |
 | `/trust` | Manage trust for the current workspace | Covers workspace trust and MCP trust entries |
 | `/cost` | Inspect session cost | Shows spend, savings, and cache/cost detail |
-| `/trace [turn-number]` | Inspect one turn | Open without an argument to choose interactively when supported |
+| `/timeline` | Navigate session timeline and branches | Lists turns plus nested branch sessions with tree glyphs and previews; search, filter, fold, label branches, open a branch row, or create a branch from a completed turn |
+| `/trace [turn-number]` | Inspect one turn | Open without an argument to inspect the session turn index |
 | `/restore [turn-number]` | Restore writes from one turn in the current session | Open the session that owns the turn first |
 | `/quit` | Exit KodaCode | Ends the current app process |
 
@@ -45,9 +46,21 @@ behavior.
 - `/compact`: rebuild older session history into the durable `History Summary` artifact now
 - `/new`: start a new session
 - `/history`: search recent prompts through the searchable history popup
+- `/timeline`: branch a new session from a completed previous turn
 - `/review [instructions]`: run a focused runtime-owned review of the current workspace changes
 
 Use this group when you want to move between sessions, inspect prior work, or prepare the current session before another turn.
+
+`/timeline` is for trying another path without losing the original session. It
+lists the current session's turns, shows parent and nested child branch sessions
+with tree glyphs, lets you inspect a turn with `t`, and creates a new session
+from the selected completed turn with `Enter` or `b`. Branch rows preview status,
+update age, parent turn, session id, child branch count, and any fresh saved
+branch summary. Use `/` to search, `f` or `1` through `5` to filter, `Space` /
+`Left` / `Right` to fold branch subtrees, `s` to explicitly summarize a child
+branch with the configured utility model, and `e` to label a branch session.
+Opening Timeline does not generate summaries. Running turns can be selected for
+inspection, but only completed turns can be branched.
 
 `/compact` only affects durable session history. It calls the same history-compaction path used by automatic compaction instead of creating a separate manual workflow.
 
@@ -74,12 +87,14 @@ Use this group when you are still shaping the environment the agent runs in rath
 ## Inspection
 
 - `/cost`: inspect session cost
+- `/timeline`: branch from a previous completed turn, open related branch sessions, filter/search the branch graph, or inspect a turn with `t`
 - `/trace [turn-number]`: inspect one turn
 - `/restore [turn-number]`: restore writes from one turn in the current session
 - `/quit`: exit KodaCode
 
-`/trace` and `/restore` are the two commands most closely tied to KodaCode's event-first design:
+These inspection commands are closely tied to KodaCode's event-first design:
 
+- `/timeline` answers "what if I continued from this earlier point, or opened a related branch?"
 - `/trace` answers "what actually happened in this turn?"
 - `/restore` answers "bring back the writes from that turn"
 
@@ -97,4 +112,4 @@ If you are new, learn these first:
 4. `/trace`
 5. `/cost`
 
-Then add `/init`, `/compress`, `/compact`, and `/restore` once you are working on longer-lived repos.
+Then add `/init`, `/timeline`, `/compress`, `/compact`, and `/restore` once you are working on longer-lived repos.

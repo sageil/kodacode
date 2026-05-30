@@ -16,6 +16,7 @@ const (
 	TypeSessionPermissionModeUpdated Type = "session_permission_mode_updated"
 	TypeSessionMCPCatalogUpdated     Type = "session_mcp_catalog_updated"
 	TypeSessionProviderLimitUpdated  Type = "session_provider_limit_updated"
+	TypeSessionBranched              Type = "session_branched"
 	TypeSessionStateSnapshot         Type = "session_state_snapshot"
 	TypeAssistantPreviewDelta        Type = "assistant_preview_delta"
 	TypeAssistantPreviewReset        Type = "assistant_preview_reset"

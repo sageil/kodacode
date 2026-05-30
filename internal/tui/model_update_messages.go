@@ -77,6 +77,28 @@ func (m Model) updateChromeMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 			m.syncComposerFocus(),
 			m.showFooterActivity(reviewerModelFooterLabel(typed.state.ReviewModelRoute.Primary), footerActivityToneInfo, ""),
 		), true
+	case sessionTitleSetMsg:
+		if typed.err != nil {
+			m.setFooterError(typed.err.Error())
+			return m, nil, true
+		}
+		m.clearFooterError()
+		return m, m.showFooterActivity("Branch label saved", footerActivityToneInfo, ""), true
+	case branchSummaryGeneratedMsg:
+		m.busy = false
+		if typed.err != nil {
+			m.setFooterError(typed.err.Error())
+			return m, nil, true
+		}
+		m.clearFooterError()
+		label := "Branch summary saved"
+		if typed.result.Cached {
+			label = "Branch summary reused"
+		}
+		return m, tea.Batch(
+			m.showFooterActivity(label, footerActivityToneInfo, ""),
+			m.openTimelineDialog(),
+		), true
 	case footerErrorMsg:
 		if typed.err != nil {
 			m.setFooterError(typed.err.Error())

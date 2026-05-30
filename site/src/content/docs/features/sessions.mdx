@@ -34,6 +34,45 @@ Session removal is explicit. Open `/sessions` when you want to inspect, switch,
 delete, or purge stored sessions. That delete path removes the session event
 history and the related derived artifacts together.
 
+## Timeline branching
+
+Use `/timeline` when you want to try another approach from an earlier point in
+the current session.
+
+The timeline dialog lists turns from the open session and shows related branch
+sessions in context. Branch rows use tree glyphs for nested lineage and show a
+selected-row preview with status, update age, parent turn, session id, and child
+branch count. If you explicitly summarize a branch, the preview shows the saved
+summary while it is fresh. Select a row and press:
+
+- `Enter` or `b` to create and switch to a new branched session
+- `Enter` on a parent or child branch row to open that related session
+- `t` to inspect that turn in the trace dialog
+- `/` to search turn text, branch labels, ids, and row metadata
+- `f` to cycle filters, or `1` through `5` for all, completed, failed, with tools, and branches
+- `Space`, `Left`, or `Right` to fold and unfold nested branch sessions
+- `s` on a child branch row to generate or reuse a branch summary
+- `e` on a branch row to edit that branch session label
+- `q` or `Esc` to close the dialog
+
+Branching is available only from completed turns. A running turn can still be
+highlighted and inspected, but runtime will not create a branch until the turn
+has a completion sequence. Failed or canceled turns count as completed because
+they have a durable terminal event.
+
+The branched session keeps the same workspace roots and permission mode, records
+its parent session, parent turn, and parent sequence, then replays the original
+session history only through the selected turn. Later turns stay in the original
+session. `/timeline` uses that lineage to act as a lightweight session graph:
+child branches appear under the turn they branched from, deeper branches nest
+under their parent branch, and a branched session shows a parent row at the top.
+
+Branch summaries are explicit. Opening `/timeline` does not generate them. When
+you press `s`, kodacode uses the configured utility model, caps input to recent
+final turns and existing history summaries, stores the result as a runtime
+artifact, and reuses it until the branch receives another event. Summary
+generation records utility branch-summary usage in the session's cost data.
+
 ## Easy example
 
 This is a good default for one developer who wants session persistence and a
@@ -117,6 +156,7 @@ The advantage of session configuration is not just persistence.
 ## TUI session commands
 
 - `/sessions`: open the workspace session manager to resume, switch, delete, or purge sessions
+- `/timeline`: branch a new session from a completed turn in the current session
 - `/compact`: rebuild older session history into the durable `History Summary` now
 - `/new`: start a new session
 - `/history`: search recent prompts

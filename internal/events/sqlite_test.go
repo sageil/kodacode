@@ -54,6 +54,51 @@ func TestSQLiteStoreAppendAssignsSequenceAndReplayReadsFromCursor(t *testing.T) 
 	}
 }
 
+func TestSQLiteStoreSavesBranchSummaryAndDeletesWithSession(t *testing.T) {
+	store, err := NewSQLiteStore(filepath.Join(t.TempDir(), "kodacode.db"))
+	if err != nil {
+		t.Fatalf("NewSQLiteStore() error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = store.Close()
+	})
+	ctx := context.Background()
+	if _, err := store.Append(ctx, Draft{
+		SessionID: "session-branch",
+		TurnID:    "_session",
+		Type:      TypeSessionConfigured,
+		Payload:   SessionConfiguredPayload{WorkspaceRoot: "/repo"},
+	}); err != nil {
+		t.Fatalf("Append() error = %v", err)
+	}
+	artifact := BranchSummaryArtifact{
+		SessionID:        "session-branch",
+		SourceSequence:   3,
+		Summary:          "branch changed cache flow",
+		Model:            "openai/gpt-5-mini",
+		PromptTokens:     123,
+		CompletionTokens: 45,
+		CreatedAt:        time.Unix(1710000000, 0).UTC(),
+		UpdatedAt:        time.Unix(1710000100, 0).UTC(),
+	}
+	if err := store.SaveBranchSummary(ctx, artifact); err != nil {
+		t.Fatalf("SaveBranchSummary() error = %v", err)
+	}
+	got, ok, err := store.LoadBranchSummary(ctx, "session-branch")
+	if err != nil {
+		t.Fatalf("LoadBranchSummary() error = %v", err)
+	}
+	if !ok || got.Summary != artifact.Summary || got.SourceSequence != artifact.SourceSequence || got.Model != artifact.Model {
+		t.Fatalf("branch summary = %#v, ok=%v", got, ok)
+	}
+	if err := store.DeleteSession(ctx, "session-branch"); err != nil {
+		t.Fatalf("DeleteSession() error = %v", err)
+	}
+	if _, ok, err := store.LoadBranchSummary(ctx, "session-branch"); err != nil || ok {
+		t.Fatalf("LoadBranchSummary() after delete ok=%v err=%v", ok, err)
+	}
+}
+
 func TestSQLiteStoreWatchReplaysThenStreamsWithoutGap(t *testing.T) {
 	store, err := NewSQLiteStore(filepath.Join(t.TempDir(), "kodacode.db"))
 	if err != nil {

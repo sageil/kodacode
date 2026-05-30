@@ -11,7 +11,7 @@ import (
 	"github.com/sageil/kodacode/internal/tui/theme"
 )
 
-func TestMouseWheelScrollsTranscriptOutsideTranscriptFocus(t *testing.T) {
+func TestMouseWheelScrollsTranscriptWithoutChangingFocus(t *testing.T) {
 	defaultTheme := theme.StaticDefault()
 	ctx, cancel := context.WithCancel(context.TODO())
 	defer cancel()
@@ -50,8 +50,8 @@ func TestMouseWheelScrollsTranscriptOutsideTranscriptFocus(t *testing.T) {
 	}))
 	next := nextIface.(Model)
 
-	if next.chrome.focus != focusTranscript {
-		t.Fatalf("focus after wheel = %q, want %q", next.chrome.focus, focusTranscript)
+	if next.chrome.focus != focusComposer {
+		t.Fatalf("focus after wheel = %q, want %q", next.chrome.focus, focusComposer)
 	}
 	if next.messages.YOffset() >= previous {
 		t.Fatalf("mouse wheel up did not scroll transcript: before=%d after=%d", previous, next.messages.YOffset())
@@ -103,7 +103,7 @@ func TestPageKeysScrollTranscriptWhileComposerFocused(t *testing.T) {
 	}
 }
 
-func TestMouseWheelDuringCancelFocusesTranscript(t *testing.T) {
+func TestMouseWheelDuringCancelKeepsFocus(t *testing.T) {
 	defaultTheme := theme.StaticDefault()
 	ctx, cancel := context.WithCancel(context.TODO())
 	defer cancel()
@@ -143,11 +143,54 @@ func TestMouseWheelDuringCancelFocusesTranscript(t *testing.T) {
 	}))
 	next := nextIface.(Model)
 
-	if next.chrome.focus != focusTranscript {
-		t.Fatalf("focus after wheel = %q, want %q", next.chrome.focus, focusTranscript)
+	if next.chrome.focus != focusComposer {
+		t.Fatalf("focus after wheel = %q, want %q", next.chrome.focus, focusComposer)
 	}
 	if next.messages.YOffset() >= previous {
 		t.Fatalf("mouse wheel up did not scroll transcript: before=%d after=%d", previous, next.messages.YOffset())
+	}
+}
+
+func TestMouseWheelScrollsInspectorWithoutChangingFocus(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context:       ctx,
+		Theme:         &defaultTheme,
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: "/repo",
+	})
+
+	modelIface, _ := model.Update(tea.WindowSizeMsg{Width: 140, Height: 30})
+	model = modelIface.(Model)
+	model.chrome.wideSidebarOpen = true
+	model.chrome.inspectorOpen = true
+	model.chrome.focus = focusComposer
+	model.syncViewportLayout()
+	model.inspector.body.Sync(strings.Repeat("inspector line\n", 200), false)
+	model.inspector.body.GotoTop()
+
+	state := model.projector.Snapshot()
+	layout := resolveShellLayout(model, state)
+	headerHeight := lipgloss.Height(renderSplitWideHeader(model, state, layout.totalWidth))
+	mouseX := layout.centerWidth + 2
+	mouseY := headerHeight + 1
+
+	nextIface, _ := model.Update(tea.MouseWheelMsg(tea.Mouse{
+		X:      mouseX,
+		Y:      mouseY,
+		Button: tea.MouseWheelDown,
+	}))
+	next := nextIface.(Model)
+
+	if next.chrome.focus != focusComposer {
+		t.Fatalf("focus after wheel = %q, want %q", next.chrome.focus, focusComposer)
+	}
+	if next.inspector.body.YOffset() <= 0 {
+		t.Fatalf("inspector did not scroll under cursor: before=%d after=%d", model.inspector.body.YOffset(), next.inspector.body.YOffset())
 	}
 }
 

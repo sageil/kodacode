@@ -247,6 +247,7 @@ func costDialogUsage(state events.SessionState) (costDialogStats, []costDialogTu
 		stats.EstimatedInputSavingsCost += savings.EstimatedInputSavingsCost
 		stats.EstimatedCacheSavingsCost += savings.EstimatedCacheSavingsCost
 		stats.UtilityCompactionUsage.Add(costDialogTurnUsageForKind(turn, events.TurnProviderUsageKindUtilityCompaction))
+		stats.UtilityBranchSummaryUsage.Add(costDialogTurnUsageForKind(turn, events.TurnProviderUsageKindUtilityBranchSummary))
 		if turn.Continuation != nil {
 			stats.HistoryCompactionSummaryUpdates++
 		}

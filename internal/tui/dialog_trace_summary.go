@@ -302,6 +302,8 @@ func traceDialogProviderAttemptKindLabel(kind string) string {
 		return ""
 	case events.TurnProviderUsageKindUtilityCompaction:
 		return "utility compaction"
+	case events.TurnProviderUsageKindUtilityBranchSummary:
+		return "branch summary"
 	default:
 		return strings.TrimSpace(kind)
 	}

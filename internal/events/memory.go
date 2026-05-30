@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 )
@@ -14,15 +15,17 @@ var (
 )
 
 type MemoryStore struct {
-	mu       sync.Mutex
-	sessions map[string][]Event
-	watchers map[string]map[*watcher]struct{}
+	mu              sync.Mutex
+	sessions        map[string][]Event
+	watchers        map[string]map[*watcher]struct{}
+	branchSummaries map[string]BranchSummaryArtifact
 }
 
 func NewMemoryStore() *MemoryStore {
 	return &MemoryStore{
-		sessions: make(map[string][]Event),
-		watchers: make(map[string]map[*watcher]struct{}),
+		sessions:        make(map[string][]Event),
+		watchers:        make(map[string]map[*watcher]struct{}),
+		branchSummaries: make(map[string]BranchSummaryArtifact),
 	}
 }
 
@@ -179,11 +182,53 @@ func (s *MemoryStore) DeleteSession(_ context.Context, sessionID string) error {
 	defer s.mu.Unlock()
 
 	delete(s.sessions, sessionID)
+	delete(s.branchSummaries, sessionID)
 	for w := range s.watchers[sessionID] {
 		w.close()
 	}
 	delete(s.watchers, sessionID)
 	return nil
+}
+
+func (s *MemoryStore) SaveBranchSummary(_ context.Context, artifact BranchSummaryArtifact) error {
+	sessionID := strings.TrimSpace(artifact.SessionID)
+	artifact.Summary = strings.TrimSpace(artifact.Summary)
+	if sessionID == "" || artifact.Summary == "" {
+		return nil
+	}
+	now := time.Now().UTC()
+	if artifact.CreatedAt.IsZero() {
+		artifact.CreatedAt = now
+	}
+	if artifact.UpdatedAt.IsZero() {
+		artifact.UpdatedAt = now
+	}
+	artifact.SessionID = sessionID
+	if artifact.SourceSequence < 0 {
+		artifact.SourceSequence = 0
+	}
+	if artifact.PromptTokens < 0 {
+		artifact.PromptTokens = 0
+	}
+	if artifact.CompletionTokens < 0 {
+		artifact.CompletionTokens = 0
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.branchSummaries[sessionID] = artifact
+	return nil
+}
+
+func (s *MemoryStore) LoadBranchSummary(_ context.Context, sessionID string) (BranchSummaryArtifact, bool, error) {
+	sessionID = strings.TrimSpace(sessionID)
+	if sessionID == "" {
+		return BranchSummaryArtifact{}, false, nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	artifact, ok := s.branchSummaries[sessionID]
+	return artifact, ok, nil
 }
 
 func memorySessionIndex(events []Event) (SessionConfiguredPayload, time.Time, bool) {

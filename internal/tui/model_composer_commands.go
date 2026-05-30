@@ -37,6 +37,7 @@ var composerCommands = []composerCommand{
 	{ID: "reviewer-model", Name: "/reviewer-model", Description: "select reviewer model"},
 	{ID: "trust", Name: "/trust", Description: "manage trust for this workspace"},
 	{ID: "cost", Name: "/cost", Description: "inspect session cost"},
+	{ID: "timeline", Name: "/timeline", Description: "branch from a previous turn"},
 	{ID: "trace", Name: "/trace", Description: "inspect one turn", Usage: "/trace [turn-number]", StageOnSelect: true},
 	{ID: "restore", Name: "/restore", Description: "restore writes from one turn in this session", Usage: "/restore [turn-number]"},
 	{ID: "new", Name: "/new", Description: "start new session"},
@@ -49,6 +50,8 @@ var composerCommands = []composerCommand{
 
 const newSessionBlockedMessage = "Finish the active turn before starting a new session"
 const restoreBlockedMessage = "Finish the active turn before restoring files"
+const timelineBlockedMessage = "Finish the active turn before opening timeline"
+const timelineUnavailableMessage = "Start a session before opening timeline"
 const compactBlockedMessage = "Finish the active turn before rebuilding history summary"
 const compactUnavailableMessage = "Start a session before rebuilding history summary"
 const initBlockedMessage = "Finish the active turn before initializing workspace instructions"
@@ -312,6 +315,19 @@ func (m *Model) runComposerCommand(invocation composerCommandInvocation) (tea.Mo
 	case "cost":
 		m.clearComposerDraft()
 		return *m, m.openCostDialog()
+	case "timeline":
+		if m.busy || m.hasPendingInteraction() {
+			m.clearFooterError()
+			m.setComposerError(timelineBlockedMessage)
+			return *m, nil
+		}
+		if strings.TrimSpace(m.sessionID) == "" {
+			m.clearFooterError()
+			m.setComposerError(timelineUnavailableMessage)
+			return *m, nil
+		}
+		m.clearComposerDraft()
+		return *m, m.openTimelineDialog()
 	case "trace":
 		cmd := m.openTraceDialog(invocation.Argument)
 		if cmd == nil {

@@ -82,6 +82,86 @@ WHERE ref = ?`,
 	return string(content), nil
 }
 
+func (s *SQLiteStore) SaveBranchSummary(ctx context.Context, artifact BranchSummaryArtifact) error {
+	if s == nil || s.db == nil {
+		return os.ErrInvalid
+	}
+	sessionID := strings.TrimSpace(artifact.SessionID)
+	summary := strings.TrimSpace(artifact.Summary)
+	if sessionID == "" || summary == "" {
+		return nil
+	}
+	now := time.Now().UTC()
+	createdAt := artifact.CreatedAt
+	if createdAt.IsZero() {
+		createdAt = now
+	}
+	updatedAt := artifact.UpdatedAt
+	if updatedAt.IsZero() {
+		updatedAt = now
+	}
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	_, err := s.db.ExecContext(ctx, `
+INSERT INTO branch_summaries (
+    session_id, source_sequence, summary, model, prompt_tokens, completion_tokens, created_at, updated_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT(session_id) DO UPDATE SET
+    source_sequence = excluded.source_sequence,
+    summary = excluded.summary,
+    model = excluded.model,
+    prompt_tokens = excluded.prompt_tokens,
+    completion_tokens = excluded.completion_tokens,
+    updated_at = excluded.updated_at
+`,
+		sessionID,
+		max(artifact.SourceSequence, 0),
+		summary,
+		strings.TrimSpace(artifact.Model),
+		max(artifact.PromptTokens, 0),
+		max(artifact.CompletionTokens, 0),
+		createdAt.UnixNano(),
+		updatedAt.UnixNano(),
+	)
+	return err
+}
+
+func (s *SQLiteStore) LoadBranchSummary(ctx context.Context, sessionID string) (BranchSummaryArtifact, bool, error) {
+	if s == nil || s.db == nil {
+		return BranchSummaryArtifact{}, false, os.ErrInvalid
+	}
+	sessionID = strings.TrimSpace(sessionID)
+	if sessionID == "" {
+		return BranchSummaryArtifact{}, false, nil
+	}
+	var artifact BranchSummaryArtifact
+	var createdAt int64
+	var updatedAt int64
+	if err := s.db.QueryRowContext(ctx, `
+SELECT session_id, source_sequence, summary, model, prompt_tokens, completion_tokens, created_at, updated_at
+FROM branch_summaries
+WHERE session_id = ?`,
+		sessionID,
+	).Scan(
+		&artifact.SessionID,
+		&artifact.SourceSequence,
+		&artifact.Summary,
+		&artifact.Model,
+		&artifact.PromptTokens,
+		&artifact.CompletionTokens,
+		&createdAt,
+		&updatedAt,
+	); err != nil {
+		if err == sql.ErrNoRows {
+			return BranchSummaryArtifact{}, false, nil
+		}
+		return BranchSummaryArtifact{}, false, err
+	}
+	artifact.CreatedAt = time.Unix(0, createdAt).UTC()
+	artifact.UpdatedAt = time.Unix(0, updatedAt).UTC()
+	return artifact, true, nil
+}
+
 func (s *SQLiteStore) CreateBackgroundLog(ctx context.Context, ref, sessionID, turnID, executionID string) error {
 	if s == nil || s.db == nil {
 		return os.ErrInvalid

@@ -71,6 +71,9 @@ func costDialogSummarySection(th *theme.Theme, state events.SessionState, stats 
 		if line := costDialogUsageKindLine("Current session utility compaction", stats.UtilityCompactionUsage); line != "" {
 			lines = append(lines, line)
 		}
+		if line := costDialogUsageKindLine("Current session branch summaries", stats.UtilityBranchSummaryUsage); line != "" {
+			lines = append(lines, line)
+		}
 		if line := costDialogHistoryCompactionActivityLine(stats); line != "" {
 			lines = append(lines, line)
 		}
@@ -85,6 +88,9 @@ func costDialogSummarySection(th *theme.Theme, state events.SessionState, stats 
 			fmt.Sprintf("Provider activity: %s • %s", assistantRoundtripLabel(stats.Steps), providerCallLabel(stats.Attempts)),
 		)
 		if line := costDialogUsageKindLine("Utility compaction", stats.UtilityCompactionUsage); line != "" {
+			lines = append(lines, line)
+		}
+		if line := costDialogUsageKindLine("Branch summaries", stats.UtilityBranchSummaryUsage); line != "" {
 			lines = append(lines, line)
 		}
 		if line := costDialogHistoryCompactionActivityLine(stats); line != "" {

@@ -62,6 +62,15 @@ func (b *LocalBackend) RestoreTurnWrites(ctx context.Context, sessionID, sourceT
 	})
 }
 
+func (b *LocalBackend) BranchSessionFromTurn(ctx context.Context, input app.BranchSessionFromTurnInput) (app.BranchSessionFromTurnResult, error) {
+	return b.runtime.BranchSessionFromTurn(ctx, input)
+}
+
+func (b *LocalBackend) SetSessionTitle(ctx context.Context, sessionID, title string) error {
+	_, err := b.runtime.Sessions.SetTitle(ctx, sessionID, title)
+	return err
+}
+
 func (b *LocalBackend) CompactSessionHistory(ctx context.Context, sessionID, turnID string) (app.CompactSessionResult, error) {
 	return b.runtime.CompactSessionHistory(ctx, app.CompactSessionInput{
 		SessionID: sessionID,
@@ -217,6 +226,10 @@ func (b *LocalBackend) DialogState(_ context.Context) (app.DialogState, error) {
 
 func (b *LocalBackend) ListSessions(ctx context.Context) ([]app.SessionSummary, error) {
 	return b.runtime.ListSessions(ctx)
+}
+
+func (b *LocalBackend) GenerateBranchSummary(ctx context.Context, sessionID string) (app.GenerateBranchSummaryResult, error) {
+	return b.runtime.GenerateBranchSummary(ctx, app.GenerateBranchSummaryInput{SessionID: sessionID})
 }
 
 func (b *LocalBackend) DeleteSession(ctx context.Context, sessionID string) error {

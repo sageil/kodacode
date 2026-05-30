@@ -489,8 +489,11 @@ func (d *sessionsDialog) renderSessionRows() string {
 		if titleText == "" {
 			titleText = "Workspace session"
 		}
-		age := relativeTimeUnix(item.UpdatedAt)
-		line := joinBar(titleText, age, max(desiredDialogWidth(d.frameWidth, 42, 112)-8, 12))
+		meta := relativeTimeUnix(item.UpdatedAt)
+		if strings.TrimSpace(item.BranchParentTurnID) != "" {
+			meta = "branch " + shortSessionRef(item.BranchParentTurnID) + " | " + meta
+		}
+		line := joinBar(titleText, meta, max(desiredDialogWidth(d.frameWidth, 42, 112)-8, 12))
 		if d.offset+idx == d.cursor {
 			rows = append(rows, selected.Render("> "+line))
 		} else {
@@ -536,4 +539,12 @@ func (d *sessionsDialog) renderButtons() string {
 		rendered = append(rendered, renderPaletteButton(d.theme, button.label, idx == buttonFocus))
 	}
 	return strings.Join(rendered, "  ")
+}
+
+func shortSessionRef(id string) string {
+	id = strings.TrimSpace(id)
+	if len(id) <= 8 {
+		return id
+	}
+	return id[:8]
 }

@@ -113,6 +113,20 @@ func (m *Model) openSessionsDialog() tea.Cmd {
 	}
 }
 
+func (m *Model) openTimelineDialog() tea.Cmd {
+	return func() tea.Msg {
+		state := m.projector.Snapshot()
+		sessions, err := m.backend.ListSessions(m.ctx)
+		if err != nil {
+			return dialogOpenedMsg{err: err}
+		}
+		dialog := newTimelineDialog(state, sessions, m.theme)
+		width, height := dialogRenderSize(*m, state)
+		dialog.SetFrame(width, height)
+		return dialogOpenedMsg{dialog: dialog}
+	}
+}
+
 func (m *Model) openConnectDialog() tea.Cmd {
 	return func() tea.Msg {
 		state, err := m.backend.DialogState(m.ctx)
@@ -236,7 +250,7 @@ func (m *Model) handleDialogClosed(msg dialogClosedMsg) (tea.Model, tea.Cmd) {
 				setReviewerModelCmd(m.ctx, m.backend, typed.Ref),
 			)
 		case commandPaletteActionResult:
-			if m.currentTurnRunning() && (typed.ActionID == "select-model" || typed.ActionID == "select-agent" || typed.ActionID == "manage-sessions" || typed.ActionID == "new-session" || typed.ActionID == "select-utility-model" || typed.ActionID == "unset-utility-model" || typed.ActionID == "select-reviewer-model" || typed.ActionID == "unset-reviewer-model") {
+			if m.currentTurnRunning() && (typed.ActionID == "select-model" || typed.ActionID == "select-agent" || typed.ActionID == "manage-sessions" || typed.ActionID == "timeline" || typed.ActionID == "new-session" || typed.ActionID == "select-utility-model" || typed.ActionID == "unset-utility-model" || typed.ActionID == "select-reviewer-model" || typed.ActionID == "unset-reviewer-model") {
 				m.closeAllDialogs()
 				return *m, nil
 			}
@@ -249,6 +263,13 @@ func (m *Model) handleDialogClosed(msg dialogClosedMsg) (tea.Model, tea.Cmd) {
 				return *m, m.openThemeDialog()
 			case "manage-sessions":
 				return *m, m.openSessionsDialog()
+			case "timeline":
+				if strings.TrimSpace(m.sessionID) == "" {
+					m.closeAllDialogs()
+					m.setFooterError(timelineUnavailableMessage)
+					return *m, nil
+				}
+				return *m, m.openTimelineDialog()
 			case "new-session":
 				return *m, m.openNewSessionDialog()
 			case "manage-trust":
@@ -336,6 +357,53 @@ func (m *Model) handleDialogClosed(msg dialogClosedMsg) (tea.Model, tea.Cmd) {
 		case len(result.PurgeIDs) > 0:
 			m.closeCurrentDialogPreservingStack()
 			return *m, purgeSessionsAndReopenDialogCmd(m.ctx, m.backend, m.sessionID, result.PurgeIDs, m.theme, m.width, m.height)
+		}
+	case dialogIDTimeline:
+		result, ok := msg.result.(timelineDialogResult)
+		if !ok {
+			m.closeCurrentDialogPreservingStack()
+			return *m, nil
+		}
+		switch {
+		case strings.TrimSpace(result.LabelSessionID) != "":
+			m.closeAllDialogs()
+			return *m, setSessionTitleCmd(m.ctx, m.backend, result.LabelSessionID, result.Label)
+		case strings.TrimSpace(result.SummarySessionID) != "":
+			m.closeAllDialogs()
+			m.busy = true
+			return *m, generateBranchSummaryCmd(m.ctx, m.backend, result.SummarySessionID)
+		case strings.TrimSpace(result.OpenSessionID) != "":
+			m.closeAllDialogs()
+			m.busy = true
+			return *m, switchSessionCmd(m.ctx, m.backend, sessionSwitchRequest{
+				SessionID:        result.OpenSessionID,
+				WorkspaceRoot:    m.workspace,
+				AgentID:          m.agentID,
+				ThinkingEnabled:  m.thinkingEnabled,
+				ReasoningVariant: m.reasoningVariant,
+				SkillIDs:         append([]string(nil), m.skillIDs...),
+				InspectorOpen:    m.chrome.inspectorOpen,
+				WideSidebarOpen:  m.chrome.wideSidebarOpen,
+				WatchID:          m.nextWatch,
+			})
+		case strings.TrimSpace(result.TraceTurnID) != "":
+			m.closeCurrentDialogPreservingStack()
+			return *m, m.openTraceDialogForTurnID(result.TraceTurnID)
+		case strings.TrimSpace(result.BranchTurnID) != "":
+			m.closeAllDialogs()
+			m.busy = true
+			return *m, branchSessionFromTurnCmd(m.ctx, m.backend, timelineBranchRequest{
+				SourceSessionID:  m.sessionID,
+				SourceTurnID:     result.BranchTurnID,
+				WorkspaceRoot:    m.workspace,
+				AgentID:          m.agentID,
+				ThinkingEnabled:  m.thinkingEnabled,
+				ReasoningVariant: m.reasoningVariant,
+				SkillIDs:         append([]string(nil), m.skillIDs...),
+				InspectorOpen:    m.chrome.inspectorOpen,
+				WideSidebarOpen:  m.chrome.wideSidebarOpen,
+				WatchID:          m.nextWatch,
+			})
 		}
 	case dialogIDSkills:
 		result, ok := msg.result.(skillsDialogResult)

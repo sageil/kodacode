@@ -107,11 +107,30 @@ This is better than starting over when:
 - the session has useful cost and trace history
 - the last turn stopped for permission and you want to resolve that exact turn
 
+## Try another path
+
+Use `/timeline` when the current session has useful work but you want to branch
+from an earlier completed turn instead of starting over:
+
+1. Open `/timeline`.
+2. Select the completed turn you want to continue from.
+3. Press `Enter` or `b`.
+
+KodaCode creates a new session with the same workspace roots and permission mode,
+copies history only through that turn, and leaves the original session intact.
+Press `t` in the timeline dialog when you want to inspect a turn before
+branching. If the current session already has related branches, `/timeline` also
+shows parent and child branch rows with tree glyphs and selected-row previews;
+press `Enter` on one of those rows to open that session. Use `/` to search, `f`
+to filter, `Space` / `Left` / `Right` to fold nested branches, and `e` to label
+a branch.
+
 ## Useful commands
 
 Once you are in a session:
 
 - `/cost`: inspect accumulated spend and token savings
+- `/timeline`: branch from an earlier completed turn or navigate related branch sessions
 - `/trace`: inspect one turn in detail
 - `/sessions`: manage and switch workspace sessions
 - `/compact`: rebuild the saved history summary now

@@ -94,6 +94,19 @@ func setReviewerModelCmd(ctx context.Context, backend Backend, ref provider.Mode
 	}
 }
 
+func setSessionTitleCmd(ctx context.Context, backend Backend, sessionID, title string) tea.Cmd {
+	return func() tea.Msg {
+		return sessionTitleSetMsg{err: backend.SetSessionTitle(ctx, sessionID, strings.TrimSpace(title))}
+	}
+}
+
+func generateBranchSummaryCmd(ctx context.Context, backend Backend, sessionID string) tea.Cmd {
+	return func() tea.Msg {
+		result, err := backend.GenerateBranchSummary(ctx, sessionID)
+		return branchSummaryGeneratedMsg{result: result, err: err}
+	}
+}
+
 func refreshModelCatalogCmd(ctx context.Context, backend Backend, query string, selected provider.ModelRef) tea.Cmd {
 	return func() tea.Msg {
 		state, err := backend.RefreshModelCatalog(ctx)
