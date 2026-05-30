@@ -52,6 +52,19 @@ type sessionSwitchRequest struct {
 	WatchID          int
 }
 
+type timelineBranchRequest struct {
+	SourceSessionID  string
+	SourceTurnID     string
+	WorkspaceRoot    string
+	AgentID          string
+	ThinkingEnabled  bool
+	ReasoningVariant string
+	SkillIDs         []string
+	InspectorOpen    bool
+	WideSidebarOpen  bool
+	WatchID          int
+}
+
 func openWorkspaceSessionCmd(ctx context.Context, backend Backend, req workspaceSessionOpenRequest) tea.Cmd {
 	return func() tea.Msg {
 		session, err := backend.OpenWorkspaceSession(ctx, req.WorkspaceRoot, nil, false)
@@ -98,6 +111,51 @@ func openWorkspaceSessionCmd(ctx context.Context, backend Backend, req workspace
 			startTurnAgentID:  strings.TrimSpace(req.StartTurnAgentID),
 			attachments:       append([]app.AttachmentInput(nil), req.Attachments...),
 			localShellCommand: req.LocalShellCommand,
+		}
+	}
+}
+
+func branchSessionFromTurnCmd(ctx context.Context, backend Backend, req timelineBranchRequest) tea.Cmd {
+	return func() tea.Msg {
+		result, err := backend.BranchSessionFromTurn(ctx, app.BranchSessionFromTurnInput{
+			SourceSessionID: req.SourceSessionID,
+			SourceTurnID:    req.SourceTurnID,
+		})
+		if err != nil {
+			return sessionOpenedMsg{err: err}
+		}
+		state, err := backend.Snapshot(ctx, result.SessionID)
+		if err != nil {
+			return sessionOpenedMsg{err: err}
+		}
+		watchCtx, cancel := context.WithCancel(ctx)
+		stream, err := backend.Watch(watchCtx, result.SessionID, state.LastSequence)
+		if err != nil {
+			cancel()
+			return sessionOpenedMsg{err: err}
+		}
+		initialTurn := initialTurnID(state, false)
+		return sessionOpenedMsg{
+			view: sessionView{
+				SessionID:        result.SessionID,
+				TurnID:           initialTurn,
+				UserText:         "",
+				AgentID:          req.AgentID,
+				SkillIDs:         append([]string(nil), req.SkillIDs...),
+				ThinkingEnabled:  req.ThinkingEnabled,
+				ReasoningVariant: req.ReasoningVariant,
+				WorkspaceRoot:    req.WorkspaceRoot,
+				DetailTurnID:     initialTurn,
+				Focus:            focusComposer,
+				InspectorOpen:    req.InspectorOpen,
+				WideSidebarOpen:  req.WideSidebarOpen,
+			},
+			state:      state,
+			stateOwned: true,
+			stream:     stream,
+			cancel:     cancel,
+			watchID:    req.WatchID,
+			startTurn:  false,
 		}
 	}
 }

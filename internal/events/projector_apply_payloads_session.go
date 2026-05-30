@@ -40,6 +40,13 @@ func (p *Projector) applySessionPayload(event Event) (bool, error) {
 	case SessionProviderLimitUpdatedPayload:
 		p.state.ProviderRequestLimitDisabled = payload.ProviderRequestLimitDisabled
 		return true, nil
+	case SessionBranchedPayload:
+		p.state.Branch = &SessionBranchState{
+			ParentSessionID: payload.ParentSessionID,
+			ParentTurnID:    payload.ParentTurnID,
+			ParentSequence:  payload.ParentSequence,
+		}
+		return true, nil
 	case SessionMCPCatalogUpdatedPayload:
 		p.state.MCP = &SessionMCPState{
 			WorkspaceTrusted: payload.WorkspaceTrusted,

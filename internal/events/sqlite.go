@@ -293,6 +293,9 @@ func (s *SQLiteStore) DeleteSession(ctx context.Context, sessionID string) error
 	if _, err := tx.ExecContext(ctx, `DELETE FROM background_logs WHERE session_id = ?`, sessionID); err != nil {
 		return err
 	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM branch_summaries WHERE session_id = ?`, sessionID); err != nil {
+		return err
+	}
 	if _, err := tx.ExecContext(ctx, `DELETE FROM kodacode_session_index WHERE session_id = ?`, sessionID); err != nil {
 		return err
 	}

@@ -22,6 +22,7 @@ type Backend interface {
 	LoadToolMutationDetail(ctx context.Context, sessionID, turnID, callID string) (app.ToolMutationDetail, error)
 	WorkspaceStatus(ctx context.Context, sessionID string) (app.WorkspaceStatus, error)
 	RestoreTurnWrites(ctx context.Context, sessionID, sourceTurnID string) (app.RestoreSessionTurnWritesResult, error)
+	BranchSessionFromTurn(ctx context.Context, input app.BranchSessionFromTurnInput) (app.BranchSessionFromTurnResult, error)
 	CompactSessionHistory(ctx context.Context, sessionID, turnID string) (app.CompactSessionResult, error)
 	InitializeWorkspaceInstructions(ctx context.Context, input app.InitializeWorkspaceInstructionsInput) (app.InitializeWorkspaceInstructionsResult, error)
 	CompressWorkspacePromptSources(ctx context.Context, input app.CompressWorkspacePromptSourcesInput) (app.CompressWorkspacePromptSourcesResult, error)
@@ -67,8 +68,10 @@ type Backend interface {
 	) error
 	DialogState(ctx context.Context) (app.DialogState, error)
 	ListSessions(ctx context.Context) ([]app.SessionSummary, error)
+	GenerateBranchSummary(ctx context.Context, sessionID string) (app.GenerateBranchSummaryResult, error)
 	ListPromptHistory(ctx context.Context, limit int) ([]app.PromptHistoryEntry, error)
 	DeleteSession(ctx context.Context, sessionID string) error
+	SetSessionTitle(ctx context.Context, sessionID, title string) error
 	SetThemeName(ctx context.Context, themeName string) error
 	SetTUILayout(ctx context.Context, layout string) error
 	SetPrimaryModel(ctx context.Context, sessionID string, model provider.ModelRef) error

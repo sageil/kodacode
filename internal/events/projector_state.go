@@ -119,6 +119,7 @@ func cloneSessionState(state SessionState) SessionState {
 		AdditionalWorkspaceRoots:     append([]string(nil), state.AdditionalWorkspaceRoots...),
 		PermissionMode:               state.PermissionMode,
 		ProviderRequestLimitDisabled: state.ProviderRequestLimitDisabled,
+		Branch:                       cloneSessionBranchState(state.Branch),
 		Model:                        state.Model,
 		Title:                        state.Title,
 		SessionGrantDecisions:        append([]SessionGrantDecisionState(nil), state.SessionGrantDecisions...),
@@ -166,6 +167,14 @@ func cloneSessionState(state SessionState) SessionState {
 		out.Turns[id] = turn.clone()
 	}
 	return out
+}
+
+func cloneSessionBranchState(state *SessionBranchState) *SessionBranchState {
+	if state == nil {
+		return nil
+	}
+	copyState := *state
+	return &copyState
 }
 
 func cloneExecutionGrants(grants []ExecutionGrantState) []ExecutionGrantState {

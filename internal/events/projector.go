@@ -45,6 +45,7 @@ type SessionState struct {
 	AdditionalWorkspaceRoots     []string
 	PermissionMode               string
 	ProviderRequestLimitDisabled bool
+	Branch                       *SessionBranchState
 	MCP                          *SessionMCPState
 	Model                        string
 	Title                        string
@@ -69,6 +70,12 @@ type SessionState struct {
 	LastSequence                 int64
 	TurnOrder                    []string
 	Turns                        map[string]*TurnState
+}
+
+type SessionBranchState struct {
+	ParentSessionID string
+	ParentTurnID    string
+	ParentSequence  int64
 }
 
 type TurnState struct {

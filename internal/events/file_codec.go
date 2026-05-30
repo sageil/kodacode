@@ -144,6 +144,8 @@ func decodePayload(kind Type, raw json.RawMessage) (Payload, error) {
 		return decodePayloadAs[SessionPermissionModeUpdatedPayload](raw)
 	case TypeSessionProviderLimitUpdated:
 		return decodePayloadAs[SessionProviderLimitUpdatedPayload](raw)
+	case TypeSessionBranched:
+		return decodePayloadAs[SessionBranchedPayload](raw)
 	case TypeSessionMCPCatalogUpdated:
 		return decodePayloadAs[SessionMCPCatalogUpdatedPayload](raw)
 	case TypeSessionStateSnapshot:

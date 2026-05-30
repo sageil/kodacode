@@ -50,6 +50,17 @@ CREATE TABLE IF NOT EXISTS background_logs (
 CREATE INDEX IF NOT EXISTS background_logs_session_idx
     ON background_logs (session_id);
 
+CREATE TABLE IF NOT EXISTS branch_summaries (
+    session_id         TEXT PRIMARY KEY,
+    source_sequence    INTEGER NOT NULL,
+    summary            TEXT    NOT NULL,
+    model              TEXT    NOT NULL,
+    prompt_tokens      INTEGER NOT NULL,
+    completion_tokens  INTEGER NOT NULL,
+    created_at         INTEGER NOT NULL,
+    updated_at         INTEGER NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS background_log_chunks (
     log_ref       TEXT    NOT NULL,
     start_offset  INTEGER NOT NULL,

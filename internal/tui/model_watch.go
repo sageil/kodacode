@@ -247,7 +247,9 @@ func (m Model) handleWatchEvents(watchID int, batch []events.Event, closed bool)
 	case refresh.refreshTaskDetailDialog:
 		dialogRefreshCmd = m.requestDialogRefresh(dialogIDTaskDetail)
 	}
-	if trackedTurnFinished && !holdLiveTurnState && !hasPendingApprovalInState(stateAfter, m.turnID) && !m.isDelegatedChildView() && (m.chrome.focus != focusTranscript || m.messages.AtBottom()) {
+	trackedTurn := currentTurn(stateAfter, m.turnID)
+	trackedTurnCompleted := trackedTurn != nil && trackedTurn.Status == events.TurnStatusCompleted
+	if trackedTurnCompleted && !holdLiveTurnState && !hasPendingApprovalInState(stateAfter, m.turnID) && !m.isDelegatedChildView() {
 		m.chrome.focus = focusComposer
 		m.syncViewportLayout()
 	}

@@ -14,10 +14,12 @@ type themeItem struct {
 }
 
 type sessionItem struct {
-	ID        string
-	Title     string
-	Status    string
-	UpdatedAt int64
+	ID                    string
+	Title                 string
+	Status                string
+	UpdatedAt             int64
+	BranchParentSessionID string
+	BranchParentTurnID    string
 }
 
 type agentItem struct {
@@ -106,6 +108,10 @@ func buildSessionItems(summaries []app.SessionSummary) []sessionItem {
 			Status:    string(summary.Status),
 			UpdatedAt: summary.UpdatedAt.Unix(),
 		})
+		if branch := summary.Branch; branch != nil {
+			items[len(items)-1].BranchParentSessionID = strings.TrimSpace(branch.ParentSessionID)
+			items[len(items)-1].BranchParentTurnID = strings.TrimSpace(branch.ParentTurnID)
+		}
 	}
 	return items
 }

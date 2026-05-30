@@ -266,7 +266,7 @@ func (d *commandPaletteDialog) listOptionSelectionLocked(option commandPaletteLi
 		return true
 	case commandPaletteActions:
 		switch option.Action.ID {
-		case "select-model", "select-agent", "manage-sessions", "new-session", "select-utility-model", "unset-utility-model", "select-reviewer-model", "unset-reviewer-model":
+		case "select-model", "select-agent", "manage-sessions", "timeline", "new-session", "select-utility-model", "unset-utility-model", "select-reviewer-model", "unset-reviewer-model":
 			return true
 		}
 	}

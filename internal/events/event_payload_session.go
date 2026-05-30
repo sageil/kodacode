@@ -85,3 +85,24 @@ func (SessionProviderLimitUpdatedPayload) eventType() Type {
 }
 
 func (SessionProviderLimitUpdatedPayload) validate() error { return nil }
+
+type SessionBranchedPayload struct {
+	ParentSessionID string
+	ParentTurnID    string
+	ParentSequence  int64
+}
+
+func (SessionBranchedPayload) eventType() Type { return TypeSessionBranched }
+
+func (p SessionBranchedPayload) validate() error {
+	if strings.TrimSpace(p.ParentSessionID) == "" {
+		return errors.New("parent_session_id is required")
+	}
+	if strings.TrimSpace(p.ParentTurnID) == "" {
+		return errors.New("parent_turn_id is required")
+	}
+	if p.ParentSequence < 0 {
+		return errors.New("parent_sequence must be >= 0")
+	}
+	return nil
+}

@@ -8,8 +8,9 @@ import (
 type TurnProviderUsageKind string
 
 const (
-	TurnProviderUsageKindAgent             TurnProviderUsageKind = "agent"
-	TurnProviderUsageKindUtilityCompaction TurnProviderUsageKind = "utility_compaction"
+	TurnProviderUsageKindAgent                TurnProviderUsageKind = "agent"
+	TurnProviderUsageKindUtilityCompaction    TurnProviderUsageKind = "utility_compaction"
+	TurnProviderUsageKindUtilityBranchSummary TurnProviderUsageKind = "utility_branch_summary"
 )
 
 type TurnProviderUsageRecordedPayload struct {
@@ -339,6 +340,8 @@ func normalizeTurnProviderUsageKind(kind string) string {
 		return string(TurnProviderUsageKindAgent)
 	case TurnProviderUsageKindUtilityCompaction:
 		return string(TurnProviderUsageKindUtilityCompaction)
+	case TurnProviderUsageKindUtilityBranchSummary:
+		return string(TurnProviderUsageKindUtilityBranchSummary)
 	default:
 		return strings.TrimSpace(kind)
 	}
@@ -346,10 +349,10 @@ func normalizeTurnProviderUsageKind(kind string) string {
 
 func validateTurnProviderUsageKind(kind string) error {
 	switch TurnProviderUsageKind(normalizeTurnProviderUsageKind(kind)) {
-	case TurnProviderUsageKindAgent, TurnProviderUsageKindUtilityCompaction:
+	case TurnProviderUsageKindAgent, TurnProviderUsageKindUtilityCompaction, TurnProviderUsageKindUtilityBranchSummary:
 		return nil
 	default:
-		return errors.New("kind must be agent or utility_compaction")
+		return errors.New("kind must be agent, utility_compaction, or utility_branch_summary")
 	}
 }
 

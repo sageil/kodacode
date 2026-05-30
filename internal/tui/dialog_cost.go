@@ -54,6 +54,7 @@ type costDialogStats struct {
 	EstimatedInputSavingsCost          float64
 	EstimatedCacheSavingsCost          float64
 	UtilityCompactionUsage             costDialogUsageKindTotals
+	UtilityBranchSummaryUsage          costDialogUsageKindTotals
 	HistoryCompactionSummaryUpdates    int
 	HistoryCompactionPruningPasses     int
 }

@@ -315,18 +315,12 @@ func (m Model) handleMouseWheelSteps(msg tea.MouseWheelMsg, steps int) (tea.Mode
 		}
 		return m, tea.Batch(cmds...)
 	case mouseWheelTargetTranscript:
-		var focusCmd tea.Cmd
-		if m.chrome.focus != focusTranscript {
-			m.chrome.focus = focusTranscript
-			focusCmd = m.syncComposerFocus()
-		}
-		cmds := make([]tea.Cmd, 0, steps+1)
+		cmds := make([]tea.Cmd, 0, steps)
 		for range steps {
 			cmds = append(cmds, m.messages.Update(msg))
 		}
 		m.syncTranscriptCursorToViewport()
 		m.syncDeferredTranscriptIfNeeded()
-		cmds = append(cmds, focusCmd)
 		return m, tea.Batch(cmds...)
 	default:
 		return m, nil

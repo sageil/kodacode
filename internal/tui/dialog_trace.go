@@ -159,6 +159,19 @@ func (m *Model) openTraceDialog(turnArg string) tea.Cmd {
 	}
 }
 
+func (m *Model) openTraceDialogForTurnID(turnID string) tea.Cmd {
+	state := m.projector.Snapshot()
+	turnID = strings.TrimSpace(turnID)
+	if turnID != "" && state.Turns[turnID] == nil {
+		m.setComposerError(fmt.Sprintf("turn %s not found", turnID))
+		return nil
+	}
+	m.clearComposerError()
+	return func() tea.Msg {
+		return dialogOpenedMsg{dialog: newTraceDialog(*m, state, turnID)}
+	}
+}
+
 func (m *Model) syncTraceDialog() {
 	if m == nil {
 		return

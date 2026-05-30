@@ -165,7 +165,7 @@ Composer history, slash-command, skill, and path popups use:
 
 ## Command palette and management dialogs
 
-The command palette, theme picker, sessions dialog, and provider dialog share the same basic navigation model.
+The command palette, theme picker, sessions dialog, timeline dialog, and provider dialog share the same basic navigation model.
 
 ### Root palette
 
@@ -190,6 +190,15 @@ Extra shortcuts in specific dialogs:
 
 - Sessions list: `Ctrl+D` deletes the selected session.
 - Sessions list: `Ctrl+P` opens purge mode.
+- Timeline: `Enter` opens a related branch row or branches from the selected completed turn.
+- Timeline: `b` branches from the selected completed turn.
+- Timeline: `t` opens trace for the selected turn.
+- Timeline branch rows show tree glyphs and selected-row previews.
+- Timeline: `s` explicitly generates or reuses a utility-model branch summary for the selected child branch row.
+- Timeline: `/` searches timeline rows.
+- Timeline: `f` cycles filters; `1` through `5` select all, completed, failed, with tools, and branches.
+- Timeline: `Space`, `Left`, and `Right` fold or unfold nested branch sessions.
+- Timeline: `e` edits the selected branch session label.
 - Provider list: `Ctrl+D` removes the selected provider.
 
 ## Approvals and questions

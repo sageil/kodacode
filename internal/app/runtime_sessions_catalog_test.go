@@ -16,6 +16,7 @@ type sessionCatalogStore struct {
 	indexed    []events.SessionIndexEntry
 	titleByID  map[string]events.Event
 	statusByID map[string]events.Event
+	branchByID map[string]events.Event
 	queries    []events.LatestQuery
 }
 
@@ -38,6 +39,10 @@ func (s *sessionCatalogStore) Latest(_ context.Context, query events.LatestQuery
 	})
 	if len(query.Types) == 1 && query.Types[0] == events.TypeSessionTitleUpdated {
 		event, ok := s.titleByID[query.SessionID]
+		return event, ok, nil
+	}
+	if len(query.Types) == 1 && query.Types[0] == events.TypeSessionBranched {
+		event, ok := s.branchByID[query.SessionID]
 		return event, ok, nil
 	}
 	event, ok := s.statusByID[query.SessionID]
@@ -107,8 +112,8 @@ func TestRuntimeListWorkspaceSessionsUsesIndexedMetadata(t *testing.T) {
 		t.Fatalf("summary[1] = %#v", got)
 	}
 
-	if len(store.queries) != 4 {
-		t.Fatalf("latest query count = %d, want 4", len(store.queries))
+	if len(store.queries) != 6 {
+		t.Fatalf("latest query count = %d, want 6", len(store.queries))
 	}
 	for _, query := range store.queries {
 		if query.SessionID == "" {
@@ -149,6 +154,16 @@ func TestRuntimeListSessionsUsesGlobalIndex(t *testing.T) {
 				Payload: events.TurnConfiguredPayload{AgentID: "builder", Model: "openai/gpt-5", ResponseStyle: "terse"},
 			},
 		},
+		branchByID: map[string]events.Event{
+			"session-b": {
+				Type: events.TypeSessionBranched,
+				Payload: events.SessionBranchedPayload{
+					ParentSessionID: "session-a",
+					ParentTurnID:    "turn-1",
+					ParentSequence:  3,
+				},
+			},
+		},
 	}
 	runtime := &Runtime{Store: store}
 
@@ -165,4 +180,72 @@ func TestRuntimeListSessionsUsesGlobalIndex(t *testing.T) {
 	if got := summaries[1]; got.ID != "session-b" || got.WorkspaceRoot != scopeB.Root() || got.Status != events.TurnStatusRunning {
 		t.Fatalf("summary[1] = %#v", got)
 	}
+	if branch := summaries[1].Branch; branch == nil || branch.ParentSessionID != "session-a" || branch.ParentTurnID != "turn-1" {
+		t.Fatalf("summary[1].Branch = %#v", branch)
+	}
+}
+
+func TestRuntimeListSessionsIncludesOnlyFreshBranchSummaryArtifacts(t *testing.T) {
+	ctx := context.Background()
+	store := events.NewMemoryStore()
+	sessions, err := NewSessionService(store)
+	if err != nil {
+		t.Fatalf("NewSessionService() error = %v", err)
+	}
+	runtime := &Runtime{Store: store, Sessions: sessions}
+	sourceSessionID, err := runtime.CreateSession(ctx, t.TempDir())
+	if err != nil {
+		t.Fatalf("CreateSession() error = %v", err)
+	}
+	appendTimelineTurnForTest(t, sessions, sourceSessionID, "turn-1", "branch here", "done")
+	branch, err := runtime.BranchSessionFromTurn(ctx, BranchSessionFromTurnInput{
+		SourceSessionID: sourceSessionID,
+		SourceTurnID:    "turn-1",
+	})
+	if err != nil {
+		t.Fatalf("BranchSessionFromTurn() error = %v", err)
+	}
+	state, err := sessions.Snapshot(ctx, branch.SessionID)
+	if err != nil {
+		t.Fatalf("Snapshot() error = %v", err)
+	}
+	if err := store.SaveBranchSummary(ctx, events.BranchSummaryArtifact{
+		SessionID:        branch.SessionID,
+		SourceSequence:   state.LastSequence,
+		Summary:          "fresh branch summary",
+		Model:            "openai/gpt-5-mini",
+		PromptTokens:     10,
+		CompletionTokens: 5,
+	}); err != nil {
+		t.Fatalf("SaveBranchSummary(fresh) error = %v", err)
+	}
+	summaries, err := runtime.ListSessions(ctx)
+	if err != nil {
+		t.Fatalf("ListSessions() error = %v", err)
+	}
+	branchSummary := findSessionSummaryForTest(summaries, branch.SessionID)
+	if branchSummary.BranchSummary == nil || branchSummary.BranchSummary.Summary != "fresh branch summary" {
+		t.Fatalf("fresh branch summary = %#v", branchSummary.BranchSummary)
+	}
+
+	if _, err := sessions.SetTitle(ctx, branch.SessionID, "changed branch"); err != nil {
+		t.Fatalf("SetTitle() error = %v", err)
+	}
+	summaries, err = runtime.ListSessions(ctx)
+	if err != nil {
+		t.Fatalf("ListSessions(stale) error = %v", err)
+	}
+	branchSummary = findSessionSummaryForTest(summaries, branch.SessionID)
+	if branchSummary.BranchSummary != nil {
+		t.Fatalf("stale branch summary = %#v, want nil", branchSummary.BranchSummary)
+	}
+}
+
+func findSessionSummaryForTest(summaries []SessionSummary, sessionID string) SessionSummary {
+	for _, summary := range summaries {
+		if summary.ID == sessionID {
+			return summary
+		}
+	}
+	return SessionSummary{}
 }

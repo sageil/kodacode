@@ -32,6 +32,7 @@ type fakeController struct {
 	watchByID                map[string]<-chan events.Event
 	workspaceStatusErr       error
 	restoreTurnWritesErr     error
+	branchSessionErr         error
 	compactSessionErr        error
 	initInstructionsErr      error
 	compressPromptSourcesErr error
@@ -79,6 +80,8 @@ type fakeController struct {
 	delegatedResolveCalls        []resolveDelegatedCall
 	deleteSessionCalls           []string
 	setTUILayoutCalls            []string
+	setSessionTitleCalls         []setSessionTitleCall
+	generateBranchSummaryCalls   []string
 	setPrimaryModelCalls         []setPrimaryModelCall
 	setUtilityModelCalls         []setUtilityModelCall
 	setReviewerModelCalls        []setReviewerModelCall
@@ -93,6 +96,7 @@ type fakeController struct {
 	loadToolMutationDetailCalls  []sessionToolCallRef
 	workspaceStatusCalls         []string
 	restoreTurnWritesCalls       []string
+	branchSessionCalls           []app.BranchSessionFromTurnInput
 	compactSessionCalls          []compactSessionCall
 	initInstructionCalls         []app.InitializeWorkspaceInstructionsInput
 	compressPromptSourceCalls    []app.CompressWorkspacePromptSourcesInput
@@ -112,6 +116,7 @@ type fakeController struct {
 	toolMutationDetails         map[sessionToolCallRef]app.ToolMutationDetail
 	workspaceStatus             app.WorkspaceStatus
 	restoreTurnWritesResult     app.RestoreSessionTurnWritesResult
+	branchSessionResult         app.BranchSessionFromTurnResult
 	compactSessionResult        app.CompactSessionResult
 	initInstructionsResult      app.InitializeWorkspaceInstructionsResult
 	compressPromptSourcesResult app.CompressWorkspacePromptSourcesResult
@@ -146,6 +151,11 @@ type startReviewCall struct {
 	ThinkingEnabled bool
 	ThinkingMode    string
 	SkillIDs        []string
+}
+
+type setSessionTitleCall struct {
+	SessionID string
+	Title     string
 }
 
 type cancelTurnCall struct {
@@ -373,6 +383,21 @@ func (f *fakeController) RestoreTurnWrites(_ context.Context, sessionID, sourceT
 	return app.RestoreSessionTurnWritesResult{SourceTurnID: sourceTurnID}, nil
 }
 
+func (f *fakeController) BranchSessionFromTurn(_ context.Context, input app.BranchSessionFromTurnInput) (app.BranchSessionFromTurnResult, error) {
+	f.branchSessionCalls = append(f.branchSessionCalls, input)
+	if f.branchSessionErr != nil {
+		return app.BranchSessionFromTurnResult{}, f.branchSessionErr
+	}
+	if strings.TrimSpace(f.branchSessionResult.SessionID) != "" {
+		return f.branchSessionResult, nil
+	}
+	return app.BranchSessionFromTurnResult{
+		SessionID:       "session-branch",
+		SourceSessionID: input.SourceSessionID,
+		SourceTurnID:    input.SourceTurnID,
+	}, nil
+}
+
 func (f *fakeController) CompactSessionHistory(_ context.Context, sessionID, turnID string) (app.CompactSessionResult, error) {
 	f.compactSessionCalls = append(f.compactSessionCalls, compactSessionCall{
 		SessionID: sessionID,
@@ -597,9 +622,23 @@ func (f *fakeController) ListSessions(_ context.Context) ([]app.SessionSummary, 
 	return append([]app.SessionSummary(nil), f.sessions...), nil
 }
 
+func (f *fakeController) GenerateBranchSummary(_ context.Context, sessionID string) (app.GenerateBranchSummaryResult, error) {
+	f.generateBranchSummaryCalls = append(f.generateBranchSummaryCalls, sessionID)
+	return app.GenerateBranchSummaryResult{
+		SessionID:      sessionID,
+		Summary:        "cached branch summary",
+		SourceSequence: 1,
+	}, nil
+}
+
 func (f *fakeController) DeleteSession(_ context.Context, sessionID string) error {
 	f.deleteSessionCalls = append(f.deleteSessionCalls, sessionID)
 	return f.deleteSessionErr
+}
+
+func (f *fakeController) SetSessionTitle(_ context.Context, sessionID, title string) error {
+	f.setSessionTitleCalls = append(f.setSessionTitleCalls, setSessionTitleCall{SessionID: sessionID, Title: title})
+	return nil
 }
 
 func (f *fakeController) SetThemeName(_ context.Context, _ string) error { return nil }
@@ -1973,6 +2012,84 @@ func TestCommandPaletteQueryShowsDisabledSessionsWhileCurrentTurnRunning(t *test
 	}
 }
 
+func TestCommandPaletteQueryShowsDisabledTimelineWhileCurrentTurnRunning(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	controller := &fakeController{
+		dialogState: app.DialogState{
+			ConnectedProviders: []app.ConnectedProvider{{ProviderID: "openai"}},
+			ModelRoute: provider.ModelRoute{
+				Primary: provider.ModelRef{ProviderID: "openai", ModelID: "gpt-5"},
+			},
+		},
+	}
+	state := events.SessionState{
+		SessionID:     "session-1",
+		WorkspaceRoot: "/repo",
+		TurnOrder:     []string{"turn-1"},
+		Turns: map[string]*events.TurnState{
+			"turn-1": {
+				TurnID: "turn-1",
+				Status: events.TurnStatusRunning,
+				Config: &events.TurnConfigState{AgentID: "builder"},
+			},
+		},
+	}
+	model := NewModel(controller, ModelConfig{
+		Context:       ctx,
+		Theme:         &defaultTheme,
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: "/repo",
+		InitialState:  &state,
+	})
+
+	opened, ok := model.openCommandPaletteWithQuery("timeline")().(dialogOpenedMsg)
+	if !ok {
+		t.Fatal("openCommandPaletteWithQuery() did not return dialogOpenedMsg")
+	}
+	dialog, ok := opened.dialog.(*commandPaletteDialog)
+	if !ok {
+		t.Fatalf("dialog = %#v", opened.dialog)
+	}
+	rendered := renderTestDialogContentPlain(dialog)
+	for _, needle := range []string{"[action ]", "Timeline", "locked while turn runs"} {
+		if !strings.Contains(rendered, needle) {
+			t.Fatalf("running turn palette missing disabled timeline result %q\nrendered:\n%s", needle, rendered)
+		}
+	}
+	if _, cmd := dialog.activateListSelection(); cmd != nil {
+		t.Fatal("disabled timeline action should not close the dialog")
+	}
+}
+
+func TestCommandPaletteTimelineSelectionEmitsAction(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	dialog := newCommandPaletteActions(commandPaletteActionsItems{
+		AllowMutableSelection: true,
+	}, &defaultTheme)
+	dialog.filter.SetValue("timeline")
+	dialog.refilter()
+
+	_, cmd := dialog.activateListSelection()
+	if cmd == nil {
+		t.Fatal("timeline action cmd = nil")
+	}
+	closed, ok := cmd().(dialogClosedMsg)
+	if !ok {
+		t.Fatalf("cmd() = %#v, want dialogClosedMsg", cmd())
+	}
+	result, ok := closed.result.(commandPaletteActionResult)
+	if !ok {
+		t.Fatalf("closed.result = %#v, want commandPaletteActionResult", closed.result)
+	}
+	if result.ActionID != "timeline" {
+		t.Fatalf("ActionID = %q, want timeline", result.ActionID)
+	}
+}
+
 func TestCommandPaletteQueryShowsMatchingModelWithoutDuplicateRef(t *testing.T) {
 	defaultTheme := theme.StaticDefault()
 	ctx, cancel := context.WithCancel(context.TODO())
@@ -2691,6 +2808,64 @@ func TestCommandPaletteManageSessionsOpensSessionsDialog(t *testing.T) {
 	}
 	if next.(Model).dialog != nil {
 		t.Fatal("palette dialog should be cleared before opening sessions dialog")
+	}
+}
+
+func TestCommandPaletteTimelineOpensTimelineDialog(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	controller := &fakeController{
+		sessions: []app.SessionSummary{{
+			ID:    "session-1",
+			Title: "Current session",
+		}},
+	}
+	model := NewModel(controller, ModelConfig{
+		Context:       ctx,
+		Theme:         &defaultTheme,
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: "/repo",
+		InitialState: &events.SessionState{
+			SessionID:     "session-1",
+			WorkspaceRoot: "/repo",
+			TurnOrder:     []string{"turn-1"},
+			Turns: map[string]*events.TurnState{
+				"turn-1": {
+					TurnID:         "turn-1",
+					UserText:       "try another path",
+					Status:         events.TurnStatusCompleted,
+					CompletedAtSeq: 3,
+				},
+			},
+		},
+	})
+
+	next, cmd := model.handleDialogClosed(dialogClosedMsg{
+		id:     dialogIDCommandPalette,
+		result: commandPaletteActionResult{ActionID: "timeline"},
+	})
+	if cmd == nil {
+		t.Fatal("open timeline cmd = nil")
+	}
+	opened, ok := cmd().(dialogOpenedMsg)
+	if !ok {
+		t.Fatalf("cmd() = %#v", cmd())
+	}
+	if opened.err != nil {
+		t.Fatalf("dialogOpenedMsg.err = %v", opened.err)
+	}
+	dialog, ok := opened.dialog.(*timelineDialog)
+	if !ok {
+		t.Fatalf("dialog = %#v, want *timelineDialog", opened.dialog)
+	}
+	if dialog.ID() != dialogIDTimeline {
+		t.Fatalf("dialog id = %q, want %q", dialog.ID(), dialogIDTimeline)
+	}
+	if next.(Model).dialog != nil {
+		t.Fatal("palette dialog should be cleared before opening timeline dialog")
 	}
 }
 
