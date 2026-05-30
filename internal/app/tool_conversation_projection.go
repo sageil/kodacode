@@ -26,12 +26,17 @@ func buildTurnProjectedCurrentConversation(state turnLoopState) ([]provider.Inpu
 		}
 		return cloneProviderInputs(state.WorkState.NativeContinuation.Inputs), nil
 	}
-	inputs := make([]provider.Input, 0, 2)
-	if state.UserInput.Kind != "" {
-		inputs = append(inputs, cloneProviderInputs([]provider.Input{state.UserInput})...)
-	}
+	inputs := make([]provider.Input, 0, 3)
 	if summaryInput := renderTurnWorkSummaryInput(state.WorkState.Summary); summaryInput != nil {
 		inputs = append(inputs, *summaryInput)
+	}
+	if state.UserInput.Kind != "" {
+		inputs = append(inputs, cloneProviderInputs([]provider.Input{state.UserInput})...)
+	} else if len(inputs) > 0 {
+		inputs = append(inputs, provider.Input{
+			Kind:    provider.InputKindUserMessage,
+			Content: "Continue from the active turn summary.",
+		})
 	}
 	return inputs, nil
 }
