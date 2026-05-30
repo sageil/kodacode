@@ -68,12 +68,16 @@ func TestBuildTurnProviderRequestProjectionUsesHistoryPlusTurnWorkState(t *testi
 	if projection.Request.Inputs[2].Output != historyOutput {
 		t.Fatalf("projection history prefix mutated: %#v", projection.Request.Inputs[2])
 	}
-	last := projection.Request.Inputs[len(projection.Request.Inputs)-1]
-	if last.Kind != provider.InputKindAssistantMessage || !strings.Contains(last.Content, "Active turn summary:") {
+	summary := projection.Request.Inputs[len(projection.Request.Inputs)-2]
+	if summary.Kind != provider.InputKindAssistantMessage || !strings.Contains(summary.Content, "Active turn summary:") {
 		t.Fatalf("projection current-turn suffix = %#v", projection.Request.Inputs)
 	}
-	if strings.Contains(last.Content, currentOutput) {
-		t.Fatalf("projection leaked raw tool chatter: %q", last.Content)
+	if strings.Contains(summary.Content, currentOutput) {
+		t.Fatalf("projection leaked raw tool chatter: %q", summary.Content)
+	}
+	last := projection.Request.Inputs[len(projection.Request.Inputs)-1]
+	if last.Kind != provider.InputKindUserMessage || last.Content != "inspect files" {
+		t.Fatalf("projection last input = %#v, want current user input", last)
 	}
 	if !strings.Contains(projection.Request.Instructions, toolResultVisibilityInstruction) {
 		t.Fatalf("projection instructions = %q", projection.Request.Instructions)
@@ -85,6 +89,59 @@ func TestBuildTurnProviderRequestProjectionUsesHistoryPlusTurnWorkState(t *testi
 		if input.Kind == provider.InputKindAssistantMessage && strings.Contains(input.Content, "Compacted active-turn context:") {
 			t.Fatalf("projection unexpectedly rendered deleted current-turn compaction summary: %#v", projection.Request.Inputs)
 		}
+	}
+}
+
+func TestBuildTurnProjectedCurrentConversationKeepsContinuationUserLast(t *testing.T) {
+	state := turnLoopState{
+		UserInput: provider.Input{Kind: provider.InputKindUserMessage, Content: "Apply plan"},
+		WorkState: turnWorkState{
+			Summary: turnWorkSummary{
+				Objective:     "Review the project and create an actionable plan.",
+				CompletedWork: []string{"Created the implementation plan."},
+			},
+		},
+	}
+
+	inputs, err := buildTurnProjectedCurrentConversation(state)
+	if err != nil {
+		t.Fatalf("buildTurnProjectedCurrentConversation() error = %v", err)
+	}
+	if len(inputs) != 2 {
+		t.Fatalf("inputs = %#v, want summary plus user answer", inputs)
+	}
+	if inputs[0].Kind != provider.InputKindAssistantMessage || !strings.Contains(inputs[0].Content, "Active turn summary:") {
+		t.Fatalf("summary input = %#v", inputs[0])
+	}
+	if inputs[1].Kind != provider.InputKindUserMessage || inputs[1].Content != "Apply plan" {
+		t.Fatalf("last input = %#v, want user answer", inputs[1])
+	}
+}
+
+func TestBuildTurnProjectedCurrentConversationAddsContinuationPromptWithoutUser(t *testing.T) {
+	state := turnLoopState{
+		WorkState: turnWorkState{
+			Summary: turnWorkSummary{
+				Objective: "Continue the previous implementation turn.",
+				OpenItems: []string{
+					"Run the remaining tests.",
+				},
+			},
+		},
+	}
+
+	inputs, err := buildTurnProjectedCurrentConversation(state)
+	if err != nil {
+		t.Fatalf("buildTurnProjectedCurrentConversation() error = %v", err)
+	}
+	if len(inputs) != 2 {
+		t.Fatalf("inputs = %#v, want summary plus continuation prompt", inputs)
+	}
+	if inputs[0].Kind != provider.InputKindAssistantMessage || !strings.Contains(inputs[0].Content, "Active turn summary:") {
+		t.Fatalf("summary input = %#v", inputs[0])
+	}
+	if inputs[1].Kind != provider.InputKindUserMessage || inputs[1].Content != "Continue from the active turn summary." {
+		t.Fatalf("last input = %#v, want continuation prompt", inputs[1])
 	}
 }
 
