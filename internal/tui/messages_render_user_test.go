@@ -59,6 +59,36 @@ func TestRenderUserSectionUsesThemedRailWithoutBackground(t *testing.T) {
 	}
 }
 
+func TestRenderUserSectionExtendsRailForWrappedEntry(t *testing.T) {
+	customTheme := theme.StaticDefault()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context:       ctx,
+		Theme:         &customTheme,
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: "/repo",
+	})
+
+	rendered := ansi.Strip(renderUserSection(model, 24, "alpha beta gamma delta epsilon zeta"))
+	lines := strings.Split(strings.TrimRight(rendered, "\n"), "\n")
+	if len(lines) < 2 {
+		t.Fatalf("line count = %d, want wrapped content\n%s", len(lines), rendered)
+	}
+	rail := model.userPromptRailGlyph()
+	if got := strings.Count(rendered, rail); got != len(lines) {
+		t.Fatalf("rail count = %d, want one per rendered line (%d)\n%s", got, len(lines), rendered)
+	}
+	for i, line := range lines {
+		if !strings.HasPrefix(line, rail+userPromptInnerPadding) {
+			t.Fatalf("line %d = %q, want continuous rail prefix", i, line)
+		}
+	}
+}
+
 func TestTrimHistoryCompactionBodyTrimsVisibleHistoryHeader(t *testing.T) {
 	body := historyCompactionCardTitle + ":\n## Critical Context\n- earlier work compacted"
 

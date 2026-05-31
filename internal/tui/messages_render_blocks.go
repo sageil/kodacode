@@ -64,8 +64,9 @@ func renderTranscriptRailBlock(kind string, m Model, width int, body, accent, te
 			Render(m.userPromptRailGlyph())
 		textStyle := lipgloss.NewStyle().
 			Foreground(lipgloss.Color(textColor))
+		linePrefix := rail + userPromptInnerPadding
 		for _, line := range bodyLines {
-			content = append(content, rail+userPromptInnerPadding+textStyle.Render(line))
+			content = append(content, linePrefix+textStyle.Render(line))
 		}
 		return strings.Join(content, "\n")
 	}, body, accent, textColor)
