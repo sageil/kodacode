@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/sageil/kodacode/internal/codeintel"
 	"github.com/sageil/kodacode/internal/observability"
 	searchsvc "github.com/sageil/kodacode/internal/search"
 	"github.com/sageil/kodacode/internal/skill"
@@ -44,7 +45,7 @@ type runtimeToolExecutorConfig struct {
 	Execution    ExecutionConfig
 	Search       *searchsvc.Service
 	WebSearch    *websearchsvc.Service
-	CodeIntel    *CodeIntelService
+	CodeIntel    *codeintel.CodeIntelService
 	Memory       *MemoryService
 	Skills       *skill.Registry
 	Delegate     delegateRuntime

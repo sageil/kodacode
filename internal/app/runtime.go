@@ -6,6 +6,7 @@ import (
 	"sync/atomic"
 
 	"github.com/sageil/kodacode/internal/agent"
+	"github.com/sageil/kodacode/internal/codeintel"
 	"github.com/sageil/kodacode/internal/engine"
 	"github.com/sageil/kodacode/internal/events"
 	"github.com/sageil/kodacode/internal/mcp"
@@ -28,7 +29,7 @@ type Runtime struct {
 	Skills                      *skill.Registry
 	Search                      *searchsvc.Service
 	WebSearch                   *websearchsvc.Service
-	CodeIntel                   *CodeIntelService
+	CodeIntel                   *codeintel.CodeIntelService
 	ContextPacketDiagnostics    deterministicContextPacketDiagnosticsProvider
 	Memory                      *MemoryService
 	Logger                      *observability.Logger
@@ -104,7 +105,7 @@ func NewRuntime(config Config) (runtime *Runtime, err error) {
 		return nil, err
 	}
 
-	codeIntel := NewCodeIntelService(config.LSP)
+	codeIntel := codeintel.NewCodeIntelService(config.LSP)
 	memory := NewMemoryService()
 	runtimeTools, err := buildRuntimeTools(webSearch, extensions.Tools)
 	if err != nil {
