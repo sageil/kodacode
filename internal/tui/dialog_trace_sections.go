@@ -20,8 +20,20 @@ func traceDialogPromptSection(th *theme.Theme, turn *events.TurnState) string {
 		fmt.Sprintf("Shape: %s", strings.TrimSpace(prompt.Shape)),
 		fmt.Sprintf("Instruction bytes: %d base | %d composed", traceDialogByteCount(prompt.BaseInstructions), traceDialogByteCount(prompt.Instructions)),
 		fmt.Sprintf("Cache split: %d cacheable | %d dynamic", traceDialogByteCount(prompt.CacheablePrefix), traceDialogByteCount(prompt.DynamicSuffix)),
+		fmt.Sprintf("Layers: %d", len(prompt.Layers)),
 		fmt.Sprintf("Fragments: %d", len(prompt.Fragments)),
 	)
+	if len(prompt.Layers) > 0 {
+		totalBytes, largestBytes := traceDialogLayerByteStats(prompt.Layers)
+		totalTokens := traceDialogLayerTokenStats(prompt.Layers)
+		lines = append(lines, fmt.Sprintf("Layer bytes: %d total | %d largest", totalBytes, largestBytes))
+		if totalTokens > 0 {
+			lines = append(lines, fmt.Sprintf("Layer tokens: %d estimated", totalTokens))
+		}
+		if largest := traceDialogLargestLayers(prompt.Layers, 3); len(largest) > 0 {
+			lines = append(lines, "Largest layers: "+strings.Join(largest, " | "))
+		}
+	}
 	if len(prompt.Fragments) > 0 {
 		totalBytes, largestBytes := traceDialogFragmentByteStats(prompt.Fragments)
 		totalTokens := traceDialogFragmentTokenStats(prompt.Fragments)
@@ -33,10 +45,45 @@ func traceDialogPromptSection(th *theme.Theme, turn *events.TurnState) string {
 			lines = append(lines, "Largest fragments: "+strings.Join(largest, " | "))
 		}
 	}
+	for idx, layer := range prompt.Layers {
+		lines = append(lines, traceDialogLayerLine(idx, layer))
+	}
 	for idx, fragment := range prompt.Fragments {
 		lines = append(lines, traceDialogFragmentLine(idx, fragment))
 	}
 	return strings.Join(lines, "\n")
+}
+
+func traceDialogLayerLine(index int, layer events.PromptLayerState) string {
+	parts := []string{
+		fmt.Sprintf("L%d. %s", index+1, traceDialogLayerName(layer)),
+		strings.Join([]string{
+			strings.TrimSpace(layer.Kind),
+			strings.TrimSpace(layer.Source),
+			strings.TrimSpace(layer.Stability),
+		}, "/"),
+		fmt.Sprintf("%d bytes", max(layer.Bytes, 0)),
+	}
+	if layer.Tokens > 0 {
+		parts = append(parts, fmt.Sprintf("%d tokens", layer.Tokens))
+	}
+	if layer.Fragments > 0 {
+		parts = append(parts, pluralize(layer.Fragments, "fragment"))
+	}
+	if status := strings.TrimSpace(layer.Status); status != "" {
+		parts = append(parts, status)
+	}
+	return strings.Join(parts, " | ")
+}
+
+func traceDialogLayerName(layer events.PromptLayerState) string {
+	if name := strings.TrimSpace(layer.Name); name != "" {
+		return name
+	}
+	if source := strings.TrimSpace(layer.Source); source != "" {
+		return source
+	}
+	return "layer"
 }
 
 func traceDialogFragmentLine(index int, fragment events.PromptFragmentState) string {
@@ -224,10 +271,31 @@ func traceDialogFragmentByteStats(fragments []events.PromptFragmentState) (int, 
 	return total, largest
 }
 
+func traceDialogLayerByteStats(layers []events.PromptLayerState) (int, int) {
+	total := 0
+	largest := 0
+	for _, layer := range layers {
+		bytes := max(layer.Bytes, 0)
+		total += bytes
+		if bytes > largest {
+			largest = bytes
+		}
+	}
+	return total, largest
+}
+
 func traceDialogFragmentTokenStats(fragments []events.PromptFragmentState) int {
 	total := 0
 	for _, fragment := range fragments {
 		total += max(fragment.Tokens, 0)
+	}
+	return total
+}
+
+func traceDialogLayerTokenStats(layers []events.PromptLayerState) int {
+	total := 0
+	for _, layer := range layers {
+		total += max(layer.Tokens, 0)
 	}
 	return total
 }
@@ -246,6 +314,39 @@ func traceDialogLargestFragments(fragments []events.PromptFragmentState, limit i
 		summaries = append(summaries, fragmentSummary{
 			name:  traceDialogFragmentName(fragment),
 			bytes: max(fragment.Bytes, 0),
+			index: index,
+		})
+	}
+	sort.SliceStable(summaries, func(i, j int) bool {
+		if summaries[i].bytes == summaries[j].bytes {
+			return summaries[i].index < summaries[j].index
+		}
+		return summaries[i].bytes > summaries[j].bytes
+	})
+	if len(summaries) > limit {
+		summaries = summaries[:limit]
+	}
+	lines := make([]string, 0, len(summaries))
+	for _, summary := range summaries {
+		lines = append(lines, fmt.Sprintf("%s %d bytes", summary.name, summary.bytes))
+	}
+	return lines
+}
+
+func traceDialogLargestLayers(layers []events.PromptLayerState, limit int) []string {
+	if len(layers) == 0 || limit <= 0 {
+		return nil
+	}
+	type layerSummary struct {
+		name  string
+		bytes int
+		index int
+	}
+	summaries := make([]layerSummary, 0, len(layers))
+	for index, layer := range layers {
+		summaries = append(summaries, layerSummary{
+			name:  traceDialogLayerName(layer),
+			bytes: max(layer.Bytes, 0),
 			index: index,
 		})
 	}

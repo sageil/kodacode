@@ -44,9 +44,13 @@ func TestTraceDialogRendersDurableTurnDetails(t *testing.T) {
 					Instructions:     "compiled instructions for provider",
 					CacheablePrefix:  "cached prefix",
 					DynamicSuffix:    "dynamic suffix",
+					Layers: []events.PromptLayerState{
+						{Name: "core-policy", Kind: "policy", Source: "builtin", Stability: "stable", Status: "included", Fragments: 1, Bytes: 420},
+						{Name: "workspace", Kind: "repo", Source: "project", Stability: "dynamic", Status: "included", Fragments: 1, Bytes: 240},
+					},
 					Fragments: []events.PromptFragmentState{
-						{Kind: "policy", Source: "builtin", Stability: "stable", Key: "core-policy", Label: "core-policy", Bytes: 420},
-						{Kind: "repo", Source: "project", Stability: "dynamic", Key: "workspace", Label: "workspace", Bytes: 240},
+						{Kind: "policy", Source: "builtin", Stability: "stable", Layer: "core-policy", Key: "core-policy", Label: "core-policy", Bytes: 420},
+						{Kind: "repo", Source: "project", Stability: "dynamic", Layer: "workspace", Key: "workspace", Label: "workspace", Bytes: 240},
 					},
 				},
 				ProviderUsage: &events.TurnProviderUsageState{
@@ -223,9 +227,13 @@ func TestTraceDialogRendersDurableTurnDetails(t *testing.T) {
 		"savings mix: 100 prompt compaction • 900 history compaction • 240 tool catalog compression (230 schema • 10 descriptions)",
 		"Prompt Assembly",
 		"Shape: generic",
+		"Layers: 2",
 		"Fragments: 2",
+		"Layer bytes: 660 total | 420 largest",
+		"Largest layers: core-policy 420 bytes | workspace 240 bytes",
 		"Fragment bytes: 660 total | 420 largest",
 		"Largest fragments: core-policy 420 bytes | workspace 240 bytes",
+		"L1. core-policy | policy/builtin/stable | 420 bytes | 1 fragment | included",
 		"1. core-policy | policy/builtin/stable | 420 bytes | key core-policy",
 		"Context and History",
 		"History pruning: 1 prior turn omitted",
@@ -350,6 +358,8 @@ func TestTraceDialogRefreshesWhenWatchEventsArrive(t *testing.T) {
 		"Provider Calls",
 		"1.1 | openai/gpt-5-mini | 0 ms | 320 input | 80 output | $0.00120",
 		"request mix: 90 prompt | 150 conversation | 80 tool surface (50 schema | 20 descriptions | 10 names | 1 tool)",
+		"Layers: 1",
+		"L1. core-policy | policy/builtin/stable | 120 bytes | 1 fragment | included",
 		"Fragments: 1",
 		"Fragment bytes: 120 total | 120 largest",
 	} {

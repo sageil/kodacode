@@ -53,6 +53,7 @@ func (s *MemoryService) PromptFragment(workspaceRoot string) (prompt.Fragment, b
 		Kind:      prompt.KindMemory,
 		Source:    prompt.SourceRuntime,
 		Stability: prompt.StabilityDynamic,
+		Layer:     "project-memory",
 		Key:       "project-memory",
 		Label:     "project-memory",
 		Content:   content,

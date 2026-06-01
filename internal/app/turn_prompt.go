@@ -54,6 +54,7 @@ func (r *TurnRunner) appendPromptCompiled(ctx context.Context, sessionID, turnID
 			Kind:      string(fragment.Kind),
 			Source:    string(fragment.Source),
 			Stability: string(fragment.Stability),
+			Layer:     fragment.LayerName(),
 			Key:       fragment.Key,
 			Label:     fragment.Label,
 			Bytes:     len(strings.TrimSpace(fragment.Content)),
@@ -78,6 +79,7 @@ func (r *TurnRunner) appendPromptCompiled(ctx context.Context, sessionID, turnID
 			instructions,
 			promptState.View.CacheablePrefix,
 			promptState.View.DynamicSuffix,
+			events.PromptLayersFromFragments(fragments),
 			fragments,
 		),
 	})
@@ -86,6 +88,7 @@ func (r *TurnRunner) appendPromptCompiled(ctx context.Context, sessionID, turnID
 
 func promptCompiledPayload(
 	shape, baseInstructions, instructions, cacheablePrefix, dynamicSuffix string,
+	layers []events.PromptLayerPayload,
 	fragments []events.PromptFragmentPayload,
 ) events.PromptCompiledPayload {
 	return events.PromptCompiledPayload{
@@ -94,6 +97,7 @@ func promptCompiledPayload(
 		Instructions:     instructions,
 		CacheablePrefix:  cacheablePrefix,
 		DynamicSuffix:    dynamicSuffix,
+		Layers:           layers,
 		Fragments:        fragments,
 	}
 }
@@ -112,6 +116,7 @@ func providerPromptOverrideFragment(model provider.ModelRef) (events.PromptFragm
 		Kind:      string(prompt.KindMetadata),
 		Source:    string(prompt.SourceUser),
 		Stability: string(prompt.StabilityStable),
+		Layer:     "provider-prompt-override",
 		Key:       "provider-prompt-override",
 		Label:     label,
 		Bytes:     len(content),

@@ -40,6 +40,7 @@ func (d Definition) PromptFragment() prompt.Fragment {
 		Kind:      prompt.KindTooling,
 		Source:    d.Source,
 		Stability: prompt.StabilityStable,
+		Layer:     "selected-skills",
 		Key:       "skill:" + d.ID,
 		Label:     "skill:" + d.ID,
 		Content:   strings.TrimSpace(d.Prompt),

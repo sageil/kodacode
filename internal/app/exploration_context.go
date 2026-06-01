@@ -310,6 +310,7 @@ func handoffExplorationFragment(entries []events.AgentHandoffExplorationEntry) (
 		Kind:      prompt.KindRuntime,
 		Source:    prompt.SourceRuntime,
 		Stability: prompt.StabilityDynamic,
+		Layer:     "handoff-exploration",
 		Key:       "handoff-exploration",
 		Label:     "handoff-exploration",
 		Content:   strings.Join(lines, "\n"),
