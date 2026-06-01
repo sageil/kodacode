@@ -60,7 +60,7 @@ func (c Config) Validate() error {
 	if err := c.OutputBudgets.Validate(); err != nil {
 		return err
 	}
-	if err := c.LSP.Validate(); err != nil {
+	if err := c.CodeIntel.Validate(); err != nil {
 		return err
 	}
 	if err := c.validateSessionConfig(); err != nil {

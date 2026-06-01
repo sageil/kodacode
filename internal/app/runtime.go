@@ -105,7 +105,7 @@ func NewRuntime(config Config) (runtime *Runtime, err error) {
 		return nil, err
 	}
 
-	codeIntel := codeintel.NewCodeIntelService(config.LSP)
+	codeIntel := codeintel.NewCodeIntelService(config.CodeIntel)
 	memory := NewMemoryService()
 	runtimeTools, err := buildRuntimeTools(webSearch, extensions.Tools)
 	if err != nil {

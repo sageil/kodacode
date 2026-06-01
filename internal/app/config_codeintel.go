@@ -2,8 +2,8 @@ package app
 
 import "github.com/sageil/kodacode/internal/codeintel"
 
-type LSPConfig = codeintel.Config
+type CodeIntelConfig = codeintel.Config
 
-func defaultLSPConfig() LSPConfig {
+func defaultCodeIntelConfig() CodeIntelConfig {
 	return codeintel.DefaultConfig()
 }

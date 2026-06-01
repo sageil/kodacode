@@ -27,7 +27,7 @@ func LoadConfigFromEnv(getenv func(string) string) Config {
 		Retention: RetentionConfig{},
 		Execution: defaultExecutionConfig(),
 		Workflow:  defaultWorkflowConfig(),
-		LSP:       defaultLSPConfig(),
+		CodeIntel: defaultCodeIntelConfig(),
 		Logging:   loadLoggingConfigFromEnv(getenv),
 	}
 	return config
