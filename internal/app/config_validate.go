@@ -121,8 +121,17 @@ func (c MCPServerConfig) Validate() error {
 	if serverType == "" {
 		return fmt.Errorf("mcp server %q type is required", name)
 	}
-	if strings.EqualFold(serverType, "stdio") && strings.TrimSpace(c.Command) == "" {
-		return fmt.Errorf("mcp server %q command is required for stdio", name)
+	switch strings.ToLower(serverType) {
+	case "stdio":
+		if strings.TrimSpace(c.Command) == "" {
+			return fmt.Errorf("mcp server %q command is required for stdio", name)
+		}
+	case "http", "sse":
+		if strings.TrimSpace(c.URL) == "" {
+			return fmt.Errorf("mcp server %q url is required for %s", name, strings.ToLower(serverType))
+		}
+	default:
+		return fmt.Errorf("mcp server %q type %q is unsupported", name, serverType)
 	}
 	return nil
 }

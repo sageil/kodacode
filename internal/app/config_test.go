@@ -137,6 +137,35 @@ func TestConfigValidateAllowsEmptyModelRoute(t *testing.T) {
 	}
 }
 
+func TestConfigValidateAllowsRemoteMCPServerWithURL(t *testing.T) {
+	config := Config{
+		MCP: MCPConfig{
+			Servers: []MCPServerConfig{{
+				Name: "docs",
+				Type: "http",
+				URL:  "https://mcp.example.com/mcp",
+			}},
+		},
+	}
+	if err := config.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+}
+
+func TestConfigValidateRequiresRemoteMCPServerURL(t *testing.T) {
+	config := Config{
+		MCP: MCPConfig{
+			Servers: []MCPServerConfig{{
+				Name: "docs",
+				Type: "sse",
+			}},
+		},
+	}
+	if err := config.Validate(); err == nil || !strings.Contains(err.Error(), "url is required") {
+		t.Fatalf("Validate() error = %v, want url required", err)
+	}
+}
+
 func TestConfigValidateAllowsOpenAIWithoutAPIKey(t *testing.T) {
 	err := (Config{
 		ModelRoute: provider.ModelRoute{

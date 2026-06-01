@@ -210,6 +210,40 @@ func TestRuntimeEvaluateStartupTrustExcludesDisabledMCPServers(t *testing.T) {
 	}
 }
 
+func TestRuntimeEvaluateStartupTrustIncludesRemoteMCPServers(t *testing.T) {
+	root := t.TempDir()
+	runtime := &Runtime{
+		Config: Config{
+			MCP: MCPConfig{
+				Servers: []MCPServerConfig{{
+					Name: "docs",
+					Type: "http",
+					URL:  "https://mcp.example.com/mcp",
+				}},
+			},
+		},
+	}
+	store, err := newStartupTrustStore(root + "/kodacode.db")
+	if err != nil {
+		t.Fatalf("newStartupTrustStore() error = %v", err)
+	}
+	defer func() {
+		_ = store.Close()
+	}()
+	runtime.Trusts = store
+
+	pending, err := runtime.EvaluateStartupTrust(context.Background(), root)
+	if err != nil {
+		t.Fatalf("EvaluateStartupTrust() error = %v", err)
+	}
+	if len(pending.Servers) != 1 {
+		t.Fatalf("pending servers = %#v, want remote MCP server", pending.Servers)
+	}
+	if got := pending.Servers[0].URL; got != "https://mcp.example.com/mcp" {
+		t.Fatalf("pending server URL = %q, want remote endpoint", got)
+	}
+}
+
 func TestMCPServerFingerprintIgnoresDisplayName(t *testing.T) {
 	serverA := MCPServerConfig{
 		Name:    "filesystem",
@@ -239,6 +273,36 @@ func TestMCPServerFingerprintIgnoresDisplayName(t *testing.T) {
 	}
 	if fingerprintA != fingerprintB {
 		t.Fatalf("fingerprints differ for renamed server: %q != %q", fingerprintA, fingerprintB)
+	}
+}
+
+func TestMCPServerFingerprintIncludesRemoteEndpointAndHeaders(t *testing.T) {
+	serverA := MCPServerConfig{
+		Name: "docs",
+		Type: "http",
+		URL:  "https://mcp.example.com/mcp",
+		Headers: map[string]string{
+			"Authorization": "Bearer one",
+		},
+	}
+	serverB := MCPServerConfig{
+		Name: "docs",
+		Type: "http",
+		URL:  "https://mcp.example.com/mcp",
+		Headers: map[string]string{
+			"Authorization": "Bearer two",
+		},
+	}
+	fingerprintA, err := mcpServerFingerprint(serverA)
+	if err != nil {
+		t.Fatalf("mcpServerFingerprint(serverA) error = %v", err)
+	}
+	fingerprintB, err := mcpServerFingerprint(serverB)
+	if err != nil {
+		t.Fatalf("mcpServerFingerprint(serverB) error = %v", err)
+	}
+	if fingerprintA == fingerprintB {
+		t.Fatalf("fingerprints match after header change: %q", fingerprintA)
 	}
 }
 

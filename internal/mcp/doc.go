@@ -1,2 +1,2 @@
-// Package mcp manages stdio MCP servers and their runtime registration.
+// Package mcp manages MCP transports and their runtime registration.
 package mcp

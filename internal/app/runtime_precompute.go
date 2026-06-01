@@ -9,7 +9,7 @@ import (
 
 const runtimePrecomputeTimeout = 2 * time.Minute
 
-type runtimePrecomputeHint struct {
+type RuntimePrecomputeHint struct {
 	SessionID     string
 	TurnID        string
 	WorkspaceRoot string
@@ -18,8 +18,8 @@ type runtimePrecomputeHint struct {
 	Tags          []string
 }
 
-type runtimePrecomputeHook interface {
-	Precompute(context.Context, runtimePrecomputeHint) error
+type RuntimePrecomputeHook interface {
+	Precompute(context.Context, RuntimePrecomputeHint) error
 }
 
 type searchPrecomputeHook struct {
@@ -28,7 +28,7 @@ type searchPrecomputeHook struct {
 	}
 }
 
-func (h searchPrecomputeHook) Precompute(ctx context.Context, hint runtimePrecomputeHint) error {
+func (h searchPrecomputeHook) Precompute(ctx context.Context, hint RuntimePrecomputeHint) error {
 	if h.search == nil || strings.TrimSpace(hint.WorkspaceRoot) == "" {
 		return nil
 	}
@@ -53,7 +53,7 @@ func (r *Runtime) triggerTurnPrecompute(ctx context.Context, sessionID, turnID s
 	if workspaceRoot == "" {
 		return
 	}
-	hint := runtimePrecomputeHint{
+	hint := RuntimePrecomputeHint{
 		SessionID:     sessionID,
 		TurnID:        turnID,
 		WorkspaceRoot: workspaceRoot,
@@ -64,7 +64,7 @@ func (r *Runtime) triggerTurnPrecompute(ctx context.Context, sessionID, turnID s
 	go r.runPrecomputeHooks(context.WithoutCancel(ctx), hooks, hint)
 }
 
-func (r *Runtime) runPrecomputeHooks(ctx context.Context, hooks []runtimePrecomputeHook, hint runtimePrecomputeHint) {
+func (r *Runtime) runPrecomputeHooks(ctx context.Context, hooks []RuntimePrecomputeHook, hint RuntimePrecomputeHint) {
 	ctx, cancel := context.WithTimeout(ctx, runtimePrecomputeTimeout)
 	defer cancel()
 	for _, hook := range hooks {
@@ -82,17 +82,18 @@ func (r *Runtime) runPrecomputeHooks(ctx context.Context, hooks []runtimePrecomp
 	}
 }
 
-func (r *Runtime) runtimePrecomputeHooks() []runtimePrecomputeHook {
+func (r *Runtime) runtimePrecomputeHooks() []RuntimePrecomputeHook {
 	if r == nil {
 		return nil
 	}
 	if len(r.precomputeHooks) > 0 {
-		return append([]runtimePrecomputeHook(nil), r.precomputeHooks...)
+		return append([]RuntimePrecomputeHook(nil), r.precomputeHooks...)
 	}
-	if r.Search == nil {
-		return nil
+	hooks := append([]RuntimePrecomputeHook(nil), r.extensionPrecomputeHooks...)
+	if r.Search != nil {
+		hooks = append([]RuntimePrecomputeHook{searchPrecomputeHook{search: r.Search}}, hooks...)
 	}
-	return []runtimePrecomputeHook{searchPrecomputeHook{search: r.Search}}
+	return hooks
 }
 
 func shouldPrecomputeForTurnStatus(status TurnRunStatus) bool {

@@ -176,6 +176,20 @@ func (r *Runtime) Reconfigure(config Config) error {
 		}
 		return err
 	}
+	extensions, err := buildRuntimeExtensionSurface(registeredRuntimeExtensions())
+	if err != nil {
+		if search != nil {
+			_ = search.Close()
+		}
+		return err
+	}
+	runtimeTools, err := buildRuntimeTools(webSearch, extensions.Tools)
+	if err != nil {
+		if search != nil {
+			_ = search.Close()
+		}
+		return err
+	}
 	mcpTools := r.currentMCPToolsOrNil(context.Background())
 	tools, err := newRuntimeToolExecutor(runtimeToolExecutorConfig{
 		Sessions:     r.Sessions,
@@ -187,7 +201,7 @@ func (r *Runtime) Reconfigure(config Config) error {
 		Skills:       r.Skills,
 		Delegate:     r,
 		Logger:       logger.With("component", "tool_executor"),
-		RuntimeTools: buildRuntimeTools(webSearch),
+		RuntimeTools: runtimeTools,
 		MCPTools:     mcpTools,
 	})
 	if err != nil {
@@ -224,6 +238,9 @@ func (r *Runtime) Reconfigure(config Config) error {
 	r.Search = search
 	r.WebSearch = webSearch
 	r.Runner = runner
+	r.extensionToolEffects = extensions.ToolEffects
+	r.extensionPrecomputeHooks = extensions.PrecomputeHooks
+	r.extensionContext = extensions.ContextContributions
 	r.ModelCatalog = buildModelCatalog(config, logger)
 	r.resetModelCatalogRefreshState()
 	r.Runner.SetModelCatalog(r.ModelCatalog)

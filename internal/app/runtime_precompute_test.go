@@ -11,11 +11,11 @@ import (
 )
 
 type recordingPrecomputeHook struct {
-	calls chan runtimePrecomputeHint
+	calls chan RuntimePrecomputeHint
 	err   error
 }
 
-func (h *recordingPrecomputeHook) Precompute(ctx context.Context, hint runtimePrecomputeHint) error {
+func (h *recordingPrecomputeHook) Precompute(ctx context.Context, hint RuntimePrecomputeHint) error {
 	select {
 	case h.calls <- hint:
 	case <-ctx.Done():
@@ -25,13 +25,13 @@ func (h *recordingPrecomputeHook) Precompute(ctx context.Context, hint runtimePr
 }
 
 func TestRuntimeRunSessionTurnTriggersPrecomputeAfterCompletedTurn(t *testing.T) {
-	hook := &recordingPrecomputeHook{calls: make(chan runtimePrecomputeHint, 1)}
+	hook := &recordingPrecomputeHook{calls: make(chan RuntimePrecomputeHint, 1)}
 	runtime := newRuntimeWithClient(t, &fakeProvider{
 		streams: []provider.Stream{provider.NewSliceStream([]provider.Event{
 			{Kind: provider.EventKindAssistantDelta, AssistantDelta: "hello"},
 		})},
 	})
-	runtime.precomputeHooks = []runtimePrecomputeHook{hook}
+	runtime.precomputeHooks = []RuntimePrecomputeHook{hook}
 	workspaceRoot := t.TempDir()
 	resolvedWorkspaceRoot, err := filepath.EvalSymlinks(workspaceRoot)
 	if err != nil {
@@ -69,7 +69,7 @@ func TestRuntimeRunSessionTurnTriggersPrecomputeAfterCompletedTurn(t *testing.T)
 
 func TestRuntimeRunSessionTurnIgnoresPrecomputeFailure(t *testing.T) {
 	hook := &recordingPrecomputeHook{
-		calls: make(chan runtimePrecomputeHint, 1),
+		calls: make(chan RuntimePrecomputeHint, 1),
 		err:   errors.New("precompute failed"),
 	}
 	runtime := newRuntimeWithClient(t, &fakeProvider{
@@ -77,7 +77,7 @@ func TestRuntimeRunSessionTurnIgnoresPrecomputeFailure(t *testing.T) {
 			{Kind: provider.EventKindAssistantDelta, AssistantDelta: "hello"},
 		})},
 	})
-	runtime.precomputeHooks = []runtimePrecomputeHook{hook}
+	runtime.precomputeHooks = []RuntimePrecomputeHook{hook}
 
 	result, err := runtime.RunSessionTurn(context.Background(), RunSessionInput{
 		WorkspaceRoot: t.TempDir(),
@@ -92,14 +92,14 @@ func TestRuntimeRunSessionTurnIgnoresPrecomputeFailure(t *testing.T) {
 	_ = waitForPrecomputeHint(t, hook.calls)
 }
 
-func waitForPrecomputeHint(t *testing.T, calls <-chan runtimePrecomputeHint) runtimePrecomputeHint {
+func waitForPrecomputeHint(t *testing.T, calls <-chan RuntimePrecomputeHint) RuntimePrecomputeHint {
 	t.Helper()
 	select {
 	case hint := <-calls:
 		return hint
 	case <-time.After(time.Second):
 		t.Fatal("precompute hook was not called")
-		return runtimePrecomputeHint{}
+		return RuntimePrecomputeHint{}
 	}
 }
 

@@ -312,6 +312,9 @@ func (m startupTrustPromptModel) renderSelectableRowWithDetail(rowIndex int, tex
 
 func serverCommandPreview(server app.StartupTrustServer) string {
 	command := strings.TrimSpace(server.Command)
+	if command == "" {
+		command = strings.TrimSpace(server.URL)
+	}
 	if len(server.Args) == 0 {
 		return command
 	}

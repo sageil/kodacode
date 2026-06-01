@@ -14,6 +14,7 @@ import (
 	"github.com/sageil/kodacode/internal/provider"
 	searchsvc "github.com/sageil/kodacode/internal/search"
 	"github.com/sageil/kodacode/internal/skill"
+	"github.com/sageil/kodacode/internal/tool"
 	websearchsvc "github.com/sageil/kodacode/internal/websearch"
 )
 
@@ -34,7 +35,10 @@ type Runtime struct {
 	ModelCatalog              modelCatalog
 	Provider                  provider.Client
 	Runner                    *TurnRunner
-	precomputeHooks           []runtimePrecomputeHook
+	precomputeHooks           []RuntimePrecomputeHook
+	extensionToolEffects      map[string][]tool.ExecutionEffect
+	extensionPrecomputeHooks  []RuntimePrecomputeHook
+	extensionContext          []RuntimeExtensionContextContribution
 	activeTurns               activeTurnRegistry
 	modelCatalogRefreshActive atomic.Bool
 	mcpMu                     sync.Mutex
@@ -87,6 +91,10 @@ func NewRuntime(config Config) (runtime *Runtime, err error) {
 	if err != nil {
 		return nil, err
 	}
+	extensions, err := buildRuntimeExtensionSurface(registeredRuntimeExtensions())
+	if err != nil {
+		return nil, err
+	}
 	sessions, err := NewSessionServiceWithBlobs(store, blobStore)
 	if err != nil {
 		return nil, err
@@ -97,6 +105,10 @@ func NewRuntime(config Config) (runtime *Runtime, err error) {
 
 	codeIntel := NewCodeIntelService(config.LSP)
 	memory := NewMemoryService()
+	runtimeTools, err := buildRuntimeTools(webSearch, extensions.Tools)
+	if err != nil {
+		return nil, err
+	}
 	tools, err := newRuntimeToolExecutor(runtimeToolExecutorConfig{
 		Sessions:     sessions,
 		Execution:    config.Execution,
@@ -108,7 +120,7 @@ func NewRuntime(config Config) (runtime *Runtime, err error) {
 		Delegate:     nil,
 		Logger:       nil,
 		Background:   backgroundLogs,
-		RuntimeTools: buildRuntimeTools(webSearch),
+		RuntimeTools: runtimeTools,
 	})
 	if err != nil {
 		return nil, err
@@ -141,21 +153,24 @@ func NewRuntime(config Config) (runtime *Runtime, err error) {
 	}
 
 	runtime = &Runtime{
-		Config:       config,
-		Store:        store,
-		Sessions:     sessions,
-		Trusts:       trusts,
-		Tools:        tools,
-		Agents:       agents,
-		Skills:       skills,
-		Search:       search,
-		WebSearch:    webSearch,
-		CodeIntel:    codeIntel,
-		Memory:       memory,
-		Logger:       logger,
-		ModelCatalog: buildModelCatalog(config, logger),
-		Provider:     client,
-		Runner:       runner,
+		Config:                   config,
+		Store:                    store,
+		Sessions:                 sessions,
+		Trusts:                   trusts,
+		Tools:                    tools,
+		Agents:                   agents,
+		Skills:                   skills,
+		Search:                   search,
+		WebSearch:                webSearch,
+		CodeIntel:                codeIntel,
+		Memory:                   memory,
+		Logger:                   logger,
+		ModelCatalog:             buildModelCatalog(config, logger),
+		Provider:                 client,
+		Runner:                   runner,
+		extensionToolEffects:     extensions.ToolEffects,
+		extensionPrecomputeHooks: extensions.PrecomputeHooks,
+		extensionContext:         extensions.ContextContributions,
 		rawProviderFactory: func(config Config, providerID string) (provider.Client, error) {
 			return buildProviderClientForID(config, providerID)
 		},

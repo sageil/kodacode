@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
 	"github.com/sageil/kodacode/internal/observability"
 	searchsvc "github.com/sageil/kodacode/internal/search"
@@ -10,12 +12,31 @@ import (
 	websearchsvc "github.com/sageil/kodacode/internal/websearch"
 )
 
-func buildRuntimeTools(webSearch *websearchsvc.Service) []tool.Tool {
+func buildRuntimeTools(webSearch *websearchsvc.Service, extensionTools []tool.Tool) ([]tool.Tool, error) {
 	tools := append([]tool.Tool(nil), tool.DefaultRuntimeTools()...)
 	if webSearch != nil && webSearch.Enabled() {
 		tools = append(tools, tool.NewWebSearchTool())
 	}
-	return tools
+	seen := make(map[string]struct{}, len(tools)+len(extensionTools))
+	for _, tl := range tools {
+		name := strings.TrimSpace(tl.Definition().Name)
+		if name == "" {
+			continue
+		}
+		seen[name] = struct{}{}
+	}
+	for _, tl := range extensionTools {
+		name := strings.TrimSpace(tl.Definition().Name)
+		if name == "" {
+			return nil, ErrRuntimeExtensionToolNameRequired
+		}
+		if _, exists := seen[name]; exists {
+			return nil, fmt.Errorf("%w: %s", ErrRuntimeExtensionToolDuplicate, name)
+		}
+		seen[name] = struct{}{}
+		tools = append(tools, tl)
+	}
+	return tools, nil
 }
 
 type runtimeToolExecutorConfig struct {
