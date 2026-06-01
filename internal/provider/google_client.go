@@ -313,15 +313,3 @@ func buildGoogleConversation(conversation []nativeMessage) ([]*genai.Content, er
 	}
 	return contents, nil
 }
-
-func googleThinkingModel(model string) bool {
-	if !strings.HasPrefix(model, "gemini-") {
-		return false
-	}
-	for _, unsupportedPrefix := range []string{"gemini-1.", "gemini-1-", "gemini-2.0", "gemini-2-0"} {
-		if strings.HasPrefix(model, unsupportedPrefix) {
-			return false
-		}
-	}
-	return true
-}

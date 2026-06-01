@@ -1,9 +1,6 @@
 package provider
 
-import (
-	"strconv"
-	"strings"
-)
+import "strings"
 
 type streamReasoningMode int
 
@@ -192,22 +189,6 @@ func streamsReasoningOutputForRequest(req Request) bool {
 	return EffectiveReasoningVariantForTurn(req.Model, nil, req.ThinkingMode) == ReasoningVariantHigh
 }
 
-func supportedGoogleReasoningVariants(model ModelRef) []string {
-	modelID := strings.ToLower(strings.TrimSpace(model.ModelID))
-	switch {
-	case googleGemini3ProModel(modelID):
-		return []string{"low", "medium", "high"}
-	case googleGemini3FlashModel(modelID):
-		return []string{"minimal", "low", "medium", "high"}
-	case googleGemini25ProModel(modelID):
-		return []string{"-1"}
-	case googleGemini25FlashLiteModel(modelID), googleGemini25FlashModel(modelID):
-		return []string{"0", "-1"}
-	default:
-		return nil
-	}
-}
-
 func supportedDeepSeekReasoningVariants(model ModelRef) []string {
 	if !deepseekThinkingModel(strings.ToLower(strings.TrimSpace(model.ModelID))) {
 		return nil
@@ -250,61 +231,6 @@ func effectiveDeepSeekReasoningVariant(model ModelRef, requested string) string 
 	default:
 		return ""
 	}
-}
-
-func effectiveGoogleReasoningVariant(model ModelRef, requested string) string {
-	requested = strings.TrimSpace(strings.ToLower(requested))
-	if requested == "" {
-		return ""
-	}
-
-	modelID := strings.ToLower(strings.TrimSpace(model.ModelID))
-	switch {
-	case googleGemini3ProModel(modelID):
-		return effectiveListedReasoningVariant([]string{"low", "medium", "high"}, requested)
-	case googleGemini3FlashModel(modelID):
-		return effectiveListedReasoningVariant([]string{"minimal", "low", "medium", "high"}, requested)
-	case googleGemini25ProModel(modelID):
-		return canonicalGoogleThinkingBudget(requested, 128, 32768, false)
-	case googleGemini25FlashLiteModel(modelID):
-		return canonicalGoogleThinkingBudget(requested, 512, 24576, true)
-	case googleGemini25FlashModel(modelID):
-		return canonicalGoogleThinkingBudget(requested, 0, 24576, true)
-	default:
-		return ""
-	}
-}
-
-func canonicalGoogleThinkingBudget(requested string, minBudget, maxBudget int32, allowZero bool) string {
-	budget, err := strconv.ParseInt(strings.TrimSpace(requested), 10, 32)
-	if err != nil {
-		return ""
-	}
-	switch value := int32(budget); {
-	case value == -1:
-		return "-1"
-	case value == 0:
-		if allowZero {
-			return "0"
-		}
-		return ""
-	case value < minBudget || value > maxBudget:
-		return ""
-	default:
-		return strconv.FormatInt(int64(value), 10)
-	}
-}
-
-func googleGemini25ProModel(modelID string) bool {
-	return strings.HasPrefix(modelID, "gemini-2.5-pro")
-}
-
-func googleGemini25FlashLiteModel(modelID string) bool {
-	return strings.HasPrefix(modelID, "gemini-2.5-flash-lite")
-}
-
-func googleGemini25FlashModel(modelID string) bool {
-	return strings.HasPrefix(modelID, "gemini-2.5-flash")
 }
 
 func deepseekThinkingModel(modelID string) bool {
@@ -359,12 +285,4 @@ func supportedMistralReasoningVariants(model ModelRef) []string {
 
 func mistralNativeReasoningModel(modelID string) bool {
 	return strings.HasPrefix(modelID, "magistral-small") || strings.HasPrefix(modelID, "magistral-medium")
-}
-
-func googleGemini3ProModel(modelID string) bool {
-	return strings.HasPrefix(modelID, "gemini-3-pro")
-}
-
-func googleGemini3FlashModel(modelID string) bool {
-	return strings.HasPrefix(modelID, "gemini-3-flash") || strings.HasPrefix(modelID, "gemini-3-flash-lite")
 }
