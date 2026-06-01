@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">KodaCode icon</title>
+  <desc id="desc">A terminal prompt icon.</desc>
+  <defs>
+    <linearGradient id="panel" x1="20" y1="20" x2="108" y2="108" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#182531"/>
+      <stop offset="1" stop-color="#0d141c"/>
+    </linearGradient>
+  </defs>
+  <rect x="18" y="24" width="92" height="80" rx="16" fill="url(#panel)" stroke="#263746" stroke-width="6"/>
+  <path d="M32 49 50 64 32 79" fill="none" stroke="#22d3ee" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M63 82h32" stroke="#eef4f8" stroke-width="10" stroke-linecap="round"/>
+  <path d="M66 49h26" stroke="#7f8b96" stroke-width="6" stroke-linecap="round"/>
+  <path d="M66 63h18" stroke="#f8b72b" stroke-width="6" stroke-linecap="round"/>
+</svg>
