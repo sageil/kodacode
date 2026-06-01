@@ -293,21 +293,6 @@ func chatCompletionsReasoningEffortForVariant(model ModelRef, variant string) (s
 	}
 }
 
-func mistralReasoningEffortForVariant(model ModelRef, variant string) (string, bool, error) {
-	supported := supportedMistralReasoningVariants(model)
-	if len(supported) == 0 {
-		return "", false, nil
-	}
-	effective := effectiveListedReasoningVariant(supported, variant)
-	if effective != "" {
-		return effective, true, nil
-	}
-	if strings.TrimSpace(variant) == "" {
-		return "", false, nil
-	}
-	return "", false, errUnsupportedReasoningVariant(model, variant)
-}
-
 func streamOpenAIChatCompletions(
 	ctx context.Context,
 	httpClient *http.Client,

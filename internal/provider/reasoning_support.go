@@ -201,32 +201,3 @@ func effectiveListedReasoningVariant(supported []string, requested string) strin
 	}
 	return ""
 }
-
-func knownReasoningModel(model ModelRef) bool {
-	if CanonicalProviderID(model.ProviderID) != "mistral" {
-		return false
-	}
-	modelID := strings.ToLower(strings.TrimSpace(model.ModelID))
-	return mistralNativeReasoningModel(modelID)
-}
-
-func supportedMistralReasoningVariants(model ModelRef) []string {
-	if CanonicalProviderID(model.ProviderID) != "mistral" {
-		return nil
-	}
-	modelID := strings.ToLower(strings.TrimSpace(model.ModelID))
-	switch {
-	case strings.HasPrefix(modelID, "mistral-small-latest"),
-		strings.HasPrefix(modelID, "mistral-small-2603"),
-		strings.HasPrefix(modelID, "mistral-small-4"),
-		strings.HasPrefix(modelID, "mistral-medium-3-5"),
-		strings.HasPrefix(modelID, "mistral-medium-2604"):
-		return []string{ReasoningVariantNone, ReasoningVariantHigh}
-	default:
-		return nil
-	}
-}
-
-func mistralNativeReasoningModel(modelID string) bool {
-	return strings.HasPrefix(modelID, "magistral-small") || strings.HasPrefix(modelID, "magistral-medium")
-}
