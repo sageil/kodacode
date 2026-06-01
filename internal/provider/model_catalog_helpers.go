@@ -3,6 +3,8 @@ package provider
 import (
 	"slices"
 	"strings"
+
+	"github.com/sageil/kodacode/internal/provider/openaiurl"
 )
 
 var modelCatalogProviderAliases = map[string][]string{
@@ -89,15 +91,7 @@ func isDigits(value string) bool {
 }
 
 func modelCatalogRoot(baseURL string) string {
-	root := strings.TrimRight(strings.TrimSpace(baseURL), "/")
-	switch {
-	case strings.HasSuffix(root, "/responses"):
-		return strings.TrimSuffix(root, "/responses")
-	case strings.HasSuffix(root, "/chat/completions"):
-		return strings.TrimSuffix(root, "/chat/completions")
-	default:
-		return root
-	}
+	return openaiurl.Root(baseURL)
 }
 
 func catalogProviderKeys(providerID string) []string {
