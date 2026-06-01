@@ -8,6 +8,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/sageil/kodacode/internal/app"
+	"github.com/sageil/kodacode/internal/codeintel"
 	"github.com/sageil/kodacode/internal/events"
 	"github.com/sageil/kodacode/internal/provider"
 	"github.com/sageil/kodacode/internal/tui/theme"
@@ -30,7 +31,7 @@ func TestRenderFooterStatusBarIncludesGitAndTurnSignals(t *testing.T) {
 			Branch:       "main",
 			ChangedFiles: 3,
 		},
-		LSP: &app.WorkspaceLSPStatus{
+		LSP: &codeintel.WorkspaceLSPStatus{
 			ActiveServers: []string{"gopls"},
 		},
 		Search: &app.WorkspaceSearchStatus{
@@ -1838,7 +1839,7 @@ func TestHandleWatchEventsRefreshesWorkspaceStatusAfterCodeIntelToolEvent(t *tes
 
 	controller := &fakeController{
 		workspaceStatus: app.WorkspaceStatus{
-			LSP: &app.WorkspaceLSPStatus{
+			LSP: &codeintel.WorkspaceLSPStatus{
 				ActiveServers: []string{"vtsls"},
 			},
 		},
