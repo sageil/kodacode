@@ -165,6 +165,7 @@ func manualReviewPromptFragments(instructions string) []prompt.Fragment {
 			Kind:      prompt.KindRuntime,
 			Source:    prompt.SourceRuntime,
 			Stability: prompt.StabilityStable,
+			Layer:     "manual-review",
 			Key:       manualReviewPromptFragmentKey,
 			Label:     manualReviewPromptFragmentKey,
 			Content: strings.Join([]string{
@@ -195,6 +196,7 @@ func manualReviewPromptFragments(instructions string) []prompt.Fragment {
 		Kind:      prompt.KindRuntime,
 		Source:    prompt.SourceRuntime,
 		Stability: prompt.StabilityDynamic,
+		Layer:     "manual-review",
 		Key:       manualReviewInstructionsKey,
 		Label:     manualReviewInstructionsKey,
 		Content:   strings.Join(scopeLines, "\n"),

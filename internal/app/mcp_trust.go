@@ -31,6 +31,7 @@ type StartupTrustServer struct {
 	Type        string
 	Fingerprint string
 	Command     string
+	URL         string
 	Args        []string
 	EnvKeys     []string
 }
@@ -367,6 +368,8 @@ type mcpServerFingerprintInput struct {
 	Command string            `json:"command,omitempty"`
 	Args    []string          `json:"args,omitempty"`
 	Env     map[string]string `json:"env,omitempty"`
+	URL     string            `json:"url,omitempty"`
+	Headers map[string]string `json:"headers,omitempty"`
 }
 
 func mcpServerFingerprint(server MCPServerConfig) (string, error) {
@@ -379,11 +382,22 @@ func mcpServerFingerprint(server MCPServerConfig) (string, error) {
 	for _, key := range envKeys {
 		env[key] = server.Env[key]
 	}
+	headers := make(map[string]string, len(server.Headers))
+	headerKeys := make([]string, 0, len(server.Headers))
+	for key := range server.Headers {
+		headerKeys = append(headerKeys, key)
+	}
+	sort.Strings(headerKeys)
+	for _, key := range headerKeys {
+		headers[key] = server.Headers[key]
+	}
 	payload, err := json.Marshal(mcpServerFingerprintInput{
 		Type:    strings.TrimSpace(server.Type),
 		Command: strings.TrimSpace(server.Command),
 		Args:    append([]string(nil), server.Args...),
 		Env:     env,
+		URL:     strings.TrimSpace(server.URL),
+		Headers: headers,
 	})
 	if err != nil {
 		return "", err

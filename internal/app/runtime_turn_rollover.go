@@ -30,6 +30,7 @@ func turnContinuationPromptFragment(continuation runtimeTurnContinuation) prompt
 		Kind:      prompt.KindRuntime,
 		Source:    prompt.SourceRuntime,
 		Stability: prompt.StabilityDynamic,
+		Layer:     "turn-continuation",
 		Key:       "turn-continuation",
 		Label:     "turn continuation",
 		Content:   turnContinuationPromptContent(continuation),

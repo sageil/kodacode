@@ -53,6 +53,7 @@ func responseStylePromptFragment(style ResponseStyle) (prompt.Fragment, bool) {
 		Kind:      prompt.KindRuntime,
 		Source:    prompt.SourceRuntime,
 		Stability: prompt.StabilityStable,
+		Layer:     "response-style",
 		Key:       "response-style",
 		Label:     "response-style",
 		Content: strings.Join([]string{

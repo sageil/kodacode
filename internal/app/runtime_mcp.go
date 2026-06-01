@@ -50,6 +50,7 @@ func (r *Runtime) EvaluateStartupTrust(ctx context.Context, workspaceRoot string
 			Type:        strings.TrimSpace(server.Type),
 			Fingerprint: fingerprint,
 			Command:     strings.TrimSpace(server.Command),
+			URL:         strings.TrimSpace(server.URL),
 			Args:        append([]string(nil), server.Args...),
 			EnvKeys:     mcpServerEnvKeys(server),
 		})
@@ -259,7 +260,7 @@ func phase1EnabledMCPServers(config MCPConfig) []MCPServerConfig {
 	}
 	out := make([]MCPServerConfig, 0, len(config.Servers))
 	for _, server := range config.Servers {
-		if !server.IsEnabled() || !strings.EqualFold(strings.TrimSpace(server.Type), "stdio") {
+		if !server.IsEnabled() || !supportedMCPServerType(server.Type) {
 			continue
 		}
 		out = append(out, server)
@@ -282,9 +283,20 @@ func mapMCPServers(servers []MCPServerConfig) []mcp.ServerConfig {
 			Command: strings.TrimSpace(server.Command),
 			Args:    append([]string(nil), server.Args...),
 			Env:     cloneStringMap(server.Env),
+			URL:     strings.TrimSpace(server.URL),
+			Headers: cloneStringMap(server.Headers),
 		})
 	}
 	return out
+}
+
+func supportedMCPServerType(serverType string) bool {
+	switch strings.ToLower(strings.TrimSpace(serverType)) {
+	case "stdio", "http", "sse":
+		return true
+	default:
+		return false
+	}
 }
 
 func canonicalWorkspaceRoot(root string) (string, error) {

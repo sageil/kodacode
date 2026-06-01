@@ -31,3 +31,7 @@ func (c promptingClient) CountTokens(ctx context.Context, req Request) (int, Tok
 	}
 	return EstimateRequestTokens(req), TokenCountSourceEstimated, nil
 }
+
+func (c promptingClient) UnwrapProviderClient() Client {
+	return c.next
+}

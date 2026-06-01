@@ -88,6 +88,7 @@ func (d Definition) PromptFragment() prompt.Fragment {
 		Kind:      prompt.KindRole,
 		Source:    prompt.SourceBuiltin,
 		Stability: prompt.StabilityStable,
+		Layer:     "agent-prompt",
 		Key:       "agent:" + d.ID,
 		Label:     d.ID,
 		Content:   strings.TrimSpace(d.Prompt),

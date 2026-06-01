@@ -134,6 +134,7 @@ func deterministicContextPacketFragment(packet deterministicContextPacket) (prom
 		Kind:      prompt.KindRuntime,
 		Source:    prompt.SourceRuntime,
 		Stability: prompt.StabilityDynamic,
+		Layer:     "deterministic-context-packet",
 		Key:       "deterministic_context_packet",
 		Label:     "Deterministic Context Packet",
 		Content:   packet.Content,

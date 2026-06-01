@@ -69,6 +69,15 @@ func (s *Service) TrackWorkspace(workspaceRoot string, options TrackOptions) {
 	go s.watchWorkspace(ctx, root, tracked, options.PrewarmEmbeddings)
 }
 
+func (s *Service) RefreshWorkspace(ctx context.Context, workspaceRoot string) bool {
+	root := strings.TrimSpace(workspaceRoot)
+	if s == nil || root == "" || !s.workspaceTracking(root) {
+		return false
+	}
+	s.refreshWorkspace(ctx, root, "precompute")
+	return true
+}
+
 func (s *Service) Close() error {
 	if s == nil {
 		return nil
@@ -109,7 +118,7 @@ func (s *Service) watchWorkspace(ctx context.Context, workspaceRoot string, trac
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			s.refreshWorkspace(ctx, workspaceRoot)
+			s.refreshWorkspace(ctx, workspaceRoot, "refresh")
 		}
 	}
 }
@@ -123,7 +132,7 @@ func (s *Service) workspaceInterval(workspaceRoot string) time.Duration {
 	return time.Second
 }
 
-func (s *Service) refreshWorkspace(ctx context.Context, workspaceRoot string) {
+func (s *Service) refreshWorkspace(ctx context.Context, workspaceRoot, reason string) {
 	current := s.scanWorkspace(workspaceRoot)
 
 	s.mu.Lock()
@@ -146,8 +155,17 @@ func (s *Service) refreshWorkspace(ctx context.Context, workspaceRoot string) {
 	}
 	if prewarmEmbeddings {
 		paths := append(append([]string(nil), changed...), added...)
-		s.prewarmWorkspace(ctx, workspaceRoot, paths, "refresh")
+		s.prewarmWorkspace(ctx, workspaceRoot, paths, reason)
 	}
+}
+
+func (s *Service) workspaceTracking(workspaceRoot string) bool {
+	if s == nil {
+		return false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.trackers[strings.TrimSpace(workspaceRoot)] != nil
 }
 
 func (s *Service) scanWorkspace(workspaceRoot string) map[string]trackedFile {

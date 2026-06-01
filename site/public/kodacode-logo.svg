@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 160" role="img" aria-labelledby="title desc">
+  <title id="title">KodaCode logo</title>
+  <desc id="desc">KodaCode wordmark with a terminal prompt icon.</desc>
+  <rect width="680" height="160" rx="18" fill="#0a0a0f"/>
+  <g transform="translate(34 34)">
+    <rect x="0" y="0" width="82" height="66" rx="13" fill="#101820" stroke="#263746" stroke-width="5"/>
+    <path d="M18 22 33 33 18 44" fill="none" stroke="#22d3ee" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M46 49h22" stroke="#eef4f8" stroke-width="8" stroke-linecap="round"/>
+    <path d="M48 22h18" stroke="#7f8b96" stroke-width="5" stroke-linecap="round"/>
+    <path d="M48 34h14" stroke="#f8b72b" stroke-width="5" stroke-linecap="round"/>
+  </g>
+  <text x="142" y="74" fill="#f0f0f5" font-family="JetBrains Mono, SFMono-Regular, Consolas, monospace" font-size="42" font-weight="700">KodaCode</text>
+  <text x="146" y="108" fill="#8e99a6" font-family="Inter, system-ui, sans-serif" font-size="17" font-weight="500">Bring your own models, tools, and workflows</text>
+  <path d="M146 126h76" stroke="#22d3ee" stroke-width="6" stroke-linecap="round"/>
+  <path d="M238 126h58" stroke="#7f8b96" stroke-width="6" stroke-linecap="round"/>
+  <path d="M312 126h42" stroke="#f8b72b" stroke-width="6" stroke-linecap="round"/>
+</svg>

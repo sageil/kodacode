@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/sageil/kodacode/internal/codeintel"
 	searchsvc "github.com/sageil/kodacode/internal/search"
 )
 
@@ -15,7 +16,7 @@ const workspaceStatusMaxGitChangedFileEntries = 20
 
 type WorkspaceStatus struct {
 	Git    *WorkspaceGitStatus
-	LSP    *WorkspaceLSPStatus
+	LSP    *codeintel.WorkspaceLSPStatus
 	Search *WorkspaceSearchStatus
 }
 
@@ -28,10 +29,6 @@ type WorkspaceGitStatus struct {
 type WorkspaceGitChangedFile struct {
 	Path   string
 	Status string
-}
-
-type WorkspaceLSPStatus struct {
-	ActiveServers []string
 }
 
 type WorkspaceSearchStatus struct {

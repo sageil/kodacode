@@ -66,12 +66,21 @@ func (p *Projector) applyTurnContextPayload(event Event) (bool, error) {
 		for i, fragment := range payload.Fragments {
 			fragments[i] = PromptFragmentState(fragment)
 		}
+		layerPayloads := payload.Layers
+		if len(layerPayloads) == 0 {
+			layerPayloads = PromptLayersFromFragments(payload.Fragments)
+		}
+		layers := make([]PromptLayerState, len(layerPayloads))
+		for i, layer := range layerPayloads {
+			layers[i] = PromptLayerState(layer)
+		}
 		turn.Prompt = &PromptState{
 			Shape:            payload.Shape,
 			BaseInstructions: payload.BaseInstructions,
 			Instructions:     payload.Instructions,
 			CacheablePrefix:  payload.CacheablePrefix,
 			DynamicSuffix:    payload.DynamicSuffix,
+			Layers:           layers,
 			Fragments:        fragments,
 		}
 		return true, nil

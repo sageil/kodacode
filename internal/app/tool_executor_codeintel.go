@@ -5,15 +5,19 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/sageil/kodacode/internal/events"
 	"github.com/sageil/kodacode/internal/tool"
 	"github.com/sageil/kodacode/internal/workspace"
+	"github.com/sageil/kodacode/internal/workspaceedit"
 )
+
+const codeIntelMutationFeedbackTimeout = 3 * time.Second
 
 type codeIntelRuntime interface {
 	Navigator(primaryRoot string, additionalRoots []string) tool.CodeIntel
-	SyncMutation(ctx context.Context, primaryRoot string, additionalRoots []string, plan codeIntelMutationSyncPlan)
+	SyncMutation(ctx context.Context, primaryRoot string, additionalRoots []string, plan workspaceedit.SyncPlan)
 }
 
 func (e *ToolExecutor) SetCodeIntelService(service codeIntelRuntime) {
@@ -31,7 +35,7 @@ func (e *ToolExecutor) syncCodeIntelMutationAndAugmentOutput(ctx context.Context
 	if e.codeIntel == nil {
 		return output
 	}
-	plan, ok := codeIntelMutationSyncPlanForCall(scope, input.ToolName, input.Arguments)
+	plan, ok := workspaceEditSyncPlanForCall(scope, input.ToolName, input.Arguments)
 	if !ok {
 		return output
 	}
@@ -75,9 +79,9 @@ func hasCodeIntelDiagnostics(files []tool.CodeIntelFileDiagnostics) bool {
 	return false
 }
 
-func codeIntelMutationSyncPlanForCall(scope *workspace.Scope, toolName string, args json.RawMessage) (codeIntelMutationSyncPlan, bool) {
+func workspaceEditSyncPlanForCall(scope *workspace.Scope, toolName string, args json.RawMessage) (workspaceedit.SyncPlan, bool) {
 	if scope == nil {
-		return codeIntelMutationSyncPlan{}, false
+		return workspaceedit.SyncPlan{}, false
 	}
 	switch strings.TrimSpace(toolName) {
 	case "write":
@@ -85,17 +89,17 @@ func codeIntelMutationSyncPlanForCall(scope *workspace.Scope, toolName string, a
 			Path string `json:"path"`
 		}
 		if json.Unmarshal(args, &input) != nil || strings.TrimSpace(input.Path) == "" {
-			return codeIntelMutationSyncPlan{}, false
+			return workspaceedit.SyncPlan{}, false
 		}
 		path, ok := resolveCodeIntelSyncPath(scope, input.Path)
 		if !ok {
-			return codeIntelMutationSyncPlan{}, false
+			return workspaceedit.SyncPlan{}, false
 		}
-		return codeIntelMutationSyncPlan{Changed: []string{path}}, true
+		return workspaceedit.SyncPlan{Changed: []string{path}}, true
 	case tool.ApplyPatchToolName:
 		patch, err := tool.ParseApplyPatch(string(args))
 		if err != nil {
-			return codeIntelMutationSyncPlan{}, false
+			return workspaceedit.SyncPlan{}, false
 		}
 		changed := make([]string, 0, len(patch.Operations))
 		seen := map[string]struct{}{}
@@ -116,11 +120,11 @@ func codeIntelMutationSyncPlanForCall(scope *workspace.Scope, toolName string, a
 			}
 		}
 		if len(changed) == 0 {
-			return codeIntelMutationSyncPlan{}, false
+			return workspaceedit.SyncPlan{}, false
 		}
-		return codeIntelMutationSyncPlan{Changed: changed}, true
+		return workspaceedit.SyncPlan{Changed: changed}, true
 	default:
-		return codeIntelMutationSyncPlan{}, false
+		return workspaceedit.SyncPlan{}, false
 	}
 }
 

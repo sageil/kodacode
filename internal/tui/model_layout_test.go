@@ -1494,8 +1494,6 @@ func TestShellLayoutWriteToolShowsSideBySideDiff(t *testing.T) {
 	rendered := ansi.Strip(renderModelView(model))
 	for _, want := range []string{
 		"Wrote src/app.ts",
-		"Old",
-		"New",
 		"const value = 1;",
 		"const value = 2;",
 	} {

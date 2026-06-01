@@ -30,6 +30,7 @@ type agentItem struct {
 type skillItem struct {
 	ID          string
 	Description string
+	WhenToUse   string
 	Source      string
 }
 
@@ -142,6 +143,7 @@ func buildSkillItems(skills []app.AvailableSkill) []skillItem {
 		items = append(items, skillItem{
 			ID:          id,
 			Description: strings.TrimSpace(available.Description),
+			WhenToUse:   strings.TrimSpace(available.WhenToUse),
 			Source:      strings.TrimSpace(available.Source),
 		})
 	}

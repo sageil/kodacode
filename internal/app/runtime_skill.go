@@ -78,6 +78,7 @@ func defaultTurnFragments(
 			Kind:      prompt.KindPolicy,
 			Source:    prompt.SourceBuiltin,
 			Stability: prompt.StabilityStable,
+			Layer:     "core-policy",
 			Key:       "core-policy",
 			Label:     "core-policy",
 			Content:   coreRuntimePolicyContent,
@@ -113,6 +114,7 @@ func defaultTurnFragments(
 		Kind:      prompt.KindRuntime,
 		Source:    prompt.SourceRuntime,
 		Stability: prompt.StabilityDynamic,
+		Layer:     "workspace",
 		Key:       "workspace",
 		Label:     "workspace",
 		Content:   runtimeWorkspaceFragmentContent(workspaceRoot, additionalRoots),
@@ -121,6 +123,7 @@ func defaultTurnFragments(
 		Kind:      prompt.KindRuntime,
 		Source:    prompt.SourceRuntime,
 		Stability: prompt.StabilityDynamic,
+		Layer:     "execution-environment",
 		Key:       "execution-environment",
 		Label:     "execution-environment",
 		Content:   runtimeExecutionEnvironmentFragmentContent(executionConfig),
@@ -130,6 +133,7 @@ func defaultTurnFragments(
 			Kind:      prompt.KindRuntime,
 			Source:    prompt.SourceRuntime,
 			Stability: prompt.StabilityDynamic,
+			Layer:     "inspection-progress",
 			Key:       "inspection-progress",
 			Label:     "inspection-progress",
 			Content:   inspectionProgressContent,
@@ -140,6 +144,7 @@ func defaultTurnFragments(
 			Kind:      prompt.KindRuntime,
 			Source:    prompt.SourceRuntime,
 			Stability: prompt.StabilityDynamic,
+			Layer:     "mcp",
 			Key:       "mcp",
 			Label:     "mcp",
 			Content:   mcpContent,
@@ -160,14 +165,22 @@ func availableSkillsPromptFragment(skills []skill.Definition) (prompt.Fragment, 
 		"- If the user explicitly mentions a skill as `$name` or `${name}`, use that skill for the task.",
 		"- For implicit use, choose a skill only when the request matches its description. Load full instructions with the `skill` tool before following a skill that is not already included as a full prompt fragment.",
 	}
+	visible := 0
 	for _, definition := range skills {
+		if !definition.ModelVisible() {
+			continue
+		}
 		id := strings.TrimSpace(definition.ID)
 		if id == "" {
 			continue
 		}
+		visible++
 		line := "- $" + id
-		if description := strings.TrimSpace(definition.Description); description != "" {
+		if description := strings.TrimSpace(definition.MetadataDescription()); description != "" {
 			line += ": " + description
+		}
+		if len(definition.Arguments) > 0 {
+			line += " Arguments: " + strings.Join(definition.Arguments, ", ") + "."
 		}
 		if path := strings.TrimSpace(definition.Path); path != "" {
 			line += " (" + path + ")"
@@ -179,6 +192,9 @@ func availableSkillsPromptFragment(skills []skill.Definition) (prompt.Fragment, 
 		}
 		lines = next
 	}
+	if visible == 0 {
+		return prompt.Fragment{}, false
+	}
 	content := strings.TrimSpace(strings.Join(lines, "\n"))
 	if content == "" {
 		return prompt.Fragment{}, false
@@ -187,6 +203,7 @@ func availableSkillsPromptFragment(skills []skill.Definition) (prompt.Fragment, 
 		Kind:      prompt.KindTooling,
 		Source:    prompt.SourceRuntime,
 		Stability: prompt.StabilityDynamic,
+		Layer:     "available-skills",
 		Key:       "available-skills",
 		Label:     "available-skills",
 		Content:   content,

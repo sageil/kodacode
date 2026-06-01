@@ -11,6 +11,12 @@ func TestParseMarkdownDefinitionReadsFrontMatter(t *testing.T) {
 	definition, err := parseMarkdownDefinition("review", "/repo/.kodacode/skills/review/SKILL.md", prompt.SourceProject, []byte(`---
 name: repo-review
 description: Review carefully
+when_to_use: Use when reviewing broad repository changes.
+user-invocable: false
+disable-model-invocation: true
+arguments:
+  - scope
+  - focus
 ---
 
 Review this repo.
@@ -26,6 +32,18 @@ Review this repo.
 	}
 	if definition.Description != "Review carefully" {
 		t.Fatalf("description = %q", definition.Description)
+	}
+	if definition.WhenToUse != "Use when reviewing broad repository changes." {
+		t.Fatalf("when_to_use = %q", definition.WhenToUse)
+	}
+	if definition.EffectiveUserInvocable() {
+		t.Fatal("EffectiveUserInvocable() = true, want false")
+	}
+	if definition.ModelVisible() {
+		t.Fatal("ModelVisible() = true, want false")
+	}
+	if strings.Join(definition.Arguments, ",") != "scope,focus" {
+		t.Fatalf("arguments = %#v", definition.Arguments)
 	}
 	if definition.Source != prompt.SourceProject {
 		t.Fatalf("source = %q", definition.Source)

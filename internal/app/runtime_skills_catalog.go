@@ -11,6 +11,7 @@ import (
 type AvailableSkill struct {
 	ID          string
 	Description string
+	WhenToUse   string
 	Source      string
 }
 
@@ -31,9 +32,13 @@ func (r *Runtime) ListSkills(_ context.Context, workspaceRoot string) ([]Availab
 		if id == "" {
 			continue
 		}
+		if !definition.EffectiveUserInvocable() {
+			continue
+		}
 		skills = append(skills, AvailableSkill{
 			ID:          id,
 			Description: strings.TrimSpace(definition.Description),
+			WhenToUse:   strings.TrimSpace(definition.WhenToUse),
 			Source:      string(definition.Source),
 		})
 	}

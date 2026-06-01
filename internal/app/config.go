@@ -49,7 +49,7 @@ type Config struct {
 	DeepSeek                         DeepSeekProviderConfig
 	Search                           SearchConfig
 	WebSearch                        WebSearchConfig
-	LSP                              LSPConfig
+	CodeIntel                        CodeIntelConfig
 	ContextPacket                    ContextPacketConfig
 	Sessions                         SessionConfig
 	Permissions                      permissionpolicy.Config

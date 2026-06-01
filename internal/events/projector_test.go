@@ -999,8 +999,8 @@ func TestProjectorStoresCompiledPromptState(t *testing.T) {
 		BaseInstructions: "base instructions",
 		Instructions:     "compiled instructions",
 		Fragments: []PromptFragmentPayload{
-			{Kind: "policy", Source: "builtin", Stability: "stable", Key: "core-policy", Label: "core-policy", Bytes: 10},
-			{Kind: "role", Source: "builtin", Stability: "stable", Key: "agent:builder", Label: "builder", Bytes: 12},
+			{Kind: "policy", Source: "builtin", Stability: "stable", Layer: "core-policy", Key: "core-policy", Label: "core-policy", Bytes: 10},
+			{Kind: "role", Source: "builtin", Stability: "stable", Layer: "agent-prompt", Key: "agent:builder", Label: "builder", Bytes: 12},
 		},
 	})); err != nil {
 		t.Fatalf("Apply(prompt_compiled) error = %v", err)
@@ -1025,6 +1025,12 @@ func TestProjectorStoresCompiledPromptState(t *testing.T) {
 	}
 	if got := turn.Prompt.Fragments[1].Label; got != "builder" {
 		t.Fatalf("second fragment label = %q", got)
+	}
+	if len(turn.Prompt.Layers) != 2 {
+		t.Fatalf("layer count = %d", len(turn.Prompt.Layers))
+	}
+	if got := turn.Prompt.Layers[1].Name; got != "agent-prompt" {
+		t.Fatalf("second layer name = %q", got)
 	}
 }
 

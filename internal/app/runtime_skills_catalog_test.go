@@ -27,6 +27,9 @@ func TestRuntimeListSkillsMergesProjectAndGlobalCatalogForSelection(t *testing.T
 	if err := os.MkdirAll(filepath.Join(globalDir, "search"), 0o755); err != nil {
 		t.Fatalf("MkdirAll(global search) error = %v", err)
 	}
+	if err := os.MkdirAll(filepath.Join(globalDir, "internal"), 0o755); err != nil {
+		t.Fatalf("MkdirAll(global internal) error = %v", err)
+	}
 
 	if err := os.WriteFile(filepath.Join(projectSkills, "migration", "SKILL.md"), []byte(`---
 description: Mongo migration workflow
@@ -54,11 +57,21 @@ Use this skill when reviewing any repository.
 	}
 	if err := os.WriteFile(filepath.Join(globalDir, "search", "SKILL.md"), []byte(`---
 description: Search workflow
+when_to_use: Use when searching a codebase.
 ---
 
 Use this skill when searching a codebase.
 `), 0o644); err != nil {
 		t.Fatalf("WriteFile(global search) error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(globalDir, "internal", "SKILL.md"), []byte(`---
+description: Internal workflow
+user-invocable: false
+---
+
+Use this skill only from runtime wiring.
+`), 0o644); err != nil {
+		t.Fatalf("WriteFile(global internal) error = %v", err)
 	}
 
 	runtime := newRuntimeWithClient(t, &fakeProvider{})
@@ -83,5 +96,8 @@ Use this skill when searching a codebase.
 	}
 	if skills[1].Description != "Project review workflow" {
 		t.Fatalf("review description = %q", skills[1].Description)
+	}
+	if skills[2].WhenToUse != "Use when searching a codebase." {
+		t.Fatalf("search when_to_use = %q", skills[2].WhenToUse)
 	}
 }

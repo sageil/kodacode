@@ -1,0 +1,631 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/sageil/kodacode/main/schema/config.definition.json",
+  "title": "KodaCode Configuration",
+  "description": "Schema for KodaCode's persisted config.yaml surface.",
+  "type": "object",
+  "additionalProperties": false,
+  "$defs": {
+    "modelRef": {
+      "type": "string",
+      "description": "Model route in providerID/modelID format.",
+      "pattern": "^[A-Za-z0-9_-]+/.+$"
+    },
+    "modelRoute": {
+      "type": "object",
+      "description": "Single-model route selection.",
+      "additionalProperties": false,
+      "properties": {
+        "primary": {
+          "$ref": "#/$defs/modelRef"
+        }
+      }
+    },
+    "stringMap": {
+      "type": "object",
+      "description": "String key/value mapping.",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "permissionRules": {
+      "type": "object",
+      "description": "Pattern-to-action permission rules.",
+      "additionalProperties": {
+        "type": "string",
+        "enum": [
+          "allow",
+          "ask",
+          "deny"
+        ]
+      }
+    },
+    "mcpToolHint": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "summary": {
+          "type": "string"
+        },
+        "guidance": {
+          "type": "string"
+        },
+        "triggers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "file_exts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "preserve_parameter_docs": {
+          "type": "boolean"
+        }
+      }
+    },
+    "mcpServer": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "description": "Unique MCP server name."
+        },
+        "type": {
+          "type": "string",
+          "description": "Server transport type such as stdio, sse, or http."
+        },
+        "command": {
+          "type": "string"
+        },
+        "args": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "headers": {
+          "$ref": "#/$defs/stringMap"
+        },
+        "env": {
+          "$ref": "#/$defs/stringMap"
+        },
+        "tool_hints": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/mcpToolHint"
+          }
+        },
+        "enabled": {
+          "type": "boolean"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "stdio"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "required": [
+              "name",
+              "command"
+            ]
+          }
+        }
+      ]
+    },
+    "webSearchProvider": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "exa",
+            "parallel"
+          ],
+          "description": "Built-in web search backend kind."
+        },
+        "base_url": {
+          "type": "string",
+          "format": "uri",
+          "description": "Optional backend base URL. Omit to use the built-in default for the selected kind."
+        },
+        "timeout_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Optional HTTP timeout in milliseconds. Omit or set 0 to use the default 15000ms timeout."
+        }
+      }
+    }
+  },
+  "properties": {
+    "version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Current config document version."
+    },
+    "providers": {
+      "type": "array",
+      "description": "Configured provider identities. Secrets live in auth.yaml, not config.yaml.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "description": "Provider identifier, such as openai, anthropic, or a local OpenAI-compatible name."
+          },
+          "base_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "Optional base URL for OpenAI-compatible providers."
+          },
+          "prompt_cache_retention": {
+            "type": "string",
+            "enum": [
+              "in_memory",
+              "24h"
+            ],
+            "description": "OpenAI-only prompt cache retention policy. Omit to use OpenAI's default in-memory retention."
+          },
+          "responses_store": {
+            "type": "boolean",
+            "description": "OpenAI-only Responses API storage mode. Defaults to false so KodaCode remains stateless and locally replayable."
+          },
+          "encrypted_reasoning_replay": {
+            "type": "boolean",
+            "description": "OpenAI-only stateless reasoning replay. Defaults to true and requests reasoning.encrypted_content when using reasoning-capable Responses models with store disabled."
+          }
+        }
+      }
+    },
+    "model": {
+      "$ref": "#/$defs/modelRoute"
+    },
+    "model_overrides": {
+      "type": "array",
+      "description": "Local metadata and pricing overrides for known model refs.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "ref"
+        ],
+        "properties": {
+          "ref": {
+            "$ref": "#/$defs/modelRef"
+          },
+          "name": {
+            "type": "string"
+          },
+          "context_size": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "max_input_tokens": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "max_output_tokens": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "default_output_tokens": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Default requested output budget for ordinary agent turns on this model. This is clamped by max_output_tokens or the provider catalog ceiling."
+          },
+          "reasoning": {
+            "type": "boolean"
+          },
+          "tool_calls": {
+            "type": "boolean"
+          },
+          "vision": {
+            "type": "boolean"
+          },
+          "cost_input": {
+            "type": "number",
+            "minimum": 0
+          },
+          "cost_output": {
+            "type": "number",
+            "minimum": 0
+          }
+        }
+      }
+    },
+    "output_budgets": {
+      "type": "object",
+      "description": "Default requested output-token budgets by runtime role. Provider/model max output tokens remain hard ceilings.",
+      "additionalProperties": false,
+      "properties": {
+        "session_title": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "utility_text": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "review": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "agent_turn": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "agent_turn_thinking": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "workspace_compress": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "session_compaction": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "mcp": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "servers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/mcpServer"
+          }
+        }
+      }
+    },
+    "workflow": {
+      "type": "object",
+      "description": "Optional review-pass settings used by the engineer workflow.",
+      "additionalProperties": false,
+      "properties": {
+        "review_mode": {
+          "type": "string",
+          "enum": [
+            "off",
+            "manual",
+            "auto"
+          ]
+        },
+        "review_model": {
+          "$ref": "#/$defs/modelRoute"
+        }
+      }
+    },
+    "utility_model": {
+      "$ref": "#/$defs/modelRef"
+    },
+    "utility_model_timeout_seconds": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "utility_model_retry_attempts": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "utility_model_retry_after_max_seconds": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "search": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "index_dir": {
+          "type": "string"
+        },
+        "skip_dirs": {
+          "type": "array",
+          "description": "Additional directory names to skip during search traversal and indexing. Built-in skips for .git, node_modules, and vendor always apply.",
+          "items": {
+            "type": "string",
+            "pattern": "^(?!\\.{1,2}$)[^/\\\\]+$"
+          }
+        },
+        "embeddings_model": {
+          "$ref": "#/$defs/modelRef"
+        },
+        "embeddings_dimensions": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "prewarm_embeddings": {
+          "type": "boolean"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "prewarm_embeddings": {
+                "const": true
+              }
+            },
+            "required": [
+              "prewarm_embeddings"
+            ]
+          },
+          "then": {
+            "required": [
+              "embeddings_model"
+            ]
+          }
+        }
+      ]
+    },
+    "web_search": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Configurable web-search backends. Credentials live in auth.yaml under keys matching provider IDs.",
+      "properties": {
+        "default_provider": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "description": "Provider ID from web_search.providers to use by default. Required when more than one provider is configured."
+        },
+        "providers": {
+          "type": "object",
+          "description": "Provider IDs mapped to built-in web search backend configs.",
+          "additionalProperties": {
+            "$ref": "#/$defs/webSearchProvider"
+          }
+        }
+      }
+    },
+    "context_packet": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Disabled-by-default deterministic context packet. Enabled sections are bounded runtime summaries injected on the first turn, when changed, or when relevant to the user request, and reported separately in cost details.",
+      "properties": {
+        "enabled_sections": {
+          "type": "array",
+          "description": "Bounded deterministic runtime sections eligible for first-turn or change-triggered provider prompt injection.",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "enum": [
+              "repo",
+              "git",
+              "git_dirty_summary",
+              "diagnostics"
+            ]
+          }
+        }
+      }
+    },
+    "sessions": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "db_path": {
+          "type": "string"
+        },
+        "budget": {
+          "type": "number",
+          "minimum": 0
+        },
+        "budget_warn": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "total_budget": {
+          "type": "number",
+          "minimum": 0
+        },
+        "total_budget_warn": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "response_style": {
+          "type": "string",
+          "enum": [
+            "default",
+            "terse"
+          ]
+        },
+        "compaction_threshold": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.8
+        },
+        "compaction_target_threshold": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.6
+        },
+        "max_provider_requests_per_turn": {
+          "type": "integer",
+          "minimum": -1,
+          "default": 32
+        },
+        "max_output_continuations": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2,
+          "default": 1
+        },
+        "max_retries": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "budget_warn": {
+                "exclusiveMinimum": 0
+              }
+            },
+            "required": [
+              "budget_warn"
+            ]
+          },
+          "then": {
+            "properties": {
+              "budget": {
+                "exclusiveMinimum": 0
+              }
+            },
+            "required": [
+              "budget"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "total_budget_warn": {
+                "exclusiveMinimum": 0
+              }
+            },
+            "required": [
+              "total_budget_warn"
+            ]
+          },
+          "then": {
+            "properties": {
+              "total_budget": {
+                "exclusiveMinimum": 0
+              }
+            },
+            "required": [
+              "total_budget"
+            ]
+          }
+        }
+      ]
+    },
+    "tui": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "theme": {
+          "type": "string"
+        },
+        "display_turns": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "layout": {
+          "type": "string",
+          "description": "TUI layout. Omit or use shell for the default single-plane shell view; use classic for the persistent inspector layout.",
+          "enum": [
+            "classic",
+            "shell"
+          ]
+        },
+        "shell_tool_calls": {
+          "type": "boolean"
+        }
+      }
+    },
+    "model_cache": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "expiry_days": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "permission_mode": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "read_only",
+            "full_access"
+          ]
+        },
+        "network": {
+          "type": "string",
+          "enum": [
+            "disabled",
+            "enabled"
+          ]
+        },
+        "allow_login_shell": {
+          "type": "boolean"
+        },
+        "shell_program": {
+          "type": "string"
+        }
+      }
+    },
+    "permissions": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "external_directory": {
+          "$ref": "#/$defs/permissionRules"
+        },
+        "bash": {
+          "$ref": "#/$defs/permissionRules"
+        },
+        "web_fetch": {
+          "$ref": "#/$defs/permissionRules"
+        },
+        "network_target": {
+          "$ref": "#/$defs/permissionRules"
+        }
+      }
+    },
+    "logging": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "dir": {
+          "type": "string"
+        },
+        "debug": {
+          "type": "boolean"
+        },
+        "expiry_days": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

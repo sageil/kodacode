@@ -3,6 +3,7 @@ package skill
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/sageil/kodacode/internal/prompt"
@@ -43,6 +44,57 @@ Use this skill when updating mongoose aggregate pipelines and indexes.
 	}
 	if len(matches[0].Reasons) == 0 {
 		t.Fatalf("match reasons = %#v, want non-empty", matches[0].Reasons)
+	}
+}
+
+func TestRegistrySearchMatchesWhenToUseAndSkipsModelHiddenSkills(t *testing.T) {
+	root := t.TempDir()
+	projectDir := filepath.Join(root, ".kodacode", "skills")
+	releaseDir := filepath.Join(projectDir, "release")
+	hiddenDir := filepath.Join(projectDir, "hidden")
+	if err := os.MkdirAll(releaseDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(release) error = %v", err)
+	}
+	if err := os.MkdirAll(hiddenDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(hidden) error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(releaseDir, "SKILL.md"), []byte(`---
+description: Release workflow
+when_to_use: Use when preparing changelogs and tags.
+---
+
+Release instructions.
+`), 0o644); err != nil {
+		t.Fatalf("WriteFile(release skill) error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(hiddenDir, "SKILL.md"), []byte(`---
+description: Hidden workflow
+when_to_use: Use when preparing changelogs and tags.
+disable-model-invocation: true
+---
+
+Hidden release instructions.
+`), 0o644); err != nil {
+		t.Fatalf("WriteFile(hidden skill) error = %v", err)
+	}
+
+	registry, err := NewRegistry(RegistryConfig{GlobalDir: t.TempDir()})
+	if err != nil {
+		t.Fatalf("NewRegistry() error = %v", err)
+	}
+
+	matches, err := registry.Search(root, "changelogs", 10)
+	if err != nil {
+		t.Fatalf("Search() error = %v", err)
+	}
+	if len(matches) != 1 {
+		t.Fatalf("matches = %#v, want only model-visible skill", matches)
+	}
+	if matches[0].Definition.ID != "release" {
+		t.Fatalf("match id = %q", matches[0].Definition.ID)
+	}
+	if !slices.Contains(matches[0].Reasons, "when_to_use") {
+		t.Fatalf("match reasons = %#v, want when_to_use", matches[0].Reasons)
 	}
 }
 

@@ -10,8 +10,15 @@ import (
 )
 
 type markdownFrontMatter struct {
-	Name        string `yaml:"name"`
-	Description string `yaml:"description"`
+	Name                             string   `yaml:"name"`
+	Description                      string   `yaml:"description"`
+	WhenToUse                        string   `yaml:"when_to_use"`
+	WhenToUseHyphen                  string   `yaml:"when-to-use"`
+	UserInvocable                    *bool    `yaml:"user-invocable"`
+	UserInvocableUnderscore          *bool    `yaml:"user_invocable"`
+	DisableModelInvocation           bool     `yaml:"disable-model-invocation"`
+	DisableModelInvocationUnderscore bool     `yaml:"disable_model_invocation"`
+	Arguments                        []string `yaml:"arguments"`
 }
 
 func parseMarkdownDefinition(id string, path string, source prompt.Source, data []byte) (Definition, error) {
@@ -40,12 +47,54 @@ func parseMarkdownDefinition(id string, path string, source prompt.Source, data 
 			definition.ID = name
 		}
 		definition.Description = strings.TrimSpace(meta.Description)
+		definition.WhenToUse = strings.TrimSpace(firstNonEmpty(meta.WhenToUse, meta.WhenToUseHyphen))
+		definition.UserInvocable = firstBool(meta.UserInvocable, meta.UserInvocableUnderscore)
+		definition.DisableModelInvocation = meta.DisableModelInvocation || meta.DisableModelInvocationUnderscore
+		definition.Arguments = normalizeSkillArguments(meta.Arguments)
 	}
 
 	if definition.Description == "" {
 		definition.Description = strings.TrimSpace(filepath.Base(id))
 	}
 	return definition, nil
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
+}
+
+func firstBool(values ...*bool) *bool {
+	for _, value := range values {
+		if value != nil {
+			return value
+		}
+	}
+	return nil
+}
+
+func normalizeSkillArguments(arguments []string) []string {
+	if len(arguments) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(arguments))
+	seen := map[string]struct{}{}
+	for _, argument := range arguments {
+		argument = strings.TrimSpace(argument)
+		if argument == "" {
+			continue
+		}
+		if _, ok := seen[argument]; ok {
+			continue
+		}
+		seen[argument] = struct{}{}
+		out = append(out, argument)
+	}
+	return out
 }
 
 func unsupportedSkillToolPolicyKey(frontMatter string) (string, bool, error) {

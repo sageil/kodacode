@@ -26,6 +26,8 @@ type ServerConfig struct {
 	Command string
 	Args    []string
 	Env     map[string]string
+	URL     string
+	Headers map[string]string
 }
 
 type Registry struct {
@@ -37,11 +39,18 @@ func NewRegistry(ctx context.Context, servers []ServerConfig) (*Registry, error)
 	clients := make(map[string]Transport, len(servers))
 	var errs []error
 	for _, server := range servers {
-		if !strings.EqualFold(strings.TrimSpace(server.Type), "stdio") {
+		serverType := strings.ToLower(strings.TrimSpace(server.Type))
+		var transport Transport
+		var err error
+		switch serverType {
+		case "stdio":
+			transport, err = NewStdioTransport(server.Command, server.Args, server.Env)
+		case "http", "sse":
+			transport, err = NewHTTPTransport(server.URL, server.Headers)
+		default:
 			continue
 		}
 		startCtx, cancel := context.WithTimeout(ctx, perServerStartupTimeout)
-		transport, err := NewStdioTransport(server.Command, server.Args, server.Env)
 		if err == nil {
 			err = initializeTransport(startCtx, transport)
 		}

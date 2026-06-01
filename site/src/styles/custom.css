@@ -72,10 +72,22 @@ header.header {
 
 /* Site title */
 .site-title {
+	display: inline-flex !important;
+	align-items: center !important;
+	gap: 0.55rem !important;
 	font-family: var(--koda-mono) !important;
 	font-weight: 700 !important;
 	letter-spacing: -0.02em;
 	color: var(--koda-primary) !important;
+}
+
+.site-title::before {
+	content: '';
+	width: 1.65rem;
+	height: 1.65rem;
+	flex: 0 0 auto;
+	background: url('/kodacode-icon.svg?v=terminal-mark') center / contain no-repeat;
+	filter: drop-shadow(0 0 10px rgba(34, 211, 238, 0.18));
 }
 
 /* Sidebar */
@@ -131,6 +143,15 @@ nav.sidebar a[aria-current='true'] {
 	text-align: center !important;
 }
 
+.hero .copy::before {
+	content: '';
+	display: block;
+	width: min(42rem, calc(100vw - 2rem));
+	aspect-ratio: 1200 / 630;
+	margin: 0 auto 1.5rem;
+	background: url('/kodacode-brand.svg?v=brand-image') center / contain no-repeat;
+}
+
 /* Large gradient title */
 .hero h1 {
 	font-size: clamp(2.5rem, 10vw, 6.5rem) !important;
@@ -142,6 +163,11 @@ nav.sidebar a[aria-current='true'] {
 	background-clip: text !important;
 	line-height: 1.1 !important;
 	width: 100% !important;
+}
+
+.hero h1,
+.hero .tagline {
+	display: none !important;
 }
 
 /* Tagline */

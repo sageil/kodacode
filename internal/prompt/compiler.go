@@ -41,6 +41,7 @@ type Fragment struct {
 	Kind            Kind
 	Source          Source
 	Stability       Stability
+	Layer           string
 	Key             string
 	Label           string
 	Content         string
@@ -173,6 +174,27 @@ func (f Fragment) providerContent() string {
 		return trimmed
 	}
 	return strings.TrimSpace(f.Content)
+}
+
+func (f Fragment) LayerName() string {
+	if layer := strings.TrimSpace(f.Layer); layer != "" {
+		return layer
+	}
+	if key := strings.TrimSpace(f.Key); key != "" {
+		return key
+	}
+	if label := strings.TrimSpace(f.Label); label != "" {
+		return label
+	}
+	kind := strings.TrimSpace(string(f.Kind))
+	source := strings.TrimSpace(string(f.Source))
+	if kind != "" && source != "" {
+		return kind + ":" + source
+	}
+	if kind != "" {
+		return kind
+	}
+	return "prompt"
 }
 
 func joinNonEmpty(parts ...string) string {

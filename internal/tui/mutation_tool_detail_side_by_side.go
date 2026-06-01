@@ -33,17 +33,10 @@ func renderMutationSideBySideOpsAt(m Model, ops []mutationDiffOp, textWidth, old
 	const divider = " │ "
 	leftWidth, rightWidth := mutationSideBySideColumnWidths(rows, textWidth, lipgloss.Width(divider), lineNoWidth)
 
-	headerStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(colorFor(m.theme, "primary", "#7cc7ff"))).
-		Bold(true)
 	dividerStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(colorFor(m.theme, "subtext", "#9da8ca")))
 
-	lines := []string{
-		headerStyle.Render(padSideBySideHeader("Old", leftWidth)) +
-			dividerStyle.Render(divider) +
-			headerStyle.Render(padSideBySideHeader("New", rightWidth)),
-	}
+	lines := make([]string, 0, len(rows))
 
 	for _, row := range rows {
 		if row.skip {

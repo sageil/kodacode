@@ -52,6 +52,7 @@ func loadPromptSourceFragment(path string, kind prompt.Kind, source prompt.Sourc
 		Kind:      kind,
 		Source:    source,
 		Stability: prompt.StabilityStable,
+		Layer:     label,
 		Key:       label,
 		Label:     label,
 		Content:   content,

@@ -1552,8 +1552,8 @@ func TestToolDetailDialogShowsWriteDiffContent(t *testing.T) {
 	if !strings.Contains(rendered, writeMutationToolDetailMetaLabel(state.Turns["turn-1"].ToolCalls["call-1"], "console.log(\"new\");\n")) {
 		t.Fatalf("dialog missing condensed mutation context line\nrendered:\n%s", rendered)
 	}
-	if !strings.Contains(rendered, "Old") || !strings.Contains(rendered, "New") {
-		t.Fatalf("dialog missing side-by-side diff headers\nrendered:\n%s", rendered)
+	if strings.Contains(rendered, "Old") || strings.Contains(rendered, "New") {
+		t.Fatalf("dialog should not render side-by-side diff headers\nrendered:\n%s", rendered)
 	}
 	if !strings.Contains(rendered, "console.log(\"old\");") {
 		t.Fatalf("dialog missing deleted diff line\nrendered:\n%s", rendered)
@@ -1815,8 +1815,8 @@ func TestToolDetailDialogShowsCreatedFileWithoutEmptyOldColumn(t *testing.T) {
 	if strings.Contains(rendered, "Old") {
 		t.Fatalf("created-file dialog should not render empty old column\nrendered:\n%s", rendered)
 	}
-	if !strings.Contains(rendered, "New") {
-		t.Fatalf("created-file dialog missing single-pane header\nrendered:\n%s", rendered)
+	if strings.Contains(rendered, "New") {
+		t.Fatalf("created-file dialog should not render single-pane header\nrendered:\n%s", rendered)
 	}
 	if !strings.Contains(rendered, "+ export const value = 1;") {
 		t.Fatalf("created-file dialog missing inserted content\nrendered:\n%s", rendered)

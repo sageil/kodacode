@@ -26,7 +26,11 @@ func PromptStartupTrust(reader *bufio.Reader, out io.Writer, state StartupTrustS
 	if len(state.Servers) > 0 {
 		lines = append(lines, "mcp servers:")
 		for _, server := range state.Servers {
-			entry := fmt.Sprintf("- %s (%s) %s", server.Name, server.Type, server.Command)
+			target := strings.TrimSpace(server.Command)
+			if target == "" {
+				target = strings.TrimSpace(server.URL)
+			}
+			entry := fmt.Sprintf("- %s (%s) %s", server.Name, server.Type, target)
 			if len(server.Args) > 0 {
 				entry += " " + strings.Join(server.Args, " ")
 			}
