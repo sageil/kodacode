@@ -37,6 +37,21 @@ func requiresSimplifiedGitHubCopilotToolSchema(model ModelRef) bool {
 	return CanonicalProviderID(model.ProviderID) == "github-copilot"
 }
 
+func omitGitHubCopilotGeminiChatStreamOptions(model ModelRef) bool {
+	return isGitHubCopilotGeminiModel(model)
+}
+
+func omitGitHubCopilotParallelToolCalls(model ModelRef) bool {
+	return isGitHubCopilotGeminiModel(model)
+}
+
+func isGitHubCopilotGeminiModel(model ModelRef) bool {
+	if CanonicalProviderID(model.ProviderID) != "github-copilot" {
+		return false
+	}
+	return isGeminiModelID(model.ModelID)
+}
+
 func simplifyGitHubCopilotSchemaValue(value any) any {
 	switch current := value.(type) {
 	case map[string]any:

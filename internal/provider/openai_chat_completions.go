@@ -97,7 +97,7 @@ func buildOpenAIChatCompletionsRequest(req Request, includeUsage bool) (openAICh
 	if retention := normalizeOpenAIPromptCacheRetention(req.PromptCacheRetention); retention != "" {
 		payload.PromptCacheRetention = retention
 	}
-	if includeUsage && !omitGitHubCopilotChatStreamOptions(req.Model) {
+	if includeUsage && !omitGitHubCopilotGeminiChatStreamOptions(req.Model) {
 		payload.StreamOptions = &openAIChatStreamOptions{IncludeUsage: true}
 	}
 	if strings.TrimSpace(req.Instructions) != "" {
@@ -181,24 +181,6 @@ func buildOpenAIChatCompletionsRequest(req Request, includeUsage bool) (openAICh
 		payload.EnableThinking = enableThinking
 	}
 	return payload, nil
-}
-
-func omitGitHubCopilotChatStreamOptions(model ModelRef) bool {
-	return isGitHubCopilotGeminiModel(model)
-}
-
-func omitGitHubCopilotParallelToolCalls(model ModelRef) bool {
-	if CanonicalProviderID(model.ProviderID) != "github-copilot" {
-		return false
-	}
-	return isGitHubCopilotGeminiModel(model)
-}
-
-func isGitHubCopilotGeminiModel(model ModelRef) bool {
-	if CanonicalProviderID(model.ProviderID) != "github-copilot" {
-		return false
-	}
-	return isGeminiModelID(model.ModelID)
 }
 
 func isGeminiModelID(modelID string) bool {
