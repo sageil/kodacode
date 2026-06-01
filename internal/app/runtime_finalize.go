@@ -13,7 +13,12 @@ func (r *Runtime) finalizeTurnRunResult(
 	result RunTurnResult,
 ) (RunSessionResult, error) {
 	if result.Status != TurnRunStatusFailed {
-		return r.loadSessionTurnResult(ctx, sessionID, turnID, result)
+		loaded, err := r.loadSessionTurnResult(ctx, sessionID, turnID, result)
+		if err != nil {
+			return RunSessionResult{}, err
+		}
+		r.triggerTurnPrecompute(ctx, sessionID, turnID, loaded.Status)
+		return loaded, nil
 	}
 	if err := r.applyTaskWorkflowFailurePolicyForTurn(ctx, sessionID, turnID); err != nil {
 		return RunSessionResult{}, err
@@ -25,5 +30,6 @@ func (r *Runtime) finalizeTurnRunResult(
 	if !ok {
 		return RunSessionResult{}, fmt.Errorf("failed turn state missing for %s", turnID)
 	}
+	r.triggerTurnPrecompute(ctx, sessionID, turnID, failed.Status)
 	return failed, nil
 }

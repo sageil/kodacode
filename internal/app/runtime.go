@@ -34,6 +34,7 @@ type Runtime struct {
 	ModelCatalog              modelCatalog
 	Provider                  provider.Client
 	Runner                    *TurnRunner
+	precomputeHooks           []runtimePrecomputeHook
 	activeTurns               activeTurnRegistry
 	modelCatalogRefreshActive atomic.Bool
 	mcpMu                     sync.Mutex

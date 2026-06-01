@@ -48,6 +48,46 @@ func TestTrackWorkspaceInvalidatesChangedPersistedCache(t *testing.T) {
 	})
 }
 
+func TestRefreshWorkspaceInvalidatesChangedPersistedCache(t *testing.T) {
+	root := t.TempDir()
+	indexDir := filepath.Join(t.TempDir(), "search-index")
+	path := filepath.Join(root, "auth.go")
+	writeSearchFile(t, path, "package auth\n\nfunc CheckPermission() bool { return true }\n")
+
+	service := NewService(&fakeEmbedder{
+		vectors: map[string][]float32{},
+	}, provider.ModelRef{ProviderID: "openai", ModelID: "text-embedding-3-small"}, 0, indexDir, nil)
+	service.TrackWorkspace(root, TrackOptions{RefreshInterval: time.Hour})
+	t.Cleanup(func() {
+		_ = service.Close()
+	})
+
+	if _, err := service.Search(context.Background(), Request{
+		Query:         "permission",
+		RootPath:      root,
+		WorkspaceRoot: root,
+		MaxResults:    5,
+		Mode:          ModeHybrid,
+	}); err != nil {
+		t.Fatalf("Search() error = %v", err)
+	}
+	cachePath, ok := service.cachePath(root, path)
+	if !ok {
+		t.Fatal("cachePath() = false, want true")
+	}
+	if _, err := os.Stat(cachePath); err != nil {
+		t.Fatalf("Stat(cachePath) error = %v", err)
+	}
+
+	writeSearchFile(t, path, "package auth\n\nfunc CheckPermission() bool { return false }\n")
+	if ok := service.RefreshWorkspace(context.Background(), root); !ok {
+		t.Fatal("RefreshWorkspace() = false, want true")
+	}
+	if _, err := os.Stat(cachePath); !os.IsNotExist(err) {
+		t.Fatalf("Stat(cachePath) error = %v, want not exists", err)
+	}
+}
+
 func TestTrackWorkspaceInvalidatesDeletedPersistedCache(t *testing.T) {
 	root := t.TempDir()
 	indexDir := filepath.Join(t.TempDir(), "search-index")
