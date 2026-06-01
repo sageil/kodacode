@@ -170,6 +170,8 @@ func TestDefaultTurnFragmentsIncludesAvailableSkillMetadataOnly(t *testing.T) {
 		[]skill.Definition{{
 			ID:          "migration",
 			Description: "Use when changing database migrations.",
+			WhenToUse:   "Use when schema, seed data, or persisted records change.",
+			Arguments:   []string{"scope"},
 			Prompt:      "Full migration instructions should not be in the catalog.",
 			Path:        "/repo/.kodacode/skills/migration/SKILL.md",
 			Source:      prompt.SourceProject,
@@ -192,6 +194,12 @@ func TestDefaultTurnFragmentsIncludesAvailableSkillMetadataOnly(t *testing.T) {
 		if !strings.Contains(fragment.Content, "$migration: Use when changing database migrations.") {
 			t.Fatalf("available skills fragment = %#v", fragment)
 		}
+		if !strings.Contains(fragment.Content, "Use when schema, seed data, or persisted records change.") {
+			t.Fatalf("available skills fragment missing when_to_use: %#v", fragment)
+		}
+		if !strings.Contains(fragment.Content, "Arguments: scope.") {
+			t.Fatalf("available skills fragment missing arguments: %#v", fragment)
+		}
 		if !strings.Contains(fragment.Content, "/repo/.kodacode/skills/migration/SKILL.md") {
 			t.Fatalf("available skills fragment missing path: %#v", fragment)
 		}
@@ -201,6 +209,37 @@ func TestDefaultTurnFragmentsIncludesAvailableSkillMetadataOnly(t *testing.T) {
 		return
 	}
 	t.Fatal("expected available-skills fragment")
+}
+
+func TestDefaultTurnFragmentsOmitsModelHiddenSkillsFromAvailableMetadata(t *testing.T) {
+	fragments, err := defaultTurnFragments(
+		agent.Definition{},
+		"/repo",
+		nil,
+		[]skill.Definition{{
+			ID:                     "human-only",
+			Description:            "Sensitive workflow",
+			Prompt:                 "Human-only instructions.",
+			Path:                   "/repo/.kodacode/skills/human-only/SKILL.md",
+			Source:                 prompt.SourceProject,
+			DisableModelInvocation: true,
+		}},
+		nil,
+		nil,
+		nil,
+		nil,
+		ResponseStyleDefault,
+		ExecutionConfig{},
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("defaultTurnFragments() error = %v", err)
+	}
+	for _, fragment := range fragments {
+		if fragment.Key == "available-skills" {
+			t.Fatalf("unexpected available-skills fragment for model-hidden skill: %#v", fragment)
+		}
+	}
 }
 
 func TestDefaultTurnFragmentsIncludesAllowedMCPStateWhenPresent(t *testing.T) {

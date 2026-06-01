@@ -31,6 +31,8 @@ func (c sessionSkillCatalog) SearchSkills(query string, limit int) ([]tool.Skill
 		out = append(out, tool.SkillMatch{
 			ID:          match.Definition.ID,
 			Description: match.Definition.Description,
+			WhenToUse:   match.Definition.WhenToUse,
+			Arguments:   append([]string(nil), match.Definition.Arguments...),
 			Source:      string(match.Definition.Source),
 			Path:        match.Definition.Path,
 			Reasons:     append([]string(nil), match.Reasons...),
@@ -44,9 +46,14 @@ func (c sessionSkillCatalog) LoadSkill(id string) (tool.SkillDocument, error) {
 	if err != nil {
 		return tool.SkillDocument{}, err
 	}
+	if !definition.ModelVisible() {
+		return tool.SkillDocument{}, skill.ErrSkillModelInvocationDenied
+	}
 	return tool.SkillDocument{
 		ID:          definition.ID,
 		Description: definition.Description,
+		WhenToUse:   definition.WhenToUse,
+		Arguments:   append([]string(nil), definition.Arguments...),
 		Source:      string(definition.Source),
 		Path:        definition.Path,
 		Content:     definition.Prompt,

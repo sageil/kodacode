@@ -31,6 +31,9 @@ func (r *Registry) Search(workspaceRoot, query string, limit int) ([]Match, erro
 	queryTokens := uniqueSearchTokens(query)
 	matches := make([]Match, 0, len(catalog))
 	for _, definition := range catalog {
+		if !definition.ModelVisible() {
+			continue
+		}
 		score, reasons := scoreDefinitionMatch(definition, queryLower, queryTokens)
 		if score == 0 {
 			continue
@@ -72,6 +75,9 @@ func listSkillMatches(catalog map[string]Definition, limit int) []Match {
 	}
 	matches := make([]Match, 0, len(catalog))
 	for _, definition := range catalog {
+		if !definition.ModelVisible() {
+			continue
+		}
 		matches = append(matches, Match{
 			Definition: definition,
 			Score:      1,
@@ -95,7 +101,9 @@ func scoreDefinitionMatch(definition Definition, queryLower string, queryTokens 
 	reasons := make([]string, 0, 3)
 	idLower := strings.ToLower(definition.ID)
 	descriptionLower := strings.ToLower(definition.Description)
+	whenToUseLower := strings.ToLower(definition.WhenToUse)
 	promptLower := strings.ToLower(definition.Prompt)
+	searchTextLower := strings.ToLower(definition.SearchText())
 
 	if idLower == queryLower {
 		score += 100
@@ -108,6 +116,10 @@ func scoreDefinitionMatch(definition Definition, queryLower string, queryTokens 
 	if descriptionLower != "" && strings.Contains(descriptionLower, queryLower) {
 		score += 40
 		reasons = appendReason(reasons, "description")
+	}
+	if whenToUseLower != "" && strings.Contains(whenToUseLower, queryLower) {
+		score += 40
+		reasons = appendReason(reasons, "when_to_use")
 	}
 	if promptLower != "" && strings.Contains(promptLower, queryLower) {
 		score += 20
@@ -124,7 +136,9 @@ func scoreDefinitionMatch(definition Definition, queryLower string, queryTokens 
 			tokenMatches++
 		case strings.Contains(descriptionLower, token):
 			tokenMatches++
-		case strings.Contains(promptLower, token):
+		case strings.Contains(whenToUseLower, token):
+			tokenMatches++
+		case strings.Contains(searchTextLower, token):
 			tokenMatches++
 		}
 	}

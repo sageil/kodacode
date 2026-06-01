@@ -132,6 +132,14 @@ func (d *skillsDialog) renderSkillDetailLines(detailWidth int) []string {
 			lines = append(lines, muted.Render(line))
 		}
 	}
+	if when := strings.TrimSpace(item.WhenToUse); when != "" {
+		if len(lines) > 0 {
+			lines = append(lines, "")
+		}
+		for _, line := range wrapWords(when, detailWidth) {
+			lines = append(lines, muted.Render(line))
+		}
+	}
 
 	return lines
 }

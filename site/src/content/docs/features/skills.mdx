@@ -40,6 +40,9 @@ loading every full skill body.
 ---
 name: migration
 description: Plan and implement small database migrations with tests.
+when_to_use: Use when a task changes schema, migrations, seed data, or persisted records.
+arguments:
+  - scope
 ---
 
 Use this skill when a task changes schema, migrations, seed data, or persisted
@@ -74,6 +77,23 @@ Use either form:
 
 The mention selects that skill for the turn. This is the most predictable way
 to use skills because the full skill content is loaded only when requested.
+
+## Front matter
+
+Supported front matter fields:
+
+| Field | Default | Meaning |
+| --- | --- | --- |
+| `name` | directory or file name | Skill ID used in `$skill` mentions |
+| `description` | skill ID | Short catalog description |
+| `when_to_use` | empty | Extra trigger guidance for skill discovery |
+| `arguments` | empty | Named arguments documented for repeatable workflows |
+| `user-invocable` | `true` | Whether the skill appears in the skill picker |
+| `disable-model-invocation` | `false` | Hide the skill from model discovery and block the model from loading it with the `skill` tool |
+
+`disable-model-invocation: true` is for human-only skills. A user can still
+select or mention that skill explicitly, but KodaCode will not advertise it in
+model-visible skill metadata or return it through `search_skills`.
 
 ## Skill discovery tools
 

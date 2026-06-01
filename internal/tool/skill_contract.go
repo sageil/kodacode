@@ -7,6 +7,8 @@ var ErrSkillCatalogRequired = errors.New("skill catalog is required")
 type SkillMatch struct {
 	ID          string   `json:"id"`
 	Description string   `json:"description,omitempty"`
+	WhenToUse   string   `json:"when_to_use,omitempty"`
+	Arguments   []string `json:"arguments,omitempty"`
 	Source      string   `json:"source,omitempty"`
 	Path        string   `json:"path,omitempty"`
 	Reasons     []string `json:"reasons,omitempty"`
@@ -20,6 +22,8 @@ type SkillSection struct {
 type SkillDocument struct {
 	ID          string         `json:"id"`
 	Description string         `json:"description,omitempty"`
+	WhenToUse   string         `json:"when_to_use,omitempty"`
+	Arguments   []string       `json:"arguments,omitempty"`
 	Source      string         `json:"source,omitempty"`
 	Path        string         `json:"path,omitempty"`
 	Content     string         `json:"content,omitempty"`

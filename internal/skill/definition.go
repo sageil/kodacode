@@ -12,14 +12,19 @@ var (
 	ErrSkillPromptRequired        = errors.New("skill prompt is required")
 	ErrSkillNotFound              = errors.New("skill not found")
 	ErrSkillToolPolicyUnsupported = errors.New("skills cannot declare tool policy")
+	ErrSkillModelInvocationDenied = errors.New("skill cannot be invoked by the model")
 )
 
 type Definition struct {
-	ID          string
-	Description string
-	Prompt      string
-	Path        string
-	Source      prompt.Source
+	ID                     string
+	Description            string
+	WhenToUse              string
+	UserInvocable          *bool
+	DisableModelInvocation bool
+	Arguments              []string
+	Prompt                 string
+	Path                   string
+	Source                 prompt.Source
 }
 
 func (d Definition) Validate() error {
@@ -44,5 +49,35 @@ func (d Definition) PromptFragment() prompt.Fragment {
 		Key:       "skill:" + d.ID,
 		Label:     "skill:" + d.ID,
 		Content:   strings.TrimSpace(d.Prompt),
+	}
+}
+
+func (d Definition) ModelVisible() bool {
+	return !d.DisableModelInvocation
+}
+
+func (d Definition) EffectiveUserInvocable() bool {
+	return d.UserInvocable == nil || *d.UserInvocable
+}
+
+func (d Definition) SearchText() string {
+	return strings.TrimSpace(strings.Join([]string{
+		d.ID,
+		d.Description,
+		d.WhenToUse,
+		d.Prompt,
+	}, "\n"))
+}
+
+func (d Definition) MetadataDescription() string {
+	description := strings.TrimSpace(d.Description)
+	when := strings.TrimSpace(d.WhenToUse)
+	switch {
+	case description == "":
+		return when
+	case when == "":
+		return description
+	default:
+		return description + " " + when
 	}
 }
