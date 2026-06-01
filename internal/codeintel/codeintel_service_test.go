@@ -1,4 +1,4 @@
-package app
+package codeintel
 
 import (
 	"context"
@@ -84,7 +84,7 @@ func TestCollectWorkspaceDiagnosticsPropagatesParentCancellation(t *testing.T) {
 }
 
 func TestCodeIntelServiceWorkspaceServerStatusListsConfiguredServers(t *testing.T) {
-	service := NewCodeIntelService(LSPConfig{
+	service := NewCodeIntelService(Config{
 		AutoDiscover: false,
 		Servers: []lsp.ServerConfig{
 			{Name: "vtsls", Command: "vtsls", Extensions: []string{".ts"}},
@@ -100,7 +100,7 @@ func TestCodeIntelServiceWorkspaceServerStatusListsConfiguredServers(t *testing.
 
 func TestWorkspaceCodeIntelSymbolsReturnsUnavailableNoticeWhenServersFailToStart(t *testing.T) {
 	root := t.TempDir()
-	service := NewCodeIntelService(LSPConfig{
+	service := NewCodeIntelService(Config{
 		AutoDiscover: false,
 		Servers: []lsp.ServerConfig{{
 			Name:       "missing",
@@ -123,7 +123,7 @@ func TestWorkspaceCodeIntelSymbolsReturnsUnavailableNoticeWhenServersFailToStart
 
 func TestWorkspaceCodeIntelTraceReturnsUnavailableNoticeWhenFileTypeHasNoConfiguredServer(t *testing.T) {
 	root := t.TempDir()
-	service := NewCodeIntelService(LSPConfig{AutoDiscover: false})
+	service := NewCodeIntelService(Config{AutoDiscover: false})
 
 	result, err := service.Navigator(root, nil).Trace(context.Background(), tool.CodeIntelTraceRequest{
 		Path:      filepath.Join(root, "notes.txt"),

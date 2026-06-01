@@ -1,4 +1,4 @@
-package app
+package codeintel
 
 import (
 	"fmt"

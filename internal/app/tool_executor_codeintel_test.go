@@ -10,18 +10,19 @@ import (
 
 	"github.com/sageil/kodacode/internal/events"
 	"github.com/sageil/kodacode/internal/tool"
+	"github.com/sageil/kodacode/internal/workspaceedit"
 )
 
 type fakeCodeIntelRuntime struct {
 	navigator tool.CodeIntel
-	synced    []codeIntelMutationSyncPlan
+	synced    []workspaceedit.SyncPlan
 }
 
 func (f *fakeCodeIntelRuntime) Navigator(string, []string) tool.CodeIntel {
 	return f.navigator
 }
 
-func (f *fakeCodeIntelRuntime) SyncMutation(_ context.Context, _ string, _ []string, plan codeIntelMutationSyncPlan) {
+func (f *fakeCodeIntelRuntime) SyncMutation(_ context.Context, _ string, _ []string, plan workspaceedit.SyncPlan) {
 	f.synced = append(f.synced, plan)
 }
 

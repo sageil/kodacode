@@ -30,10 +30,6 @@ type WorkspaceGitChangedFile struct {
 	Status string
 }
 
-type WorkspaceLSPStatus struct {
-	ActiveServers []string
-}
-
 type WorkspaceSearchStatus struct {
 	Configured        bool
 	Tracking          bool

@@ -1,4 +1,4 @@
-package app
+package lspedit
 
 import (
 	"fmt"
@@ -8,7 +8,8 @@ import (
 	"github.com/sageil/kodacode/internal/lsp"
 )
 
-func applyCodeIntelTextEdits(content string, edits []lsp.TextEdit) (string, int, error) {
+// ApplyTextEdits applies LSP text edits using UTF-16 character positions.
+func ApplyTextEdits(content string, edits []lsp.TextEdit) (string, int, error) {
 	if len(edits) == 0 {
 		return content, 0, nil
 	}
@@ -19,7 +20,7 @@ func applyCodeIntelTextEdits(content string, edits []lsp.TextEdit) (string, int,
 	}
 	resolved := make([]resolvedEdit, 0, len(edits))
 	for _, edit := range edits {
-		start, end, err := codeIntelByteOffsetsForRange(content, edit.Range)
+		start, end, err := byteOffsetsForRange(content, edit.Range)
 		if err != nil {
 			return "", 0, err
 		}
@@ -43,12 +44,12 @@ func applyCodeIntelTextEdits(content string, edits []lsp.TextEdit) (string, int,
 	return current, len(resolved), nil
 }
 
-func codeIntelByteOffsetsForRange(content string, rng lsp.Range) (int, int, error) {
-	start, err := codeIntelByteOffsetAtPosition(content, rng.Start.Line+1, rng.Start.Character)
+func byteOffsetsForRange(content string, rng lsp.Range) (int, int, error) {
+	start, err := byteOffsetAtPosition(content, rng.Start.Line+1, rng.Start.Character)
 	if err != nil {
 		return 0, 0, err
 	}
-	end, err := codeIntelByteOffsetAtPosition(content, rng.End.Line+1, rng.End.Character)
+	end, err := byteOffsetAtPosition(content, rng.End.Line+1, rng.End.Character)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -58,7 +59,7 @@ func codeIntelByteOffsetsForRange(content string, rng lsp.Range) (int, int, erro
 	return start, end, nil
 }
 
-func codeIntelByteOffsetAtPosition(content string, line, character int) (int, error) {
+func byteOffsetAtPosition(content string, line, character int) (int, error) {
 	if line < 1 || character < 0 {
 		return 0, fmt.Errorf("invalid text position")
 	}
@@ -76,7 +77,7 @@ func codeIntelByteOffsetAtPosition(content string, line, character int) (int, er
 			}
 			continue
 		}
-		currentChar += codeIntelUTF16Width(r)
+		currentChar += utf16Width(r)
 	}
 	if currentLine == line && currentChar == character {
 		return len(content), nil
@@ -87,7 +88,7 @@ func codeIntelByteOffsetAtPosition(content string, line, character int) (int, er
 	return 0, fmt.Errorf("line %d does not exist", line)
 }
 
-func codeIntelUTF16Width(r rune) int {
+func utf16Width(r rune) int {
 	if r > 0xFFFF {
 		return 2
 	}

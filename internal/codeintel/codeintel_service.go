@@ -1,4 +1,4 @@
-package app
+package codeintel
 
 import (
 	"context"
@@ -12,32 +12,25 @@ import (
 
 	"github.com/sageil/kodacode/internal/lsp"
 	"github.com/sageil/kodacode/internal/tool"
+	"github.com/sageil/kodacode/internal/workspaceedit"
 )
 
 const (
 	codeIntelDiagnosticsTimeout           = 15 * time.Second
 	codeIntelCodeActionDiagnosticsTimeout = 3 * time.Second
-	codeIntelMutationFeedbackTimeout      = 3 * time.Second
 )
 
-type codeIntelRename struct {
-	OldPath string
-	NewPath string
-}
-
-type codeIntelMutationSyncPlan struct {
-	Changed []string
-	Deleted []string
-	Renamed []codeIntelRename
+type WorkspaceLSPStatus struct {
+	ActiveServers []string
 }
 
 type CodeIntelService struct {
-	config   LSPConfig
+	config   Config
 	mu       sync.Mutex
 	managers map[string]*lsp.Manager
 }
 
-func NewCodeIntelService(config LSPConfig) *CodeIntelService {
+func NewCodeIntelService(config Config) *CodeIntelService {
 	return &CodeIntelService{
 		config:   config,
 		managers: make(map[string]*lsp.Manager),
@@ -55,7 +48,7 @@ func (s *CodeIntelService) Navigator(primaryRoot string, additionalRoots []strin
 	}
 }
 
-func (s *CodeIntelService) SyncMutation(ctx context.Context, primaryRoot string, additionalRoots []string, plan codeIntelMutationSyncPlan) {
+func (s *CodeIntelService) SyncMutation(ctx context.Context, primaryRoot string, additionalRoots []string, plan workspaceedit.SyncPlan) {
 	roots := orderedCodeIntelRoots(primaryRoot, additionalRoots)
 	if len(roots) == 0 {
 		return
@@ -121,7 +114,7 @@ func (s *CodeIntelService) managerForRoot(root string) *lsp.Manager {
 	if manager := s.managers[root]; manager != nil {
 		return manager
 	}
-	manager := lsp.NewManager(root, resolvedLSPServers(s.config, root))
+	manager := lsp.NewManager(root, ResolveServers(s.config, root))
 	s.managers[root] = manager
 	return manager
 }

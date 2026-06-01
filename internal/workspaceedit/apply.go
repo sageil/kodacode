@@ -1,4 +1,4 @@
-package app
+package workspaceedit
 
 import (
 	"encoding/json"
@@ -8,52 +8,72 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/sageil/kodacode/internal/filemutation"
 	"github.com/sageil/kodacode/internal/lsp"
-	"github.com/sageil/kodacode/internal/tool"
+	"github.com/sageil/kodacode/internal/lspedit"
 )
 
-type codeIntelVersionLookup func(string) (int, bool)
+type VersionLookup func(string) (int, bool)
 
-type codeIntelWorkspaceEditOperation struct {
-	textDocument *codeIntelTextDocumentEdit
-	createFile   *codeIntelCreateFile
-	renameFile   *codeIntelRenameFile
-	deleteFile   *codeIntelDeleteFile
+type Summary struct {
+	Paths     []string
+	TextEdits int
+	Created   int
+	Renamed   int
+	Deleted   int
 }
 
-type codeIntelTextDocumentEdit struct {
+type Rename struct {
+	OldPath string
+	NewPath string
+}
+
+type SyncPlan struct {
+	Changed []string
+	Deleted []string
+	Renamed []Rename
+}
+
+type operation struct {
+	textDocument *textDocumentEdit
+	createFile   *createFile
+	renameFile   *renameFile
+	deleteFile   *deleteFile
+}
+
+type textDocumentEdit struct {
 	path    string
 	version *int
 	edits   []lsp.TextEdit
 }
 
-type codeIntelCreateFile struct {
+type createFile struct {
 	path           string
 	overwrite      bool
 	ignoreIfExists bool
 }
 
-type codeIntelRenameFile struct {
+type renameFile struct {
 	oldPath        string
 	newPath        string
 	overwrite      bool
 	ignoreIfExists bool
 }
 
-type codeIntelDeleteFile struct {
+type deleteFile struct {
 	path              string
 	recursive         bool
 	ignoreIfNotExists bool
 }
 
-func applyCodeIntelWorkspaceEdit(roots []string, edit *lsp.WorkspaceEdit, versionLookup codeIntelVersionLookup) (tool.CodeIntelMutationSummary, codeIntelMutationSyncPlan, error) {
-	ops, err := codeIntelWorkspaceEditOperations(roots, edit)
+func Apply(roots []string, edit *lsp.WorkspaceEdit, versionLookup VersionLookup) (Summary, SyncPlan, error) {
+	ops, err := operations(roots, edit)
 	if err != nil {
-		return tool.CodeIntelMutationSummary{}, codeIntelMutationSyncPlan{}, err
+		return Summary{}, SyncPlan{}, err
 	}
 	var (
-		summary     tool.CodeIntelMutationSummary
-		plan        codeIntelMutationSyncPlan
+		summary     Summary
+		plan        SyncPlan
 		seenPath    = make(map[string]bool)
 		seenChanged = make(map[string]bool)
 		seenDeleted = make(map[string]bool)
@@ -61,14 +81,14 @@ func applyCodeIntelWorkspaceEdit(roots []string, edit *lsp.WorkspaceEdit, versio
 		rollback    []func()
 		cleanup     []func()
 	)
-	fail := func(format string, args ...any) (tool.CodeIntelMutationSummary, codeIntelMutationSyncPlan, error) {
+	fail := func(format string, args ...any) (Summary, SyncPlan, error) {
 		for i := len(rollback) - 1; i >= 0; i-- {
 			rollback[i]()
 		}
 		for i := len(cleanup) - 1; i >= 0; i-- {
 			cleanup[i]()
 		}
-		return tool.CodeIntelMutationSummary{}, codeIntelMutationSyncPlan{}, fmt.Errorf(format, args...)
+		return Summary{}, SyncPlan{}, fmt.Errorf(format, args...)
 	}
 	addPath := func(path string) {
 		if path == "" || seenPath[path] {
@@ -97,14 +117,14 @@ func applyCodeIntelWorkspaceEdit(roots []string, edit *lsp.WorkspaceEdit, versio
 			return
 		}
 		seenRenamed[key] = true
-		plan.Renamed = append(plan.Renamed, codeIntelRename{OldPath: oldPath, NewPath: newPath})
+		plan.Renamed = append(plan.Renamed, Rename{OldPath: oldPath, NewPath: newPath})
 	}
 
 	for _, op := range ops {
 		switch {
 		case op.textDocument != nil:
 			path := op.textDocument.path
-			if err := tool.WithFileMutationLock(path, func() error {
+			if err := filemutation.WithLock(path, func() error {
 				if op.textDocument.version != nil {
 					if versionLookup == nil {
 						return fmt.Errorf("no tracked LSP document version available for %s", path)
@@ -121,7 +141,7 @@ func applyCodeIntelWorkspaceEdit(roots []string, edit *lsp.WorkspaceEdit, versio
 				if err != nil {
 					return fmt.Errorf("read %s: %v", path, err)
 				}
-				updated, applied, err := applyCodeIntelTextEdits(string(original), op.textDocument.edits)
+				updated, applied, err := lspedit.ApplyTextEdits(string(original), op.textDocument.edits)
 				if err != nil {
 					return fmt.Errorf("%s: %v", path, err)
 				}
@@ -129,13 +149,13 @@ func applyCodeIntelWorkspaceEdit(roots []string, edit *lsp.WorkspaceEdit, versio
 					return nil
 				}
 				mode := existingFileMode(path, 0o644)
-				if err := tool.WriteFileAtomically(path, []byte(updated), mode); err != nil {
+				if err := filemutation.WriteAtomically(path, []byte(updated), mode); err != nil {
 					return fmt.Errorf("write %s: %v", path, err)
 				}
 				orig := append([]byte(nil), original...)
 				rollback = append(rollback, func() {
-					_ = tool.WithFileMutationLock(path, func() error {
-						return tool.WriteFileAtomically(path, orig, mode)
+					_ = filemutation.WithLock(path, func() error {
+						return filemutation.WriteAtomically(path, orig, mode)
 					})
 				})
 				addPath(path)
@@ -158,7 +178,7 @@ func applyCodeIntelWorkspaceEdit(roots []string, edit *lsp.WorkspaceEdit, versio
 				if info.IsDir() {
 					return fail("create file target is a directory: %s", path)
 				}
-				backup, isDir, err := moveCodeIntelPathToBackup(path)
+				backup, isDir, err := movePathToBackup(path)
 				if err != nil {
 					return fail("backup %s: %v", path, err)
 				}
@@ -168,7 +188,7 @@ func applyCodeIntelWorkspaceEdit(roots []string, edit *lsp.WorkspaceEdit, versio
 				cleanup = append(cleanup, func() { _ = os.RemoveAll(backup) })
 				rollback = append(rollback, func() {
 					_ = os.RemoveAll(path)
-					_ = restoreCodeIntelBackup(backup, path)
+					_ = restoreBackup(backup, path)
 				})
 			} else if !os.IsNotExist(err) {
 				return fail("stat %s: %v", path, err)
@@ -176,8 +196,8 @@ func applyCodeIntelWorkspaceEdit(roots []string, edit *lsp.WorkspaceEdit, versio
 			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 				return fail("mkdir %s: %v", filepath.Dir(path), err)
 			}
-			if err := tool.WithFileMutationLock(path, func() error {
-				return tool.WriteFileAtomically(path, nil, mode)
+			if err := filemutation.WithLock(path, func() error {
+				return filemutation.WriteAtomically(path, nil, mode)
 			}); err != nil {
 				return fail("create %s: %v", path, err)
 			}
@@ -199,14 +219,14 @@ func applyCodeIntelWorkspaceEdit(roots []string, edit *lsp.WorkspaceEdit, versio
 				if !op.renameFile.overwrite {
 					return fail("rename destination already exists: %s", newPath)
 				}
-				backup, _, err := moveCodeIntelPathToBackup(newPath)
+				backup, _, err := movePathToBackup(newPath)
 				if err != nil {
 					return fail("backup existing %s: %v", newPath, err)
 				}
 				destBackup = backup
 				cleanup = append(cleanup, func() { _ = os.RemoveAll(destBackup) })
 				rollback = append(rollback, func() {
-					_ = restoreCodeIntelBackup(destBackup, newPath)
+					_ = restoreBackup(destBackup, newPath)
 				})
 			} else if !os.IsNotExist(err) {
 				return fail("stat %s: %v", newPath, err)
@@ -220,7 +240,7 @@ func applyCodeIntelWorkspaceEdit(roots []string, edit *lsp.WorkspaceEdit, versio
 			rollback = append(rollback, func() {
 				_ = os.Rename(newPath, oldPath)
 				if destBackup != "" {
-					_ = restoreCodeIntelBackup(destBackup, newPath)
+					_ = restoreBackup(destBackup, newPath)
 				}
 			})
 			addPath(oldPath)
@@ -239,11 +259,11 @@ func applyCodeIntelWorkspaceEdit(roots []string, edit *lsp.WorkspaceEdit, versio
 			if info.IsDir() && !op.deleteFile.recursive {
 				return fail("refusing to delete directory without recursive option: %s", path)
 			}
-			backup, _, err := moveCodeIntelPathToBackup(path)
+			backup, _, err := movePathToBackup(path)
 			if err != nil {
 				return fail("delete %s: %v", path, err)
 			}
-			rollback = append(rollback, func() { _ = restoreCodeIntelBackup(backup, path) })
+			rollback = append(rollback, func() { _ = restoreBackup(backup, path) })
 			cleanup = append(cleanup, func() { _ = os.RemoveAll(backup) })
 			addPath(path)
 			summary.Deleted++
@@ -258,14 +278,14 @@ func applyCodeIntelWorkspaceEdit(roots []string, edit *lsp.WorkspaceEdit, versio
 	return summary, plan, nil
 }
 
-func codeIntelWorkspaceEditOperations(roots []string, edit *lsp.WorkspaceEdit) ([]codeIntelWorkspaceEditOperation, error) {
+func operations(roots []string, edit *lsp.WorkspaceEdit) ([]operation, error) {
 	if edit == nil {
 		return nil, nil
 	}
-	ops := make([]codeIntelWorkspaceEditOperation, 0, len(edit.Changes)+len(edit.DocumentChanges))
+	ops := make([]operation, 0, len(edit.Changes)+len(edit.DocumentChanges))
 	if len(edit.DocumentChanges) > 0 {
 		for _, raw := range edit.DocumentChanges {
-			op, err := parseCodeIntelWorkspaceEditOperation(roots, raw)
+			op, err := parseOperation(roots, raw)
 			if err != nil {
 				return nil, err
 			}
@@ -279,11 +299,11 @@ func codeIntelWorkspaceEditOperations(roots []string, edit *lsp.WorkspaceEdit) (
 	}
 	sort.Strings(uris)
 	for _, uri := range uris {
-		path, err := codeIntelWorkspacePath(roots, lsp.URIToPath(uri))
+		path, err := workspacePath(roots, lsp.URIToPath(uri))
 		if err != nil {
 			return nil, err
 		}
-		ops = append(ops, codeIntelWorkspaceEditOperation{textDocument: &codeIntelTextDocumentEdit{
+		ops = append(ops, operation{textDocument: &textDocumentEdit{
 			path:  path,
 			edits: append([]lsp.TextEdit(nil), edit.Changes[uri]...),
 		}})
@@ -291,87 +311,108 @@ func codeIntelWorkspaceEditOperations(roots []string, edit *lsp.WorkspaceEdit) (
 	return ops, nil
 }
 
-func parseCodeIntelWorkspaceEditOperation(roots []string, raw json.RawMessage) (codeIntelWorkspaceEditOperation, error) {
-	var textDocumentEdit lsp.TextDocumentEdit
-	if err := json.Unmarshal(raw, &textDocumentEdit); err == nil && strings.TrimSpace(textDocumentEdit.TextDocument.URI) != "" {
-		path, err := codeIntelWorkspacePath(roots, lsp.URIToPath(textDocumentEdit.TextDocument.URI))
+func parseOperation(roots []string, raw json.RawMessage) (operation, error) {
+	var documentEdit lsp.TextDocumentEdit
+	if err := json.Unmarshal(raw, &documentEdit); err == nil && strings.TrimSpace(documentEdit.TextDocument.URI) != "" {
+		path, err := workspacePath(roots, lsp.URIToPath(documentEdit.TextDocument.URI))
 		if err != nil {
-			return codeIntelWorkspaceEditOperation{}, err
+			return operation{}, err
 		}
-		return codeIntelWorkspaceEditOperation{textDocument: &codeIntelTextDocumentEdit{
+		return operation{textDocument: &textDocumentEdit{
 			path:    path,
-			version: textDocumentEdit.TextDocument.Version,
-			edits:   append([]lsp.TextEdit(nil), textDocumentEdit.Edits...),
+			version: documentEdit.TextDocument.Version,
+			edits:   append([]lsp.TextEdit(nil), documentEdit.Edits...),
 		}}, nil
 	}
 	var kind struct {
 		Kind string `json:"kind"`
 	}
 	if err := json.Unmarshal(raw, &kind); err != nil {
-		return codeIntelWorkspaceEditOperation{}, fmt.Errorf("unsupported workspace edit payload")
+		return operation{}, fmt.Errorf("unsupported workspace edit payload")
 	}
 	switch kind.Kind {
 	case "create":
 		var create lsp.CreateFile
 		if err := json.Unmarshal(raw, &create); err != nil {
-			return codeIntelWorkspaceEditOperation{}, fmt.Errorf("parse create file edit: %v", err)
+			return operation{}, fmt.Errorf("parse create file edit: %v", err)
 		}
-		path, err := codeIntelWorkspacePath(roots, lsp.URIToPath(create.URI))
+		path, err := workspacePath(roots, lsp.URIToPath(create.URI))
 		if err != nil {
-			return codeIntelWorkspaceEditOperation{}, err
+			return operation{}, err
 		}
 		var overwrite, ignoreIfExists bool
 		if create.Options != nil {
 			overwrite = create.Options.Overwrite
 			ignoreIfExists = create.Options.IgnoreIfExists
 		}
-		return codeIntelWorkspaceEditOperation{createFile: &codeIntelCreateFile{path: path, overwrite: overwrite, ignoreIfExists: ignoreIfExists}}, nil
+		return operation{createFile: &createFile{path: path, overwrite: overwrite, ignoreIfExists: ignoreIfExists}}, nil
 	case "rename":
 		var rename lsp.RenameFile
 		if err := json.Unmarshal(raw, &rename); err != nil {
-			return codeIntelWorkspaceEditOperation{}, fmt.Errorf("parse rename file edit: %v", err)
+			return operation{}, fmt.Errorf("parse rename file edit: %v", err)
 		}
-		oldPath, err := codeIntelWorkspacePath(roots, lsp.URIToPath(rename.OldURI))
+		oldPath, err := workspacePath(roots, lsp.URIToPath(rename.OldURI))
 		if err != nil {
-			return codeIntelWorkspaceEditOperation{}, err
+			return operation{}, err
 		}
-		newPath, err := codeIntelWorkspacePath(roots, lsp.URIToPath(rename.NewURI))
+		newPath, err := workspacePath(roots, lsp.URIToPath(rename.NewURI))
 		if err != nil {
-			return codeIntelWorkspaceEditOperation{}, err
+			return operation{}, err
 		}
 		var overwrite, ignoreIfExists bool
 		if rename.Options != nil {
 			overwrite = rename.Options.Overwrite
 			ignoreIfExists = rename.Options.IgnoreIfExists
 		}
-		return codeIntelWorkspaceEditOperation{renameFile: &codeIntelRenameFile{oldPath: oldPath, newPath: newPath, overwrite: overwrite, ignoreIfExists: ignoreIfExists}}, nil
+		return operation{renameFile: &renameFile{oldPath: oldPath, newPath: newPath, overwrite: overwrite, ignoreIfExists: ignoreIfExists}}, nil
 	case "delete":
 		var remove lsp.DeleteFile
 		if err := json.Unmarshal(raw, &remove); err != nil {
-			return codeIntelWorkspaceEditOperation{}, fmt.Errorf("parse delete file edit: %v", err)
+			return operation{}, fmt.Errorf("parse delete file edit: %v", err)
 		}
-		path, err := codeIntelWorkspacePath(roots, lsp.URIToPath(remove.URI))
+		path, err := workspacePath(roots, lsp.URIToPath(remove.URI))
 		if err != nil {
-			return codeIntelWorkspaceEditOperation{}, err
+			return operation{}, err
 		}
 		var recursive, ignoreIfNotExists bool
 		if remove.Options != nil {
 			recursive = remove.Options.Recursive
 			ignoreIfNotExists = remove.Options.IgnoreIfNotExists
 		}
-		return codeIntelWorkspaceEditOperation{deleteFile: &codeIntelDeleteFile{path: path, recursive: recursive, ignoreIfNotExists: ignoreIfNotExists}}, nil
+		return operation{deleteFile: &deleteFile{path: path, recursive: recursive, ignoreIfNotExists: ignoreIfNotExists}}, nil
 	default:
-		return codeIntelWorkspaceEditOperation{}, fmt.Errorf("unsupported workspace edit operation %q", kind.Kind)
+		return operation{}, fmt.Errorf("unsupported workspace edit operation %q", kind.Kind)
 	}
 }
 
-func codeIntelWorkspacePath(roots []string, path string) (string, error) {
+func workspacePath(roots []string, path string) (string, error) {
 	path = filepath.Clean(strings.TrimSpace(path))
 	if path == "" {
 		return "", fmt.Errorf("workspace edit path is empty")
 	}
-	if bestCodeIntelRoot(roots, path) == "" {
+	if bestRoot(roots, path) == "" {
 		return "", fmt.Errorf("workspace edit path %q is outside the configured workspace roots", path)
 	}
 	return path, nil
+}
+
+func bestRoot(roots []string, path string) string {
+	path = filepath.Clean(path)
+	best := ""
+	for _, root := range roots {
+		root = filepath.Clean(strings.TrimSpace(root))
+		if root == "" {
+			continue
+		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			continue
+		}
+		if rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))) {
+			if len(root) > len(best) {
+				best = root
+			}
+		}
+	}
+	return best
 }

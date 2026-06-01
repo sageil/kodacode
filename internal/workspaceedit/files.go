@@ -1,11 +1,11 @@
-package app
+package workspaceedit
 
 import (
 	"os"
 	"path/filepath"
 )
 
-func moveCodeIntelPathToBackup(path string) (string, bool, error) {
+func movePathToBackup(path string) (string, bool, error) {
 	info, err := os.Stat(path)
 	if err != nil {
 		return "", false, err
@@ -29,7 +29,7 @@ func moveCodeIntelPathToBackup(path string) (string, bool, error) {
 	return backupPath, info.IsDir(), nil
 }
 
-func restoreCodeIntelBackup(backupPath, targetPath string) error {
+func restoreBackup(backupPath, targetPath string) error {
 	if _, err := os.Stat(backupPath); err != nil {
 		return err
 	}

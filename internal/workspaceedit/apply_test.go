@@ -1,4 +1,4 @@
-package app
+package workspaceedit
 
 import (
 	"encoding/json"
@@ -10,7 +10,7 @@ import (
 	"github.com/sageil/kodacode/internal/lsp"
 )
 
-func TestApplyCodeIntelWorkspaceEditAppliesTextEditsAndBuildsSyncPlan(t *testing.T) {
+func TestApplyAppliesTextEditsAndBuildsSyncPlan(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, "main.go")
 	if err := os.WriteFile(path, []byte("package main\n"), 0o644); err != nil {
@@ -25,9 +25,9 @@ func TestApplyCodeIntelWorkspaceEditAppliesTextEditsAndBuildsSyncPlan(t *testing
 			}},
 		},
 	}
-	summary, plan, err := applyCodeIntelWorkspaceEdit([]string{root}, edit, nil)
+	summary, plan, err := Apply([]string{root}, edit, nil)
 	if err != nil {
-		t.Fatalf("applyCodeIntelWorkspaceEdit() error = %v", err)
+		t.Fatalf("Apply() error = %v", err)
 	}
 	if summary.TextEdits != 1 || len(summary.Paths) != 1 || summary.Paths[0] != path {
 		t.Fatalf("summary = %#v", summary)
@@ -44,7 +44,7 @@ func TestApplyCodeIntelWorkspaceEditAppliesTextEditsAndBuildsSyncPlan(t *testing
 	}
 }
 
-func TestApplyCodeIntelWorkspaceEditAppliesDocumentChanges(t *testing.T) {
+func TestApplyAppliesDocumentChanges(t *testing.T) {
 	root := t.TempDir()
 	oldPath := filepath.Join(root, "old.txt")
 	deletePath := filepath.Join(root, "delete.txt")
@@ -68,11 +68,11 @@ func TestApplyCodeIntelWorkspaceEditAppliesDocumentChanges(t *testing.T) {
 		}},
 	})
 
-	summary, plan, err := applyCodeIntelWorkspaceEdit([]string{root}, &lsp.WorkspaceEdit{
+	summary, plan, err := Apply([]string{root}, &lsp.WorkspaceEdit{
 		DocumentChanges: []json.RawMessage{rawCreate, rawEdit, rawRename, rawDelete},
 	}, nil)
 	if err != nil {
-		t.Fatalf("applyCodeIntelWorkspaceEdit() error = %v", err)
+		t.Fatalf("Apply() error = %v", err)
 	}
 	if summary.Created != 1 || summary.Renamed != 1 || summary.Deleted != 1 || summary.TextEdits != 1 {
 		t.Fatalf("summary = %#v", summary)
@@ -94,7 +94,7 @@ func TestApplyCodeIntelWorkspaceEditAppliesDocumentChanges(t *testing.T) {
 	}
 }
 
-func TestApplyCodeIntelWorkspaceEditRejectsPathsOutsideRoots(t *testing.T) {
+func TestApplyRejectsPathsOutsideRoots(t *testing.T) {
 	root := t.TempDir()
 	outside := filepath.Join(t.TempDir(), "outside.go")
 	edit := &lsp.WorkspaceEdit{
@@ -105,13 +105,13 @@ func TestApplyCodeIntelWorkspaceEditRejectsPathsOutsideRoots(t *testing.T) {
 			}},
 		},
 	}
-	_, _, err := applyCodeIntelWorkspaceEdit([]string{root}, edit, nil)
+	_, _, err := Apply([]string{root}, edit, nil)
 	if err == nil || !strings.Contains(err.Error(), "outside the configured workspace roots") {
 		t.Fatalf("error = %v", err)
 	}
 }
 
-func TestApplyCodeIntelWorkspaceEditPreservesFileModeWhenCreateFileOverwrites(t *testing.T) {
+func TestApplyPreservesFileModeWhenCreateFileOverwrites(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, "script.sh")
 	if err := os.WriteFile(path, []byte("#!/bin/sh\n"), 0o755); err != nil {
@@ -126,10 +126,10 @@ func TestApplyCodeIntelWorkspaceEditPreservesFileModeWhenCreateFileOverwrites(t 
 		},
 	})
 
-	if _, _, err := applyCodeIntelWorkspaceEdit([]string{root}, &lsp.WorkspaceEdit{
+	if _, _, err := Apply([]string{root}, &lsp.WorkspaceEdit{
 		DocumentChanges: []json.RawMessage{rawCreate},
 	}, nil); err != nil {
-		t.Fatalf("applyCodeIntelWorkspaceEdit() error = %v", err)
+		t.Fatalf("Apply() error = %v", err)
 	}
 
 	info, err := os.Stat(path)

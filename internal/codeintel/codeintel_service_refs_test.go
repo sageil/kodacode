@@ -1,4 +1,4 @@
-package app
+package codeintel
 
 import (
 	"context"
@@ -49,7 +49,7 @@ func TestRefsFromServerReturnsUnsupportedWhenReferencesAreUnavailable(t *testing
 
 func TestWorkspaceCodeIntelRefsReturnsUnavailableNoticeWhenFileTypeHasNoConfiguredServer(t *testing.T) {
 	root := t.TempDir()
-	service := NewCodeIntelService(LSPConfig{AutoDiscover: false})
+	service := NewCodeIntelService(Config{AutoDiscover: false})
 
 	result, err := service.Navigator(root, nil).Refs(context.Background(), tool.CodeIntelRefsRequest{
 		Path:       filepath.Join(root, "notes.txt"),

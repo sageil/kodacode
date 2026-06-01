@@ -1,4 +1,4 @@
-package app
+package codeintel
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 
 	"github.com/sageil/kodacode/internal/lsp"
 	"github.com/sageil/kodacode/internal/tool"
+	"github.com/sageil/kodacode/internal/workspaceedit"
 )
 
 func (w *workspaceCodeIntel) RenameSymbol(ctx context.Context, request tool.CodeIntelRenameRequest) (tool.CodeIntelMutationSummary, error) {
@@ -154,7 +155,7 @@ func comparePosition(left, right lsp.Position) int {
 }
 
 func (w *workspaceCodeIntel) applyCodeIntelMutation(ctx context.Context, edit *lsp.WorkspaceEdit) (tool.CodeIntelMutationSummary, error) {
-	summary, plan, err := applyCodeIntelWorkspaceEdit(w.roots, edit, func(path string) (int, bool) {
+	summary, plan, err := workspaceedit.Apply(w.roots, edit, func(path string) (int, bool) {
 		manager := w.service.managerForPath(w.roots, path)
 		if manager == nil {
 			return 0, false
@@ -165,5 +166,15 @@ func (w *workspaceCodeIntel) applyCodeIntelMutation(ctx context.Context, edit *l
 		return tool.CodeIntelMutationSummary{}, err
 	}
 	w.service.SyncMutation(ctx, w.roots[0], w.roots[1:], plan)
-	return summary, nil
+	return codeIntelMutationSummaryFromWorkspaceEdit(summary), nil
+}
+
+func codeIntelMutationSummaryFromWorkspaceEdit(summary workspaceedit.Summary) tool.CodeIntelMutationSummary {
+	return tool.CodeIntelMutationSummary{
+		Paths:     append([]string(nil), summary.Paths...),
+		TextEdits: summary.TextEdits,
+		Created:   summary.Created,
+		Renamed:   summary.Renamed,
+		Deleted:   summary.Deleted,
+	}
 }
