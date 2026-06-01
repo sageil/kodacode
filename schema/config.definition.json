@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/sageil/kodacode/main/schema/config.schema.json",
+  "$id": "https://raw.githubusercontent.com/sageil/kodacode/main/schema/config.definition.json",
   "title": "KodaCode Configuration",
   "description": "Schema for KodaCode's persisted config.yaml surface.",
   "type": "object",

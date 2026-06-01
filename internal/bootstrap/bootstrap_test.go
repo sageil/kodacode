@@ -40,7 +40,7 @@ func TestEnsureDefaultsCreatesStructureAndDataArtifacts(t *testing.T) {
 	assertNonEmptyFile(t, filepath.Join(base, "config.yaml"))
 	assertFileExists(t, filepath.Join(base, "auth.yaml"))
 	assertFileContains(t, filepath.Join(base, "config.yaml"), "theme: ayu-dark")
-	assertFileContains(t, filepath.Join(base, "config.yaml"), "yaml-language-server: $schema=https://raw.githubusercontent.com/sageil/kodacode/main/schema/config.schema.json")
+	assertFileContains(t, filepath.Join(base, "config.yaml"), "yaml-language-server: $schema=https://raw.githubusercontent.com/sageil/kodacode/main/schema/config.definition.json")
 
 	assertCopiedFiles(t, agent.BuiltinAgentFS(), ".", filepath.Join(base, "agents"))
 	assertCopiedFiles(t, theme.BuiltinThemeFS(), "themes", filepath.Join(base, "themes"))

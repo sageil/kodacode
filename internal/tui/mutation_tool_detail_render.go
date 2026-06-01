@@ -3,7 +3,6 @@ package tui
 import (
 	"strings"
 
-	"charm.land/lipgloss/v2"
 	"github.com/sageil/kodacode/internal/events"
 	"github.com/sageil/kodacode/internal/textdiff"
 )
@@ -89,12 +88,7 @@ func writeMutationToolDetailMetaLabel(call *events.ToolCallState, content string
 }
 
 func renderCreatedWriteMutationDetailOps(m Model, ops []mutationDiffOp, width, newStart int) []string {
-	headerStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(colorFor(m.theme, "primary", "#7cc7ff"))).
-		Bold(true)
-	lines := []string{headerStyle.Render(truncateEnd("New", max(width, 1)))}
-	lines = append(lines, renderMutationDiffOpsAt(m, ops, width, 0, max(newStart, 1))...)
-	return lines
+	return renderMutationDiffOpsAt(m, ops, width, 0, max(newStart, 1))
 }
 
 func renderMutationToolDetailDiffOpsAt(m Model, ops []mutationDiffOp, textWidth, oldStart, newStart int) []string {
