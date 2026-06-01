@@ -189,20 +189,6 @@ func streamsReasoningOutputForRequest(req Request) bool {
 	return EffectiveReasoningVariantForTurn(req.Model, nil, req.ThinkingMode) == ReasoningVariantHigh
 }
 
-func supportedDeepSeekReasoningVariants(model ModelRef) []string {
-	if !deepseekThinkingModel(strings.ToLower(strings.TrimSpace(model.ModelID))) {
-		return nil
-	}
-	return []string{ReasoningVariantHigh, ReasoningVariantXHigh}
-}
-
-func supportedQwenReasoningVariants(model ModelRef) []string {
-	if !qwenThinkingModel(strings.ToLower(strings.TrimSpace(model.ModelID))) {
-		return nil
-	}
-	return []string{ReasoningVariantNone, ReasoningVariantHigh}
-}
-
 func effectiveListedReasoningVariant(supported []string, requested string) string {
 	requested = strings.TrimSpace(strings.ToLower(requested))
 	if requested == "" {
@@ -214,48 +200,6 @@ func effectiveListedReasoningVariant(supported []string, requested string) strin
 		}
 	}
 	return ""
-}
-
-func effectiveDeepSeekReasoningVariant(model ModelRef, requested string) string {
-	if !deepseekThinkingModel(strings.ToLower(strings.TrimSpace(model.ModelID))) {
-		return ""
-	}
-	requested = strings.TrimSpace(strings.ToLower(requested))
-	switch requested {
-	case "", ReasoningVariantHigh:
-		return requested
-	case ReasoningVariantLow, ReasoningVariantMedium:
-		return ReasoningVariantHigh
-	case ReasoningVariantXHigh:
-		return ReasoningVariantXHigh
-	default:
-		return ""
-	}
-}
-
-func deepseekThinkingModel(modelID string) bool {
-	switch {
-	case strings.HasPrefix(modelID, "deepseek-v4-pro"),
-		strings.HasPrefix(modelID, "deepseek-v4-flash"),
-		strings.HasPrefix(modelID, "deepseek-reasoner"):
-		return true
-	default:
-		return false
-	}
-}
-
-func qwenThinkingModel(modelID string) bool {
-	modelID = strings.TrimPrefix(strings.ToLower(strings.TrimSpace(modelID)), "qwen/")
-	switch {
-	case strings.HasPrefix(modelID, "qwen3"),
-		strings.HasPrefix(modelID, "qwen-plus"),
-		strings.HasPrefix(modelID, "qwen-flash"),
-		strings.HasPrefix(modelID, "qwen-turbo"),
-		strings.HasPrefix(modelID, "qwq"):
-		return true
-	default:
-		return false
-	}
 }
 
 func knownReasoningModel(model ModelRef) bool {

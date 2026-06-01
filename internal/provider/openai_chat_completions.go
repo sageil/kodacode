@@ -308,23 +308,6 @@ func mistralReasoningEffortForVariant(model ModelRef, variant string) (string, b
 	return "", false, errUnsupportedReasoningVariant(model, variant)
 }
 
-func deepSeekReasoningEffortForVariant(model ModelRef, variant string) (string, bool, error) {
-	if !deepseekThinkingModel(strings.ToLower(strings.TrimSpace(model.ModelID))) {
-		return "", false, nil
-	}
-	variant = strings.TrimSpace(strings.ToLower(variant))
-	switch variant {
-	case "":
-		return "", false, nil
-	case ReasoningVariantLow, ReasoningVariantMedium, ReasoningVariantHigh:
-		return ReasoningVariantHigh, true, nil
-	case ReasoningVariantXHigh:
-		return "max", true, nil
-	default:
-		return "", false, errUnsupportedReasoningVariant(model, variant)
-	}
-}
-
 func streamOpenAIChatCompletions(
 	ctx context.Context,
 	httpClient *http.Client,
