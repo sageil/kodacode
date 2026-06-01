@@ -83,10 +83,17 @@ func (r *Runtime) rawProviderClient(providerID string) (provider.Client, error) 
 	if r == nil {
 		return nil, provider.ErrProviderNotConfigured
 	}
+	var client provider.Client
+	var err error
 	if r.rawProviderFactory != nil {
-		return r.rawProviderFactory(r.Config, providerID)
+		client, err = r.rawProviderFactory(r.Config, providerID)
+	} else {
+		client, err = buildProviderClientForID(r.Config, providerID)
 	}
-	return buildProviderClientForID(r.Config, providerID)
+	if err != nil {
+		return nil, err
+	}
+	return provider.WrapClient(client, r.extensionProviderMiddleware...)
 }
 
 func (r *Runtime) requestSessionTitle(ctx context.Context, client provider.Client, model provider.ModelRef, sessionID, turnID, userText string) (string, error) {

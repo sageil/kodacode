@@ -183,6 +183,13 @@ func (r *Runtime) Reconfigure(config Config) error {
 		}
 		return err
 	}
+	client, err = provider.WrapClient(client, extensions.ProviderMiddleware...)
+	if err != nil {
+		if search != nil {
+			_ = search.Close()
+		}
+		return err
+	}
 	runtimeTools, err := buildRuntimeTools(webSearch, extensions.Tools)
 	if err != nil {
 		if search != nil {
@@ -241,6 +248,7 @@ func (r *Runtime) Reconfigure(config Config) error {
 	r.extensionToolEffects = extensions.ToolEffects
 	r.extensionPrecomputeHooks = extensions.PrecomputeHooks
 	r.extensionContext = extensions.ContextContributions
+	r.extensionProviderMiddleware = extensions.ProviderMiddleware
 	r.ModelCatalog = buildModelCatalog(config, logger)
 	r.resetModelCatalogRefreshState()
 	r.Runner.SetModelCatalog(r.ModelCatalog)

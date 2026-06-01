@@ -184,8 +184,14 @@ func TestRuntimeDebugLogIncludesProviderRouteSelection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("provider.NewRoutedClient() error = %v", err)
 	}
+	wrapped, err := provider.WrapClient(router, func(next provider.ProviderHandler) provider.ProviderHandler {
+		return next
+	})
+	if err != nil {
+		t.Fatalf("provider.WrapClient() error = %v", err)
+	}
 
-	runtime := newRuntimeWithClient(t, router)
+	runtime := newRuntimeWithClient(t, wrapped)
 	runtime.Config.ModelRoute = provider.ModelRoute{
 		Primary: provider.ModelRef{ProviderID: "proxy", ModelID: "primary"},
 	}

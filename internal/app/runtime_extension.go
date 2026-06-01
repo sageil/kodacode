@@ -7,22 +7,26 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/sageil/kodacode/internal/provider"
 	"github.com/sageil/kodacode/internal/tool"
 )
 
 var (
-	ErrRuntimeExtensionIDRequired        = errors.New("runtime extension id is required")
-	ErrRuntimeExtensionDuplicate         = errors.New("runtime extension already registered")
-	ErrRuntimeExtensionToolRequired      = errors.New("runtime extension tool is required")
-	ErrRuntimeExtensionToolNameRequired  = errors.New("runtime extension tool name is required")
-	ErrRuntimeExtensionToolDuplicate     = errors.New("runtime extension tool already registered")
-	ErrRuntimeExtensionToolEffectMissing = errors.New("runtime extension tool effect is required")
-	ErrRuntimeExtensionToolEffectInvalid = errors.New("runtime extension tool effect is invalid")
-	ErrRuntimeExtensionHookIDRequired    = errors.New("runtime extension precompute hook id is required")
-	ErrRuntimeExtensionHookDuplicate     = errors.New("runtime extension precompute hook already registered")
-	ErrRuntimeExtensionHookRequired      = errors.New("runtime extension precompute hook is required")
-	ErrRuntimeExtensionContextIDRequired = errors.New("runtime extension context contribution id is required")
-	ErrRuntimeExtensionContextDuplicate  = errors.New("runtime extension context contribution already registered")
+	ErrRuntimeExtensionIDRequired                   = errors.New("runtime extension id is required")
+	ErrRuntimeExtensionDuplicate                    = errors.New("runtime extension already registered")
+	ErrRuntimeExtensionToolRequired                 = errors.New("runtime extension tool is required")
+	ErrRuntimeExtensionToolNameRequired             = errors.New("runtime extension tool name is required")
+	ErrRuntimeExtensionToolDuplicate                = errors.New("runtime extension tool already registered")
+	ErrRuntimeExtensionToolEffectMissing            = errors.New("runtime extension tool effect is required")
+	ErrRuntimeExtensionToolEffectInvalid            = errors.New("runtime extension tool effect is invalid")
+	ErrRuntimeExtensionHookIDRequired               = errors.New("runtime extension precompute hook id is required")
+	ErrRuntimeExtensionHookDuplicate                = errors.New("runtime extension precompute hook already registered")
+	ErrRuntimeExtensionHookRequired                 = errors.New("runtime extension precompute hook is required")
+	ErrRuntimeExtensionContextIDRequired            = errors.New("runtime extension context contribution id is required")
+	ErrRuntimeExtensionContextDuplicate             = errors.New("runtime extension context contribution already registered")
+	ErrRuntimeExtensionProviderMiddlewareIDRequired = errors.New("runtime extension provider middleware id is required")
+	ErrRuntimeExtensionProviderMiddlewareDuplicate  = errors.New("runtime extension provider middleware already registered")
+	ErrRuntimeExtensionProviderMiddlewareRequired   = errors.New("runtime extension provider middleware is required")
 )
 
 type RuntimeExtensionRegistration struct {
@@ -30,6 +34,7 @@ type RuntimeExtensionRegistration struct {
 	Tools                []RuntimeExtensionToolRegistration
 	PrecomputeHooks      []RuntimeExtensionPrecomputeHookRegistration
 	ContextContributions []RuntimeExtensionContextContribution
+	ProviderMiddleware   []RuntimeExtensionProviderMiddlewareRegistration
 }
 
 type RuntimeExtensionToolRegistration struct {
@@ -47,11 +52,17 @@ type RuntimeExtensionContextContribution struct {
 	Description string
 }
 
+type RuntimeExtensionProviderMiddlewareRegistration struct {
+	ID         string
+	Middleware provider.Middleware
+}
+
 type runtimeExtensionSurface struct {
 	Tools                []tool.Tool
 	ToolEffects          map[string][]tool.ExecutionEffect
 	PrecomputeHooks      []RuntimePrecomputeHook
 	ContextContributions []RuntimeExtensionContextContribution
+	ProviderMiddleware   []provider.Middleware
 }
 
 var (
@@ -96,6 +107,7 @@ func buildRuntimeExtensionSurface(registrations []RuntimeExtensionRegistration) 
 	}
 	hookIDs := map[string]struct{}{}
 	contextIDs := map[string]struct{}{}
+	providerMiddlewareIDs := map[string]struct{}{}
 	for _, registration := range registrations {
 		if err := validateRuntimeExtensionRegistration(registration); err != nil {
 			return runtimeExtensionSurface{}, err
@@ -123,6 +135,14 @@ func buildRuntimeExtensionSurface(registrations []RuntimeExtensionRegistration) 
 			}
 			contextIDs[id] = struct{}{}
 			surface.ContextContributions = append(surface.ContextContributions, contribution)
+		}
+		for _, middlewareRegistration := range registration.ProviderMiddleware {
+			id := strings.TrimSpace(middlewareRegistration.ID)
+			if _, exists := providerMiddlewareIDs[id]; exists {
+				return runtimeExtensionSurface{}, fmt.Errorf("%w: %s", ErrRuntimeExtensionProviderMiddlewareDuplicate, id)
+			}
+			providerMiddlewareIDs[id] = struct{}{}
+			surface.ProviderMiddleware = append(surface.ProviderMiddleware, middlewareRegistration.Middleware)
 		}
 	}
 	if len(surface.ToolEffects) == 0 {
@@ -160,6 +180,14 @@ func validateRuntimeExtensionRegistration(registration RuntimeExtensionRegistrat
 			return fmt.Errorf("%w: %s", ErrRuntimeExtensionContextIDRequired, registration.ID)
 		}
 	}
+	for _, middlewareRegistration := range registration.ProviderMiddleware {
+		if strings.TrimSpace(middlewareRegistration.ID) == "" {
+			return fmt.Errorf("%w: %s", ErrRuntimeExtensionProviderMiddlewareIDRequired, registration.ID)
+		}
+		if middlewareRegistration.Middleware == nil {
+			return fmt.Errorf("%w: %s", ErrRuntimeExtensionProviderMiddlewareRequired, middlewareRegistration.ID)
+		}
+	}
 	return nil
 }
 
@@ -184,5 +212,6 @@ func cloneRuntimeExtensionRegistration(registration RuntimeExtensionRegistration
 	}
 	registration.PrecomputeHooks = append([]RuntimeExtensionPrecomputeHookRegistration(nil), registration.PrecomputeHooks...)
 	registration.ContextContributions = append([]RuntimeExtensionContextContribution(nil), registration.ContextContributions...)
+	registration.ProviderMiddleware = append([]RuntimeExtensionProviderMiddlewareRegistration(nil), registration.ProviderMiddleware...)
 	return registration
 }

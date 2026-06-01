@@ -69,6 +69,7 @@ func (r *Runtime) log(component string) *observability.Logger {
 }
 
 func attachProviderRouteLogging(client provider.Client, logger *observability.Logger) {
+	client = provider.UnwrapClient(client)
 	router, ok := client.(*provider.RoutedClient)
 	if !ok || router == nil {
 		return

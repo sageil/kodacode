@@ -19,32 +19,33 @@ import (
 )
 
 type Runtime struct {
-	Config                    Config
-	Store                     events.ReplayStore
-	Sessions                  *SessionService
-	Trusts                    *startupTrustStore
-	Tools                     *ToolExecutor
-	Agents                    *agent.Registry
-	Skills                    *skill.Registry
-	Search                    *searchsvc.Service
-	WebSearch                 *websearchsvc.Service
-	CodeIntel                 *CodeIntelService
-	ContextPacketDiagnostics  deterministicContextPacketDiagnosticsProvider
-	Memory                    *MemoryService
-	Logger                    *observability.Logger
-	ModelCatalog              modelCatalog
-	Provider                  provider.Client
-	Runner                    *TurnRunner
-	precomputeHooks           []RuntimePrecomputeHook
-	extensionToolEffects      map[string][]tool.ExecutionEffect
-	extensionPrecomputeHooks  []RuntimePrecomputeHook
-	extensionContext          []RuntimeExtensionContextContribution
-	activeTurns               activeTurnRegistry
-	modelCatalogRefreshActive atomic.Bool
-	mcpMu                     sync.Mutex
-	mcpRegistry               *mcp.Registry
-	mcpActiveWorkspace        string
-	mcpActiveFingerprints     []string
+	Config                      Config
+	Store                       events.ReplayStore
+	Sessions                    *SessionService
+	Trusts                      *startupTrustStore
+	Tools                       *ToolExecutor
+	Agents                      *agent.Registry
+	Skills                      *skill.Registry
+	Search                      *searchsvc.Service
+	WebSearch                   *websearchsvc.Service
+	CodeIntel                   *CodeIntelService
+	ContextPacketDiagnostics    deterministicContextPacketDiagnosticsProvider
+	Memory                      *MemoryService
+	Logger                      *observability.Logger
+	ModelCatalog                modelCatalog
+	Provider                    provider.Client
+	Runner                      *TurnRunner
+	precomputeHooks             []RuntimePrecomputeHook
+	extensionToolEffects        map[string][]tool.ExecutionEffect
+	extensionPrecomputeHooks    []RuntimePrecomputeHook
+	extensionContext            []RuntimeExtensionContextContribution
+	extensionProviderMiddleware []provider.Middleware
+	activeTurns                 activeTurnRegistry
+	modelCatalogRefreshActive   atomic.Bool
+	mcpMu                       sync.Mutex
+	mcpRegistry                 *mcp.Registry
+	mcpActiveWorkspace          string
+	mcpActiveFingerprints       []string
 
 	rawProviderFactory  func(Config, string) (provider.Client, error)
 	enableSessionTitles bool
@@ -130,6 +131,10 @@ func NewRuntime(config Config) (runtime *Runtime, err error) {
 	if err != nil {
 		return nil, err
 	}
+	client, err = provider.WrapClient(client, extensions.ProviderMiddleware...)
+	if err != nil {
+		return nil, err
+	}
 	agents, err := agent.NewRegistry(agent.RegistryConfig{})
 	if err != nil {
 		return nil, err
@@ -153,24 +158,25 @@ func NewRuntime(config Config) (runtime *Runtime, err error) {
 	}
 
 	runtime = &Runtime{
-		Config:                   config,
-		Store:                    store,
-		Sessions:                 sessions,
-		Trusts:                   trusts,
-		Tools:                    tools,
-		Agents:                   agents,
-		Skills:                   skills,
-		Search:                   search,
-		WebSearch:                webSearch,
-		CodeIntel:                codeIntel,
-		Memory:                   memory,
-		Logger:                   logger,
-		ModelCatalog:             buildModelCatalog(config, logger),
-		Provider:                 client,
-		Runner:                   runner,
-		extensionToolEffects:     extensions.ToolEffects,
-		extensionPrecomputeHooks: extensions.PrecomputeHooks,
-		extensionContext:         extensions.ContextContributions,
+		Config:                      config,
+		Store:                       store,
+		Sessions:                    sessions,
+		Trusts:                      trusts,
+		Tools:                       tools,
+		Agents:                      agents,
+		Skills:                      skills,
+		Search:                      search,
+		WebSearch:                   webSearch,
+		CodeIntel:                   codeIntel,
+		Memory:                      memory,
+		Logger:                      logger,
+		ModelCatalog:                buildModelCatalog(config, logger),
+		Provider:                    client,
+		Runner:                      runner,
+		extensionToolEffects:        extensions.ToolEffects,
+		extensionPrecomputeHooks:    extensions.PrecomputeHooks,
+		extensionContext:            extensions.ContextContributions,
+		extensionProviderMiddleware: extensions.ProviderMiddleware,
 		rawProviderFactory: func(config Config, providerID string) (provider.Client, error) {
 			return buildProviderClientForID(config, providerID)
 		},
