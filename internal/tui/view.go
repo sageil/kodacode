@@ -53,11 +53,12 @@ func renderModelSurface(m Model) (string, *tea.Cursor) {
 			return renderDialogSurface(surface), cursor
 		}
 		cursor := composerCursorForSurface(m, state, layout)
-		if cursor != nil {
+		anchor := composerAnchorForSurface(m, state, layout)
+		if anchor != nil {
 			width := composerPopupWidth(m, layout.totalWidth)
 			popup := renderComposerPopup(m, width)
 			if strings.TrimSpace(popup) != "" {
-				drawRenderedComposerPopupOnSurface(surface, popup, cursor)
+				drawRenderedComposerPopupOnSurface(surface, popup, anchor)
 			}
 		}
 		return renderDialogSurface(surface), cursor
@@ -76,11 +77,12 @@ func renderModelSurface(m Model) (string, *tea.Cursor) {
 		surface := newOverlaySurface(base, baseRows)
 		drawSplitWideAnimationOverlay(surface, m, state, layout)
 		cursor := composerCursorForSurface(m, state, layout)
-		if cursor != nil {
+		anchor := composerAnchorForSurface(m, state, layout)
+		if anchor != nil {
 			width := composerPopupWidth(m, layout.totalWidth)
 			popup := renderComposerPopup(m, width)
 			if strings.TrimSpace(popup) != "" {
-				drawRenderedComposerPopupOnSurface(surface, popup, cursor)
+				drawRenderedComposerPopupOnSurface(surface, popup, anchor)
 			}
 		}
 		return renderDialogSurface(surface), cursor
@@ -165,7 +167,7 @@ func renderModelBaseSurface(surface dialogSurface, m Model, state events.Session
 	if m.composerState.popupMode == composerPopupNone {
 		return cursor
 	}
-	if cursor == nil {
+	if composerAnchorForSurface(m, state, layout) == nil {
 		return nil
 	}
 

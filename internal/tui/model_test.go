@@ -3339,7 +3339,7 @@ func TestModelViewSetsBackgroundColorFromShellTone(t *testing.T) {
 	}
 }
 
-func TestModelViewSetsComposerCursorWhenFocused(t *testing.T) {
+func TestModelViewUsesVirtualComposerCursorWhenFocused(t *testing.T) {
 	defaultTheme := theme.StaticDefault()
 	ctx, cancel := context.WithCancel(context.TODO())
 	defer cancel()
@@ -3357,8 +3357,8 @@ func TestModelViewSetsComposerCursorWhenFocused(t *testing.T) {
 	model = modelIface.(Model)
 
 	view := model.View()
-	if view.Cursor == nil {
-		t.Fatal("view.Cursor = nil, want composer cursor")
+	if view.Cursor != nil {
+		t.Fatalf("view.Cursor = %#v, want nil composer terminal cursor", view.Cursor)
 	}
 }
 

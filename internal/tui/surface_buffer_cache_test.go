@@ -41,7 +41,7 @@ func TestCachedSurfaceBaseBufferReusesStoredBuffer(t *testing.T) {
 	}
 }
 
-func TestRenderModelSurfaceReturnsBaseUnchangedWhenOnlyCursorMoves(t *testing.T) {
+func TestRenderModelSurfaceReturnsBaseUnchangedWhenComposerFocused(t *testing.T) {
 	defaultTheme := theme.StaticDefault()
 	ctx, cancel := context.WithCancel(context.TODO())
 	defer cancel()
@@ -63,8 +63,8 @@ func TestRenderModelSurfaceReturnsBaseUnchangedWhenOnlyCursorMoves(t *testing.T)
 	expected := renderModelSurfaceBaseForTest(model, state, layout)
 
 	rendered, cursor := renderModelSurface(model)
-	if cursor == nil {
-		t.Fatal("cursor = nil, want composer cursor")
+	if cursor != nil {
+		t.Fatalf("cursor = %#v, want nil composer terminal cursor", cursor)
 	}
 	assertRenderedCellsEqual(t, rendered, expected, model.width, model.height)
 }
@@ -90,8 +90,8 @@ func TestRenderModelSurfaceSkipsRootBufferWithoutOverlay(t *testing.T) {
 	if rendered == "" {
 		t.Fatal("renderModelSurface() returned empty content")
 	}
-	if cursor == nil {
-		t.Fatal("cursor = nil, want composer cursor")
+	if cursor != nil {
+		t.Fatalf("cursor = %#v, want nil composer terminal cursor", cursor)
 	}
 	if model.renderCache.rootSurface == nil {
 		t.Fatal("rootSurfaceCache = nil")

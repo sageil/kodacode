@@ -3,6 +3,7 @@ package tui
 import (
 	"strings"
 
+	"charm.land/bubbles/v2/textarea"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/sageil/kodacode/internal/events"
@@ -19,11 +20,21 @@ type composerOverlayLayout struct {
 }
 
 func composerCursorForSurface(m Model, state events.SessionState, layout shellLayout) *tea.Cursor {
+	return composerCursorForSurfaceFromModel(m, state, layout, m.composer)
+}
+
+func composerAnchorForSurface(m Model, state events.SessionState, layout shellLayout) *tea.Cursor {
+	composer := m.composer
+	composer.SetVirtualCursor(false)
+	return composerCursorForSurfaceFromModel(m, state, layout, composer)
+}
+
+func composerCursorForSurfaceFromModel(m Model, state events.SessionState, layout shellLayout, composer textarea.Model) *tea.Cursor {
 	liveActive, _ := m.liveTurnSpinnerState(state)
 	if m.chrome.focus != focusComposer || liveActive || !m.composerInputEnabledForState(state) || hasPendingInteractionInState(state, m.turnID) {
 		return nil
 	}
-	cursor := m.composer.Cursor()
+	cursor := composer.Cursor()
 	if cursor == nil {
 		return nil
 	}
@@ -41,7 +52,7 @@ func drawComposerPopupOnSurface(surface dialogSurface, m Model, state events.Ses
 	if surface == nil || m.composerState.popupMode == composerPopupNone {
 		return
 	}
-	cursor := composerCursorForSurface(m, state, layout)
+	cursor := composerAnchorForSurface(m, state, layout)
 	if cursor == nil {
 		return
 	}
