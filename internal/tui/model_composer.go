@@ -22,7 +22,7 @@ const (
 
 func newComposer(th *theme.Theme) textarea.Model {
 	composer := textarea.New()
-	composer.SetVirtualCursor(false)
+	composer.SetVirtualCursor(true)
 	composer.Placeholder = "Ask kodacode…"
 	composer.Prompt = "  "
 	composer.ShowLineNumbers = false

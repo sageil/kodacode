@@ -1056,15 +1056,19 @@ func TestRenderModelSurfaceWideComposerCursorStaysOnInputLine(t *testing.T) {
 	model.syncViewportLayout()
 
 	rendered, cursor := renderModelSurface(model)
-	if cursor == nil {
-		t.Fatal("cursor = nil, want composer cursor")
+	if cursor != nil {
+		t.Fatalf("cursor = %#v, want nil composer terminal cursor", cursor)
 	}
 	lines := strings.Split(ansi.Strip(rendered), "\n")
-	if cursor.Y < 0 || cursor.Y >= len(lines) {
-		t.Fatalf("cursor.Y = %d, want visible row within %d lines", cursor.Y, len(lines))
+	anchor := composerAnchorForSurface(model, model.projector.Snapshot(), resolveShellLayout(model, model.projector.Snapshot()))
+	if anchor == nil {
+		t.Fatal("composer anchor = nil, want popup/input anchor")
 	}
-	if !strings.HasPrefix(lines[cursor.Y], "  1111111111") {
-		t.Fatalf("cursor row = %q, want composer input line", lines[cursor.Y])
+	if anchor.Y < 0 || anchor.Y >= len(lines) {
+		t.Fatalf("anchor.Y = %d, want visible row within %d lines", anchor.Y, len(lines))
+	}
+	if !strings.HasPrefix(lines[anchor.Y], "  1111111111") {
+		t.Fatalf("anchor row = %q, want composer input line", lines[anchor.Y])
 	}
 }
 
@@ -1088,19 +1092,23 @@ func TestRenderModelSurfaceWideComposerCursorStaysOnInputLineWithFooterNotice(t 
 	model.syncViewportLayout()
 
 	rendered, cursor := renderModelSurface(model)
-	if cursor == nil {
-		t.Fatal("cursor = nil, want composer cursor")
+	if cursor != nil {
+		t.Fatalf("cursor = %#v, want nil composer terminal cursor", cursor)
 	}
 	lines := strings.Split(ansi.Strip(rendered), "\n")
-	if cursor.Y < 0 || cursor.Y >= len(lines) {
-		t.Fatalf("cursor.Y = %d, want visible row within %d lines", cursor.Y, len(lines))
+	anchor := composerAnchorForSurface(model, model.projector.Snapshot(), resolveShellLayout(model, model.projector.Snapshot()))
+	if anchor == nil {
+		t.Fatal("composer anchor = nil, want popup/input anchor")
 	}
-	if !strings.HasPrefix(lines[cursor.Y], "  cat auth.test.ts") {
-		t.Fatalf("cursor row = %q, want composer input line", lines[cursor.Y])
+	if anchor.Y < 0 || anchor.Y >= len(lines) {
+		t.Fatalf("anchor.Y = %d, want visible row within %d lines", anchor.Y, len(lines))
+	}
+	if !strings.HasPrefix(lines[anchor.Y], "  cat auth.test.ts") {
+		t.Fatalf("anchor row = %q, want composer input line", lines[anchor.Y])
 	}
 	for _, unwanted := range []string{"builder", "mode:auto", "The requested model is not supported."} {
-		if strings.Contains(lines[cursor.Y], unwanted) {
-			t.Fatalf("cursor row should not be footer content %q: %q", unwanted, lines[cursor.Y])
+		if strings.Contains(lines[anchor.Y], unwanted) {
+			t.Fatalf("anchor row should not be footer content %q: %q", unwanted, lines[anchor.Y])
 		}
 	}
 }

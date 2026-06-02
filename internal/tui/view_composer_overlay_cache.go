@@ -12,7 +12,8 @@ import (
 
 func renderComposerOverlaySurface(m Model, state events.SessionState, layout shellLayout, base *cellbuf.Buffer, baseRows []string) (string, *tea.Cursor) {
 	cursor := composerCursorForSurface(m, state, layout)
-	if cursor == nil {
+	anchor := composerAnchorForSurface(m, state, layout)
+	if anchor == nil {
 		return renderBaseSurfaceRows(base, baseRows), nil
 	}
 
@@ -22,18 +23,18 @@ func renderComposerOverlaySurface(m Model, state events.SessionState, layout she
 		return renderBaseSurfaceRows(base, baseRows), cursor
 	}
 
-	key := composerOverlayRenderCacheKey(base, popup, cursor)
+	key := composerOverlayRenderCacheKey(base, popup, anchor)
 	if m.renderCache.composerOverlay == nil {
-		return renderComposerOverlaySurfaceUncached(base, baseRows, popup, cursor)
+		return renderComposerOverlaySurfaceUncached(base, baseRows, popup, anchor, cursor)
 	}
 	return m.renderCache.composerOverlay.frameFor(key, func() (string, *tea.Cursor) {
-		return renderComposerOverlaySurfaceUncached(base, baseRows, popup, cursor)
+		return renderComposerOverlaySurfaceUncached(base, baseRows, popup, anchor, cursor)
 	})
 }
 
-func renderComposerOverlaySurfaceUncached(base *cellbuf.Buffer, baseRows []string, popup string, cursor *tea.Cursor) (string, *tea.Cursor) {
+func renderComposerOverlaySurfaceUncached(base *cellbuf.Buffer, baseRows []string, popup string, anchor *tea.Cursor, cursor *tea.Cursor) (string, *tea.Cursor) {
 	surface := newOverlaySurface(base, baseRows)
-	drawRenderedComposerPopupOnSurface(surface, popup, cursor)
+	drawRenderedComposerPopupOnSurface(surface, popup, anchor)
 	return renderDialogSurface(surface), cursor
 }
 
