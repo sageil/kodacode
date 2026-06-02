@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/sageil/kodacode/internal/events"
 	workflowpkg "github.com/sageil/kodacode/internal/workflow"
@@ -19,35 +20,25 @@ func (r *Runtime) startWorkflowReviewFanoutPhaseTurn(ctx context.Context, input 
 	phaseID := strings.TrimSpace(workflowPhase.Phase.ID)
 	workflowBudget := workflowTurnBudgetFromDefinition(workflowPhase.WorkflowID, workflowPhase.Definition)
 	workflowBudget.SessionID = input.SessionID
+	passes := workflowReviewFanoutMissingPasses(ctx, r, input.SessionID, phaseID, workflowPhase.Phase.ReviewPasses)
+	results, err := r.runWorkflowReviewFanoutPasses(ctx, input, workflowPhase, workflowBudget, passes)
+	if err != nil {
+		return RunSessionResult{}, err
+	}
+
 	lines := []string{"Workflow review fan-out:"}
-	for _, pass := range workflowPhase.Phase.ReviewPasses {
-		passID := strings.TrimSpace(pass.ID)
-		if passID == "" {
-			continue
-		}
-		if workflowHasReviewPassEvidence(ctx, r, input.SessionID, phaseID, passID) {
-			continue
-		}
-		result, err := r.DelegateSessionTurn(ctx, DelegateSessionTurnInput{
-			ParentSessionID:    input.SessionID,
-			ParentTurnID:       input.TurnID,
-			ParentAgentID:      reviewerAgentID,
-			ChildAgentID:       reviewerAgentID,
-			Task:               workflowReviewFanoutTask(workflowPhase.WorkflowID, pass),
-			ContextSummary:     workflowReviewFanoutContextSummary(ctx, r, input.SessionID, workflowPhase.WorkflowID, phaseID),
-			ModelRouteOverride: input.ModelRouteOverride,
-			WorkflowBudget:     workflowBudget,
-		})
-		if err != nil {
-			return RunSessionResult{}, err
-		}
-		if result.ChildTurn.Status != TurnRunStatusCompleted {
-			if err := appendTextToParentTurn(ctx, r.Sessions, input.SessionID, input.TurnID, "Workflow review fan-out is waiting on delegated reviewer pass `"+passID+"`."); err != nil {
-				return RunSessionResult{}, err
+	var pending *workflowReviewFanoutPassResult
+	for index := range results {
+		result := results[index]
+		passID := strings.TrimSpace(result.Pass.ID)
+		if result.Child.ChildTurn.Status != TurnRunStatusCompleted {
+			if pending == nil {
+				pending = &results[index]
 			}
-			return r.loadSessionTurnResult(ctx, input.SessionID, input.TurnID, RunTurnResult{Status: result.ChildTurn.Status, PendingRequestID: result.ChildTurn.PendingRequestID})
+			lines = append(lines, "- "+passID+": waiting")
+			continue
 		}
-		summary, err := r.recordWorkflowReviewFanoutEvidence(ctx, input.SessionID, input.TurnID, workflowPhase.WorkflowID, phaseID, passID, result.HandoffID)
+		summary, err := r.recordWorkflowReviewFanoutEvidence(ctx, input.SessionID, input.TurnID, workflowPhase.WorkflowID, phaseID, passID, result.Child.HandoffID)
 		if err != nil {
 			return RunSessionResult{}, err
 		}
@@ -55,6 +46,15 @@ func (r *Runtime) startWorkflowReviewFanoutPhaseTurn(ctx context.Context, input 
 	}
 	if len(lines) == 1 {
 		lines = append(lines, "- no new review passes needed")
+	}
+	if pending != nil {
+		if err := appendTextToParentTurn(ctx, r.Sessions, input.SessionID, input.TurnID, strings.Join(lines, "\n")); err != nil {
+			return RunSessionResult{}, err
+		}
+		return r.loadSessionTurnResult(ctx, input.SessionID, input.TurnID, RunTurnResult{
+			Status:           pending.Child.ChildTurn.Status,
+			PendingRequestID: pending.Child.ChildTurn.PendingRequestID,
+		})
 	}
 	if err := appendTextToParentTurn(ctx, r.Sessions, input.SessionID, input.TurnID, strings.Join(lines, "\n")); err != nil {
 		return RunSessionResult{}, err
@@ -90,6 +90,67 @@ func (r *Runtime) startWorkflowReviewFanoutPhaseTurn(ctx context.Context, input 
 		return RunSessionResult{}, err
 	}
 	return r.completeFinalWorkflowPhaseIfReached(ctx, input.SessionID, input.TurnID, definition, result)
+}
+
+type workflowReviewFanoutPassResult struct {
+	Index int
+	Pass  workflowpkg.ReviewPass
+	Child DelegateSessionTurnResult
+	Err   error
+}
+
+func workflowReviewFanoutMissingPasses(ctx context.Context, r *Runtime, sessionID, phaseID string, passes []workflowpkg.ReviewPass) []workflowpkg.ReviewPass {
+	missing := make([]workflowpkg.ReviewPass, 0, len(passes))
+	for _, pass := range passes {
+		passID := strings.TrimSpace(pass.ID)
+		if passID == "" {
+			continue
+		}
+		if workflowHasReviewPassEvidence(ctx, r, sessionID, phaseID, passID) {
+			continue
+		}
+		missing = append(missing, pass)
+	}
+	return missing
+}
+
+func (r *Runtime) runWorkflowReviewFanoutPasses(ctx context.Context, input runExistingTurnInput, workflowPhase workflowPhaseTurnContext, workflowBudget workflowTurnBudget, passes []workflowpkg.ReviewPass) ([]workflowReviewFanoutPassResult, error) {
+	results := make([]workflowReviewFanoutPassResult, len(passes))
+	if len(passes) == 0 {
+		return results, nil
+	}
+	contextSummary := workflowReviewFanoutContextSummary(ctx, r, input.SessionID, workflowPhase.WorkflowID, strings.TrimSpace(workflowPhase.Phase.ID))
+	var wg sync.WaitGroup
+	for index, pass := range passes {
+		index, pass := index, pass
+		results[index] = workflowReviewFanoutPassResult{
+			Index: index,
+			Pass:  pass,
+		}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			child, err := r.DelegateSessionTurn(ctx, DelegateSessionTurnInput{
+				ParentSessionID:    input.SessionID,
+				ParentTurnID:       input.TurnID,
+				ParentAgentID:      reviewerAgentID,
+				ChildAgentID:       reviewerAgentID,
+				Task:               workflowReviewFanoutTask(workflowPhase.WorkflowID, pass),
+				ContextSummary:     contextSummary,
+				ModelRouteOverride: input.ModelRouteOverride,
+				WorkflowBudget:     workflowBudget,
+			})
+			results[index].Child = child
+			results[index].Err = err
+		}()
+	}
+	wg.Wait()
+	for _, result := range results {
+		if result.Err != nil {
+			return nil, result.Err
+		}
+	}
+	return results, nil
 }
 
 func workflowReviewFanoutTask(workflowID string, pass workflowpkg.ReviewPass) string {

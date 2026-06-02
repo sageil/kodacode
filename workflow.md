@@ -44,9 +44,9 @@ contract is implemented and durable:
   evidence and call out requested fields that were not recorded.
 - Advisory workflow route recommendations are recorded per turn when no
   workflow is explicitly selected.
-- Review phases can declare review pass metadata, optionally fan out reviewer
-  child sessions with `review_fanout`, and final summaries aggregate multiple
-  recorded review outcomes.
+- Review phases can declare review pass metadata, fan out reviewer child
+  sessions in parallel with `review_fanout`, and final summaries aggregate
+  multiple recorded review outcomes.
 - Per-workflow `review_mode`.
 - Workflow and phase `model` routing with phase-level precedence.
 - Per-workflow budgets through `budgets.max_cost` and
@@ -55,8 +55,6 @@ contract is implemented and durable:
 
 Remaining work:
 
-- Parallel reviewer scheduling; current workflow fan-out runs bounded reviewer
-  child sessions sequentially.
 - Stronger revision evidence tying each retry to the exact failed check or
   review finding.
 - Broader verification command types when the `test` tool is too narrow.

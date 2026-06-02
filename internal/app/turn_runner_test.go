@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 
 	"github.com/sageil/kodacode/internal/engine"
@@ -109,6 +110,7 @@ func TestTurnRunnerExposesApplyPatchAsFunctionForModelsWithoutCustomToolSupport(
 }
 
 type fakeProvider struct {
+	mu            sync.Mutex
 	streams       []provider.Stream
 	requests      []provider.Request
 	countRequests []provider.Request
@@ -120,6 +122,8 @@ type fakeProvider struct {
 }
 
 func (f *fakeProvider) Stream(_ context.Context, req provider.Request) (provider.Stream, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.requests = append(f.requests, req)
 	if len(f.errs) > 0 {
 		err := f.errs[0]
@@ -140,6 +144,8 @@ func (f *fakeProvider) Stream(_ context.Context, req provider.Request) (provider
 }
 
 func (f *fakeProvider) CountTokens(_ context.Context, req provider.Request) (int, provider.TokenCountSource, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.countRequests = append(f.countRequests, req)
 	if len(f.countErrs) > 0 {
 		err := f.countErrs[0]

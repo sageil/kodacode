@@ -5,7 +5,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/sageil/kodacode/internal/events"
 	"github.com/sageil/kodacode/internal/provider"
@@ -532,6 +534,67 @@ func workflowHasFailureEvidence(workflow *events.WorkflowState, phaseID, transit
 	return false
 }
 
+type blockingFanoutProvider struct {
+	want int
+
+	mu              sync.Mutex
+	requests        []provider.Request
+	active          int
+	maxActive       int
+	release         chan struct{}
+	releaseSignaled bool
+}
+
+func newBlockingFanoutProvider(want int) *blockingFanoutProvider {
+	return &blockingFanoutProvider{
+		want:    want,
+		release: make(chan struct{}),
+	}
+}
+
+func (p *blockingFanoutProvider) Stream(ctx context.Context, req provider.Request) (provider.Stream, error) {
+	p.mu.Lock()
+	p.requests = append(p.requests, req)
+	p.active++
+	if p.active > p.maxActive {
+		p.maxActive = p.active
+	}
+	if len(p.requests) >= p.want && !p.releaseSignaled {
+		p.releaseSignaled = true
+		close(p.release)
+	}
+	release := p.release
+	p.mu.Unlock()
+
+	select {
+	case <-release:
+	case <-ctx.Done():
+		p.mu.Lock()
+		p.active--
+		p.mu.Unlock()
+		return nil, ctx.Err()
+	}
+
+	p.mu.Lock()
+	p.active--
+	p.mu.Unlock()
+	return provider.NewSliceStream([]provider.Event{
+		{Kind: provider.EventKindAssistantDelta, AssistantDelta: `{"findings":[],"overall_correctness":"correct","overall_summary":"Correct."}`},
+	}), nil
+}
+
+func (p *blockingFanoutProvider) requestCount() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return len(p.requests)
+}
+
+func (p *blockingFanoutProvider) maxConcurrent() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.maxActive
+}
+
 func TestRuntimeRunSessionTurnUsesPhaseModelBeforeWorkflowModel(t *testing.T) {
 	root := t.TempDir()
 	writeProjectWorkflow(t, root, "phase-modelled.yaml", `
@@ -631,6 +694,56 @@ phases:
 	turn := state.Turns[result.TurnID]
 	if turn == nil || turn.Config == nil || turn.Config.Model != "openai/gpt-5" || turn.Config.AgentID != reviewerAgentID {
 		t.Fatalf("review parent config = %#v, want phase model reviewer config", turn)
+	}
+}
+
+func TestRuntimeWorkflowReviewFanoutSchedulesReviewerPassesInParallel(t *testing.T) {
+	root := t.TempDir()
+	writeProjectWorkflow(t, root, "parallel-review.yaml", `
+id: parallel-review
+description: parallel reviewer fanout
+phases:
+  - id: review
+    agent: reviewer
+    review_fanout: true
+    review_passes:
+      - id: correctness
+        description: Behavioral correctness.
+      - id: tests
+        description: Test coverage.
+  - id: summarize
+    type: final
+`)
+	client := newBlockingFanoutProvider(2)
+	runtime := newRuntimeWithClient(t, client)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	result, err := runtime.RunSessionTurn(ctx, RunSessionInput{
+		WorkspaceRoot: root,
+		UserText:      "review the change",
+		AgentID:       "engineer",
+		WorkflowID:    "parallel-review",
+	})
+	if err != nil {
+		t.Fatalf("RunSessionTurn() error = %v", err)
+	}
+	if result.Status != TurnRunStatusCompleted {
+		t.Fatalf("status = %q, want completed", result.Status)
+	}
+	if got := client.requestCount(); got != 2 {
+		t.Fatalf("provider requests = %d, want 2", got)
+	}
+	if got := client.maxConcurrent(); got < 2 {
+		t.Fatalf("max concurrent provider requests = %d, want at least 2", got)
+	}
+	state, err := runtime.Sessions.Snapshot(context.Background(), result.SessionID)
+	if err != nil {
+		t.Fatalf("Snapshot() error = %v", err)
+	}
+	if !workflowHasReviewPassEvidence(ctx, runtime, result.SessionID, "review", "correctness") ||
+		!workflowHasReviewPassEvidence(ctx, runtime, result.SessionID, "review", "tests") {
+		t.Fatalf("workflow evidence = %#v, want both review pass outcomes", state.Workflow.Evidence)
 	}
 }
 
