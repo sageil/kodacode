@@ -100,6 +100,10 @@ type operationDoneMsg struct {
 	delegatedQuestionResult *app.AnswerDelegatedSessionQuestionResult
 }
 
+type workflowResumedMsg struct {
+	err error
+}
+
 type turnWritesRestoredMsg struct {
 	result app.RestoreSessionTurnWritesResult
 	err    error

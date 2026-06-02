@@ -70,6 +70,87 @@ func TestModelWorkflowCommandSelectsWorkflow(t *testing.T) {
 	}
 }
 
+func TestModelWorkflowCommandResumesBlockedWorkflow(t *testing.T) {
+	controller := &fakeController{}
+	state := blockedWorkflowSessionState("session-1")
+	model := NewModel(controller, ModelConfig{
+		Context:       context.Background(),
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: t.TempDir(),
+		InitialState:  &state,
+	})
+	model.composer.SetValue("/workflow resume")
+
+	next, cmd := model.submitComposer()
+	if cmd == nil {
+		t.Fatal("submitComposer cmd = nil, want resume workflow command")
+	}
+	updated := next.(Model)
+	if !updated.busy {
+		t.Fatal("busy = false, want resume command in flight")
+	}
+	msg, ok := cmd().(workflowResumedMsg)
+	if !ok {
+		t.Fatalf("cmd() msg = %#v, want workflowResumedMsg", msg)
+	}
+	if msg.err != nil {
+		t.Fatalf("workflowResumedMsg err = %v", msg.err)
+	}
+	if len(controller.resumeWorkflowCalls) != 1 {
+		t.Fatalf("resumeWorkflowCalls = %#v, want one", controller.resumeWorkflowCalls)
+	}
+	call := controller.resumeWorkflowCalls[0]
+	if call.SessionID != "session-1" || strings.TrimSpace(call.TurnID) == "" {
+		t.Fatalf("resume workflow call = %#v", call)
+	}
+}
+
+func TestModelWorkflowCommandRetryAliasesResume(t *testing.T) {
+	controller := &fakeController{}
+	state := blockedWorkflowSessionState("session-1")
+	model := NewModel(controller, ModelConfig{
+		Context:       context.Background(),
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: t.TempDir(),
+		InitialState:  &state,
+	})
+	model.composer.SetValue("/workflow retry")
+
+	_, cmd := model.submitComposer()
+	if cmd == nil {
+		t.Fatal("submitComposer cmd = nil, want resume workflow command")
+	}
+	_ = cmd()
+	if len(controller.resumeWorkflowCalls) != 1 {
+		t.Fatalf("resumeWorkflowCalls = %#v, want one", controller.resumeWorkflowCalls)
+	}
+}
+
+func TestModelWorkflowCommandResumeRequiresBlockedWorkflow(t *testing.T) {
+	controller := &fakeController{}
+	model := NewModel(controller, ModelConfig{
+		Context:       context.Background(),
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: t.TempDir(),
+	})
+	model.composer.SetValue("/workflow resume")
+
+	next, cmd := model.submitComposer()
+	if cmd != nil {
+		t.Fatalf("submitComposer cmd = %#v, want nil", cmd)
+	}
+	updated := next.(Model)
+	if updated.composerState.err != workflowResumeUnavailableMessage {
+		t.Fatalf("composer error = %q, want %q", updated.composerState.err, workflowResumeUnavailableMessage)
+	}
+	if len(controller.resumeWorkflowCalls) != 0 {
+		t.Fatalf("resumeWorkflowCalls = %#v, want none", controller.resumeWorkflowCalls)
+	}
+}
+
 func TestModelSubmitComposerPassesSelectedWorkflow(t *testing.T) {
 	controller := &fakeController{}
 	model := NewModel(controller, ModelConfig{
@@ -93,6 +174,25 @@ func TestModelSubmitComposerPassesSelectedWorkflow(t *testing.T) {
 	}
 	if controller.startCalls[0].WorkflowID != "delivery" {
 		t.Fatalf("WorkflowID = %q, want delivery", controller.startCalls[0].WorkflowID)
+	}
+}
+
+func blockedWorkflowSessionState(sessionID string) events.SessionState {
+	return events.SessionState{
+		SessionID: sessionID,
+		Workflow: &events.WorkflowState{
+			WorkflowID:     "delivery",
+			Status:         events.WorkflowStatusBlocked,
+			CurrentPhaseID: "verify",
+			Phases: map[string]*events.WorkflowPhaseState{
+				"verify": {
+					PhaseID:    "verify",
+					Status:     events.WorkflowPhaseStatusBlocked,
+					StopReason: "verification failed",
+				},
+			},
+			Evidence: map[string]*events.WorkflowEvidenceState{},
+		},
 	}
 }
 

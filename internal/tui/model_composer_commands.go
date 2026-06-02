@@ -7,6 +7,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/sageil/kodacode/internal/app"
+	"github.com/sageil/kodacode/internal/events"
 	"github.com/sageil/kodacode/internal/provider"
 )
 
@@ -30,7 +31,7 @@ var composerCommands = []composerCommand{
 	{ID: "sessions", Name: "/sessions", Description: "manage sessions"},
 	{ID: "init", Name: "/init", Description: "initialize workspace instruction files"},
 	{ID: "model", Name: "/model", Description: "switch model"},
-	{ID: "workflow", Name: "/workflow", Description: "select workflow", Usage: "/workflow [id]", Hidden: true},
+	{ID: "workflow", Name: "/workflow", Description: "select workflow", Usage: "/workflow [id|off|resume|retry]", Hidden: true},
 	{ID: "variant", Name: "/variant", Description: "set provider reasoning variant", Usage: "/variant [value]"},
 	{ID: "thinking", Name: "/thinking", Description: "toggle provider thinking output"},
 	{ID: "theme", Name: "/theme", Description: "switch theme"},
@@ -60,6 +61,8 @@ const initBlockedMessage = "Finish the active turn before initializing workspace
 const compressBlockedMessage = "Finish the active turn before compressing workspace instructions"
 const reviewBlockedMessage = "Finish the active turn before starting a review"
 const workflowBlockedMessage = "Finish the active turn before switching workflow"
+const workflowResumeBlockedMessage = "Finish the active turn before resuming workflow"
+const workflowResumeUnavailableMessage = "No blocked workflow to resume"
 const reasoningVariantUnavailableMessage = "/variant is unavailable for the current model and tool setup"
 const thinkingUnavailableMessage = "/thinking is unavailable for the current model and tool setup"
 
@@ -379,6 +382,10 @@ func (m *Model) runComposerCommand(invocation composerCommandInvocation) (tea.Mo
 }
 
 func (m *Model) runWorkflowCommand(argument string) (tea.Model, tea.Cmd) {
+	argument = strings.TrimSpace(argument)
+	if strings.EqualFold(argument, "resume") || strings.EqualFold(argument, "retry") {
+		return m.runWorkflowResumeCommand()
+	}
 	if m.busy || m.hasPendingInteraction() {
 		m.clearFooterError()
 		m.setComposerError(workflowBlockedMessage)
@@ -389,7 +396,6 @@ func (m *Model) runWorkflowCommand(argument string) (tea.Model, tea.Cmd) {
 		m.setComposerError(err.Error())
 		return *m, nil
 	}
-	argument = strings.TrimSpace(argument)
 	if argument == "" {
 		m.clearComposerError()
 		m.clearComposerDraft()
@@ -414,6 +420,30 @@ func (m *Model) runWorkflowCommand(argument string) (tea.Model, tea.Cmd) {
 	}
 	m.setComposerError(fmt.Sprintf("unknown workflow %q", argument))
 	return *m, nil
+}
+
+func (m *Model) runWorkflowResumeCommand() (tea.Model, tea.Cmd) {
+	if m.busy || m.hasPendingInteraction() {
+		m.clearFooterError()
+		m.setComposerError(workflowResumeBlockedMessage)
+		return *m, nil
+	}
+	if strings.TrimSpace(m.sessionID) == "" {
+		m.clearFooterError()
+		m.setComposerError(workflowResumeUnavailableMessage)
+		return *m, nil
+	}
+	state := m.projector.CurrentState()
+	if state.Workflow == nil || state.Workflow.Status != events.WorkflowStatusBlocked {
+		m.clearFooterError()
+		m.setComposerError(workflowResumeUnavailableMessage)
+		return *m, nil
+	}
+	m.clearComposerError()
+	m.clearFooterError()
+	m.clearComposerDraft()
+	m.busy = true
+	return *m, resumeWorkflowCmd(m.ctx, m.controller, m.sessionID, app.NewTurnID())
 }
 
 func intToString(value int) string {

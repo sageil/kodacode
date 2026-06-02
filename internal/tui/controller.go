@@ -18,6 +18,7 @@ type controller interface {
 	RestoreTurnWrites(ctx context.Context, sessionID, sourceTurnID string) (app.RestoreSessionTurnWritesResult, error)
 	CompactSessionHistory(ctx context.Context, sessionID, turnID string) (app.CompactSessionResult, error)
 	SetPermissionMode(ctx context.Context, sessionID string, mode app.PermissionMode) error
+	ResumeWorkflow(ctx context.Context, sessionID, turnID string) error
 	StartTurn(ctx context.Context, sessionID, turnID, userText string, attachments []app.AttachmentInput, agentID, workflowID string, thinkingEnabled bool, thinkingMode string, skillIDs []string) error
 	StartReview(ctx context.Context, sessionID, turnID, instructions string, thinkingEnabled bool, thinkingMode string, skillIDs []string) error
 	CancelTurn(ctx context.Context, sessionID, turnID string) error

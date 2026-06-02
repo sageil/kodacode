@@ -102,6 +102,13 @@ func (b *LocalBackend) SetPermissionMode(ctx context.Context, sessionID string, 
 	return b.runtime.SetSessionPermissionMode(ctx, sessionID, mode)
 }
 
+func (b *LocalBackend) ResumeWorkflow(ctx context.Context, sessionID, turnID string) error {
+	return b.runtime.ResumeWorkflow(ctx, app.ResumeWorkflowInput{
+		SessionID: sessionID,
+		TurnID:    turnID,
+	})
+}
+
 func (b *LocalBackend) StartTurn(ctx context.Context, sessionID, turnID, userText string, attachments []app.AttachmentInput, agentID, workflowID string, thinkingEnabled bool, thinkingMode string, skillIDs []string) error {
 	_, err := b.runtime.StartSessionTurn(ctx, app.StartSessionTurnInput{
 		SessionID:       sessionID,

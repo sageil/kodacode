@@ -31,6 +31,7 @@ type Backend interface {
 	ListSkills(ctx context.Context, workspaceRoot string) ([]app.AvailableSkill, error)
 	ListWorkspacePaths(ctx context.Context, workspaceRoot string) ([]app.WorkspacePath, error)
 	SetPermissionMode(ctx context.Context, sessionID string, mode app.PermissionMode) error
+	ResumeWorkflow(ctx context.Context, sessionID, turnID string) error
 	StartTurn(ctx context.Context, sessionID, turnID, userText string, attachments []app.AttachmentInput, agentID, workflowID string, thinkingEnabled bool, thinkingMode string, skillIDs []string) error
 	StartReview(ctx context.Context, sessionID, turnID, instructions string, thinkingEnabled bool, thinkingMode string, skillIDs []string) error
 	CancelTurn(ctx context.Context, sessionID, turnID string) error

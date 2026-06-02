@@ -47,6 +47,12 @@ func restoreTurnWritesCmd(ctx context.Context, controller controller, sessionID,
 	}
 }
 
+func resumeWorkflowCmd(ctx context.Context, controller controller, sessionID, turnID string) tea.Cmd {
+	return func() tea.Msg {
+		return workflowResumedMsg{err: controller.ResumeWorkflow(ctx, sessionID, turnID)}
+	}
+}
+
 func compactSessionHistoryCmd(ctx context.Context, controller controller, sessionID, turnID string) tea.Cmd {
 	return func() tea.Msg {
 		result, err := controller.CompactSessionHistory(ctx, sessionID, turnID)

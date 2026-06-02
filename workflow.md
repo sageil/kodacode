@@ -55,11 +55,13 @@ contract is implemented and durable:
   verification check or review finding that caused the retry.
 - Verification commands declare an execution tool, such as `test` or `bash`,
   so workflows can run typed checks beyond the test tool.
+- Blocked workflows can be resumed from the TUI with `/workflow resume` or
+  `/workflow retry`.
 - TUI workflow selection, footer status, and trace visibility.
 
 Remaining work:
 
-- Better user controls for retrying or resuming blocked workflows.
+- No workflow roadmap items are currently open.
 
 ## Research baseline
 

@@ -116,6 +116,8 @@ type fakeController struct {
 	toolMutationDetails         map[sessionToolCallRef]app.ToolMutationDetail
 	workspaceStatus             app.WorkspaceStatus
 	restoreTurnWritesResult     app.RestoreSessionTurnWritesResult
+	resumeWorkflowCalls         []resumeWorkflowCall
+	resumeWorkflowErr           error
 	branchSessionResult         app.BranchSessionFromTurnResult
 	compactSessionResult        app.CompactSessionResult
 	initInstructionsResult      app.InitializeWorkspaceInstructionsResult
@@ -174,6 +176,11 @@ type localShellCall struct {
 	SessionID string
 	TurnID    string
 	Command   string
+}
+
+type resumeWorkflowCall struct {
+	SessionID string
+	TurnID    string
 }
 
 type compactSessionCall struct {
@@ -480,6 +487,14 @@ func (f *fakeController) SetPermissionMode(_ context.Context, sessionID string, 
 		Mode:      mode,
 	})
 	return nil
+}
+
+func (f *fakeController) ResumeWorkflow(_ context.Context, sessionID, turnID string) error {
+	f.resumeWorkflowCalls = append(f.resumeWorkflowCalls, resumeWorkflowCall{
+		SessionID: sessionID,
+		TurnID:    turnID,
+	})
+	return f.resumeWorkflowErr
 }
 
 func (f *fakeController) StartTurn(_ context.Context, sessionID, turnID, userText string, attachments []app.AttachmentInput, agentID, workflowID string, thinkingEnabled bool, thinkingMode string, skillIDs []string) error {

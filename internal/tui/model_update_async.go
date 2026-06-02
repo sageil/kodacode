@@ -98,6 +98,9 @@ func (m Model) updateAsyncStateMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 	case operationDoneMsg:
 		next, cmd := m.handleOperationDoneMsg(typed)
 		return next, cmd, true
+	case workflowResumedMsg:
+		next, cmd := m.handleWorkflowResumedMsg(typed)
+		return next, cmd, true
 	case turnWritesRestoredMsg:
 		next, cmd := m.handleTurnWritesRestoredMsg(typed)
 		return next, cmd, true
@@ -157,6 +160,25 @@ func (m Model) handleOperationDoneMsg(msg operationDoneMsg) (Model, tea.Cmd) {
 		m.syncViewportLayout()
 	}
 	return m, m.syncComposerFocus()
+}
+
+func (m Model) handleWorkflowResumedMsg(msg workflowResumedMsg) (Model, tea.Cmd) {
+	m.busy = false
+	if msg.err != nil {
+		m.clearFooterError()
+		m.setComposerError(msg.err.Error())
+		m.chrome.focus = focusComposer
+		m.syncViewportLayout()
+		return m, m.syncComposerFocus()
+	}
+	m.clearComposerError()
+	m.clearFooterError()
+	m.chrome.focus = focusComposer
+	m.syncViewportLayout()
+	return m, tea.Batch(
+		m.syncComposerFocus(),
+		m.showFooterActivity("Workflow resumed", footerActivityToneInfo, ""),
+	)
 }
 
 func (m Model) handleTurnWritesRestoredMsg(msg turnWritesRestoredMsg) (Model, tea.Cmd) {
