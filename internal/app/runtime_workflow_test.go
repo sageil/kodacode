@@ -110,6 +110,74 @@ func TestRuntimeRunSessionTurnRecordsSelectedWorkflow(t *testing.T) {
 	}
 }
 
+func TestRuntimeRunSessionTurnRecordsAdvisoryWorkflowRoute(t *testing.T) {
+	client := &fakeProvider{
+		streams: []provider.Stream{provider.NewSliceStream([]provider.Event{
+			{Kind: provider.EventKindAssistantDelta, AssistantDelta: "done"},
+		})},
+	}
+	runtime := newRuntimeWithClient(t, client)
+
+	result, err := runtime.RunSessionTurn(context.Background(), RunSessionInput{
+		WorkspaceRoot: t.TempDir(),
+		UserText:      "debug the failing cache test",
+		AgentID:       "engineer",
+	})
+	if err != nil {
+		t.Fatalf("RunSessionTurn() error = %v", err)
+	}
+	state, err := runtime.Sessions.Snapshot(context.Background(), result.SessionID)
+	if err != nil {
+		t.Fatalf("Snapshot() error = %v", err)
+	}
+	turn := state.Turns[result.TurnID]
+	if turn == nil || turn.WorkflowRoute == nil {
+		t.Fatalf("turn route = %#v, want recommendation", turn)
+	}
+	if turn.WorkflowRoute.WorkflowID != "debug" || turn.WorkflowRoute.AgentID != "engineer" || turn.WorkflowRoute.Confidence != "high" {
+		t.Fatalf("route = %#v", turn.WorkflowRoute)
+	}
+	if turn.Config == nil || turn.Config.WorkflowID != "" {
+		t.Fatalf("turn config workflow = %#v, want advisory route without selected workflow", turn.Config)
+	}
+	if state.Workflow != nil {
+		t.Fatalf("workflow state = %#v, want no active workflow", state.Workflow)
+	}
+}
+
+func TestRuntimeRunSessionTurnDoesNotRecommendWhenWorkflowSelected(t *testing.T) {
+	client := &fakeProvider{
+		streams: []provider.Stream{provider.NewSliceStream([]provider.Event{
+			{Kind: provider.EventKindAssistantDelta, AssistantDelta: `{"plan":"debug","affected_files":["internal/app/runtime.go"],"risks":["regression"]}`},
+		})},
+	}
+	runtime := newRuntimeWithClient(t, client)
+
+	result, err := runtime.RunSessionTurn(context.Background(), RunSessionInput{
+		WorkspaceRoot: t.TempDir(),
+		UserText:      "debug the failing cache test",
+		AgentID:       "engineer",
+		WorkflowID:    "delivery",
+	})
+	if err != nil {
+		t.Fatalf("RunSessionTurn() error = %v", err)
+	}
+	state, err := runtime.Sessions.Snapshot(context.Background(), result.SessionID)
+	if err != nil {
+		t.Fatalf("Snapshot() error = %v", err)
+	}
+	turn := state.Turns[result.TurnID]
+	if turn == nil {
+		t.Fatal("turn missing")
+	}
+	if turn.WorkflowRoute != nil {
+		t.Fatalf("route = %#v, want no recommendation for explicit workflow", turn.WorkflowRoute)
+	}
+	if turn.Config == nil || turn.Config.WorkflowID != "delivery" {
+		t.Fatalf("turn config = %#v, want selected delivery workflow", turn.Config)
+	}
+}
+
 func TestRuntimeRunSessionTurnRejectsUnknownWorkflow(t *testing.T) {
 	client := &fakeProvider{}
 	runtime := newRuntimeWithClient(t, client)

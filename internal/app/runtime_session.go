@@ -133,6 +133,11 @@ func (r *Runtime) runExistingSessionTurn(ctx context.Context, input runExistingT
 	if workflowIDForTurn != "" {
 		effectiveWorkflowID = workflowIDForTurn
 	}
+	if effectiveWorkflowID == "" {
+		if err := r.appendWorkflowRouteRecommendation(ctx, input, view); err != nil {
+			return r.recordTurnFailure(ctx, input.SessionID, input.TurnID, input.UserText, nil, err)
+		}
+	}
 	effectiveAgentID := input.AgentID
 	if workflowPhase.Active {
 		effectiveAgentID = workflowPhaseAgentID(input.AgentID, workflowPhase.Phase)

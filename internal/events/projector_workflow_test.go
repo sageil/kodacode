@@ -2,6 +2,31 @@ package events
 
 import "testing"
 
+func TestProjectorTracksWorkflowRouteRecommendation(t *testing.T) {
+	projector := NewProjector("session-1")
+	if err := projector.Apply(testEvent(0, "session-1", "turn-1", WorkflowRouteRecommendedPayload{
+		WorkflowID:   "debug",
+		AgentID:      "engineer",
+		Confidence:   "high",
+		Reasons:      []string{"request describes a failure"},
+		Alternatives: []string{"delivery"},
+	})); err != nil {
+		t.Fatalf("Apply(workflow_route_recommended) error = %v", err)
+	}
+
+	state := projector.Snapshot()
+	turn := state.Turns["turn-1"]
+	if turn == nil || turn.WorkflowRoute == nil {
+		t.Fatalf("turn route = %#v", turn)
+	}
+	if turn.WorkflowRoute.WorkflowID != "debug" || turn.WorkflowRoute.AgentID != "engineer" || turn.WorkflowRoute.Confidence != "high" {
+		t.Fatalf("route = %#v", turn.WorkflowRoute)
+	}
+	if got, want := turn.WorkflowRoute.Reasons, []string{"request describes a failure"}; !sameStrings(got, want) {
+		t.Fatalf("reasons = %#v, want %#v", got, want)
+	}
+}
+
 func TestProjectorTracksWorkflowLifecycle(t *testing.T) {
 	projector := NewProjector("session-1")
 

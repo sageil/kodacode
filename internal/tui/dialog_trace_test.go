@@ -346,6 +346,36 @@ func TestTraceDialogWorkflowSectionUsesSelectedTurnWorkflowPhase(t *testing.T) {
 	}
 }
 
+func TestTraceDialogIncludesWorkflowRouteRecommendation(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	state := events.SessionState{
+		Turns: map[string]*events.TurnState{
+			"turn-1": {
+				TurnID: "turn-1",
+				WorkflowRoute: &events.WorkflowRouteRecommendationState{
+					WorkflowID:    "debug",
+					AgentID:       "engineer",
+					Confidence:    "high",
+					Reasons:       []string{"request describes a failure, bug, or reproduction task"},
+					Alternatives:  []string{"delivery", "review"},
+					RecordedAtSeq: 3,
+				},
+			},
+		},
+	}
+
+	rendered := traceDialogBody(&defaultTheme, state, "turn-1")
+	for _, want := range []string{
+		"Recommended workflow: debug | agent engineer | confidence high | seq 3",
+		"Reason: request describes a failure, bug, or reproduction task",
+		"Alternatives: delivery, review",
+	} {
+		if !strings.Contains(rendered, want) {
+			t.Fatalf("trace missing workflow route %q\nrendered:\n%s", want, rendered)
+		}
+	}
+}
+
 func TestTraceDialogRendersDurableCompactionFailureAfterReplay(t *testing.T) {
 	defaultTheme := theme.StaticDefault()
 	turn := &events.TurnState{

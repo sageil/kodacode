@@ -7,6 +7,20 @@ import (
 
 var ErrWorkflowStateMismatch = errors.New("workflow state mismatch")
 
+func (p *Projector) applyWorkflowRouteRecommended(sequence int64, turnID string, payload WorkflowRouteRecommendedPayload) error {
+	turn := p.ensureTurn(turnID)
+	turn.WorkflowRoute = &WorkflowRouteRecommendationState{
+		WorkflowID:    strings.TrimSpace(payload.WorkflowID),
+		AgentID:       strings.TrimSpace(payload.AgentID),
+		Confidence:    strings.TrimSpace(payload.Confidence),
+		Reasons:       trimmedWorkflowRouteValues(payload.Reasons),
+		Alternatives:  trimmedWorkflowRouteValues(payload.Alternatives),
+		RecordedAtSeq: sequence,
+	}
+	turn.LastUpdatedAtSeq = sequence
+	return nil
+}
+
 func (p *Projector) ensureWorkflowPhase(phaseID string, sequence int64) *WorkflowPhaseState {
 	if p.state.Workflow == nil {
 		return nil
@@ -27,6 +41,19 @@ func (p *Projector) ensureWorkflowPhase(phaseID string, sequence int64) *Workflo
 	p.state.Workflow.Phases[phaseID] = phase
 	p.state.Workflow.PhaseOrder = appendUniqueString(p.state.Workflow.PhaseOrder, phaseID)
 	return phase
+}
+
+func trimmedWorkflowRouteValues(values []string) []string {
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		if value = strings.TrimSpace(value); value != "" {
+			out = append(out, value)
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 func (p *Projector) applyWorkflowStarted(sequence int64, payload WorkflowStartedPayload) error {

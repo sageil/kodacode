@@ -2,6 +2,8 @@ package events
 
 func (p *Projector) applyWorkflowPayload(event Event) (bool, error) {
 	switch payload := event.Payload.(type) {
+	case WorkflowRouteRecommendedPayload:
+		return true, p.applyWorkflowRouteRecommended(event.Sequence, event.TurnID, payload)
 	case WorkflowStartedPayload:
 		return true, p.applyWorkflowStarted(event.Sequence, payload)
 	case WorkflowPhaseStartedPayload:

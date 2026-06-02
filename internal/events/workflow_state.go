@@ -57,6 +57,15 @@ type WorkflowEvidenceState struct {
 	RecordedAtSeq int64
 }
 
+type WorkflowRouteRecommendationState struct {
+	WorkflowID    string
+	AgentID       string
+	Confidence    string
+	Reasons       []string
+	Alternatives  []string
+	RecordedAtSeq int64
+}
+
 func cloneWorkflowState(state *WorkflowState) *WorkflowState {
 	if state == nil {
 		return nil
@@ -83,6 +92,20 @@ func cloneWorkflowState(state *WorkflowState) *WorkflowState {
 		out.Evidence[id] = cloneWorkflowEvidenceState(evidence)
 	}
 	return out
+}
+
+func cloneWorkflowRouteRecommendationState(state *WorkflowRouteRecommendationState) *WorkflowRouteRecommendationState {
+	if state == nil {
+		return nil
+	}
+	return &WorkflowRouteRecommendationState{
+		WorkflowID:    state.WorkflowID,
+		AgentID:       state.AgentID,
+		Confidence:    state.Confidence,
+		Reasons:       append([]string(nil), state.Reasons...),
+		Alternatives:  append([]string(nil), state.Alternatives...),
+		RecordedAtSeq: state.RecordedAtSeq,
+	}
 }
 
 func cloneWorkflowPhaseState(state *WorkflowPhaseState) *WorkflowPhaseState {

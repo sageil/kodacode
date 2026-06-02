@@ -264,6 +264,30 @@ func traceDialogWorkflowSection(th *theme.Theme, state events.SessionState, trac
 	if len(tracedTurn) > 0 {
 		turn = tracedTurn[0]
 	}
+	if turn != nil && turn.WorkflowRoute != nil {
+		lines := []string{dialogSectionStyle(th).Render("Workflow")}
+		route := turn.WorkflowRoute
+		summary := []string{"Recommended workflow: " + strings.TrimSpace(route.WorkflowID)}
+		if agentID := strings.TrimSpace(route.AgentID); agentID != "" {
+			summary = append(summary, "agent "+agentID)
+		}
+		if confidence := strings.TrimSpace(route.Confidence); confidence != "" {
+			summary = append(summary, "confidence "+confidence)
+		}
+		if route.RecordedAtSeq > 0 {
+			summary = append(summary, fmt.Sprintf("seq %d", route.RecordedAtSeq))
+		}
+		lines = append(lines, strings.Join(summary, " | "))
+		for _, reason := range route.Reasons {
+			if reason = strings.TrimSpace(reason); reason != "" {
+				lines = append(lines, "Reason: "+traceDialogPreview(reason, 180))
+			}
+		}
+		if len(route.Alternatives) > 0 {
+			lines = append(lines, "Alternatives: "+strings.Join(route.Alternatives, ", "))
+		}
+		return strings.Join(lines, "\n")
+	}
 	if turn != nil && turn.Config != nil && strings.TrimSpace(turn.Config.WorkflowID) != "" {
 		lines := []string{dialogSectionStyle(th).Render("Workflow")}
 		summary := []string{"Workflow: " + strings.TrimSpace(turn.Config.WorkflowID)}

@@ -6,6 +6,7 @@ import (
 )
 
 const (
+	TypeWorkflowRouteRecommended Type = "workflow_route_recommended"
 	TypeWorkflowStarted          Type = "workflow_started"
 	TypeWorkflowPhaseStarted     Type = "workflow_phase_started"
 	TypeWorkflowPhaseAdvanced    Type = "workflow_phase_advanced"
@@ -25,6 +26,29 @@ const (
 	WorkflowEvidenceTypeTaskReview         = "task_review"
 	WorkflowEvidenceTypeVerificationResult = "verification_result"
 )
+
+type WorkflowRouteRecommendedPayload struct {
+	WorkflowID   string   `json:"workflow_id"`
+	AgentID      string   `json:"agent_id"`
+	Confidence   string   `json:"confidence"`
+	Reasons      []string `json:"reasons"`
+	Alternatives []string `json:"alternatives"`
+}
+
+func (WorkflowRouteRecommendedPayload) eventType() Type { return TypeWorkflowRouteRecommended }
+
+func (p WorkflowRouteRecommendedPayload) validate() error {
+	if strings.TrimSpace(p.WorkflowID) == "" {
+		return errors.New("workflow_id is required")
+	}
+	if strings.TrimSpace(p.Confidence) == "" {
+		return errors.New("confidence is required")
+	}
+	if len(p.Reasons) == 0 {
+		return errors.New("reasons are required")
+	}
+	return nil
+}
 
 type WorkflowStartedPayload struct {
 	WorkflowID string `json:"workflow_id"`

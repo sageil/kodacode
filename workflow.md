@@ -41,6 +41,8 @@ contract is implemented and durable:
   workflow-level `max_revision_loops`.
 - Final phases synthesize a deterministic summary from recorded workflow
   evidence and call out requested fields that were not recorded.
+- Advisory workflow route recommendations are recorded per turn when no
+  workflow is explicitly selected.
 - Per-workflow `review_mode`.
 - TUI workflow selection, footer status, and trace visibility.
 
@@ -48,7 +50,6 @@ Remaining work:
 
 - Additional transition events beyond `skipped`, `verification_failed`, and
   `review_failed`.
-- First-class route recommendation before workflow selection.
 - Parallel review fan-out and aggregation.
 - Per-workflow budgets and model routing.
 - Stronger revision evidence tying each retry to the exact failed check or

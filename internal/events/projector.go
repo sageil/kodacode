@@ -93,6 +93,7 @@ type TurnState struct {
 	HistoryCompactionUI   *HistoryCompactionUIState
 	Continuation          *HistoryContinuationState
 	ContextUsage          *TurnContextUsageState
+	WorkflowRoute         *WorkflowRouteRecommendationState
 	Handoffs              map[string]*AgentHandoffState
 	HandoffOrder          []string
 	AssistantText         string

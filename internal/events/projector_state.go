@@ -262,6 +262,7 @@ func (t *TurnState) clone() *TurnState {
 		HistoryCompactionUI:   cloneHistoryCompactionUIState(t.HistoryCompactionUI),
 		Continuation:          cloneHistoryContinuationState(t.Continuation),
 		ContextUsage:          cloneTurnContextUsageState(t.ContextUsage),
+		WorkflowRoute:         cloneWorkflowRouteRecommendationState(t.WorkflowRoute),
 		Handoffs:              make(map[string]*AgentHandoffState, len(t.Handoffs)),
 		HandoffOrder:          append([]string(nil), t.HandoffOrder...),
 		AssistantText:         t.AssistantText,

@@ -52,6 +52,11 @@ If a workflow is active, the footer shows the workflow id, current phase, and
 blocked reason when one exists. `/trace` shows phase history and recorded
 evidence.
 
+When no workflow is selected, KodaCode may record an advisory workflow route
+recommendation for clear requests such as debugging, review, implementation, or
+read-only exploration. Route recommendations are visible in `/trace`; they do
+not start a workflow or override an explicit selection.
+
 ## Project-local workflow files
 
 Project-local workflow YAML files live under:
