@@ -12,6 +12,7 @@ KodaCode treats model selection as runtime configuration.
 - `model.primary`: the default `provider/model` selection for new turns
 - `utility_model`: a cheaper model for runtime utility text work such as title generation and utility compaction summaries
 - `workflow.review_model.primary`: an optional model for reviewer turns
+- workflow YAML `model`: an optional workflow or phase primary model override
 
 Example:
 
@@ -31,6 +32,22 @@ workflow:
   review_model:
     primary: openai/gpt-5-mini
 ```
+
+Workflow files can also declare model routing:
+
+```yaml
+id: team-delivery
+model: openai/gpt-5-mini
+phases:
+  - id: implement
+    agent: engineer
+    model: openai/gpt-5
+```
+
+Phase `model` wins over workflow `model`. When neither is declared, KodaCode
+uses the selected agent, session, and global config routing. For reviewer
+phases, a declared workflow or phase model wins over `workflow.review_model`;
+otherwise `workflow.review_model` remains the reviewer fallback.
 
 ## Provider shape
 

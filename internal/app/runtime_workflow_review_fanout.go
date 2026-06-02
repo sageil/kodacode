@@ -27,12 +27,13 @@ func (r *Runtime) startWorkflowReviewFanoutPhaseTurn(ctx context.Context, input 
 			continue
 		}
 		result, err := r.DelegateSessionTurn(ctx, DelegateSessionTurnInput{
-			ParentSessionID: input.SessionID,
-			ParentTurnID:    input.TurnID,
-			ParentAgentID:   reviewerAgentID,
-			ChildAgentID:    reviewerAgentID,
-			Task:            workflowReviewFanoutTask(workflowPhase.WorkflowID, pass),
-			ContextSummary:  workflowReviewFanoutContextSummary(ctx, r, input.SessionID, workflowPhase.WorkflowID, phaseID),
+			ParentSessionID:    input.SessionID,
+			ParentTurnID:       input.TurnID,
+			ParentAgentID:      reviewerAgentID,
+			ChildAgentID:       reviewerAgentID,
+			Task:               workflowReviewFanoutTask(workflowPhase.WorkflowID, pass),
+			ContextSummary:     workflowReviewFanoutContextSummary(ctx, r, input.SessionID, workflowPhase.WorkflowID, phaseID),
+			ModelRouteOverride: input.ModelRouteOverride,
 		})
 		if err != nil {
 			return RunSessionResult{}, err

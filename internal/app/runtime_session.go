@@ -142,6 +142,15 @@ func (r *Runtime) runExistingSessionTurn(ctx context.Context, input runExistingT
 	if workflowPhase.Active {
 		effectiveAgentID = workflowPhaseAgentID(input.AgentID, workflowPhase.Phase)
 	}
+	if workflowPhase.Active && !hasConfiguredModelRoute(input.ModelRouteOverride) {
+		route, ok, err := r.workflowModelRouteOverride(workflowPhase.Definition, workflowPhase.Phase)
+		if err != nil {
+			return r.recordTurnFailure(ctx, input.SessionID, input.TurnID, input.UserText, nil, err)
+		}
+		if ok {
+			input.ModelRouteOverride = route
+		}
+	}
 	if workflowPhase.Active && workflowPhaseIsUserApproval(workflowPhase.Phase) {
 		if err := r.appendWorkflowPhaseTurnConfigured(ctx, input, view, workflowPhase, effectiveAgentID, effectiveWorkflowID, effectiveSkillIDs, effectiveThinkingEnabled, effectiveThinkingMode, responseStyle); err != nil {
 			return r.recordTurnFailure(ctx, input.SessionID, input.TurnID, input.UserText, nil, err)

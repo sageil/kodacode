@@ -22,6 +22,9 @@ func TestLoadBytesParsesValidDeliveryWorkflow(t *testing.T) {
 	if definition.MaxRevisionLoops != 2 {
 		t.Fatalf("MaxRevisionLoops = %d, want 2", definition.MaxRevisionLoops)
 	}
+	if definition.Model != "openai/gpt-5-mini" {
+		t.Fatalf("Model = %q, want openai/gpt-5-mini", definition.Model)
+	}
 	if got := definition.PhaseIDs(); strings.Join(got, ",") != "approve,implement,plan,review,verify" {
 		t.Fatalf("PhaseIDs() = %#v", got)
 	}
@@ -30,6 +33,9 @@ func TestLoadBytesParsesValidDeliveryWorkflow(t *testing.T) {
 		t.Fatalf("approve skip_when = %#v, want max_affected_files 2", approve.SkipWhen)
 	}
 	implement := definition.Phases[2]
+	if implement.Model != "openai/gpt-5" {
+		t.Fatalf("implement model = %q, want openai/gpt-5", implement.Model)
+	}
 	if implement.Requires.Fields["approved_phase"] != "plan" {
 		t.Fatalf("implement requires = %#v, want approved_phase plan", implement.Requires.Fields)
 	}
@@ -121,6 +127,32 @@ phases:
 `), testValidationContext())
 	if !errors.Is(err, ErrWorkflowReviewModeInvalid) {
 		t.Fatalf("LoadBytes() error = %v, want ErrWorkflowReviewModeInvalid", err)
+	}
+}
+
+func TestDefinitionValidateRejectsInvalidWorkflowModel(t *testing.T) {
+	_, err := LoadBytes([]byte(`
+id: delivery
+model: gpt-5
+phases:
+  - id: plan
+    agent: planner
+`), testValidationContext())
+	if !errors.Is(err, ErrWorkflowModelInvalid) {
+		t.Fatalf("LoadBytes() error = %v, want ErrWorkflowModelInvalid", err)
+	}
+}
+
+func TestDefinitionValidateRejectsInvalidPhaseModel(t *testing.T) {
+	_, err := LoadBytes([]byte(`
+id: delivery
+phases:
+  - id: plan
+    agent: planner
+    model: gpt-5
+`), testValidationContext())
+	if !errors.Is(err, ErrWorkflowModelInvalid) {
+		t.Fatalf("LoadBytes() error = %v, want ErrWorkflowModelInvalid", err)
 	}
 }
 
@@ -333,6 +365,7 @@ func validDeliveryWorkflowYAML() string {
 	return `
 id: delivery
 description: Plan, implement, verify, and review a code change.
+model: openai/gpt-5-mini
 review_mode: auto
 max_revision_loops: 2
 
@@ -353,6 +386,7 @@ phases:
 
   - id: implement
     agent: engineer
+    model: openai/gpt-5
     tools:
       allow:
         - read

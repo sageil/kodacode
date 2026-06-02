@@ -133,7 +133,10 @@ workflow:
     primary: openai/gpt-5-mini
 ```
 
-This routes review passes separately while keeping the main model for implementation turns.
+This routes review passes separately while keeping the main model for
+implementation turns. Runtime workflow YAML can also declare `model:
+provider/model` at the workflow or phase level when a whole workflow, or one
+phase inside it, should use a different primary model.
 
 ## Durable workspace compression
 

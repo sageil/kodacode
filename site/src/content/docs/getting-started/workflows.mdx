@@ -78,9 +78,15 @@ project-local file can add a workflow or override a built-in workflow with the
 same `id`.
 
 Workflow YAML is declarative. It can narrow the phase agent, phase mode, tool
-surface, evidence requirements, verification commands, and final summary
+surface, model, evidence requirements, verification commands, and final summary
 includes. It cannot override sandbox policy, permission policy, workspace trust,
 network policy, provider credentials, or an agent's own forbidden tools.
+
+Set `model: provider/model` at the workflow level to route all provider-backed
+phases through a specific primary model. A phase-level `model` overrides the
+workflow model for that phase. If no workflow model is declared, normal agent,
+session, and global config routing applies; the global `workflow.review_model`
+still applies to reviewer turns unless the workflow or phase declares a model.
 
 When a phase declares `requires_output`, the phase response must include one
 JSON object with those keys. Missing or unparsable fields block advancement
@@ -112,6 +118,7 @@ Example code-delivery workflow:
 ```yaml
 id: team-delivery
 description: Plan, implement, verify, and review team code changes.
+model: openai/gpt-5-mini
 review_mode: auto
 max_revision_loops: 2
 phases:
@@ -129,6 +136,7 @@ phases:
       max_affected_files: 2
   - id: implement
     agent: engineer
+    model: openai/gpt-5
     requires:
       approved_phase: plan
     tools:

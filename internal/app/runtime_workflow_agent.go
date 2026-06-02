@@ -14,6 +14,7 @@ import (
 type workflowPhaseTurnContext struct {
 	Active     bool
 	WorkflowID string
+	Definition workflowpkg.Definition
 	Phase      workflowpkg.Phase
 }
 
@@ -58,6 +59,7 @@ func (r *Runtime) prepareWorkflowPhaseTurn(ctx context.Context, input runExistin
 	return view, workflowPhaseTurnContext{
 		Active:     true,
 		WorkflowID: workflow.WorkflowID,
+		Definition: definition,
 		Phase:      phase,
 	}, workflow.WorkflowID, nil
 }

@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/sageil/kodacode/internal/agent"
+	"github.com/sageil/kodacode/internal/provider"
 	"github.com/sageil/kodacode/internal/tool"
 	"gopkg.in/yaml.v3"
 )
@@ -30,6 +31,7 @@ var (
 	ErrWorkflowRevisionLoopsInvalid = errors.New("workflow max_revision_loops is invalid")
 	ErrWorkflowApprovalSkipInvalid  = errors.New("workflow approval skip_when is invalid")
 	ErrWorkflowTransitionInvalid    = errors.New("workflow transition is invalid")
+	ErrWorkflowModelInvalid         = errors.New("workflow model is invalid")
 )
 
 type PhaseType string
@@ -51,6 +53,7 @@ const (
 type Definition struct {
 	ID               string       `yaml:"id"`
 	Description      string       `yaml:"description"`
+	Model            string       `yaml:"model"`
 	ReviewMode       string       `yaml:"review_mode"`
 	MaxRevisionLoops int          `yaml:"max_revision_loops"`
 	Phases           []Phase      `yaml:"phases"`
@@ -62,6 +65,7 @@ type Phase struct {
 	Type           PhaseType            `yaml:"type"`
 	Agent          string               `yaml:"agent"`
 	Mode           PhaseMode            `yaml:"mode"`
+	Model          string               `yaml:"model"`
 	Prompt         string               `yaml:"prompt"`
 	Tools          ToolPolicy           `yaml:"tools"`
 	Requires       EvidenceRequirements `yaml:"requires"`
@@ -163,6 +167,9 @@ func (d Definition) Validate(ctx ValidationContext) error {
 	if err := validateReviewMode(d.ReviewMode); err != nil {
 		return err
 	}
+	if err := validateWorkflowModel(d.Model); err != nil {
+		return err
+	}
 	if d.MaxRevisionLoops < 0 {
 		return fmt.Errorf("%w: %d", ErrWorkflowRevisionLoopsInvalid, d.MaxRevisionLoops)
 	}
@@ -195,6 +202,17 @@ func validateReviewMode(mode string) error {
 	}
 }
 
+func validateWorkflowModel(value string) error {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil
+	}
+	if _, err := provider.ParseModelRef(value); err != nil {
+		return fmt.Errorf("%w: %v", ErrWorkflowModelInvalid, err)
+	}
+	return nil
+}
+
 func (p Phase) Validate(ctx ValidationContext) error {
 	id := strings.TrimSpace(p.ID)
 	if id == "" {
@@ -204,6 +222,9 @@ func (p Phase) Validate(ctx ValidationContext) error {
 		return err
 	}
 	if err := validatePhaseMode(p); err != nil {
+		return err
+	}
+	if err := validateWorkflowModel(p.Model); err != nil {
 		return err
 	}
 	if err := validatePhaseAgent(p, ctx); err != nil {

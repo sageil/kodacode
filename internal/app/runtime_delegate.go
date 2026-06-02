@@ -26,14 +26,15 @@ var (
 )
 
 type DelegateSessionTurnInput struct {
-	ParentSessionID  string
-	ParentTurnID     string
-	ParentToolCallID string
-	ParentAgentID    string
-	ChildAgentID     string
-	Task             string
-	ContextSummary   string
-	SourceHandoffIDs []string
+	ParentSessionID    string
+	ParentTurnID       string
+	ParentToolCallID   string
+	ParentAgentID      string
+	ChildAgentID       string
+	Task               string
+	ContextSummary     string
+	SourceHandoffIDs   []string
+	ModelRouteOverride provider.ModelRoute
 }
 
 type DelegateSessionTurnResult struct {
@@ -86,7 +87,12 @@ func (r *Runtime) DelegateSessionTurn(ctx context.Context, input DelegateSession
 		return DelegateSessionTurnResult{}, err
 	}
 	input.SourceHandoffIDs = sourceHandoffIDs
-	childModelRoute, err := r.resolveDelegatedChildModelRoute(parentState, input.ParentTurnID, childDefinition)
+	var childModelRoute provider.ModelRoute
+	if hasConfiguredModelRoute(input.ModelRouteOverride) {
+		childModelRoute, err = r.resolveConfiguredTurnModelRoute(input.ModelRouteOverride)
+	} else {
+		childModelRoute, err = r.resolveDelegatedChildModelRoute(parentState, input.ParentTurnID, childDefinition)
+	}
 	if err != nil {
 		return DelegateSessionTurnResult{}, err
 	}
@@ -239,6 +245,9 @@ func delegateRequestMatchesHandoff(input DelegateSessionTurnInput, explorationEn
 		return false
 	}
 	if !slices.Equal(compactHandoffIDs(input.SourceHandoffIDs), compactHandoffIDs(handoff.SourceHandoffIDs)) {
+		return false
+	}
+	if hasConfiguredModelRoute(input.ModelRouteOverride) && strings.TrimSpace(handoff.Model) != strings.TrimSpace(input.ModelRouteOverride.Primary.String()) {
 		return false
 	}
 	return true

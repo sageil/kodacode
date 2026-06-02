@@ -110,6 +110,153 @@ func TestRuntimeRunSessionTurnRecordsSelectedWorkflow(t *testing.T) {
 	}
 }
 
+func TestRuntimeRunSessionTurnUsesWorkflowModel(t *testing.T) {
+	root := t.TempDir()
+	writeProjectWorkflow(t, root, "modelled.yaml", `
+id: modelled
+description: workflow-level model route
+model: openai/gpt-5-mini
+phases:
+  - id: plan
+    agent: planner
+  - id: summarize
+    type: final
+`)
+	client := &fakeProvider{
+		streams: []provider.Stream{provider.NewSliceStream([]provider.Event{
+			{Kind: provider.EventKindAssistantDelta, AssistantDelta: "planned"},
+		})},
+	}
+	runtime := newRuntimeWithClient(t, client)
+	configureWorkflowModelTestCatalog(runtime)
+
+	result, err := runtime.RunSessionTurn(context.Background(), RunSessionInput{
+		WorkspaceRoot: root,
+		UserText:      "plan the change",
+		AgentID:       "engineer",
+		WorkflowID:    "modelled",
+	})
+	if err != nil {
+		t.Fatalf("RunSessionTurn() error = %v", err)
+	}
+	if len(client.requests) != 1 {
+		t.Fatalf("provider requests = %d, want 1", len(client.requests))
+	}
+	if got := client.requests[0].Model.String(); got != "openai/gpt-5-mini" {
+		t.Fatalf("provider model = %q, want workflow model", got)
+	}
+	state, err := runtime.Sessions.Snapshot(context.Background(), result.SessionID)
+	if err != nil {
+		t.Fatalf("Snapshot() error = %v", err)
+	}
+	turn := state.Turns[result.TurnID]
+	if turn == nil || turn.Config == nil || turn.Config.Model != "openai/gpt-5-mini" {
+		t.Fatalf("turn config = %#v, want workflow model", turn)
+	}
+}
+
+func TestRuntimeRunSessionTurnUsesPhaseModelBeforeWorkflowModel(t *testing.T) {
+	root := t.TempDir()
+	writeProjectWorkflow(t, root, "phase-modelled.yaml", `
+id: phase-modelled
+description: phase-level model route
+model: openai/gpt-5-mini
+phases:
+  - id: implement
+    agent: engineer
+    model: openai/gpt-5
+  - id: summarize
+    type: final
+`)
+	client := &fakeProvider{
+		streams: []provider.Stream{provider.NewSliceStream([]provider.Event{
+			{Kind: provider.EventKindAssistantDelta, AssistantDelta: "implemented"},
+		})},
+	}
+	runtime := newRuntimeWithClient(t, client)
+	configureWorkflowModelTestCatalog(runtime)
+
+	result, err := runtime.RunSessionTurn(context.Background(), RunSessionInput{
+		WorkspaceRoot: root,
+		UserText:      "implement the change",
+		AgentID:       "planner",
+		WorkflowID:    "phase-modelled",
+	})
+	if err != nil {
+		t.Fatalf("RunSessionTurn() error = %v", err)
+	}
+	if len(client.requests) != 1 {
+		t.Fatalf("provider requests = %d, want 1", len(client.requests))
+	}
+	if got := client.requests[0].Model.String(); got != "openai/gpt-5" {
+		t.Fatalf("provider model = %q, want phase model", got)
+	}
+	state, err := runtime.Sessions.Snapshot(context.Background(), result.SessionID)
+	if err != nil {
+		t.Fatalf("Snapshot() error = %v", err)
+	}
+	turn := state.Turns[result.TurnID]
+	if turn == nil || turn.Config == nil || turn.Config.Model != "openai/gpt-5" {
+		t.Fatalf("turn config = %#v, want phase model", turn)
+	}
+}
+
+func TestRuntimeWorkflowReviewFanoutUsesPhaseModelBeforeReviewModel(t *testing.T) {
+	root := t.TempDir()
+	writeProjectWorkflow(t, root, "review-modelled.yaml", `
+id: review-modelled
+description: phase-level reviewer model route
+model: openai/gpt-5-mini
+phases:
+  - id: review
+    agent: reviewer
+    model: openai/gpt-5
+    review_fanout: true
+    review_passes:
+      - id: correctness
+        description: Behavioral correctness.
+  - id: summarize
+    type: final
+`)
+	client := &fakeProvider{
+		streams: []provider.Stream{provider.NewSliceStream([]provider.Event{
+			{Kind: provider.EventKindAssistantDelta, AssistantDelta: `{"findings":[],"overall_correctness":"correct","overall_summary":"Correct."}`},
+		})},
+	}
+	runtime := newRuntimeWithClient(t, client)
+	configureWorkflowModelTestCatalog(runtime)
+	runtime.Config.Workflow.ReviewModelRoute = provider.ModelRoute{
+		Primary: provider.ModelRef{ProviderID: "openai", ModelID: "gpt-5-mini"},
+	}
+
+	result, err := runtime.RunSessionTurn(context.Background(), RunSessionInput{
+		WorkspaceRoot: root,
+		UserText:      "review the change",
+		AgentID:       "engineer",
+		WorkflowID:    "review-modelled",
+	})
+	if err != nil {
+		t.Fatalf("RunSessionTurn() error = %v", err)
+	}
+	if result.Status != TurnRunStatusCompleted {
+		t.Fatalf("status = %q, want completed", result.Status)
+	}
+	if len(client.requests) != 1 {
+		t.Fatalf("provider requests = %d, want one reviewer child", len(client.requests))
+	}
+	if got := client.requests[0].Model.String(); got != "openai/gpt-5" {
+		t.Fatalf("review child model = %q, want phase model", got)
+	}
+	state, err := runtime.Sessions.Snapshot(context.Background(), result.SessionID)
+	if err != nil {
+		t.Fatalf("Snapshot() error = %v", err)
+	}
+	turn := state.Turns[result.TurnID]
+	if turn == nil || turn.Config == nil || turn.Config.Model != "openai/gpt-5" || turn.Config.AgentID != reviewerAgentID {
+		t.Fatalf("review parent config = %#v, want phase model reviewer config", turn)
+	}
+}
+
 func TestRuntimeRunSessionTurnRecordsAdvisoryWorkflowRoute(t *testing.T) {
 	client := &fakeProvider{
 		streams: []provider.Stream{provider.NewSliceStream([]provider.Event{
@@ -143,6 +290,18 @@ func TestRuntimeRunSessionTurnRecordsAdvisoryWorkflowRoute(t *testing.T) {
 	if state.Workflow != nil {
 		t.Fatalf("workflow state = %#v, want no active workflow", state.Workflow)
 	}
+}
+
+func configureWorkflowModelTestCatalog(runtime *Runtime) {
+	runtime.ModelCatalog = &fakeModelCatalog{
+		modelsByID: map[string][]provider.CatalogModel{
+			"openai": {
+				{ID: "gpt-5", ContextSize: 128000, MaxInputTokens: 128000, MaxOutputTokens: 16384},
+				{ID: "gpt-5-mini", ContextSize: 128000, MaxInputTokens: 128000, MaxOutputTokens: 16384},
+			},
+		},
+	}
+	runtime.Runner.SetModelCatalog(runtime.ModelCatalog)
 }
 
 func TestRuntimeRunSessionTurnDoesNotRecommendWhenWorkflowSelected(t *testing.T) {

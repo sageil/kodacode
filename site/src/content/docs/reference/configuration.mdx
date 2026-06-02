@@ -696,7 +696,11 @@ workflow:
   only when all current tasks are already completed and at least one completed
   task still lacks a durable review outcome
 
-`review_model` is optional. When set, the review turn uses that designated model instead of the session primary without affecting agent turns.
+`review_model` is optional. When set, the review turn uses that designated
+model instead of the session primary without affecting agent turns. Runtime
+workflow YAML can also declare `model: provider/model` at the workflow or phase
+level; a phase model wins over a workflow model, and either wins over
+`review_model` for reviewer workflow phases.
 
 ## Execution settings
 
