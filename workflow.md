@@ -43,8 +43,9 @@ contract is implemented and durable:
   evidence and call out requested fields that were not recorded.
 - Advisory workflow route recommendations are recorded per turn when no
   workflow is explicitly selected.
-- Review phases can declare review pass metadata, and final summaries aggregate
-  multiple recorded review outcomes.
+- Review phases can declare review pass metadata, optionally fan out reviewer
+  child sessions with `review_fanout`, and final summaries aggregate multiple
+  recorded review outcomes.
 - Per-workflow `review_mode`.
 - TUI workflow selection, footer status, and trace visibility.
 
@@ -52,7 +53,8 @@ Remaining work:
 
 - Additional transition events beyond `skipped`, `verification_failed`, and
   `review_failed`.
-- Automatic reviewer child-session fan-out.
+- Parallel reviewer scheduling; current workflow fan-out runs bounded reviewer
+  child sessions sequentially.
 - Per-workflow budgets and model routing.
 - Stronger revision evidence tying each retry to the exact failed check or
   review finding.
@@ -414,6 +416,7 @@ phases:
   - id: review
     agent: reviewer
     mode: read_only
+    review_fanout: true
     review_passes:
       - id: correctness
         description: Behavioral regressions and implementation correctness.

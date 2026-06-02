@@ -46,6 +46,7 @@ phases:
   - id: review
     agent: reviewer
     mode: read_only
+    review_fanout: true
     review_passes:
       - id: correctness
         description: Behavioral regressions and implementation correctness.

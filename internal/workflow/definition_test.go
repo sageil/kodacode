@@ -37,6 +37,9 @@ func TestLoadBytesParsesValidDeliveryWorkflow(t *testing.T) {
 	if strings.Join(review.Requires.Items, ",") != "git_diff,verification_result" {
 		t.Fatalf("review requires = %#v", review.Requires.Items)
 	}
+	if !review.ReviewFanout {
+		t.Fatal("review_fanout = false, want true")
+	}
 	if len(review.ReviewPasses) != 2 || review.ReviewPasses[0].ID != "correctness" || review.ReviewPasses[1].ID != "tests" {
 		t.Fatalf("review passes = %#v", review.ReviewPasses)
 	}
@@ -156,6 +159,19 @@ phases:
     agent: planner
     review_passes:
       - id: correctness
+`), testValidationContext())
+	if !errors.Is(err, ErrWorkflowReviewPassInvalid) {
+		t.Fatalf("LoadBytes() error = %v, want ErrWorkflowReviewPassInvalid", err)
+	}
+}
+
+func TestDefinitionValidateRejectsReviewFanoutWithoutPasses(t *testing.T) {
+	_, err := LoadBytes([]byte(`
+id: delivery
+phases:
+  - id: review
+    agent: reviewer
+    review_fanout: true
 `), testValidationContext())
 	if !errors.Is(err, ErrWorkflowReviewPassInvalid) {
 		t.Fatalf("LoadBytes() error = %v, want ErrWorkflowReviewPassInvalid", err)
@@ -357,6 +373,7 @@ phases:
   - id: review
     agent: reviewer
     mode: read_only
+    review_fanout: true
     review_passes:
       - id: correctness
         description: Behavioral regressions and implementation correctness.

@@ -434,7 +434,11 @@ func TestRuntimeWorkflowFailedVerificationLoopsBackToImplementationWithinCap(t *
 func TestRuntimeWorkflowReviewerPhaseCannotEditFiles(t *testing.T) {
 	client := &fakeProvider{
 		streams: []provider.Stream{provider.NewSliceStream([]provider.Event{
-			{Kind: provider.EventKindAssistantDelta, AssistantDelta: "review"},
+			{Kind: provider.EventKindAssistantDelta, AssistantDelta: `{"findings":[],"overall_correctness":"correct","overall_summary":"Correctness pass clean."}`},
+		}), provider.NewSliceStream([]provider.Event{
+			{Kind: provider.EventKindAssistantDelta, AssistantDelta: `{"findings":[],"overall_correctness":"correct","overall_summary":"Tests pass clean."}`},
+		}), provider.NewSliceStream([]provider.Event{
+			{Kind: provider.EventKindAssistantDelta, AssistantDelta: `{"findings":[],"overall_correctness":"correct","overall_summary":"Contracts pass clean."}`},
 		})},
 	}
 	runtime := newRuntimeWithClient(t, client)
@@ -462,22 +466,19 @@ func TestRuntimeWorkflowReviewerPhaseCannotEditFiles(t *testing.T) {
 	if result.Status != TurnRunStatusCompleted {
 		t.Fatalf("status = %q", result.Status)
 	}
-	gotTools := requestToolNames(client.requests[0].Tools)
-	for _, blocked := range []string{"apply_patch", "bash", "task_workflow", "test", "write"} {
-		if containsString(gotTools, blocked) {
-			t.Fatalf("review phase tools = %#v, want %s removed", gotTools, blocked)
+	if len(client.requests) != 3 {
+		t.Fatalf("provider requests = %d, want one reviewer child per review pass", len(client.requests))
+	}
+	for _, request := range client.requests {
+		gotTools := requestToolNames(request.Tools)
+		for _, blocked := range []string{"apply_patch", "bash", "task_workflow", "test", "write"} {
+			if containsString(gotTools, blocked) {
+				t.Fatalf("review phase tools = %#v, want %s removed", gotTools, blocked)
+			}
 		}
-	}
-	if !containsString(gotTools, "task_review") {
-		t.Fatalf("review phase tools = %#v, want task_review preserved for durable review outcome", gotTools)
-	}
-	if !containsAll(client.requests[0].Instructions, []string{
-		"Review passes:",
-		"correctness: Behavioral regressions and implementation correctness.",
-		"tests: Verification coverage, edge cases, and missing checks.",
-		"contracts: API, config, permission, and compatibility contracts.",
-	}) {
-		t.Fatalf("review phase instructions missing review passes:\n%s", client.requests[0].Instructions)
+		if !strings.Contains(request.Inputs[len(request.Inputs)-1].Content, "structured review JSON object") {
+			t.Fatalf("review child input missing structured output contract:\n%#v", request.Inputs)
+		}
 	}
 	state, err := runtime.Sessions.Snapshot(context.Background(), sessionID)
 	if err != nil {
@@ -486,6 +487,16 @@ func TestRuntimeWorkflowReviewerPhaseCannotEditFiles(t *testing.T) {
 	turn := state.Turns["turn-review"]
 	if turn == nil || turn.Config == nil || turn.Config.AgentID != "reviewer" {
 		t.Fatalf("turn config = %#v, want reviewer phase agent", turn.Config)
+	}
+	passEvidence := 0
+	for _, evidenceID := range state.Workflow.EvidenceOrder {
+		evidence := state.Workflow.Evidence[evidenceID]
+		if evidence != nil && evidence.Type == events.WorkflowEvidenceTypeReviewOutcome && strings.TrimSpace(evidence.Fields["review_pass"]) != "" {
+			passEvidence++
+		}
+	}
+	if passEvidence != 3 {
+		t.Fatalf("workflow evidence = %#v, want 3 review_pass evidence records", state.Workflow.Evidence)
 	}
 }
 

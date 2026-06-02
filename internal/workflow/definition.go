@@ -71,6 +71,7 @@ type Phase struct {
 	Include        []string             `yaml:"include"`
 	SkipWhen       ApprovalSkipRules    `yaml:"skip_when"`
 	ReviewPasses   []ReviewPass         `yaml:"review_passes"`
+	ReviewFanout   bool                 `yaml:"review_fanout"`
 }
 
 type ToolPolicy struct {
@@ -291,11 +292,14 @@ func validatePhaseApprovalSkip(p Phase) error {
 }
 
 func validatePhaseReviewPasses(p Phase) error {
-	if len(p.ReviewPasses) == 0 {
+	if len(p.ReviewPasses) == 0 && !p.ReviewFanout {
 		return nil
 	}
 	if !phaseIsReviewLike(p) {
 		return fmt.Errorf("%w: review_passes are only supported on reviewer phases", ErrWorkflowReviewPassInvalid)
+	}
+	if p.ReviewFanout && len(p.ReviewPasses) == 0 {
+		return fmt.Errorf("%w: review_fanout requires review_passes", ErrWorkflowReviewPassInvalid)
 	}
 	seen := map[string]struct{}{}
 	for index, pass := range p.ReviewPasses {

@@ -12,6 +12,7 @@ phases:
     agent: reviewer
     mode: read_only
     prompt: Record concrete review findings or a durable pass/concern/fail outcome.
+    review_fanout: true
     review_passes:
       - id: correctness
         description: Behavioral regressions and implementation correctness.

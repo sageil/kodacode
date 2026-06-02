@@ -65,6 +65,7 @@ phases:
   - id: review
     agent: reviewer
     mode: read_only
+    review_fanout: true
     review_passes:
       - id: root-cause
         description: Whether the patch addresses the reproduced root cause.

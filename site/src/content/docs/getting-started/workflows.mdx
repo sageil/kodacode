@@ -104,6 +104,8 @@ being inferred.
 Reviewer phases can declare `review_passes`. The runtime includes those pass
 names and descriptions in the review phase prompt, and final summaries aggregate
 all recorded review outcomes instead of using only the latest review result.
+When `review_fanout: true` is set, the runtime runs one bounded reviewer child
+session for each declared pass and records each result as workflow evidence.
 
 Example code-delivery workflow:
 
@@ -145,6 +147,7 @@ phases:
   - id: review
     agent: reviewer
     mode: read_only
+    review_fanout: true
     review_passes:
       - id: correctness
         description: Behavioral regressions and implementation correctness.
@@ -207,6 +210,7 @@ phases:
   - id: review
     agent: reviewer
     mode: read_only
+    review_fanout: true
     review_passes:
       - id: root-cause
         description: Whether the patch addresses the reproduced root cause.
@@ -241,6 +245,7 @@ phases:
   - id: review
     agent: reviewer
     mode: read_only
+    review_fanout: true
     review_passes:
       - id: correctness
         description: Behavioral regressions and implementation correctness.
