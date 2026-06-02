@@ -53,11 +53,12 @@ contract is implemented and durable:
   `budgets.max_provider_requests_per_turn`.
 - Revision loops record `revision_trigger` evidence linked to the failed
   verification check or review finding that caused the retry.
+- Verification commands declare an execution tool, such as `test` or `bash`,
+  so workflows can run typed checks beyond the test tool.
 - TUI workflow selection, footer status, and trace visibility.
 
 Remaining work:
 
-- Broader verification command types when the `test` tool is too narrow.
 - Better user controls for retrying or resuming blocked workflows.
 
 ## Research baseline
@@ -409,7 +410,10 @@ phases:
   - id: verify
     type: verification
     commands:
-      - go test ./...
+      - tool: test
+        command: go test ./...
+      - tool: bash
+        command: go vet ./...
     required: true
 
   - id: review

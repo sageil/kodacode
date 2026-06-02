@@ -45,6 +45,10 @@ func TestLoadBytesParsesValidDeliveryWorkflow(t *testing.T) {
 	if implement.Requires.Fields["approved_phase"] != "plan" {
 		t.Fatalf("implement requires = %#v, want approved_phase plan", implement.Requires.Fields)
 	}
+	verify := definition.Phases[3]
+	if len(verify.Commands) != 1 || verify.Commands[0].Tool != "test" || verify.Commands[0].Command != "go test ./..." {
+		t.Fatalf("verify commands = %#v", verify.Commands)
+	}
 	review := definition.Phases[4]
 	if strings.Join(review.Requires.Items, ",") != "git_diff,verification_result" {
 		t.Fatalf("review requires = %#v", review.Requires.Items)
@@ -347,6 +351,41 @@ phases:
 	}
 }
 
+func TestDefinitionValidateRejectsMalformedVerificationCommand(t *testing.T) {
+	_, err := LoadBytes([]byte(`
+id: delivery
+phases:
+  - id: verify
+    type: verification
+    tools:
+      allow:
+        - test
+    commands:
+      - tool: test
+`), testValidationContext())
+	if !errors.Is(err, ErrWorkflowCommandInvalid) {
+		t.Fatalf("LoadBytes() error = %v, want ErrWorkflowCommandInvalid", err)
+	}
+}
+
+func TestDefinitionValidateRejectsVerificationCommandToolOutsidePhaseAllowlist(t *testing.T) {
+	_, err := LoadBytes([]byte(`
+id: delivery
+phases:
+  - id: verify
+    type: verification
+    tools:
+      allow:
+        - test
+    commands:
+      - tool: bash
+        command: go vet ./...
+`), testValidationContext())
+	if !errors.Is(err, ErrWorkflowCommandInvalid) {
+		t.Fatalf("LoadBytes() error = %v, want ErrWorkflowCommandInvalid", err)
+	}
+}
+
 func TestDefinitionValidateRejectsMalformedRequirements(t *testing.T) {
 	_, err := LoadBytes([]byte(`
 id: delivery
@@ -480,7 +519,8 @@ phases:
   - id: verify
     type: verification
     commands:
-      - go test ./...
+      - tool: test
+        command: go test ./...
     required: true
 
   - id: review

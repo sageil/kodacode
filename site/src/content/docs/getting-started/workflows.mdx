@@ -150,7 +150,8 @@ phases:
   - id: verify
     type: verification
     commands:
-      - go test ./...
+      - tool: test
+        command: go test ./...
     required: true
   - id: review
     agent: reviewer
@@ -213,7 +214,8 @@ phases:
   - id: verify
     type: verification
     commands:
-      - go test ./...
+      - tool: test
+        command: go test ./...
     required: true
   - id: review
     agent: reviewer

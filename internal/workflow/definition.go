@@ -33,6 +33,7 @@ var (
 	ErrWorkflowTransitionInvalid    = errors.New("workflow transition is invalid")
 	ErrWorkflowModelInvalid         = errors.New("workflow model is invalid")
 	ErrWorkflowBudgetInvalid        = errors.New("workflow budgets are invalid")
+	ErrWorkflowCommandInvalid       = errors.New("workflow command is invalid")
 )
 
 type PhaseType string
@@ -63,21 +64,21 @@ type Definition struct {
 }
 
 type Phase struct {
-	ID             string               `yaml:"id"`
-	Type           PhaseType            `yaml:"type"`
-	Agent          string               `yaml:"agent"`
-	Mode           PhaseMode            `yaml:"mode"`
-	Model          string               `yaml:"model"`
-	Prompt         string               `yaml:"prompt"`
-	Tools          ToolPolicy           `yaml:"tools"`
-	Requires       EvidenceRequirements `yaml:"requires"`
-	RequiresOutput []string             `yaml:"requires_output"`
-	Commands       []string             `yaml:"commands"`
-	Required       bool                 `yaml:"required"`
-	Include        []string             `yaml:"include"`
-	SkipWhen       ApprovalSkipRules    `yaml:"skip_when"`
-	ReviewPasses   []ReviewPass         `yaml:"review_passes"`
-	ReviewFanout   bool                 `yaml:"review_fanout"`
+	ID             string                `yaml:"id"`
+	Type           PhaseType             `yaml:"type"`
+	Agent          string                `yaml:"agent"`
+	Mode           PhaseMode             `yaml:"mode"`
+	Model          string                `yaml:"model"`
+	Prompt         string                `yaml:"prompt"`
+	Tools          ToolPolicy            `yaml:"tools"`
+	Requires       EvidenceRequirements  `yaml:"requires"`
+	RequiresOutput []string              `yaml:"requires_output"`
+	Commands       []VerificationCommand `yaml:"commands"`
+	Required       bool                  `yaml:"required"`
+	Include        []string              `yaml:"include"`
+	SkipWhen       ApprovalSkipRules     `yaml:"skip_when"`
+	ReviewPasses   []ReviewPass          `yaml:"review_passes"`
+	ReviewFanout   bool                  `yaml:"review_fanout"`
 }
 
 type ToolPolicy struct {
@@ -97,6 +98,11 @@ type ApprovalSkipRules struct {
 type ReviewPass struct {
 	ID          string `yaml:"id"`
 	Description string `yaml:"description"`
+}
+
+type VerificationCommand struct {
+	Tool    string `yaml:"tool"`
+	Command string `yaml:"command"`
 }
 
 type Transition struct {
@@ -258,6 +264,9 @@ func (p Phase) Validate(ctx ValidationContext) error {
 	if err := validatePhaseTools(p, ctx); err != nil {
 		return err
 	}
+	if err := validatePhaseCommands(p, ctx); err != nil {
+		return err
+	}
 	if err := validatePhaseApprovalSkip(p); err != nil {
 		return err
 	}
@@ -325,6 +334,50 @@ func validatePhaseTools(p Phase, ctx ValidationContext) error {
 		}
 	}
 	return nil
+}
+
+func validatePhaseCommands(p Phase, ctx ValidationContext) error {
+	if len(p.Commands) == 0 {
+		return nil
+	}
+	if p.EffectiveType() != PhaseTypeVerification && !p.Required {
+		return fmt.Errorf("%w: commands are only supported on verification phases", ErrWorkflowCommandInvalid)
+	}
+	agentDefinition, hasAgent := ctx.Agents[strings.TrimSpace(p.Agent)]
+	for index, command := range p.Commands {
+		toolName := strings.TrimSpace(command.Tool)
+		if toolName == "" {
+			return fmt.Errorf("%w: commands[%d].tool is required", ErrWorkflowCommandInvalid, index)
+		}
+		switch toolName {
+		case tool.TestToolName, tool.BashToolName:
+		default:
+			return fmt.Errorf("%w: commands[%d].tool %s is not supported for verification", ErrWorkflowCommandInvalid, index, toolName)
+		}
+		if _, ok := ctx.Tools[toolName]; !ok {
+			return fmt.Errorf("%w: %s", ErrWorkflowToolUnknown, toolName)
+		}
+		if hasAgent && !agentDefinition.AllowsTool(toolName) {
+			return fmt.Errorf("%w: commands[%d].tool %s is forbidden by agent policy", ErrWorkflowCommandInvalid, index, toolName)
+		}
+		if p.Tools.Allow != nil && !stringListContains(p.Tools.Allow, toolName) {
+			return fmt.Errorf("%w: commands[%d].tool %s is not allowed by phase tools", ErrWorkflowCommandInvalid, index, toolName)
+		}
+		if strings.TrimSpace(command.Command) == "" {
+			return fmt.Errorf("%w: commands[%d].command is required", ErrWorkflowCommandInvalid, index)
+		}
+	}
+	return nil
+}
+
+func stringListContains(values []string, needle string) bool {
+	needle = strings.TrimSpace(needle)
+	for _, value := range values {
+		if strings.TrimSpace(value) == needle {
+			return true
+		}
+	}
+	return false
 }
 
 func validatePhaseApprovalSkip(p Phase) error {

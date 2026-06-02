@@ -113,7 +113,7 @@ func (r *Runtime) startWorkflowVerificationPhaseTurn(ctx context.Context, input 
 	if r.Tools == nil {
 		return RunSessionResult{}, errors.New("workflow verification requires tool executor")
 	}
-	commands := trimmedWorkflowValues(workflowPhase.Phase.Commands)
+	commands := workflowVerificationCommandSpecs(workflowPhase.Phase.Commands)
 	if len(commands) == 0 {
 		return RunSessionResult{}, workflowpkg.ErrWorkflowPhaseRequired
 	}
@@ -130,9 +130,9 @@ func (r *Runtime) startWorkflowVerificationPhaseTurn(ctx context.Context, input 
 			SessionID:    input.SessionID,
 			TurnID:       input.TurnID,
 			ToolCallID:   callID,
-			ToolName:     tool.TestToolName,
+			ToolName:     command.ToolName,
 			Arguments:    args,
-			AllowedTools: []string{tool.TestToolName},
+			AllowedTools: []string{command.ToolName},
 		})
 		if err != nil {
 			return RunSessionResult{}, err
@@ -144,15 +144,15 @@ func (r *Runtime) startWorkflowVerificationPhaseTurn(ctx context.Context, input 
 			})
 		}
 		successful := strings.TrimSpace(result.Error) == ""
-		if err := r.recordWorkflowVerificationToolEvidenceIfMissing(ctx, input.SessionID, input.TurnID, workflowPhase.Phase.ID, callID, command, successful, workflowVerificationToolResultSummary(result)); err != nil {
+		if err := r.recordWorkflowVerificationToolEvidenceIfMissing(ctx, input.SessionID, input.TurnID, workflowPhase.Phase.ID, callID, command.ToolName, command.Command, successful, workflowVerificationToolResultSummary(result)); err != nil {
 			return RunSessionResult{}, err
 		}
 		if successful {
-			lines = append(lines, "- passed: "+command)
+			lines = append(lines, "- passed: "+command.Display)
 			continue
 		}
 		allSuccessful = false
-		lines = append(lines, "- failed: "+command)
+		lines = append(lines, "- failed: "+command.Display)
 		break
 	}
 
@@ -191,19 +191,71 @@ func (r *Runtime) startWorkflowVerificationPhaseTurn(ctx context.Context, input 
 	return r.completeFinalWorkflowPhaseIfReached(ctx, input.SessionID, input.TurnID, definition, result)
 }
 
-func workflowVerificationToolArgs(command string) (json.RawMessage, error) {
-	encoded, err := json.Marshal(struct {
-		Command string `json:"command"`
-	}{
-		Command: strings.TrimSpace(command),
-	})
+type workflowVerificationCommandSpec struct {
+	ToolName string
+	Command  string
+	Display  string
+}
+
+func workflowVerificationCommandSpecs(values []workflowpkg.VerificationCommand) []workflowVerificationCommandSpec {
+	out := make([]workflowVerificationCommandSpec, 0, len(values))
+	for _, value := range values {
+		spec := workflowVerificationCommandSpecFromDefinition(value)
+		if spec.Command == "" {
+			continue
+		}
+		out = append(out, spec)
+	}
+	return out
+}
+
+func workflowVerificationCommandSpecFromDefinition(value workflowpkg.VerificationCommand) workflowVerificationCommandSpec {
+	toolName := strings.TrimSpace(value.Tool)
+	command := strings.TrimSpace(value.Command)
+	display := command
+	if toolName != tool.TestToolName {
+		display = toolName + ": " + command
+	}
+	return workflowVerificationCommandSpec{
+		ToolName: toolName,
+		Command:  command,
+		Display:  display,
+	}
+}
+
+func workflowVerificationCommandDisplays(values []workflowpkg.VerificationCommand) []string {
+	specs := workflowVerificationCommandSpecs(values)
+	out := make([]string, 0, len(specs))
+	for _, spec := range specs {
+		out = append(out, spec.Display)
+	}
+	return out
+}
+
+func workflowVerificationToolArgs(command workflowVerificationCommandSpec) (json.RawMessage, error) {
+	var payload any
+	switch command.ToolName {
+	case tool.BashToolName:
+		payload = struct {
+			Command string `json:"cmd"`
+		}{
+			Command: strings.TrimSpace(command.Command),
+		}
+	default:
+		payload = struct {
+			Command string `json:"command"`
+		}{
+			Command: strings.TrimSpace(command.Command),
+		}
+	}
+	encoded, err := json.Marshal(payload)
 	if err != nil {
 		return nil, err
 	}
 	return json.RawMessage(encoded), nil
 }
 
-func (r *Runtime) recordWorkflowVerificationToolEvidenceIfMissing(ctx context.Context, sessionID, turnID, phaseID, toolCallID, command string, successful bool, summary string) error {
+func (r *Runtime) recordWorkflowVerificationToolEvidenceIfMissing(ctx context.Context, sessionID, turnID, phaseID, toolCallID, toolName, command string, successful bool, summary string) error {
 	state, err := r.Sessions.Snapshot(ctx, sessionID)
 	if err != nil {
 		return err
@@ -220,6 +272,9 @@ func (r *Runtime) recordWorkflowVerificationToolEvidenceIfMissing(ctx context.Co
 		Command:    command,
 		Successful: &successful,
 		Summary:    summary,
+		Fields: map[string]string{
+			"verification_tool": toolName,
+		},
 	})
 }
 

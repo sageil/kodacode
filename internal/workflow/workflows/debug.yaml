@@ -59,7 +59,8 @@ phases:
         - test
         - bash
     commands:
-      - go test ./...
+      - tool: test
+        command: go test ./...
     required: true
 
   - id: review

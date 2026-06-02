@@ -41,7 +41,7 @@ type ToolExecutor struct {
 	logger                       *observability.Logger
 }
 
-type workflowPhaseCommandResolver func(ctx context.Context, workspaceRoot, workflowID, phaseID string) ([]string, error)
+type workflowPhaseCommandResolver func(ctx context.Context, workspaceRoot, workflowID, phaseID string) ([]workflowVerificationCommandSpec, error)
 
 func NewToolExecutor(sessions *SessionService, tools ...tool.Tool) (*ToolExecutor, error) {
 	return NewToolExecutorWithConfig(sessions, defaultExecutionConfig(), tools...)

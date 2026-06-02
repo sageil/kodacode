@@ -391,6 +391,58 @@ func TestRuntimeWorkflowVerificationPhaseRunsDeclaredCommandWithoutProvider(t *t
 	}
 }
 
+func TestRuntimeWorkflowVerificationPhaseRunsBashCommandWithoutProvider(t *testing.T) {
+	useExecutionRunnerHooks(t, func(_ context.Context, contract executionContract, _ executionRunOptions) (executionRunResult, error) {
+		commandLine := strings.Join(contract.Command, " ")
+		if !strings.Contains(commandLine, "printf 'workflow verification") {
+			t.Fatalf("command = %#v, want bash verification command", contract.Command)
+		}
+		return executionRunResult{
+			Output: []byte("workflow verification\n"),
+		}, nil
+	})
+
+	client := &fakeProvider{}
+	runtime := newRuntimeWithClient(t, client)
+	root := t.TempDir()
+	writeProjectWorkflow(t, root, "delivery.yaml", bashVerificationWorkflowYAML())
+	sessionID := createWorkflowTestSession(t, runtime, root)
+	startDeliveryAtVerify(t, runtime, sessionID, root)
+
+	result, err := runtime.runExistingSessionTurn(context.Background(), runExistingTurnInput{
+		SessionID: sessionID,
+		TurnID:    "turn-verify",
+		UserText:  "verify now",
+		AgentID:   "engineer",
+	})
+	if err != nil {
+		t.Fatalf("runExistingSessionTurn() error = %v", err)
+	}
+	if result.Status != TurnRunStatusCompleted {
+		t.Fatalf("status = %q", result.Status)
+	}
+	if len(client.requests) != 0 {
+		t.Fatalf("provider requests = %d, want none for deterministic verification", len(client.requests))
+	}
+	state, err := runtime.Sessions.Snapshot(context.Background(), sessionID)
+	if err != nil {
+		t.Fatalf("Snapshot() error = %v", err)
+	}
+	if state.Workflow == nil || state.Workflow.CurrentPhaseID != "review" {
+		t.Fatalf("workflow = %#v, want advanced to review", state.Workflow)
+	}
+	evidence := workflowVerificationEvidence(state.Workflow, "verify")
+	if evidence == nil || evidence.Command != "printf 'workflow verification\\n'" {
+		t.Fatalf("verification evidence = %#v", evidence)
+	}
+	if evidence.Fields["verification_tool"] != "bash" {
+		t.Fatalf("verification evidence fields = %#v, want bash tool", evidence.Fields)
+	}
+	if !strings.Contains(result.AssistantText, "passed: bash: printf 'workflow verification") {
+		t.Fatalf("assistant text = %q, want bash verification summary", result.AssistantText)
+	}
+}
+
 func TestRuntimeWorkflowFailedVerificationLoopsBackToImplementationWithinCap(t *testing.T) {
 	client := &fakeProvider{}
 	runtime := newRuntimeWithClient(t, client)
@@ -635,4 +687,70 @@ func writeProjectWorkflow(t *testing.T, root, name, content string) {
 	if err := os.WriteFile(filepath.Join(workflowDir, name), []byte(content), 0o644); err != nil {
 		t.Fatalf("WriteFile(%s) error = %v", name, err)
 	}
+}
+
+func workflowVerificationEvidence(workflow *events.WorkflowState, phaseID string) *events.WorkflowEvidenceState {
+	if workflow == nil {
+		return nil
+	}
+	for _, evidenceID := range workflow.EvidenceOrder {
+		evidence := workflow.Evidence[evidenceID]
+		if evidence == nil || evidence.Type != events.WorkflowEvidenceTypeVerificationResult {
+			continue
+		}
+		if strings.TrimSpace(evidence.PhaseID) == strings.TrimSpace(phaseID) {
+			return evidence
+		}
+	}
+	return nil
+}
+
+func bashVerificationWorkflowYAML() string {
+	return `
+id: delivery
+description: Test workflow with bash verification.
+phases:
+  - id: plan
+    agent: planner
+    mode: read_only
+    requires_output:
+      - plan
+      - affected_files
+      - risks
+
+  - id: approve
+    type: user_approval
+    skip_when:
+      max_affected_files: 2
+
+  - id: implement
+    agent: engineer
+    tools:
+      allow:
+        - read
+        - search
+        - apply_patch
+        - bash
+        - git_diff
+        - task_workflow
+    requires:
+      approved_phase: plan
+
+  - id: verify
+    type: verification
+    agent: engineer
+    tools:
+      allow:
+        - bash
+    commands:
+      - tool: bash
+        command: printf 'workflow verification\n'
+    required: true
+
+  - id: review
+    agent: reviewer
+    mode: read_only
+    requires:
+      - verification_result
+`
 }

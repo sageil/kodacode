@@ -257,7 +257,7 @@ func (e *ToolExecutor) appendWorkflowVerificationEvidenceFromToolExecEnd(ctx con
 	if err != nil {
 		return err
 	}
-	if len(commands) == 0 || !containsTrimmed(commands, command) {
+	if len(commands) == 0 || !workflowVerificationCommandMatches(commands, payload.ToolName, command) {
 		return nil
 	}
 	phase := workflow.Phases[workflow.CurrentPhaseID]
@@ -286,6 +286,9 @@ func (e *ToolExecutor) appendWorkflowVerificationEvidenceFromToolExecEnd(ctx con
 			ExitCode:    cloneInt(payload.ExitCode),
 			Successful:  &successful,
 			Summary:     summary,
+			Fields: map[string]string{
+				"verification_tool": strings.TrimSpace(payload.ToolName),
+			},
 		},
 	}); err != nil {
 		return err
@@ -349,24 +352,11 @@ func (e *ToolExecutor) appendWorkflowGitDiffEvidenceFromToolExecEnd(ctx context.
 	return err
 }
 
-func (e *ToolExecutor) workflowPhaseCommands(ctx context.Context, state events.SessionState, workflowID, phaseID string) ([]string, error) {
+func (e *ToolExecutor) workflowPhaseCommands(ctx context.Context, state events.SessionState, workflowID, phaseID string) ([]workflowVerificationCommandSpec, error) {
 	if e == nil || e.workflowPhaseCommandResolver == nil {
 		return nil, nil
 	}
 	return e.workflowPhaseCommandResolver(ctx, state.WorkspaceRoot, workflowID, phaseID)
-}
-
-func containsTrimmed(values []string, needle string) bool {
-	needle = strings.TrimSpace(needle)
-	if needle == "" {
-		return false
-	}
-	for _, value := range values {
-		if strings.TrimSpace(value) == needle {
-			return true
-		}
-	}
-	return false
 }
 
 func workflowVerificationCommand(state events.SessionState, callID string) string {
@@ -383,6 +373,33 @@ func workflowVerificationCommand(state events.SessionState, callID string) strin
 		}
 	}
 	return ""
+}
+
+func workflowVerificationCommandMatches(commands []workflowVerificationCommandSpec, toolName, command string) bool {
+	toolName = strings.TrimSpace(toolName)
+	command = strings.TrimSpace(command)
+	if toolName == "" || command == "" {
+		return false
+	}
+	for _, declared := range commands {
+		if strings.TrimSpace(declared.ToolName) == toolName && strings.TrimSpace(declared.Command) == command {
+			return true
+		}
+	}
+	return false
+}
+
+func containsTrimmed(values []string, needle string) bool {
+	needle = strings.TrimSpace(needle)
+	if needle == "" {
+		return false
+	}
+	for _, value := range values {
+		if strings.TrimSpace(value) == needle {
+			return true
+		}
+	}
+	return false
 }
 
 func workflowVerificationSummary(payload events.ToolExecEndPayload) string {

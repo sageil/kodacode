@@ -64,7 +64,7 @@ func (r *Runtime) workflowValidationTools() []tool.Tool {
 	return tool.AllBuiltInTools()
 }
 
-func (r *Runtime) workflowPhaseCommands(ctx context.Context, workspaceRoot, workflowID, phaseID string) ([]string, error) {
+func (r *Runtime) workflowPhaseCommands(ctx context.Context, workspaceRoot, workflowID, phaseID string) ([]workflowVerificationCommandSpec, error) {
 	definition, err := r.resolveWorkflow(ctx, workspaceRoot, workflowID)
 	if err != nil {
 		return nil, err
@@ -73,7 +73,7 @@ func (r *Runtime) workflowPhaseCommands(ctx context.Context, workspaceRoot, work
 	if !ok {
 		return nil, ErrWorkflowTransitionInvalid
 	}
-	return trimmedWorkflowValues(phase.Commands), nil
+	return workflowVerificationCommandSpecs(phase.Commands), nil
 }
 
 func (r *Runtime) workflowReviewMode(ctx context.Context, workspaceRoot, workflowID string) (WorkflowReviewMode, bool, error) {

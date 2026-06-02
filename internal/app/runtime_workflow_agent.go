@@ -106,11 +106,19 @@ func workflowPhaseIsVerification(phase workflowpkg.Phase) bool {
 	return phase.EffectiveType() == workflowpkg.PhaseTypeVerification || phase.Required
 }
 
-func workflowPhaseSupportsDeterministicTest(phase workflowpkg.Phase) bool {
+func workflowPhaseSupportsDeterministicVerification(phase workflowpkg.Phase) bool {
+	if len(phase.Commands) == 0 {
+		return false
+	}
 	if phase.Tools.Allow == nil {
 		return true
 	}
-	return containsTrimmed(phase.Tools.Allow, tool.TestToolName)
+	for _, command := range phase.Commands {
+		if !containsTrimmed(phase.Tools.Allow, command.Tool) {
+			return false
+		}
+	}
+	return true
 }
 
 func workflowPhaseIsFinal(phase workflowpkg.Phase) bool {
@@ -177,7 +185,7 @@ func workflowPhasePromptFragment(ctx workflowPhaseTurnContext, allowedTools []st
 		lines = append(lines, "- Return exactly one JSON object containing those required output keys. Do not use markdown fences.")
 	}
 	if len(ctx.Phase.Commands) > 0 {
-		lines = append(lines, "- Declared verification commands: "+strings.Join(trimmedWorkflowValues(ctx.Phase.Commands), " | "))
+		lines = append(lines, "- Declared verification commands: "+strings.Join(workflowVerificationCommandDisplays(ctx.Phase.Commands), " | "))
 	}
 	if len(ctx.Phase.Include) > 0 {
 		lines = append(lines, "- Final summary should include: "+strings.Join(trimmedWorkflowValues(ctx.Phase.Include), ", "))

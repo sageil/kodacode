@@ -170,7 +170,7 @@ func (r *Runtime) runExistingSessionTurn(ctx context.Context, input runExistingT
 		}
 		return r.startWorkflowReviewFanoutPhaseTurn(ctx, input, workflowPhase)
 	}
-	if workflowPhase.Active && workflowPhaseIsVerification(workflowPhase.Phase) && len(trimmedWorkflowValues(workflowPhase.Phase.Commands)) > 0 && workflowPhaseSupportsDeterministicTest(workflowPhase.Phase) {
+	if workflowPhase.Active && workflowPhaseIsVerification(workflowPhase.Phase) && workflowPhaseSupportsDeterministicVerification(workflowPhase.Phase) {
 		if err := r.appendWorkflowPhaseTurnConfigured(ctx, input, view, workflowPhase, effectiveAgentID, effectiveWorkflowID, effectiveSkillIDs, effectiveThinkingEnabled, effectiveThinkingMode, responseStyle); err != nil {
 			return r.recordTurnFailure(ctx, input.SessionID, input.TurnID, input.UserText, nil, err)
 		}

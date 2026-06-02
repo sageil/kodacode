@@ -742,6 +742,37 @@ func TestRuntimeWorkflowVerificationToolResultIgnoresUndeclaredCommand(t *testin
 	}
 }
 
+func TestRuntimeWorkflowVerificationToolResultRequiresDeclaredTool(t *testing.T) {
+	ctx := context.Background()
+	runtime := newRuntimeWithClient(t, &fakeProvider{})
+	root := t.TempDir()
+	sessionID := createWorkflowTestSession(t, runtime, root)
+	startDeliveryAtVerify(t, runtime, sessionID, root)
+
+	appendWorkflowTestExecutionDeclared(t, runtime, sessionID, "turn-1", "call-bash", "exec-bash", "bash", "go test ./...")
+	if err := runtime.Tools.appendToolExecEnd(ctx, ExecuteToolInput{
+		SessionID:  sessionID,
+		TurnID:     "turn-1",
+		ToolCallID: "call-bash",
+		ToolName:   "bash",
+	}, events.ToolExecEndPayload{
+		CallID:    "call-bash",
+		ToolName:  "bash",
+		Succeeded: true,
+		Output:    "ok",
+	}, nil, "ok", "", nil); err != nil {
+		t.Fatalf("appendToolExecEnd() error = %v", err)
+	}
+
+	state, err := runtime.Sessions.Snapshot(ctx, sessionID)
+	if err != nil {
+		t.Fatalf("Snapshot() error = %v", err)
+	}
+	if workflowHasSuccessfulEvidence(state.Workflow, "verify", events.WorkflowEvidenceTypeVerificationResult) {
+		t.Fatalf("workflow evidence = %#v, want no successful verification for wrong tool", state.Workflow.Evidence)
+	}
+}
+
 func TestRuntimeWorkflowTaskReviewRecordsEvidence(t *testing.T) {
 	ctx := context.Background()
 	runtime := newRuntimeWithClient(t, &fakeProvider{})
