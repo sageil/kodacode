@@ -66,6 +66,50 @@ func TestLoadBytesParsesValidDeliveryWorkflow(t *testing.T) {
 	}
 }
 
+func TestLoadBytesParsesFailureTransitions(t *testing.T) {
+	definition, err := LoadBytes([]byte(`
+id: failure-routes
+phases:
+  - id: implement
+    agent: engineer
+  - id: summarize
+    type: final
+transitions:
+  - from: implement
+    on: budget_exceeded
+    to: summarize
+  - from: implement
+    on: provider_request_limit
+    to: summarize
+  - from: implement
+    on: no_progress
+    to: summarize
+  - from: implement
+    on: turn_failed
+    to: summarize
+  - from: implement
+    on: canceled
+    to: summarize
+`), testValidationContext())
+	if err != nil {
+		t.Fatalf("LoadBytes() error = %v", err)
+	}
+	got := []string{}
+	for _, transition := range definition.Transitions {
+		got = append(got, transition.On)
+	}
+	want := strings.Join([]string{
+		TransitionOnBudgetExceeded,
+		TransitionOnProviderRequestLimit,
+		TransitionOnNoProgress,
+		TransitionOnTurnFailed,
+		TransitionOnCanceled,
+	}, ",")
+	if strings.Join(got, ",") != want {
+		t.Fatalf("transitions = %#v, want %s", got, want)
+	}
+}
+
 func TestLoadBytesRejectsInvalidYAML(t *testing.T) {
 	_, err := LoadBytes([]byte("id: ["), testValidationContext())
 	if err == nil || !strings.Contains(err.Error(), "workflow yaml") {

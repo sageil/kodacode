@@ -231,6 +231,208 @@ phases:
 	}
 }
 
+func TestRuntimeRunSessionTurnAppliesWorkflowBudgetExceededTransition(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	writeProjectWorkflow(t, root, "budget-transition.yaml", `
+id: budget-transition
+description: workflow budget transition
+budgets:
+  max_cost: 0.40
+phases:
+  - id: implement
+    agent: engineer
+  - id: summarize
+    type: final
+transitions:
+  - from: implement
+    on: budget_exceeded
+    to: summarize
+`)
+	client := &fakeProvider{}
+	runtime := newRuntimeWithClient(t, client)
+	sessionID, err := runtime.CreateSession(ctx, root)
+	if err != nil {
+		t.Fatalf("CreateSession() error = %v", err)
+	}
+	if err := runtime.StartWorkflow(ctx, StartWorkflowInput{
+		SessionID:     sessionID,
+		TurnID:        "turn-0",
+		WorkspaceRoot: root,
+		WorkflowID:    "budget-transition",
+	}); err != nil {
+		t.Fatalf("StartWorkflow() error = %v", err)
+	}
+	appendWorkflowBudgetTestUsage(t, runtime, sessionID, "turn-0", "budget-transition")
+
+	result, err := runtime.runExistingSessionTurn(ctx, runExistingTurnInput{
+		SessionID:  sessionID,
+		TurnID:     "turn-1",
+		UserText:   "continue the implementation",
+		AgentID:    "engineer",
+		WorkflowID: "budget-transition",
+	})
+	if err != nil {
+		t.Fatalf("runExistingSessionTurn() error = %v", err)
+	}
+	if result.Status != TurnRunStatusFailed || result.ErrorCode != events.TurnFailureCodeBudgetExceeded {
+		t.Fatalf("result = %#v, want budget failure", result)
+	}
+	state, err := runtime.Sessions.Snapshot(ctx, sessionID)
+	if err != nil {
+		t.Fatalf("Snapshot() error = %v", err)
+	}
+	if state.Workflow == nil || state.Workflow.CurrentPhaseID != "summarize" {
+		t.Fatalf("workflow = %#v, want summarize phase", state.Workflow)
+	}
+	if !workflowHasFailureEvidence(state.Workflow, "implement", "budget_exceeded", "turn-1") {
+		t.Fatalf("workflow evidence = %#v, want budget_exceeded phase failure", state.Workflow.Evidence)
+	}
+	if len(client.requests) != 0 {
+		t.Fatalf("provider requests = %d, want none", len(client.requests))
+	}
+}
+
+func TestRuntimeRunSessionTurnAppliesWorkflowTurnFailedFallbackTransition(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	writeProjectWorkflow(t, root, "failed-transition.yaml", `
+id: failed-transition
+description: workflow failure transition
+budgets:
+  max_cost: 0.40
+phases:
+  - id: implement
+    agent: engineer
+  - id: summarize
+    type: final
+transitions:
+  - from: implement
+    on: turn_failed
+    to: summarize
+`)
+	client := &fakeProvider{}
+	runtime := newRuntimeWithClient(t, client)
+	sessionID, err := runtime.CreateSession(ctx, root)
+	if err != nil {
+		t.Fatalf("CreateSession() error = %v", err)
+	}
+	if err := runtime.StartWorkflow(ctx, StartWorkflowInput{
+		SessionID:     sessionID,
+		TurnID:        "turn-0",
+		WorkspaceRoot: root,
+		WorkflowID:    "failed-transition",
+	}); err != nil {
+		t.Fatalf("StartWorkflow() error = %v", err)
+	}
+	appendWorkflowBudgetTestUsage(t, runtime, sessionID, "turn-0", "failed-transition")
+
+	result, err := runtime.runExistingSessionTurn(ctx, runExistingTurnInput{
+		SessionID:  sessionID,
+		TurnID:     "turn-1",
+		UserText:   "continue the implementation",
+		AgentID:    "engineer",
+		WorkflowID: "failed-transition",
+	})
+	if err != nil {
+		t.Fatalf("runExistingSessionTurn() error = %v", err)
+	}
+	if result.Status != TurnRunStatusFailed || result.ErrorCode != events.TurnFailureCodeBudgetExceeded {
+		t.Fatalf("result = %#v, want budget failure", result)
+	}
+	state, err := runtime.Sessions.Snapshot(ctx, sessionID)
+	if err != nil {
+		t.Fatalf("Snapshot() error = %v", err)
+	}
+	if state.Workflow == nil || state.Workflow.CurrentPhaseID != "summarize" {
+		t.Fatalf("workflow = %#v, want summarize phase", state.Workflow)
+	}
+	if !workflowHasFailureEvidence(state.Workflow, "implement", "turn_failed", "turn-1") {
+		t.Fatalf("workflow evidence = %#v, want turn_failed phase failure", state.Workflow.Evidence)
+	}
+}
+
+func TestRuntimeRunSessionTurnBlocksWorkflowFailureTransitionAtMaxLoops(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	writeProjectWorkflow(t, root, "limited-failure-transition.yaml", `
+id: limited-failure-transition
+description: limited workflow failure transition
+budgets:
+  max_cost: 0.40
+phases:
+  - id: implement
+    agent: engineer
+  - id: summarize
+    type: final
+transitions:
+  - from: implement
+    on: turn_failed
+    to: implement
+    max_loops: 1
+`)
+	client := &fakeProvider{}
+	runtime := newRuntimeWithClient(t, client)
+	sessionID, err := runtime.CreateSession(ctx, root)
+	if err != nil {
+		t.Fatalf("CreateSession() error = %v", err)
+	}
+	if err := runtime.StartWorkflow(ctx, StartWorkflowInput{
+		SessionID:     sessionID,
+		TurnID:        "turn-0",
+		WorkspaceRoot: root,
+		WorkflowID:    "limited-failure-transition",
+	}); err != nil {
+		t.Fatalf("StartWorkflow() error = %v", err)
+	}
+	appendWorkflowBudgetTestUsage(t, runtime, sessionID, "turn-0", "limited-failure-transition")
+
+	first, err := runtime.runExistingSessionTurn(ctx, runExistingTurnInput{
+		SessionID:  sessionID,
+		TurnID:     "turn-1",
+		UserText:   "continue the implementation",
+		AgentID:    "engineer",
+		WorkflowID: "limited-failure-transition",
+	})
+	if err != nil {
+		t.Fatalf("first runExistingSessionTurn() error = %v", err)
+	}
+	if first.Status != TurnRunStatusFailed {
+		t.Fatalf("first result = %#v, want failed", first)
+	}
+	firstState, err := runtime.Sessions.Snapshot(ctx, sessionID)
+	if err != nil {
+		t.Fatalf("first Snapshot() error = %v", err)
+	}
+	if firstState.Workflow == nil || firstState.Workflow.Status != events.WorkflowStatusActive || firstState.Workflow.CurrentPhaseID != "implement" {
+		t.Fatalf("first workflow = %#v, want active implement", firstState.Workflow)
+	}
+
+	second, err := runtime.runExistingSessionTurn(ctx, runExistingTurnInput{
+		SessionID:  sessionID,
+		TurnID:     "turn-2",
+		UserText:   "continue again",
+		AgentID:    "engineer",
+		WorkflowID: "limited-failure-transition",
+	})
+	if err != nil {
+		t.Fatalf("second runExistingSessionTurn() error = %v", err)
+	}
+	if second.Status != TurnRunStatusFailed {
+		t.Fatalf("second result = %#v, want failed", second)
+	}
+	secondState, err := runtime.Sessions.Snapshot(ctx, sessionID)
+	if err != nil {
+		t.Fatalf("second Snapshot() error = %v", err)
+	}
+	if secondState.Workflow == nil || secondState.Workflow.Status != events.WorkflowStatusBlocked {
+		t.Fatalf("second workflow = %#v, want blocked", secondState.Workflow)
+	}
+	if !strings.Contains(secondState.Workflow.StopReason, "turn_failed transition loop limit reached") {
+		t.Fatalf("workflow stop reason = %q", secondState.Workflow.StopReason)
+	}
+}
+
 func TestRuntimeRunSessionTurnUsesWorkflowProviderRequestCap(t *testing.T) {
 	root := t.TempDir()
 	if err := os.WriteFile(filepath.Join(root, "app.go"), []byte("package main\n"), 0o644); err != nil {
@@ -284,6 +486,50 @@ phases:
 	if len(client.requests) != 1 {
 		t.Fatalf("provider requests = %d, want workflow cap after first request", len(client.requests))
 	}
+}
+
+func appendWorkflowBudgetTestUsage(t *testing.T, runtime *Runtime, sessionID, turnID, workflowID string) {
+	t.Helper()
+	if err := runtime.Runner.appendTurnConfigured(context.Background(), sessionID, turnID, newTurnConfiguredPayload(TurnCapabilities{
+		AgentID:    "engineer",
+		ModelRoute: baseModelRoute(),
+	}, nil, workflowID, false, false, "", runtime.Config.Sessions.EffectiveResponseStyle(), false)); err != nil {
+		t.Fatalf("appendTurnConfigured() error = %v", err)
+	}
+	if _, err := runtime.Sessions.append(context.Background(), events.Draft{
+		SessionID: sessionID,
+		TurnID:    turnID,
+		Type:      events.TypeTurnProviderUsageRecorded,
+		Payload: events.TurnProviderUsageRecordedPayload{
+			Model:                     "openai/gpt-5",
+			Step:                      1,
+			Attempt:                   1,
+			EstimatedRequestTokens:    100,
+			EstimatedCompletionTokens: 20,
+			EstimatedInputCost:        0.30,
+			EstimatedOutputCost:       0.20,
+		},
+	}); err != nil {
+		t.Fatalf("append usage error = %v", err)
+	}
+}
+
+func workflowHasFailureEvidence(workflow *events.WorkflowState, phaseID, transitionEvent, turnID string) bool {
+	if workflow == nil {
+		return false
+	}
+	for _, evidenceID := range workflow.EvidenceOrder {
+		evidence := workflow.Evidence[evidenceID]
+		if evidence == nil || evidence.Type != events.WorkflowEvidenceTypePhaseFailure {
+			continue
+		}
+		if strings.TrimSpace(evidence.PhaseID) == phaseID &&
+			strings.TrimSpace(evidence.Fields["transition_event"]) == transitionEvent &&
+			strings.TrimSpace(evidence.Fields["turn_id"]) == turnID {
+			return true
+		}
+	}
+	return false
 }
 
 func TestRuntimeRunSessionTurnUsesPhaseModelBeforeWorkflowModel(t *testing.T) {

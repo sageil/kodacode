@@ -112,9 +112,14 @@ type Budgets struct {
 }
 
 const (
-	TransitionOnSkipped            = "skipped"
-	TransitionOnVerificationFailed = "verification_failed"
-	TransitionOnReviewFailed       = "review_failed"
+	TransitionOnSkipped              = "skipped"
+	TransitionOnVerificationFailed   = "verification_failed"
+	TransitionOnReviewFailed         = "review_failed"
+	TransitionOnTurnFailed           = "turn_failed"
+	TransitionOnBudgetExceeded       = "budget_exceeded"
+	TransitionOnProviderRequestLimit = "provider_request_limit"
+	TransitionOnNoProgress           = "no_progress"
+	TransitionOnCanceled             = "canceled"
 )
 
 type ValidationContext struct {
@@ -376,7 +381,14 @@ func validateTransitions(transitions []Transition, phases map[string]struct{}) e
 			return fmt.Errorf("transition %d: %w: unknown to phase %s", index+1, ErrWorkflowTransitionInvalid, to)
 		}
 		switch on {
-		case TransitionOnSkipped, TransitionOnVerificationFailed, TransitionOnReviewFailed:
+		case TransitionOnSkipped,
+			TransitionOnVerificationFailed,
+			TransitionOnReviewFailed,
+			TransitionOnTurnFailed,
+			TransitionOnBudgetExceeded,
+			TransitionOnProviderRequestLimit,
+			TransitionOnNoProgress,
+			TransitionOnCanceled:
 		default:
 			return fmt.Errorf("transition %d: %w: unknown event %s", index+1, ErrWorkflowTransitionInvalid, on)
 		}

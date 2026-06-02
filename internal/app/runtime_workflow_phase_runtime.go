@@ -525,6 +525,9 @@ func (r *Runtime) completeWorkflowFinalPhaseTurn(ctx context.Context, input runE
 
 func (r *Runtime) maybeAdvanceWorkflowAfterTurn(ctx context.Context, sessionID, turnID string, result RunSessionResult) (RunSessionResult, error) {
 	if result.Status != TurnRunStatusCompleted {
+		if _, err := r.maybeApplyWorkflowTurnResultTransition(ctx, sessionID, turnID, result); err != nil {
+			return RunSessionResult{}, err
+		}
 		return result, nil
 	}
 	state, definition, workflow, err := r.activeWorkflowState(ctx, sessionID)
@@ -575,6 +578,138 @@ func (r *Runtime) maybeAdvanceWorkflowAfterTurn(ctx context.Context, sessionID, 
 		return RunSessionResult{}, err
 	}
 	return r.completeFinalWorkflowPhaseIfReached(ctx, sessionID, turnID, definition, result)
+}
+
+func (r *Runtime) maybeApplyWorkflowTurnResultTransition(ctx context.Context, sessionID, turnID string, result RunSessionResult) (bool, error) {
+	transitionEvents := workflowTransitionEventsForTurnResult(result)
+	if len(transitionEvents) == 0 {
+		return false, nil
+	}
+	_, definition, workflow, err := r.activeWorkflowState(ctx, sessionID)
+	if err != nil {
+		if errors.Is(err, ErrWorkflowStateMissing) {
+			return false, nil
+		}
+		return false, err
+	}
+	if workflow.Status != events.WorkflowStatusActive {
+		return false, nil
+	}
+	phaseID := strings.TrimSpace(workflow.CurrentPhaseID)
+	for _, event := range transitionEvents {
+		transition, ok := workflowTransitionFor(definition, phaseID, event)
+		if !ok {
+			continue
+		}
+		if transition.MaxLoops > 0 && workflowTurnResultTransitionEvidenceCount(workflow, phaseID, event) >= transition.MaxLoops {
+			reason := fmt.Sprintf("%s transition loop limit reached (%d/%d)", event, transition.MaxLoops, transition.MaxLoops)
+			if err := r.blockWorkflowPhase(ctx, sessionID, turnID, workflow.WorkflowID, phaseID, reason); err != nil {
+				return false, err
+			}
+			return true, nil
+		}
+		if err := r.recordWorkflowTurnResultTransitionEvidence(ctx, sessionID, turnID, phaseID, event, result); err != nil {
+			return false, err
+		}
+		reason := workflowTurnResultTransitionReason(event, result)
+		if err := r.appendWorkflowPhaseAdvanced(ctx, sessionID, turnID, workflow.WorkflowID, phaseID, transition.To, reason); err != nil {
+			return false, err
+		}
+		return true, nil
+	}
+	return false, nil
+}
+
+func workflowTurnResultTransitionEvidenceCount(workflow *events.WorkflowState, phaseID, transitionEvent string) int {
+	if workflow == nil {
+		return 0
+	}
+	phaseID = strings.TrimSpace(phaseID)
+	transitionEvent = strings.TrimSpace(transitionEvent)
+	count := 0
+	for _, evidenceID := range workflow.EvidenceOrder {
+		evidence := workflow.Evidence[evidenceID]
+		if evidence == nil || evidence.Type != events.WorkflowEvidenceTypePhaseFailure {
+			continue
+		}
+		if strings.TrimSpace(evidence.PhaseID) != phaseID {
+			continue
+		}
+		if strings.TrimSpace(evidence.Fields["transition_event"]) != transitionEvent {
+			continue
+		}
+		count++
+	}
+	return count
+}
+
+func workflowTransitionEventsForTurnResult(result RunSessionResult) []string {
+	switch result.Status {
+	case TurnRunStatusCanceled:
+		return []string{workflowpkg.TransitionOnCanceled}
+	case TurnRunStatusFailed:
+		candidates := []string{}
+		switch result.ErrorCode {
+		case events.TurnFailureCodeBudgetExceeded:
+			candidates = append(candidates, workflowpkg.TransitionOnBudgetExceeded)
+		case events.TurnFailureCodeProviderRequestLimit:
+			candidates = append(candidates, workflowpkg.TransitionOnProviderRequestLimit)
+		case events.TurnFailureCodeNoProgress:
+			candidates = append(candidates, workflowpkg.TransitionOnNoProgress)
+		}
+		candidates = append(candidates, workflowpkg.TransitionOnTurnFailed)
+		return candidates
+	default:
+		return nil
+	}
+}
+
+func (r *Runtime) recordWorkflowTurnResultTransitionEvidence(ctx context.Context, sessionID, turnID, phaseID, transitionEvent string, result RunSessionResult) error {
+	state, err := r.Sessions.Snapshot(ctx, sessionID)
+	if err != nil {
+		return err
+	}
+	if workflowHasEvidence(state.Workflow, phaseID, func(evidence *events.WorkflowEvidenceState) bool {
+		return evidence.Type == events.WorkflowEvidenceTypePhaseFailure &&
+			strings.TrimSpace(evidence.Fields["transition_event"]) == strings.TrimSpace(transitionEvent) &&
+			strings.TrimSpace(evidence.Fields["turn_id"]) == strings.TrimSpace(turnID)
+	}) {
+		return nil
+	}
+	successful := false
+	return r.RecordWorkflowEvidence(ctx, RecordWorkflowEvidenceInput{
+		SessionID:  sessionID,
+		TurnID:     turnID,
+		PhaseID:    phaseID,
+		Type:       events.WorkflowEvidenceTypePhaseFailure,
+		Successful: &successful,
+		Summary:    workflowTurnResultTransitionReason(transitionEvent, result),
+		Fields: map[string]string{
+			"transition_event": strings.TrimSpace(transitionEvent),
+			"turn_id":          strings.TrimSpace(turnID),
+			"turn_status":      string(result.Status),
+			"failure_code":     string(result.ErrorCode),
+		},
+	})
+}
+
+func workflowTurnResultTransitionReason(transitionEvent string, result RunSessionResult) string {
+	reason := strings.TrimSpace(result.Error)
+	if reason == "" {
+		switch result.Status {
+		case TurnRunStatusCanceled:
+			reason = "workflow phase turn canceled"
+		case TurnRunStatusFailed:
+			reason = "workflow phase turn failed"
+		default:
+			reason = "workflow phase transition"
+		}
+	}
+	transitionEvent = strings.TrimSpace(transitionEvent)
+	if transitionEvent == "" {
+		return reason
+	}
+	return transitionEvent + ": " + reason
 }
 
 func (r *Runtime) recordWorkflowTurnCompletionEvidence(ctx context.Context, state events.SessionState, sessionID, turnID string, phase workflowpkg.Phase, assistantText string) error {

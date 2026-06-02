@@ -36,7 +36,8 @@ contract is implemented and durable:
   `skip_when.max_affected_files`.
 - Runtime-executed verification commands through the `test` tool.
 - Explicit `transitions` for supported non-linear events such as `skipped`,
-  `verification_failed`, and `review_failed`.
+  `verification_failed`, `review_failed`, `turn_failed`, `budget_exceeded`,
+  `provider_request_limit`, `no_progress`, and `canceled`.
 - Bounded verification revision loops through transition `max_loops` or
   workflow-level `max_revision_loops`.
 - Final phases synthesize a deterministic summary from recorded workflow
@@ -54,8 +55,6 @@ contract is implemented and durable:
 
 Remaining work:
 
-- Additional transition events beyond `skipped`, `verification_failed`, and
-  `review_failed`.
 - Parallel reviewer scheduling; current workflow fan-out runs bounded reviewer
   child sessions sequentially.
 - Stronger revision evidence tying each retry to the exact failed check or
