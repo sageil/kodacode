@@ -39,13 +39,14 @@ contract is implemented and durable:
   `verification_failed`.
 - Bounded verification revision loops through transition `max_loops` or
   workflow-level `max_revision_loops`.
+- Final phases synthesize a deterministic summary from recorded workflow
+  evidence and call out requested fields that were not recorded.
 - Per-workflow `review_mode`.
 - TUI workflow selection, footer status, and trace visibility.
 
 Remaining work:
 
 - General transition events beyond `skipped` and `verification_failed`.
-- Richer final summary synthesis from workflow evidence.
 - First-class route recommendation before workflow selection.
 - Parallel review fan-out and aggregation.
 - Per-workflow budgets and model routing.

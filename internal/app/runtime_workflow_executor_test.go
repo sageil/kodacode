@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/sageil/kodacode/internal/events"
@@ -248,6 +249,70 @@ func TestRuntimeWorkflowCompleteRequiresFinalPhase(t *testing.T) {
 	}
 	if state.Workflow == nil || state.Workflow.Status != events.WorkflowStatusCompleted || state.Workflow.StopReason != "delivered" {
 		t.Fatalf("workflow = %#v", state.Workflow)
+	}
+}
+
+func TestRuntimeWorkflowFinalPhaseSynthesizesEvidenceSummary(t *testing.T) {
+	ctx := context.Background()
+	runtime := newRuntimeWithClient(t, &fakeProvider{})
+	root := t.TempDir()
+	sessionID := createWorkflowTestSession(t, runtime, root)
+
+	startDeliveryAtVerify(t, runtime, sessionID, root)
+	recordDeliveryVerificationEvidence(t, runtime, sessionID, "turn-1", true, "go test ./... passed")
+	if err := runtime.AdvanceWorkflow(ctx, AdvanceWorkflowInput{
+		SessionID: sessionID,
+		TurnID:    "turn-1",
+		ToPhaseID: "review",
+	}); err != nil {
+		t.Fatalf("AdvanceWorkflow(review) error = %v", err)
+	}
+	recordDeliveryReviewEvidence(t, runtime, sessionID, "turn-1")
+	if err := runtime.AdvanceWorkflow(ctx, AdvanceWorkflowInput{
+		SessionID: sessionID,
+		TurnID:    "turn-1",
+		ToPhaseID: "summarize",
+	}); err != nil {
+		t.Fatalf("AdvanceWorkflow(summarize) error = %v", err)
+	}
+
+	result, err := runtime.runExistingSessionTurn(ctx, runExistingTurnInput{
+		SessionID: sessionID,
+		TurnID:    "turn-final",
+		UserText:  "summarize",
+		AgentID:   "engineer",
+	})
+	if err != nil {
+		t.Fatalf("runExistingSessionTurn(final) error = %v", err)
+	}
+	if result.Status != TurnRunStatusCompleted {
+		t.Fatalf("status = %q, want completed", result.Status)
+	}
+	state, err := runtime.Sessions.Snapshot(ctx, sessionID)
+	if err != nil {
+		t.Fatalf("Snapshot() error = %v", err)
+	}
+	turn := state.Turns["turn-final"]
+	if turn == nil {
+		t.Fatal("final turn missing")
+	}
+	for _, want := range []string{
+		"Workflow `delivery` completed.",
+		"- changed_files: diff captured",
+		"- verification_result: passed: go test ./... - go test ./... passed",
+		"- review_outcome: review passed",
+		"Not recorded:",
+		"- unresolved_risks",
+	} {
+		if !strings.Contains(turn.AssistantText, want) {
+			t.Fatalf("final summary missing %q\nsummary:\n%s", want, turn.AssistantText)
+		}
+	}
+	if state.Workflow == nil || state.Workflow.Status != events.WorkflowStatusCompleted {
+		t.Fatalf("workflow = %#v, want completed", state.Workflow)
+	}
+	if !workflowHasPhaseOutputEvidence(state.Workflow, "summarize", "verification_result") {
+		t.Fatalf("workflow evidence = %#v, want final verification_result field", state.Workflow.Evidence)
 	}
 }
 

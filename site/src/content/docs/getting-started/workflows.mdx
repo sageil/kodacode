@@ -90,6 +90,12 @@ plans; the signal comes from the previous phase's `affected_files` output.
 Workflow `transitions` make non-linear movement explicit for supported events
 such as `skipped` and `verification_failed`.
 
+Final phases synthesize their summary from recorded workflow evidence. The
+runtime fills requested `include` fields from exact phase-output fields or known
+evidence types such as `git_diff`, `verification_result`, and `review_outcome`.
+Requested fields without recorded evidence are shown as not recorded rather than
+being inferred.
+
 Example code-delivery workflow:
 
 ```yaml

@@ -507,8 +507,7 @@ func (r *Runtime) completeWorkflowFinalPhaseTurn(ctx context.Context, input runE
 			return RunSessionResult{}, err
 		}
 	}
-	text := workflowFinalAssistantText(workflowPhase.WorkflowID, workflowPhase.Phase)
-	if err := appendTextToParentTurn(ctx, r.Sessions, input.SessionID, input.TurnID, text); err != nil {
+	if err := r.appendWorkflowFinalSummary(ctx, input.SessionID, input.TurnID, workflowPhase.WorkflowID, workflowPhase.Phase); err != nil {
 		return RunSessionResult{}, err
 	}
 	if err := r.CompleteWorkflow(ctx, CompleteWorkflowInput{
@@ -552,7 +551,7 @@ func (r *Runtime) maybeAdvanceWorkflowAfterTurn(ctx context.Context, sessionID, 
 		return result, nil
 	}
 	if workflowPhaseIsFinal(phase) {
-		return r.completeWorkflowAfterModelTurn(ctx, sessionID, turnID, result)
+		return r.completeWorkflowAfterModelTurn(ctx, sessionID, turnID, definition, phase, result)
 	}
 	if err := r.recordWorkflowTurnCompletionEvidence(ctx, state, sessionID, turnID, phase, result.AssistantText); err != nil {
 		return RunSessionResult{}, err
@@ -685,10 +684,17 @@ func (r *Runtime) completeFinalWorkflowPhaseIfReached(ctx context.Context, sessi
 	if !isFinalWorkflowPhase(definition, phaseID) {
 		return result, nil
 	}
-	return r.completeWorkflowAfterModelTurn(ctx, sessionID, turnID, result)
+	phase, ok := workflowPhaseByID(definition, phaseID)
+	if !ok {
+		return RunSessionResult{}, ErrWorkflowTransitionInvalid
+	}
+	return r.completeWorkflowAfterModelTurn(ctx, sessionID, turnID, definition, phase, result)
 }
 
-func (r *Runtime) completeWorkflowAfterModelTurn(ctx context.Context, sessionID, turnID string, result RunSessionResult) (RunSessionResult, error) {
+func (r *Runtime) completeWorkflowAfterModelTurn(ctx context.Context, sessionID, turnID string, definition workflowpkg.Definition, phase workflowpkg.Phase, result RunSessionResult) (RunSessionResult, error) {
+	if err := r.appendWorkflowFinalSummary(ctx, sessionID, turnID, definition.ID, phase); err != nil {
+		return RunSessionResult{}, err
+	}
 	if err := r.CompleteWorkflow(ctx, CompleteWorkflowInput{
 		SessionID:  sessionID,
 		TurnID:     turnID,
@@ -699,18 +705,199 @@ func (r *Runtime) completeWorkflowAfterModelTurn(ctx context.Context, sessionID,
 		}
 		return RunSessionResult{}, err
 	}
-	return result, nil
+	return r.loadSessionTurnResult(ctx, sessionID, turnID, RunTurnResult{Status: TurnRunStatusCompleted})
 }
 
-func workflowFinalAssistantText(workflowID string, phase workflowpkg.Phase) string {
+func (r *Runtime) appendWorkflowFinalSummary(ctx context.Context, sessionID, turnID, workflowID string, phase workflowpkg.Phase) error {
+	state, err := r.Sessions.Snapshot(ctx, sessionID)
+	if err != nil {
+		return err
+	}
+	text, fields := workflowFinalAssistantText(workflowID, phase, state.Workflow)
+	if err := appendTextToParentTurn(ctx, r.Sessions, sessionID, turnID, text); err != nil {
+		return err
+	}
+	if workflowHasAnyEvidenceType(state.Workflow, strings.TrimSpace(phase.ID), events.WorkflowEvidenceTypePhaseOutput) {
+		return nil
+	}
+	return r.RecordWorkflowEvidence(ctx, RecordWorkflowEvidenceInput{
+		SessionID: sessionID,
+		TurnID:    turnID,
+		PhaseID:   phase.ID,
+		Type:      events.WorkflowEvidenceTypePhaseOutput,
+		Summary:   truncateWorkflowEvidenceSummary(text),
+		Fields:    fields,
+	})
+}
+
+func workflowFinalAssistantText(workflowID string, phase workflowpkg.Phase, workflow *events.WorkflowState) (string, map[string]string) {
 	workflowID = strings.TrimSpace(workflowID)
 	if workflowID == "" {
 		workflowID = "workflow"
 	}
-	if include := strings.Join(trimmedWorkflowValues(phase.Include), ", "); include != "" {
-		return fmt.Sprintf("Workflow `%s` completed. Final summary fields: %s.", workflowID, include)
+	lines := []string{fmt.Sprintf("Workflow `%s` completed.", workflowID)}
+	fields := map[string]string{}
+	missing := []string{}
+	include := trimmedWorkflowValues(phase.Include)
+	for _, key := range include {
+		value := workflowFinalIncludedValue(workflow, key)
+		if value == "" {
+			missing = append(missing, key)
+			continue
+		}
+		fields[key] = value
 	}
-	return fmt.Sprintf("Workflow `%s` completed.", workflowID)
+	if len(fields) == 0 && len(include) == 0 {
+		evidence := workflowFinalEvidenceSummary(workflow)
+		if evidence != "" {
+			fields["evidence"] = evidence
+		}
+	}
+	if len(fields) > 0 {
+		lines = append(lines, "", "Summary:")
+		for _, key := range include {
+			value := fields[key]
+			if value == "" {
+				continue
+			}
+			lines = append(lines, "- "+key+": "+value)
+		}
+		if len(include) == 0 {
+			lines = append(lines, "- evidence: "+fields["evidence"])
+		}
+	}
+	if len(missing) > 0 {
+		lines = append(lines, "", "Not recorded:")
+		for _, key := range missing {
+			lines = append(lines, "- "+key)
+		}
+	}
+	if len(fields) == 0 && len(missing) == 0 {
+		lines = append(lines, "", "No workflow evidence was recorded for the final summary.")
+	}
+	if len(fields) == 0 {
+		fields = nil
+	}
+	return strings.Join(lines, "\n"), fields
+}
+
+func workflowFinalIncludedValue(workflow *events.WorkflowState, key string) string {
+	key = strings.TrimSpace(key)
+	if workflow == nil || key == "" {
+		return ""
+	}
+	if value := workflowFinalLatestField(workflow, key); value != "" {
+		return value
+	}
+	switch key {
+	case "changed_files":
+		return workflowFinalLatestEvidenceSummary(workflow, events.WorkflowEvidenceTypeGitDiff)
+	case "verification_result":
+		return workflowFinalLatestVerificationSummary(workflow)
+	case "review_outcome", "findings":
+		return workflowFinalLatestEvidenceSummary(workflow, events.WorkflowEvidenceTypeReviewOutcome, events.WorkflowEvidenceTypeReview, events.WorkflowEvidenceTypeTaskReview)
+	case "evidence":
+		return workflowFinalEvidenceSummary(workflow)
+	default:
+		return ""
+	}
+}
+
+func workflowFinalLatestField(workflow *events.WorkflowState, key string) string {
+	for i := len(workflow.EvidenceOrder) - 1; i >= 0; i-- {
+		evidence := workflow.Evidence[workflow.EvidenceOrder[i]]
+		if evidence == nil {
+			continue
+		}
+		if value := workflowFinalDisplayValue(evidence.Fields[key]); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func workflowFinalLatestEvidenceSummary(workflow *events.WorkflowState, types ...string) string {
+	for i := len(workflow.EvidenceOrder) - 1; i >= 0; i-- {
+		evidence := workflow.Evidence[workflow.EvidenceOrder[i]]
+		if evidence == nil || !containsTrimmed(types, strings.TrimSpace(evidence.Type)) {
+			continue
+		}
+		if summary := workflowFinalDisplayValue(evidence.Summary); summary != "" {
+			return summary
+		}
+	}
+	return ""
+}
+
+func workflowFinalLatestVerificationSummary(workflow *events.WorkflowState) string {
+	for i := len(workflow.EvidenceOrder) - 1; i >= 0; i-- {
+		evidence := workflow.Evidence[workflow.EvidenceOrder[i]]
+		if evidence == nil || evidence.Type != events.WorkflowEvidenceTypeVerificationResult {
+			continue
+		}
+		status := "completed"
+		if evidence.Successful != nil {
+			if *evidence.Successful {
+				status = "passed"
+			} else {
+				status = "failed"
+			}
+		}
+		command := strings.TrimSpace(evidence.Command)
+		summary := workflowFinalDisplayValue(evidence.Summary)
+		prefix := status
+		if command != "" {
+			prefix += ": " + command
+		}
+		if summary != "" {
+			return prefix + " - " + summary
+		}
+		return prefix
+	}
+	return ""
+}
+
+func workflowFinalEvidenceSummary(workflow *events.WorkflowState) string {
+	if workflow == nil || len(workflow.EvidenceOrder) == 0 {
+		return ""
+	}
+	parts := []string{}
+	for _, evidenceID := range workflow.EvidenceOrder {
+		evidence := workflow.Evidence[evidenceID]
+		if evidence == nil {
+			continue
+		}
+		summary := workflowFinalDisplayValue(evidence.Summary)
+		if summary == "" {
+			summary = strings.TrimSpace(evidence.Type)
+		}
+		if summary == "" {
+			continue
+		}
+		phaseID := strings.TrimSpace(evidence.PhaseID)
+		label := strings.TrimSpace(evidence.Type)
+		if phaseID != "" && label != "" {
+			parts = append(parts, phaseID+" "+label+": "+summary)
+		} else {
+			parts = append(parts, summary)
+		}
+	}
+	return strings.Join(parts, "; ")
+}
+
+func workflowFinalDisplayValue(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	var stringValues []string
+	if err := json.Unmarshal([]byte(value), &stringValues); err == nil {
+		values := trimmedWorkflowValues(stringValues)
+		if len(values) > 0 {
+			return strings.Join(values, ", ")
+		}
+	}
+	return truncateWorkflowEvidenceSummary(value)
 }
 
 func boolPointer(value bool) *bool {
