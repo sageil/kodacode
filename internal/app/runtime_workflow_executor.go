@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/sageil/kodacode/internal/events"
@@ -217,12 +218,15 @@ func (r *Runtime) maybeReviseWorkflowAfterVerificationFailure(ctx context.Contex
 	if maxLoops <= 0 {
 		return false, nil
 	}
-	failedCount := workflowFailedVerificationEvidenceCount(state.Workflow, phaseID)
+	failedCount, failedEvidence := workflowFailedVerificationEvidence(state.Workflow, phaseID)
 	if failedCount == 0 || failedCount > maxLoops {
 		return false, nil
 	}
 	if toPhaseID == "" {
 		return false, nil
+	}
+	if err := r.recordWorkflowRevisionTriggerEvidence(ctx, sessionID, turnID, state, workflowpkg.TransitionOnVerificationFailed, phaseID, toPhaseID, failedCount, maxLoops, failedEvidence); err != nil {
+		return false, err
 	}
 	if err := r.appendWorkflowPhaseAdvanced(ctx, sessionID, turnID, workflow.WorkflowID, phaseID, toPhaseID, fmt.Sprintf("revision loop %d/%d after failed verification", failedCount, maxLoops)); err != nil {
 		return false, err
@@ -254,7 +258,7 @@ func (r *Runtime) maybeReviseWorkflowAfterReviewFailure(ctx context.Context, ses
 	if maxLoops <= 0 {
 		return false, nil
 	}
-	failedCount := workflowFailedReviewEvidenceCount(state.Workflow, phaseID)
+	failedCount, failedEvidence := workflowFailedReviewEvidence(state.Workflow, phaseID)
 	if failedCount == 0 || failedCount > maxLoops {
 		return false, nil
 	}
@@ -262,10 +266,97 @@ func (r *Runtime) maybeReviseWorkflowAfterReviewFailure(ctx context.Context, ses
 	if toPhaseID == "" {
 		return false, nil
 	}
+	if err := r.recordWorkflowRevisionTriggerEvidence(ctx, sessionID, turnID, state, workflowpkg.TransitionOnReviewFailed, phaseID, toPhaseID, failedCount, maxLoops, failedEvidence); err != nil {
+		return false, err
+	}
 	if err := r.appendWorkflowPhaseAdvanced(ctx, sessionID, turnID, workflow.WorkflowID, phaseID, toPhaseID, fmt.Sprintf("revision loop %d/%d after failed review", failedCount, maxLoops)); err != nil {
 		return false, err
 	}
 	return true, nil
+}
+
+func (r *Runtime) recordWorkflowRevisionTriggerEvidence(ctx context.Context, sessionID, turnID string, state events.SessionState, transitionEvent, fromPhaseID, toPhaseID string, revisionIndex, maxLoops int, source *events.WorkflowEvidenceState) error {
+	if source == nil {
+		return nil
+	}
+	transitionEvent = strings.TrimSpace(transitionEvent)
+	if workflowHasEvidence(state.Workflow, fromPhaseID, func(evidence *events.WorkflowEvidenceState) bool {
+		if evidence.Type != events.WorkflowEvidenceTypeRevisionTrigger {
+			return false
+		}
+		return strings.TrimSpace(evidence.Fields["revision_event"]) == transitionEvent &&
+			strings.TrimSpace(evidence.Fields["source_evidence_id"]) == strings.TrimSpace(source.EvidenceID)
+	}) {
+		return nil
+	}
+	fields := workflowRevisionTriggerFields(state, transitionEvent, fromPhaseID, toPhaseID, revisionIndex, maxLoops, source)
+	summary := fmt.Sprintf("revision loop %d/%d after %s", revisionIndex, maxLoops, strings.ReplaceAll(transitionEvent, "_", " "))
+	if sourceSummary := strings.TrimSpace(source.Summary); sourceSummary != "" {
+		summary += ": " + sourceSummary
+	}
+	successful := false
+	return r.RecordWorkflowEvidence(ctx, RecordWorkflowEvidenceInput{
+		SessionID:  sessionID,
+		TurnID:     turnID,
+		PhaseID:    fromPhaseID,
+		Type:       events.WorkflowEvidenceTypeRevisionTrigger,
+		Successful: &successful,
+		Summary:    summary,
+		Fields:     fields,
+	})
+}
+
+func workflowRevisionTriggerFields(state events.SessionState, transitionEvent, fromPhaseID, toPhaseID string, revisionIndex, maxLoops int, source *events.WorkflowEvidenceState) map[string]string {
+	fields := map[string]string{
+		"revision_event":       strings.TrimSpace(transitionEvent),
+		"revision_from_phase":  strings.TrimSpace(fromPhaseID),
+		"revision_to_phase":    strings.TrimSpace(toPhaseID),
+		"revision_index":       strconv.Itoa(revisionIndex),
+		"max_revision_loops":   strconv.Itoa(maxLoops),
+		"source_evidence_id":   strings.TrimSpace(source.EvidenceID),
+		"source_evidence_type": strings.TrimSpace(source.Type),
+		"source_phase_id":      strings.TrimSpace(source.PhaseID),
+		"source_summary":       strings.TrimSpace(source.Summary),
+	}
+	if command := strings.TrimSpace(source.Command); command != "" {
+		fields["failed_check"] = command
+		fields["command"] = command
+	}
+	if source.ExitCode != nil {
+		fields["exit_code"] = strconv.Itoa(*source.ExitCode)
+	}
+	if taskID := strings.TrimSpace(source.TaskID); taskID != "" {
+		fields["task_id"] = taskID
+	}
+	if reviewID := strings.TrimSpace(source.ReviewID); reviewID != "" {
+		fields["review_id"] = reviewID
+	}
+	for _, key := range []string{"review_pass", "review_status"} {
+		if value := strings.TrimSpace(source.Fields[key]); value != "" {
+			fields[key] = value
+		}
+	}
+	if state.Reviews != nil {
+		addWorkflowRevisionReviewFindingFields(fields, state.Reviews[strings.TrimSpace(source.ReviewID)])
+	}
+	return fields
+}
+
+func addWorkflowRevisionReviewFindingFields(fields map[string]string, review *events.ReviewState) {
+	if review == nil || len(review.Findings) == 0 {
+		return
+	}
+	fields["finding_count"] = strconv.Itoa(len(review.Findings))
+	for index, finding := range review.Findings {
+		prefix := fmt.Sprintf("finding_%d_", index+1)
+		fields[prefix+"severity"] = strings.TrimSpace(finding.Severity)
+		fields[prefix+"path"] = strings.TrimSpace(finding.Path)
+		if finding.Line > 0 {
+			fields[prefix+"line"] = strconv.Itoa(finding.Line)
+		}
+		fields[prefix+"title"] = strings.TrimSpace(finding.Title)
+		fields[prefix+"explanation"] = strings.TrimSpace(finding.Explanation)
+	}
 }
 
 func (r *Runtime) appendWorkflowPhaseAdvanced(ctx context.Context, sessionID, turnID, workflowID, fromPhaseID, toPhaseID, stopReason string) error {
@@ -350,10 +441,16 @@ func isFinalWorkflowPhase(definition workflowpkg.Definition, phaseID string) boo
 }
 
 func workflowFailedVerificationEvidenceCount(workflow *events.WorkflowState, phaseID string) int {
+	count, _ := workflowFailedVerificationEvidence(workflow, phaseID)
+	return count
+}
+
+func workflowFailedVerificationEvidence(workflow *events.WorkflowState, phaseID string) (int, *events.WorkflowEvidenceState) {
 	if workflow == nil {
-		return 0
+		return 0, nil
 	}
 	count := 0
+	var latest *events.WorkflowEvidenceState
 	phaseID = strings.TrimSpace(phaseID)
 	for _, evidenceID := range workflow.EvidenceOrder {
 		evidence := workflow.Evidence[evidenceID]
@@ -364,15 +461,22 @@ func workflowFailedVerificationEvidenceCount(workflow *events.WorkflowState, pha
 			continue
 		}
 		count++
+		latest = evidence
 	}
-	return count
+	return count, latest
 }
 
 func workflowFailedReviewEvidenceCount(workflow *events.WorkflowState, phaseID string) int {
+	count, _ := workflowFailedReviewEvidence(workflow, phaseID)
+	return count
+}
+
+func workflowFailedReviewEvidence(workflow *events.WorkflowState, phaseID string) (int, *events.WorkflowEvidenceState) {
 	if workflow == nil {
-		return 0
+		return 0, nil
 	}
 	count := 0
+	var latest *events.WorkflowEvidenceState
 	phaseID = strings.TrimSpace(phaseID)
 	for _, evidenceID := range workflow.EvidenceOrder {
 		evidence := workflow.Evidence[evidenceID]
@@ -388,8 +492,9 @@ func workflowFailedReviewEvidenceCount(workflow *events.WorkflowState, phaseID s
 			continue
 		}
 		count++
+		latest = evidence
 	}
-	return count
+	return count, latest
 }
 
 func workflowRevisionPhaseID(definition workflowpkg.Definition, verificationPhaseID string) string {

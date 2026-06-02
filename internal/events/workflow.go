@@ -24,6 +24,7 @@ const (
 	WorkflowEvidenceTypePhaseOutput        = "phase_output"
 	WorkflowEvidenceTypeReview             = "review"
 	WorkflowEvidenceTypeReviewOutcome      = "review_outcome"
+	WorkflowEvidenceTypeRevisionTrigger    = "revision_trigger"
 	WorkflowEvidenceTypeTaskReview         = "task_review"
 	WorkflowEvidenceTypeVerificationResult = "verification_result"
 )

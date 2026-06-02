@@ -429,6 +429,16 @@ func TestRuntimeWorkflowFailedVerificationLoopsBackToImplementationWithinCap(t *
 	if workflowFailedVerificationEvidenceCount(state.Workflow, "verify") != 1 {
 		t.Fatalf("workflow evidence = %#v, want one failed verification", state.Workflow.Evidence)
 	}
+	trigger := workflowRevisionTriggerEvidence(state.Workflow, "verification_failed")
+	if trigger == nil {
+		t.Fatalf("workflow evidence = %#v, want revision trigger", state.Workflow.Evidence)
+	}
+	if trigger.Fields["failed_check"] != "go test ./..." {
+		t.Fatalf("revision trigger fields = %#v", trigger.Fields)
+	}
+	if trigger.Fields["revision_to_phase"] != "implement" || trigger.Fields["source_evidence_type"] != events.WorkflowEvidenceTypeVerificationResult {
+		t.Fatalf("revision trigger fields = %#v", trigger.Fields)
+	}
 }
 
 func TestRuntimeWorkflowReviewerPhaseCannotEditFiles(t *testing.T) {

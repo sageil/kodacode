@@ -51,12 +51,12 @@ contract is implemented and durable:
 - Workflow and phase `model` routing with phase-level precedence.
 - Per-workflow budgets through `budgets.max_cost` and
   `budgets.max_provider_requests_per_turn`.
+- Revision loops record `revision_trigger` evidence linked to the failed
+  verification check or review finding that caused the retry.
 - TUI workflow selection, footer status, and trace visibility.
 
 Remaining work:
 
-- Stronger revision evidence tying each retry to the exact failed check or
-  review finding.
 - Broader verification command types when the `test` tool is too narrow.
 - Better user controls for retrying or resuming blocked workflows.
 

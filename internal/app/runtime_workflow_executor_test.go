@@ -527,6 +527,92 @@ func TestRuntimeWorkflowFailedReviewLoopsBackToImplementationWithinCap(t *testin
 	if state.Workflow == nil || state.Workflow.Status != events.WorkflowStatusActive || state.Workflow.CurrentPhaseID != "implement" {
 		t.Fatalf("workflow = %#v, want active implement", state.Workflow)
 	}
+	trigger := workflowRevisionTriggerEvidence(state.Workflow, "review_failed")
+	if trigger == nil {
+		t.Fatalf("workflow evidence = %#v, want revision trigger", state.Workflow.Evidence)
+	}
+	if trigger.Fields["task_id"] != "task-1" || trigger.Fields["review_status"] != events.TaskReviewStatusFail || trigger.Fields["source_summary"] != "review failed" {
+		t.Fatalf("revision trigger fields = %#v", trigger.Fields)
+	}
+	if trigger.Fields["revision_to_phase"] != "implement" || trigger.Fields["source_evidence_type"] != events.WorkflowEvidenceTypeTaskReview {
+		t.Fatalf("revision trigger fields = %#v", trigger.Fields)
+	}
+}
+
+func TestRuntimeWorkflowFailedStructuredReviewRecordsFindingRevisionTrigger(t *testing.T) {
+	ctx := context.Background()
+	runtime := newRuntimeWithClient(t, &fakeProvider{})
+	root := t.TempDir()
+	sessionID := createWorkflowTestSession(t, runtime, root)
+	startDeliveryAtVerify(t, runtime, sessionID, root)
+	recordDeliveryVerificationEvidence(t, runtime, sessionID, "turn-1", true, "go test ./... passed")
+	if err := runtime.AdvanceWorkflow(ctx, AdvanceWorkflowInput{
+		SessionID: sessionID,
+		TurnID:    "turn-1",
+		ToPhaseID: "review",
+	}); err != nil {
+		t.Fatalf("AdvanceWorkflow(review) error = %v", err)
+	}
+	if _, err := runtime.Sessions.append(ctx, events.Draft{
+		SessionID: sessionID,
+		TurnID:    "turn-1",
+		Type:      events.TypeReviewRecorded,
+		Payload: events.ReviewRecordedPayload{
+			ReviewID:           "review-1",
+			Title:              "correctness review",
+			OverallCorrectness: events.ReviewOverallCorrectnessIncorrect,
+			OverallSummary:     "review failed",
+			Findings: []events.ReviewFindingPayload{{
+				Severity:    events.ReviewSeverityP1,
+				Path:        "internal/app/runtime_workflow_executor.go",
+				Line:        42,
+				Title:       "retry ignores failed check",
+				Explanation: "the revision loop must point at the concrete failed review finding",
+			}},
+		},
+	}); err != nil {
+		t.Fatalf("append ReviewRecorded error = %v", err)
+	}
+	if err := runtime.RecordWorkflowEvidence(ctx, RecordWorkflowEvidenceInput{
+		SessionID:  sessionID,
+		TurnID:     "turn-1",
+		PhaseID:    "review",
+		Type:       events.WorkflowEvidenceTypeReviewOutcome,
+		ReviewID:   "review-1",
+		Successful: testBoolPointer(false),
+		Summary:    "review failed",
+		Fields: map[string]string{
+			"review_pass":   "correctness",
+			"review_status": events.TaskReviewStatusFail,
+		},
+	}); err != nil {
+		t.Fatalf("RecordWorkflowEvidence(review) error = %v", err)
+	}
+
+	revised, err := runtime.maybeReviseWorkflowAfterReviewFailure(ctx, sessionID, "turn-1")
+	if err != nil {
+		t.Fatalf("maybeReviseWorkflowAfterReviewFailure() error = %v", err)
+	}
+	if !revised {
+		t.Fatal("maybeReviseWorkflowAfterReviewFailure() did not revise")
+	}
+	state, err := runtime.Sessions.Snapshot(ctx, sessionID)
+	if err != nil {
+		t.Fatalf("Snapshot() error = %v", err)
+	}
+	trigger := workflowRevisionTriggerEvidence(state.Workflow, "review_failed")
+	if trigger == nil {
+		t.Fatalf("workflow evidence = %#v, want revision trigger", state.Workflow.Evidence)
+	}
+	if trigger.Fields["review_id"] != "review-1" || trigger.Fields["review_pass"] != "correctness" {
+		t.Fatalf("revision trigger fields = %#v", trigger.Fields)
+	}
+	if trigger.Fields["finding_count"] != "1" ||
+		trigger.Fields["finding_1_path"] != "internal/app/runtime_workflow_executor.go" ||
+		trigger.Fields["finding_1_line"] != "42" ||
+		trigger.Fields["finding_1_title"] != "retry ignores failed check" {
+		t.Fatalf("revision trigger finding fields = %#v", trigger.Fields)
+	}
 }
 
 func TestRuntimeWorkflowFailedReviewDoesNotReviseAfterLoopCap(t *testing.T) {
@@ -896,6 +982,23 @@ func recordDeliveryTaskReviewEvidence(t *testing.T, runtime *Runtime, sessionID,
 	}); err != nil {
 		t.Fatalf("ReviewTask(%s) error = %v", taskID, err)
 	}
+}
+
+func workflowRevisionTriggerEvidence(workflow *events.WorkflowState, event string) *events.WorkflowEvidenceState {
+	if workflow == nil {
+		return nil
+	}
+	event = strings.TrimSpace(event)
+	for _, evidenceID := range workflow.EvidenceOrder {
+		evidence := workflow.Evidence[evidenceID]
+		if evidence == nil || evidence.Type != events.WorkflowEvidenceTypeRevisionTrigger {
+			continue
+		}
+		if strings.TrimSpace(evidence.Fields["revision_event"]) == event {
+			return evidence
+		}
+	}
+	return nil
 }
 
 func testBoolPointer(value bool) *bool {
