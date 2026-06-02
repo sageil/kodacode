@@ -441,6 +441,72 @@ func TestRuntimeWorkflowFailedVerificationDoesNotReviseAfterLoopCap(t *testing.T
 	}
 }
 
+func TestRuntimeWorkflowFailedReviewLoopsBackToImplementationWithinCap(t *testing.T) {
+	ctx := context.Background()
+	runtime := newRuntimeWithClient(t, &fakeProvider{})
+	root := t.TempDir()
+	sessionID := createWorkflowTestSession(t, runtime, root)
+	startDeliveryAtVerify(t, runtime, sessionID, root)
+	recordDeliveryVerificationEvidence(t, runtime, sessionID, "turn-1", true, "go test ./... passed")
+	if err := runtime.AdvanceWorkflow(ctx, AdvanceWorkflowInput{
+		SessionID: sessionID,
+		TurnID:    "turn-1",
+		ToPhaseID: "review",
+	}); err != nil {
+		t.Fatalf("AdvanceWorkflow(review) error = %v", err)
+	}
+	recordDeliveryTaskReviewEvidence(t, runtime, sessionID, "turn-1", "task-1", events.TaskReviewStatusFail, "review failed")
+
+	revised, err := runtime.maybeReviseWorkflowAfterReviewFailure(ctx, sessionID, "turn-1")
+	if err != nil {
+		t.Fatalf("maybeReviseWorkflowAfterReviewFailure() error = %v", err)
+	}
+	if !revised {
+		t.Fatal("maybeReviseWorkflowAfterReviewFailure() did not revise")
+	}
+	state, err := runtime.Sessions.Snapshot(ctx, sessionID)
+	if err != nil {
+		t.Fatalf("Snapshot() error = %v", err)
+	}
+	if state.Workflow == nil || state.Workflow.Status != events.WorkflowStatusActive || state.Workflow.CurrentPhaseID != "implement" {
+		t.Fatalf("workflow = %#v, want active implement", state.Workflow)
+	}
+}
+
+func TestRuntimeWorkflowFailedReviewDoesNotReviseAfterLoopCap(t *testing.T) {
+	ctx := context.Background()
+	runtime := newRuntimeWithClient(t, &fakeProvider{})
+	root := t.TempDir()
+	sessionID := createWorkflowTestSession(t, runtime, root)
+	startDeliveryAtVerify(t, runtime, sessionID, root)
+	recordDeliveryVerificationEvidence(t, runtime, sessionID, "turn-1", true, "go test ./... passed")
+	if err := runtime.AdvanceWorkflow(ctx, AdvanceWorkflowInput{
+		SessionID: sessionID,
+		TurnID:    "turn-1",
+		ToPhaseID: "review",
+	}); err != nil {
+		t.Fatalf("AdvanceWorkflow(review) error = %v", err)
+	}
+	for _, taskID := range []string{"task-1", "task-2", "task-3"} {
+		recordDeliveryTaskReviewEvidence(t, runtime, sessionID, "turn-1", taskID, events.TaskReviewStatusFail, "review failed")
+	}
+
+	revised, err := runtime.maybeReviseWorkflowAfterReviewFailure(ctx, sessionID, "turn-1")
+	if err != nil {
+		t.Fatalf("maybeReviseWorkflowAfterReviewFailure() error = %v", err)
+	}
+	if revised {
+		t.Fatal("maybeReviseWorkflowAfterReviewFailure() revised after loop cap")
+	}
+	state, err := runtime.Sessions.Snapshot(ctx, sessionID)
+	if err != nil {
+		t.Fatalf("Snapshot() error = %v", err)
+	}
+	if state.Workflow == nil || state.Workflow.Status != events.WorkflowStatusActive || state.Workflow.CurrentPhaseID != "review" {
+		t.Fatalf("workflow = %#v, want active review", state.Workflow)
+	}
+}
+
 func TestRuntimeWorkflowEvidenceSurvivesReplay(t *testing.T) {
 	ctx := context.Background()
 	store := events.NewMemoryStore()
@@ -732,6 +798,28 @@ func recordDeliveryReviewEvidence(t *testing.T, runtime *Runtime, sessionID, tur
 		Summary:    "review passed",
 	}); err != nil {
 		t.Fatalf("RecordWorkflowEvidence(review) error = %v", err)
+	}
+}
+
+func recordDeliveryTaskReviewEvidence(t *testing.T, runtime *Runtime, sessionID, turnID, taskID, status, summary string) {
+	t.Helper()
+	if _, err := runtime.Sessions.CreateTask(context.Background(), CreateTaskInput{
+		SessionID: sessionID,
+		TurnID:    turnID,
+		TaskID:    taskID,
+		Title:     "Review implementation " + taskID,
+		Status:    events.TaskStatusPending,
+	}); err != nil {
+		t.Fatalf("CreateTask(%s) error = %v", taskID, err)
+	}
+	if _, err := runtime.Sessions.ReviewTask(context.Background(), ReviewTaskInput{
+		SessionID:     sessionID,
+		TurnID:        turnID,
+		TaskID:        taskID,
+		ReviewStatus:  status,
+		ReviewSummary: summary,
+	}); err != nil {
+		t.Fatalf("ReviewTask(%s) error = %v", taskID, err)
 	}
 }
 

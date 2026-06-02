@@ -88,7 +88,7 @@ to an implementation phase. Approval phases can use
 `skip_when.max_affected_files` to skip human approval for small structured
 plans; the signal comes from the previous phase's `affected_files` output.
 Workflow `transitions` make non-linear movement explicit for supported events
-such as `skipped` and `verification_failed`.
+such as `skipped`, `verification_failed`, and `review_failed`.
 
 Final phases synthesize their summary from recorded workflow evidence. The
 runtime fills requested `include` fields from exact phase-output fields or known
@@ -152,6 +152,10 @@ transitions:
     on: verification_failed
     to: implement
     max_loops: 2
+  - from: review
+    on: review_failed
+    to: implement
+    max_loops: 2
 ```
 
 Example debugging workflow:
@@ -193,6 +197,10 @@ phases:
 transitions:
   - from: verify
     on: verification_failed
+    to: patch
+    max_loops: 2
+  - from: review
+    on: review_failed
     to: patch
     max_loops: 2
 ```

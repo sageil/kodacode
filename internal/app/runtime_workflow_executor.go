@@ -230,6 +230,44 @@ func (r *Runtime) maybeReviseWorkflowAfterVerificationFailure(ctx context.Contex
 	return true, nil
 }
 
+func (r *Runtime) maybeReviseWorkflowAfterReviewFailure(ctx context.Context, sessionID, turnID string) (bool, error) {
+	state, definition, workflow, err := r.activeWorkflowState(ctx, sessionID)
+	if err != nil {
+		return false, err
+	}
+	if workflow == nil {
+		return false, nil
+	}
+	phaseID := strings.TrimSpace(workflow.CurrentPhaseID)
+	phase, ok := workflowPhaseByID(definition, phaseID)
+	if !ok || !workflowPhaseIsReview(phase) {
+		return false, nil
+	}
+	transition, hasTransition := workflowTransitionFor(definition, phaseID, workflowpkg.TransitionOnReviewFailed)
+	if !hasTransition {
+		return false, nil
+	}
+	maxLoops := definition.MaxRevisionLoops
+	if transition.MaxLoops > 0 {
+		maxLoops = transition.MaxLoops
+	}
+	if maxLoops <= 0 {
+		return false, nil
+	}
+	failedCount := workflowFailedReviewEvidenceCount(state.Workflow, phaseID)
+	if failedCount == 0 || failedCount > maxLoops {
+		return false, nil
+	}
+	toPhaseID := strings.TrimSpace(transition.To)
+	if toPhaseID == "" {
+		return false, nil
+	}
+	if err := r.appendWorkflowPhaseAdvanced(ctx, sessionID, turnID, workflow.WorkflowID, phaseID, toPhaseID, fmt.Sprintf("revision loop %d/%d after failed review", failedCount, maxLoops)); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 func (r *Runtime) appendWorkflowPhaseAdvanced(ctx context.Context, sessionID, turnID, workflowID, fromPhaseID, toPhaseID, stopReason string) error {
 	_, err := r.Sessions.append(ctx, events.Draft{
 		SessionID: sessionID,
@@ -323,6 +361,30 @@ func workflowFailedVerificationEvidenceCount(workflow *events.WorkflowState, pha
 			continue
 		}
 		if evidence.Type != events.WorkflowEvidenceTypeVerificationResult || evidence.Successful == nil || *evidence.Successful {
+			continue
+		}
+		count++
+	}
+	return count
+}
+
+func workflowFailedReviewEvidenceCount(workflow *events.WorkflowState, phaseID string) int {
+	if workflow == nil {
+		return 0
+	}
+	count := 0
+	phaseID = strings.TrimSpace(phaseID)
+	for _, evidenceID := range workflow.EvidenceOrder {
+		evidence := workflow.Evidence[evidenceID]
+		if evidence == nil || strings.TrimSpace(evidence.PhaseID) != phaseID {
+			continue
+		}
+		switch evidence.Type {
+		case events.WorkflowEvidenceTypeReviewOutcome, events.WorkflowEvidenceTypeReview, events.WorkflowEvidenceTypeTaskReview:
+		default:
+			continue
+		}
+		if evidence.Successful == nil || *evidence.Successful {
 			continue
 		}
 		count++

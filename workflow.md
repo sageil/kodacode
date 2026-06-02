@@ -35,8 +35,8 @@ contract is implemented and durable:
 - User approval phases and small-plan approval skip through
   `skip_when.max_affected_files`.
 - Runtime-executed verification commands through the `test` tool.
-- Explicit `transitions` for supported non-linear events such as `skipped` and
-  `verification_failed`.
+- Explicit `transitions` for supported non-linear events such as `skipped`,
+  `verification_failed`, and `review_failed`.
 - Bounded verification revision loops through transition `max_loops` or
   workflow-level `max_revision_loops`.
 - Final phases synthesize a deterministic summary from recorded workflow
@@ -46,7 +46,8 @@ contract is implemented and durable:
 
 Remaining work:
 
-- General transition events beyond `skipped` and `verification_failed`.
+- Additional transition events beyond `skipped`, `verification_failed`, and
+  `review_failed`.
 - First-class route recommendation before workflow selection.
 - Parallel review fan-out and aggregation.
 - Per-workflow budgets and model routing.
@@ -327,6 +328,10 @@ workflow_templates:
         on: verification_failed
         to: implement
         max_loops: 2
+      - from: review
+        on: review_failed
+        to: implement
+        max_loops: 2
 ```
 
 The workflow should be invokable explicitly:
@@ -424,6 +429,10 @@ transitions:
     to: implement
   - from: verify
     on: verification_failed
+    to: implement
+    max_loops: 2
+  - from: review
+    on: review_failed
     to: implement
     max_loops: 2
 ```

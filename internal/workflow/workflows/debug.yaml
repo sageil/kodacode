@@ -82,3 +82,7 @@ transitions:
     on: verification_failed
     to: patch
     max_loops: 2
+  - from: review
+    on: review_failed
+    to: patch
+    max_loops: 2

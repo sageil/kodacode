@@ -556,6 +556,15 @@ func (r *Runtime) maybeAdvanceWorkflowAfterTurn(ctx context.Context, sessionID, 
 	if err := r.recordWorkflowTurnCompletionEvidence(ctx, state, sessionID, turnID, phase, result.AssistantText); err != nil {
 		return RunSessionResult{}, err
 	}
+	if workflowPhaseIsReview(phase) {
+		revised, err := r.maybeReviseWorkflowAfterReviewFailure(ctx, sessionID, turnID)
+		if err != nil {
+			return RunSessionResult{}, err
+		}
+		if revised {
+			return result, nil
+		}
+	}
 	if err := r.AdvanceWorkflow(ctx, AdvanceWorkflowInput{
 		SessionID: sessionID,
 		TurnID:    turnID,

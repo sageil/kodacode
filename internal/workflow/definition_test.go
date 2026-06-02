@@ -37,11 +37,14 @@ func TestLoadBytesParsesValidDeliveryWorkflow(t *testing.T) {
 	if strings.Join(review.Requires.Items, ",") != "git_diff,verification_result" {
 		t.Fatalf("review requires = %#v", review.Requires.Items)
 	}
-	if len(definition.Transitions) != 2 {
-		t.Fatalf("transitions = %#v, want 2", definition.Transitions)
+	if len(definition.Transitions) != 3 {
+		t.Fatalf("transitions = %#v, want 3", definition.Transitions)
 	}
 	if definition.Transitions[1].From != "verify" || definition.Transitions[1].On != TransitionOnVerificationFailed || definition.Transitions[1].To != "implement" || definition.Transitions[1].MaxLoops != 2 {
 		t.Fatalf("verification transition = %#v", definition.Transitions[1])
+	}
+	if definition.Transitions[2].From != "review" || definition.Transitions[2].On != TransitionOnReviewFailed || definition.Transitions[2].To != "implement" || definition.Transitions[2].MaxLoops != 2 {
+		t.Fatalf("review transition = %#v", definition.Transitions[2])
 	}
 }
 
@@ -346,6 +349,10 @@ transitions:
     to: implement
   - from: verify
     on: verification_failed
+    to: implement
+    max_loops: 2
+  - from: review
+    on: review_failed
     to: implement
     max_loops: 2
 `

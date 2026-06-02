@@ -95,6 +95,7 @@ type Transition struct {
 const (
 	TransitionOnSkipped            = "skipped"
 	TransitionOnVerificationFailed = "verification_failed"
+	TransitionOnReviewFailed       = "review_failed"
 )
 
 type ValidationContext struct {
@@ -295,7 +296,7 @@ func validateTransitions(transitions []Transition, phases map[string]struct{}) e
 			return fmt.Errorf("transition %d: %w: unknown to phase %s", index+1, ErrWorkflowTransitionInvalid, to)
 		}
 		switch on {
-		case TransitionOnSkipped, TransitionOnVerificationFailed:
+		case TransitionOnSkipped, TransitionOnVerificationFailed, TransitionOnReviewFailed:
 		default:
 			return fmt.Errorf("transition %d: %w: unknown event %s", index+1, ErrWorkflowTransitionInvalid, on)
 		}
