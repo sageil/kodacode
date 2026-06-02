@@ -226,5 +226,186 @@ func (e *ToolExecutor) appendToolExecEnd(ctx context.Context, input ExecuteToolI
 			"backend", runtime.Backend,
 		)
 	}
+	if err := e.appendWorkflowVerificationEvidenceFromToolExecEnd(ctx, input, payload); err != nil {
+		return err
+	}
+	if err := e.appendWorkflowGitDiffEvidenceFromToolExecEnd(ctx, input, payload); err != nil {
+		return err
+	}
 	return nil
+}
+
+func (e *ToolExecutor) appendWorkflowVerificationEvidenceFromToolExecEnd(ctx context.Context, input ExecuteToolInput, payload events.ToolExecEndPayload) error {
+	if e == nil || e.sessions == nil {
+		return nil
+	}
+	switch strings.TrimSpace(payload.ToolName) {
+	case tool.TestToolName, tool.BashToolName:
+	default:
+		return nil
+	}
+	state, err := e.sessions.Snapshot(ctx, input.SessionID)
+	if err != nil {
+		return err
+	}
+	workflow := state.Workflow
+	if workflow == nil || workflow.Status != events.WorkflowStatusActive {
+		return nil
+	}
+	command := workflowVerificationCommand(state, payload.CallID)
+	commands, err := e.workflowPhaseCommands(ctx, state, workflow.WorkflowID, workflow.CurrentPhaseID)
+	if err != nil {
+		return err
+	}
+	if len(commands) == 0 || !containsTrimmed(commands, command) {
+		return nil
+	}
+	phase := workflow.Phases[workflow.CurrentPhaseID]
+	if phase != nil {
+		for _, evidenceID := range phase.EvidenceIDs {
+			evidence := workflow.Evidence[evidenceID]
+			if evidence != nil && strings.TrimSpace(evidence.ToolCallID) == strings.TrimSpace(payload.CallID) {
+				return nil
+			}
+		}
+	}
+	successful := payload.Successful()
+	summary := workflowVerificationSummary(payload)
+	if _, err := e.sessions.append(ctx, events.Draft{
+		SessionID: input.SessionID,
+		TurnID:    workflowEventTurnID(input.TurnID),
+		Type:      events.TypeWorkflowEvidenceRecorded,
+		Payload: events.WorkflowEvidenceRecordedPayload{
+			EvidenceID:  newRuntimeID("workflow-evidence"),
+			WorkflowID:  workflow.WorkflowID,
+			PhaseID:     workflow.CurrentPhaseID,
+			Type:        events.WorkflowEvidenceTypeVerificationResult,
+			ToolCallID:  strings.TrimSpace(payload.CallID),
+			ExecutionID: strings.TrimSpace(payload.ExecutionID),
+			Command:     command,
+			ExitCode:    cloneInt(payload.ExitCode),
+			Successful:  &successful,
+			Summary:     summary,
+		},
+	}); err != nil {
+		return err
+	}
+	if !successful {
+		_, err := e.sessions.append(ctx, events.Draft{
+			SessionID: input.SessionID,
+			TurnID:    workflowEventTurnID(input.TurnID),
+			Type:      events.TypeWorkflowPhaseBlocked,
+			Payload: events.WorkflowPhaseBlockedPayload{
+				WorkflowID: workflow.WorkflowID,
+				PhaseID:    workflow.CurrentPhaseID,
+				StopReason: summary,
+			},
+		})
+		return err
+	}
+	return nil
+}
+
+func (e *ToolExecutor) appendWorkflowGitDiffEvidenceFromToolExecEnd(ctx context.Context, input ExecuteToolInput, payload events.ToolExecEndPayload) error {
+	if e == nil || e.sessions == nil || strings.TrimSpace(payload.ToolName) != "git_diff" || !payload.Successful() {
+		return nil
+	}
+	state, err := e.sessions.Snapshot(ctx, input.SessionID)
+	if err != nil {
+		return err
+	}
+	workflow := state.Workflow
+	if workflow == nil || workflow.Status != events.WorkflowStatusActive {
+		return nil
+	}
+	phaseID := strings.TrimSpace(workflow.CurrentPhaseID)
+	phase := workflow.Phases[phaseID]
+	if phase != nil {
+		for _, evidenceID := range phase.EvidenceIDs {
+			evidence := workflow.Evidence[evidenceID]
+			if evidence != nil && strings.TrimSpace(evidence.ToolCallID) == strings.TrimSpace(payload.CallID) {
+				return nil
+			}
+		}
+	}
+	summary := strings.TrimSpace(payload.Output)
+	if summary == "" {
+		summary = "git diff captured"
+	}
+	_, err = e.sessions.append(ctx, events.Draft{
+		SessionID: input.SessionID,
+		TurnID:    workflowEventTurnID(input.TurnID),
+		Type:      events.TypeWorkflowEvidenceRecorded,
+		Payload: events.WorkflowEvidenceRecordedPayload{
+			EvidenceID:  newRuntimeID("workflow-evidence"),
+			WorkflowID:  workflow.WorkflowID,
+			PhaseID:     phaseID,
+			Type:        events.WorkflowEvidenceTypeGitDiff,
+			ToolCallID:  strings.TrimSpace(payload.CallID),
+			ExecutionID: strings.TrimSpace(payload.ExecutionID),
+			Summary:     truncateWorkflowEvidenceSummary(summary),
+		},
+	})
+	return err
+}
+
+func (e *ToolExecutor) workflowPhaseCommands(ctx context.Context, state events.SessionState, workflowID, phaseID string) ([]string, error) {
+	if e == nil || e.workflowPhaseCommandResolver == nil {
+		return nil, nil
+	}
+	return e.workflowPhaseCommandResolver(ctx, state.WorkspaceRoot, workflowID, phaseID)
+}
+
+func containsTrimmed(values []string, needle string) bool {
+	needle = strings.TrimSpace(needle)
+	if needle == "" {
+		return false
+	}
+	for _, value := range values {
+		if strings.TrimSpace(value) == needle {
+			return true
+		}
+	}
+	return false
+}
+
+func workflowVerificationCommand(state events.SessionState, callID string) string {
+	for _, turn := range state.Turns {
+		if turn == nil {
+			continue
+		}
+		call := turn.ToolCalls[strings.TrimSpace(callID)]
+		if call == nil || call.Execution == nil {
+			continue
+		}
+		if command := strings.TrimSpace(call.Execution.CommandPreview); command != "" {
+			return command
+		}
+	}
+	return ""
+}
+
+func workflowVerificationSummary(payload events.ToolExecEndPayload) string {
+	if payload.Successful() {
+		if output := strings.TrimSpace(payload.Output); output != "" {
+			return truncateWorkflowEvidenceSummary(output)
+		}
+		return "verification succeeded"
+	}
+	if err := strings.TrimSpace(payload.Error); err != "" {
+		return truncateWorkflowEvidenceSummary(err)
+	}
+	if output := strings.TrimSpace(payload.Output); output != "" {
+		return truncateWorkflowEvidenceSummary(output)
+	}
+	return "verification failed"
+}
+
+func truncateWorkflowEvidenceSummary(text string) string {
+	const limit = 512
+	text = strings.Join(strings.Fields(strings.TrimSpace(text)), " ")
+	if len(text) <= limit {
+		return text
+	}
+	return text[:limit]
 }

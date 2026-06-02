@@ -121,6 +121,69 @@ func TestRenderFooterStatusBarIncludesGitAndTurnSignals(t *testing.T) {
 	}
 }
 
+func TestRenderFooterStatusBarShowsWorkflowStatusInClassicLayout(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context:       ctx,
+		Theme:         &defaultTheme,
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: "/repo",
+	})
+	state := events.SessionState{
+		Workflow: &events.WorkflowState{
+			WorkflowID:     "delivery",
+			Status:         events.WorkflowStatusActive,
+			CurrentPhaseID: "implement",
+			Phases: map[string]*events.WorkflowPhaseState{
+				"implement": {PhaseID: "implement", Status: events.WorkflowPhaseStatusInProgress},
+			},
+		},
+	}
+
+	rendered := ansi.Strip(renderFooterStatusBar(model, state, 120))
+	if !strings.Contains(rendered, "workflow:delivery phase:implement active") {
+		t.Fatalf("classic footer missing workflow status\nrendered:\n%s", rendered)
+	}
+}
+
+func TestRenderKodaShellStatusLineShowsBlockedWorkflowReason(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context:       ctx,
+		Theme:         &defaultTheme,
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: "/repo",
+		Layout:        tuiLayoutShell,
+	})
+	state := events.SessionState{
+		Turns: map[string]*events.TurnState{
+			"turn-1": {TurnID: "turn-1", Status: events.TurnStatusRunning},
+		},
+		Workflow: &events.WorkflowState{
+			WorkflowID:     "delivery",
+			Status:         events.WorkflowStatusBlocked,
+			CurrentPhaseID: "approve",
+			StopReason:     "missing approval evidence",
+			Phases: map[string]*events.WorkflowPhaseState{
+				"approve": {PhaseID: "approve", Status: events.WorkflowPhaseStatusBlocked, StopReason: "missing approval evidence"},
+			},
+		},
+	}
+
+	rendered := ansi.Strip(renderKodaShellStatusLine(model, state, 160))
+	if !strings.Contains(rendered, "workflow:delivery phase:approve blocked: missing approval evidence") {
+		t.Fatalf("shell status line missing blocked workflow reason\nrendered:\n%s", rendered)
+	}
+}
+
 func TestFooterSearchLabelShowsEmbeddingOfflineForEmbeddingConnectionFailure(t *testing.T) {
 	label, tone := footerSearchLabel(app.WorkspaceStatus{
 		Search: &app.WorkspaceSearchStatus{
@@ -1776,7 +1839,7 @@ func TestRenderFooterHintsLineOmitsAgentCycleDuringRunningTurn(t *testing.T) {
 	model.chrome.focus = focusComposer
 	model.chrome.hintsExpanded = true
 
-	idle := ansi.Strip(renderFooterHintsLine(model, events.SessionState{}, 140))
+	idle := ansi.Strip(renderFooterHintsLine(model, events.SessionState{}, 220))
 	if !strings.Contains(idle, "tab agent") {
 		t.Fatalf("idle footer hints missing agent cycle shortcut\nrendered:\n%s", idle)
 	}
@@ -1791,7 +1854,7 @@ func TestRenderFooterHintsLineOmitsAgentCycleDuringRunningTurn(t *testing.T) {
 	}
 	model.projector = events.NewProjectorFromSnapshot(runningState)
 
-	running := ansi.Strip(renderFooterHintsLine(model, runningState, 140))
+	running := ansi.Strip(renderFooterHintsLine(model, runningState, 220))
 	if strings.Contains(running, "tab agent") {
 		t.Fatalf("running footer hints should hide agent cycle shortcut\nrendered:\n%s", running)
 	}

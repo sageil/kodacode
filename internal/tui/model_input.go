@@ -59,6 +59,13 @@ func (m Model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.startNewWorkspaceSession(m.chrome.focus == focusComposer, m.chrome.focus == focusComposer)
 	}
 
+	if isWorkflowDialogShortcut(msg) {
+		if m.busy || m.hasPendingInteraction() {
+			return m, nil
+		}
+		return m, m.openWorkflowDialog()
+	}
+
 	if isLayoutToggleShortcut(msg) {
 		return m.toggleLayoutMode()
 	}
@@ -179,6 +186,10 @@ func isSessionsDialogShortcut(msg tea.KeyPressMsg) bool {
 
 func isNewSessionShortcut(msg tea.KeyPressMsg) bool {
 	return msg.Keystroke() == "ctrl+n"
+}
+
+func isWorkflowDialogShortcut(msg tea.KeyPressMsg) bool {
+	return msg.Keystroke() == "ctrl+w"
 }
 
 func isLayoutToggleShortcut(msg tea.KeyPressMsg) bool {

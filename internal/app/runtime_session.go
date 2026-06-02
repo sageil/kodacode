@@ -15,6 +15,7 @@ type turnStartSessionView struct {
 	additionalWorkspaceRoots []string
 	inspectionProgress       []inspectionProgressPromptEntry
 	mcp                      *events.SessionMCPState
+	workflow                 *events.WorkflowState
 	model                    string
 	turnOrder                []string
 	deterministicContext     map[string]string
@@ -27,6 +28,7 @@ type runExistingTurnInput struct {
 	Attachments          []AttachmentInput
 	ResolvedAttachments  []provider.Attachment
 	AgentID              string
+	WorkflowID           string
 	SkillIDs             []string
 	SelectedSkillIDs     []string
 	ThinkingEnabled      bool
@@ -118,9 +120,44 @@ func (r *Runtime) runExistingSessionTurn(ctx context.Context, input runExistingT
 		return r.recordTurnFailure(ctx, input.SessionID, input.TurnID, input.UserText, nil, err)
 	}
 	effectiveSkillIDs := skillIDsForTurn(input.UserText, input.SkillIDs, availableSkills)
+	effectiveWorkflowID := strings.TrimSpace(input.WorkflowID)
+	if effectiveWorkflowID != "" {
+		if _, err := r.resolveWorkflow(ctx, view.workspaceRoot, effectiveWorkflowID); err != nil {
+			return r.recordTurnFailure(ctx, input.SessionID, input.TurnID, input.UserText, nil, err)
+		}
+	}
+	view, workflowPhase, workflowIDForTurn, err := r.prepareWorkflowPhaseTurn(ctx, input, view)
+	if err != nil {
+		return r.recordTurnFailure(ctx, input.SessionID, input.TurnID, input.UserText, nil, err)
+	}
+	if workflowIDForTurn != "" {
+		effectiveWorkflowID = workflowIDForTurn
+	}
+	effectiveAgentID := input.AgentID
+	if workflowPhase.Active {
+		effectiveAgentID = workflowPhaseAgentID(input.AgentID, workflowPhase.Phase)
+	}
+	if workflowPhase.Active && workflowPhaseIsUserApproval(workflowPhase.Phase) {
+		if err := r.appendWorkflowPhaseTurnConfigured(ctx, input, view, workflowPhase, effectiveAgentID, effectiveWorkflowID, effectiveSkillIDs, effectiveThinkingEnabled, effectiveThinkingMode, responseStyle); err != nil {
+			return r.recordTurnFailure(ctx, input.SessionID, input.TurnID, input.UserText, nil, err)
+		}
+		return r.startWorkflowApprovalPhaseTurn(ctx, input, workflowPhase)
+	}
+	if workflowPhase.Active && workflowPhaseIsFinal(workflowPhase.Phase) {
+		if err := r.appendWorkflowPhaseTurnConfigured(ctx, input, view, workflowPhase, effectiveAgentID, effectiveWorkflowID, effectiveSkillIDs, effectiveThinkingEnabled, effectiveThinkingMode, responseStyle); err != nil {
+			return r.recordTurnFailure(ctx, input.SessionID, input.TurnID, input.UserText, nil, err)
+		}
+		return r.completeWorkflowFinalPhaseTurn(ctx, input, workflowPhase)
+	}
+	if workflowPhase.Active && workflowPhaseIsVerification(workflowPhase.Phase) && len(trimmedWorkflowValues(workflowPhase.Phase.Commands)) > 0 && workflowPhaseSupportsDeterministicTest(workflowPhase.Phase) {
+		if err := r.appendWorkflowPhaseTurnConfigured(ctx, input, view, workflowPhase, effectiveAgentID, effectiveWorkflowID, effectiveSkillIDs, effectiveThinkingEnabled, effectiveThinkingMode, responseStyle); err != nil {
+			return r.recordTurnFailure(ctx, input.SessionID, input.TurnID, input.UserText, nil, err)
+		}
+		return r.startWorkflowVerificationPhaseTurn(ctx, input, workflowPhase)
+	}
 
 	capabilities, err := r.resolveTurnCapabilitiesFromState(view.capabilitiesState(), resolveTurnCapabilitiesOptions{
-		AgentID:              input.AgentID,
+		AgentID:              effectiveAgentID,
 		SkillIDs:             append([]string(nil), effectiveSkillIDs...),
 		ModelRouteOverride:   input.ModelRouteOverride,
 		AllowedToolsOverride: slices.Clone(input.AllowedToolsOverride),
@@ -129,7 +166,10 @@ func (r *Runtime) runExistingSessionTurn(ctx context.Context, input runExistingT
 	if err != nil {
 		return r.recordTurnFailure(ctx, input.SessionID, input.TurnID, input.UserText, nil, err)
 	}
-	capabilities.AllowedTools = reviewPlanHarnessParentTools(input.AgentID, input.UserText, capabilities.AllowedTools)
+	capabilities.AllowedTools = reviewPlanHarnessParentTools(effectiveAgentID, input.UserText, capabilities.AllowedTools)
+	if workflowPhase.Active {
+		capabilities.AllowedTools = workflowPhaseAllowedTools(capabilities.AllowedTools, workflowPhase.Phase)
+	}
 	resolvedAttachments := cloneProviderAttachments(input.ResolvedAttachments)
 	if len(resolvedAttachments) == 0 {
 		resolvedAttachments, err = r.resolveTurnAttachments(view.workspaceRoot, capabilities.ModelRoute, input.Attachments)
@@ -146,6 +186,9 @@ func (r *Runtime) runExistingSessionTurn(ctx context.Context, input runExistingT
 	}
 	if len(input.AdditionalFragments) > 0 {
 		fragments = append(fragments, input.AdditionalFragments...)
+	}
+	if workflowPhase.Active {
+		fragments = append(fragments, workflowPhasePromptFragment(workflowPhase, capabilities.AllowedTools))
 	}
 	if fragment, ok := r.deterministicContextPacketFragment(ctx, deterministicContextPacketRuntimeInput{
 		WorkspaceRoot:             view.workspaceRoot,
@@ -189,7 +232,11 @@ func (r *Runtime) runExistingSessionTurn(ctx context.Context, input runExistingT
 			return RunSessionResult{}, err
 		}
 	}
-	if err := r.Runner.appendTurnConfigured(ctx, input.SessionID, input.TurnID, newTurnConfiguredPayload(capabilities.TurnCapabilities, selectedSkillIDs, input.PreserveSessionModel, effectiveThinkingEnabled, effectiveThinkingMode, responseStyle, input.HideAssistantPreview)); err != nil {
+	turnConfig := newTurnConfiguredPayload(capabilities.TurnCapabilities, selectedSkillIDs, effectiveWorkflowID, input.PreserveSessionModel, effectiveThinkingEnabled, effectiveThinkingMode, responseStyle, input.HideAssistantPreview)
+	if workflowPhase.Active {
+		turnConfig.WorkflowPhaseID = strings.TrimSpace(workflowPhase.Phase.ID)
+	}
+	if err := r.Runner.appendTurnConfigured(ctx, input.SessionID, input.TurnID, turnConfig); err != nil {
 		return RunSessionResult{}, err
 	}
 	if input.InitialState != nil {
@@ -298,10 +345,23 @@ func (r *Runtime) runExistingSessionTurn(ctx context.Context, input runExistingT
 		"status", loaded.Status,
 		"pending_request_id", loaded.PendingRequestID,
 	)
+	if workflowPhase.Active {
+		advanced, advanceErr := r.maybeAdvanceWorkflowAfterTurn(ctx, input.SessionID, input.TurnID, loaded)
+		if advanceErr != nil {
+			return RunSessionResult{}, advanceErr
+		}
+		loaded = advanced
+	}
 	if input.DisableAutoReview {
 		return loaded, nil
 	}
-	if reviewed, ok, reviewErr := r.maybeRunAutoReview(ctx, view.workspaceRoot, capabilities.AgentID, loaded); reviewErr != nil {
+	reviewMode := r.Config.Workflow.ReviewMode
+	if mode, ok, err := r.workflowReviewMode(ctx, view.workspaceRoot, effectiveWorkflowID); err != nil {
+		return RunSessionResult{}, err
+	} else if ok {
+		reviewMode = mode
+	}
+	if reviewed, ok, reviewErr := r.maybeRunAutoReview(ctx, view.workspaceRoot, capabilities.AgentID, loaded, reviewMode); reviewErr != nil {
 		return RunSessionResult{}, reviewErr
 	} else if ok {
 		return reviewed, nil
@@ -317,6 +377,7 @@ func (r *Runtime) loadTurnStartSessionView(ctx context.Context, sessionID string
 			additionalWorkspaceRoots: append([]string(nil), state.AdditionalWorkspaceRoots...),
 			inspectionProgress:       collectCompactedInspectionProgressPromptEntries(&state),
 			mcp:                      cloneSessionMCPState(state.MCP),
+			workflow:                 cloneWorkflowStateForRuntime(state.Workflow),
 			model:                    state.Model,
 			turnOrder:                append([]string(nil), state.TurnOrder...),
 			deterministicContext:     lastSentDeterministicContextPacketSections(state, r.Config.ContextPacket.EnabledSections),
@@ -331,6 +392,8 @@ func (r *Runtime) loadTurnStartSessionView(ctx context.Context, sessionID string
 func (v turnStartSessionView) capabilitiesState() events.SessionState {
 	return events.SessionState{
 		WorkspaceRoot: v.workspaceRoot,
+		MCP:           cloneSessionMCPState(v.mcp),
+		Workflow:      cloneWorkflowStateForRuntime(v.workflow),
 		Model:         v.model,
 	}
 }

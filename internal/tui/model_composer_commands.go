@@ -17,6 +17,7 @@ type composerCommand struct {
 	Usage         string
 	FreeformArg   bool
 	StageOnSelect bool
+	Hidden        bool
 }
 
 type composerCommandInvocation struct {
@@ -29,6 +30,7 @@ var composerCommands = []composerCommand{
 	{ID: "sessions", Name: "/sessions", Description: "manage sessions"},
 	{ID: "init", Name: "/init", Description: "initialize workspace instruction files"},
 	{ID: "model", Name: "/model", Description: "switch model"},
+	{ID: "workflow", Name: "/workflow", Description: "select workflow", Usage: "/workflow [id]", Hidden: true},
 	{ID: "variant", Name: "/variant", Description: "set provider reasoning variant", Usage: "/variant [value]"},
 	{ID: "thinking", Name: "/thinking", Description: "toggle provider thinking output"},
 	{ID: "theme", Name: "/theme", Description: "switch theme"},
@@ -57,6 +59,7 @@ const compactUnavailableMessage = "Start a session before rebuilding history sum
 const initBlockedMessage = "Finish the active turn before initializing workspace instructions"
 const compressBlockedMessage = "Finish the active turn before compressing workspace instructions"
 const reviewBlockedMessage = "Finish the active turn before starting a review"
+const workflowBlockedMessage = "Finish the active turn before switching workflow"
 const reasoningVariantUnavailableMessage = "/variant is unavailable for the current model and tool setup"
 const thinkingUnavailableMessage = "/thinking is unavailable for the current model and tool setup"
 
@@ -219,6 +222,8 @@ func (m *Model) runComposerCommand(invocation composerCommandInvocation) (tea.Mo
 	case "model":
 		m.clearComposerDraft()
 		return *m, m.openModelDialog()
+	case "workflow":
+		return m.runWorkflowCommand(invocation.Argument)
 	case "utility-model":
 		m.clearComposerDraft()
 		return *m, m.openUtilityModelDialog()
@@ -373,6 +378,44 @@ func (m *Model) runComposerCommand(invocation composerCommandInvocation) (tea.Mo
 	}
 }
 
+func (m *Model) runWorkflowCommand(argument string) (tea.Model, tea.Cmd) {
+	if m.busy || m.hasPendingInteraction() {
+		m.clearFooterError()
+		m.setComposerError(workflowBlockedMessage)
+		return *m, nil
+	}
+	workflows, err := m.backend.ListWorkflows(m.ctx, m.workspace)
+	if err != nil {
+		m.setComposerError(err.Error())
+		return *m, nil
+	}
+	argument = strings.TrimSpace(argument)
+	if argument == "" {
+		m.clearComposerError()
+		m.clearComposerDraft()
+		return *m, m.openWorkflowDialog()
+	}
+	if strings.EqualFold(argument, "off") || strings.EqualFold(argument, "none") {
+		m.workflowID = ""
+		m.clearComposerError()
+		m.clearFooterError()
+		m.clearComposerDraft()
+		return *m, m.showFooterActivity(workflowSelectionFooterLabel(m.workflowID), footerActivityToneInfo, "")
+	}
+	for _, workflow := range workflows {
+		if strings.TrimSpace(workflow.ID) != argument {
+			continue
+		}
+		m.workflowID = argument
+		m.clearComposerError()
+		m.clearFooterError()
+		m.clearComposerDraft()
+		return *m, m.showFooterActivity(workflowSelectionFooterLabel(m.workflowID), footerActivityToneInfo, "")
+	}
+	m.setComposerError(fmt.Sprintf("unknown workflow %q", argument))
+	return *m, nil
+}
+
 func intToString(value int) string {
 	return fmt.Sprintf("%d", value)
 }
@@ -412,6 +455,7 @@ func (m *Model) startNewWorkspaceSession(useComposerError bool, clearComposerDra
 		TurnID:           app.NewTurnID(),
 		AgentID:          m.agentID,
 		StartTurnAgentID: m.agentID,
+		WorkflowID:       m.workflowID,
 		ThinkingEnabled:  m.thinkingEnabled,
 		ReasoningVariant: m.reasoningVariant,
 		SkillIDs:         append([]string(nil), m.skillIDs...),

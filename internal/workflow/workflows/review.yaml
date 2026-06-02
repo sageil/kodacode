@@ -1,0 +1,22 @@
+id: review
+description: Read-focused review workflow for current changes, regressions, and acceptance risks.
+review_mode: manual
+
+phases:
+  - id: inspect
+    agent: reviewer
+    mode: read_only
+    prompt: Inspect the relevant diff, files, tests, and runtime context before reporting findings.
+
+  - id: review
+    agent: reviewer
+    mode: read_only
+    prompt: Record concrete review findings or a durable pass/concern/fail outcome.
+
+  - id: summarize
+    type: final
+    include:
+      - review_outcome
+      - findings
+      - evidence
+      - unresolved_risks

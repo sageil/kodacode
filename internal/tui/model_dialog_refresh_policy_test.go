@@ -163,6 +163,21 @@ func TestShouldSyncTraceDialogForEvent(t *testing.T) {
 			want: true,
 		},
 		{
+			name:   "workflow evidence on traced turn",
+			turnID: "turn-1",
+			event: events.Event{
+				TurnID: "turn-1",
+				Type:   events.TypeWorkflowEvidenceRecorded,
+				Payload: events.WorkflowEvidenceRecordedPayload{
+					EvidenceID: "evidence-1",
+					WorkflowID: "delivery",
+					PhaseID:    "verify",
+					Type:       events.WorkflowEvidenceTypeVerificationResult,
+				},
+			},
+			want: true,
+		},
+		{
 			name:   "background observed on traced turn",
 			turnID: "turn-1",
 			event: events.Event{

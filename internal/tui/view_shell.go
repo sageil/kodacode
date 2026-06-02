@@ -185,7 +185,7 @@ func renderKodaShellStatusLine(m Model, state events.SessionState, width int) st
 	}
 	hints := shellStatusHints(m, state)
 	right := renderShellText(m, truncateEnd(hints, max(width/2, 8)), "subtext", "#9da8ca", false)
-	return lipgloss.NewStyle().Width(width).Render(joinBar(truncateEnd(left, max(width-lipgloss.Width(right)-1, 1)), right, width))
+	return lipgloss.NewStyle().Width(width).Render(joinBar(truncateVisibleEnd(left, max(width-lipgloss.Width(right)-1, 1)), right, width))
 }
 
 func shellStatusTone(status string) string {

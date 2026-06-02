@@ -1,0 +1,352 @@
+package workflow
+
+import (
+	"errors"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/sageil/kodacode/internal/agent"
+	"github.com/sageil/kodacode/internal/tool"
+)
+
+func TestLoadBytesParsesValidDeliveryWorkflow(t *testing.T) {
+	definition, err := LoadBytes([]byte(validDeliveryWorkflowYAML()), testValidationContext())
+	if err != nil {
+		t.Fatalf("LoadBytes() error = %v", err)
+	}
+	if definition.ID != "delivery" {
+		t.Fatalf("ID = %q, want delivery", definition.ID)
+	}
+	if definition.MaxRevisionLoops != 2 {
+		t.Fatalf("MaxRevisionLoops = %d, want 2", definition.MaxRevisionLoops)
+	}
+	if got := definition.PhaseIDs(); strings.Join(got, ",") != "approve,implement,plan,review,verify" {
+		t.Fatalf("PhaseIDs() = %#v", got)
+	}
+	approve := definition.Phases[1]
+	if approve.SkipWhen.MaxAffectedFiles != 2 {
+		t.Fatalf("approve skip_when = %#v, want max_affected_files 2", approve.SkipWhen)
+	}
+	implement := definition.Phases[2]
+	if implement.Requires.Fields["approved_phase"] != "plan" {
+		t.Fatalf("implement requires = %#v, want approved_phase plan", implement.Requires.Fields)
+	}
+	review := definition.Phases[4]
+	if strings.Join(review.Requires.Items, ",") != "git_diff,verification_result" {
+		t.Fatalf("review requires = %#v", review.Requires.Items)
+	}
+	if len(definition.Transitions) != 2 {
+		t.Fatalf("transitions = %#v, want 2", definition.Transitions)
+	}
+	if definition.Transitions[1].From != "verify" || definition.Transitions[1].On != TransitionOnVerificationFailed || definition.Transitions[1].To != "implement" || definition.Transitions[1].MaxLoops != 2 {
+		t.Fatalf("verification transition = %#v", definition.Transitions[1])
+	}
+}
+
+func TestLoadBytesRejectsInvalidYAML(t *testing.T) {
+	_, err := LoadBytes([]byte("id: ["), testValidationContext())
+	if err == nil || !strings.Contains(err.Error(), "workflow yaml") {
+		t.Fatalf("LoadBytes() error = %v, want workflow yaml error", err)
+	}
+}
+
+func TestLoadBytesRejectsUnknownField(t *testing.T) {
+	_, err := LoadBytes([]byte(`
+id: delivery
+unknown: true
+phases:
+  - id: plan
+    agent: planner
+`), testValidationContext())
+	if err == nil || !strings.Contains(err.Error(), "field unknown not found") {
+		t.Fatalf("LoadBytes() error = %v, want unknown field error", err)
+	}
+}
+
+func TestDefinitionValidateRejectsDuplicatePhaseID(t *testing.T) {
+	_, err := LoadBytes([]byte(`
+id: delivery
+phases:
+  - id: plan
+    agent: planner
+  - id: plan
+    agent: reviewer
+`), testValidationContext())
+	if !errors.Is(err, ErrWorkflowPhaseDuplicate) {
+		t.Fatalf("LoadBytes() error = %v, want ErrWorkflowPhaseDuplicate", err)
+	}
+}
+
+func TestDefinitionValidateRejectsMissingPhaseID(t *testing.T) {
+	_, err := LoadBytes([]byte(`
+id: delivery
+phases:
+  - agent: planner
+`), testValidationContext())
+	if !errors.Is(err, ErrWorkflowPhaseIDRequired) {
+		t.Fatalf("LoadBytes() error = %v, want ErrWorkflowPhaseIDRequired", err)
+	}
+}
+
+func TestDefinitionValidateRejectsUnknownPhaseType(t *testing.T) {
+	_, err := LoadBytes([]byte(`
+id: delivery
+phases:
+  - id: wait
+    type: sleep
+`), testValidationContext())
+	if !errors.Is(err, ErrWorkflowPhaseTypeInvalid) {
+		t.Fatalf("LoadBytes() error = %v, want ErrWorkflowPhaseTypeInvalid", err)
+	}
+}
+
+func TestDefinitionValidateRejectsUnknownReviewMode(t *testing.T) {
+	_, err := LoadBytes([]byte(`
+id: delivery
+review_mode: sometimes
+phases:
+  - id: plan
+    agent: planner
+`), testValidationContext())
+	if !errors.Is(err, ErrWorkflowReviewModeInvalid) {
+		t.Fatalf("LoadBytes() error = %v, want ErrWorkflowReviewModeInvalid", err)
+	}
+}
+
+func TestDefinitionValidateRejectsNegativeRevisionLoops(t *testing.T) {
+	_, err := LoadBytes([]byte(`
+id: delivery
+max_revision_loops: -1
+phases:
+  - id: plan
+    agent: planner
+`), testValidationContext())
+	if !errors.Is(err, ErrWorkflowRevisionLoopsInvalid) {
+		t.Fatalf("LoadBytes() error = %v, want ErrWorkflowRevisionLoopsInvalid", err)
+	}
+}
+
+func TestDefinitionValidateRejectsApprovalSkipOnNonApprovalPhase(t *testing.T) {
+	_, err := LoadBytes([]byte(`
+id: delivery
+phases:
+  - id: plan
+    agent: planner
+    skip_when:
+      max_affected_files: 2
+`), testValidationContext())
+	if !errors.Is(err, ErrWorkflowApprovalSkipInvalid) {
+		t.Fatalf("LoadBytes() error = %v, want ErrWorkflowApprovalSkipInvalid", err)
+	}
+}
+
+func TestDefinitionValidateRejectsUnknownTransitionPhase(t *testing.T) {
+	_, err := LoadBytes([]byte(`
+id: delivery
+phases:
+  - id: plan
+    agent: planner
+transitions:
+  - from: plan
+    on: skipped
+    to: missing
+`), testValidationContext())
+	if !errors.Is(err, ErrWorkflowTransitionInvalid) {
+		t.Fatalf("LoadBytes() error = %v, want ErrWorkflowTransitionInvalid", err)
+	}
+}
+
+func TestDefinitionValidateRejectsUnknownTransitionEvent(t *testing.T) {
+	_, err := LoadBytes([]byte(`
+id: delivery
+phases:
+  - id: plan
+    agent: planner
+  - id: implement
+    agent: engineer
+transitions:
+  - from: plan
+    on: sometimes
+    to: implement
+`), testValidationContext())
+	if !errors.Is(err, ErrWorkflowTransitionInvalid) {
+		t.Fatalf("LoadBytes() error = %v, want ErrWorkflowTransitionInvalid", err)
+	}
+}
+
+func TestDefinitionValidateRejectsUnknownAgent(t *testing.T) {
+	_, err := LoadBytes([]byte(`
+id: delivery
+phases:
+  - id: plan
+    agent: missing
+`), testValidationContext())
+	if !errors.Is(err, ErrWorkflowAgentUnknown) {
+		t.Fatalf("LoadBytes() error = %v, want ErrWorkflowAgentUnknown", err)
+	}
+}
+
+func TestDefinitionValidateRejectsUnknownTool(t *testing.T) {
+	_, err := LoadBytes([]byte(`
+id: delivery
+phases:
+  - id: implement
+    agent: engineer
+    tools:
+      allow:
+        - missing_tool
+`), testValidationContext())
+	if !errors.Is(err, ErrWorkflowToolUnknown) {
+		t.Fatalf("LoadBytes() error = %v, want ErrWorkflowToolUnknown", err)
+	}
+}
+
+func TestDefinitionValidateRejectsMalformedRequirements(t *testing.T) {
+	_, err := LoadBytes([]byte(`
+id: delivery
+phases:
+  - id: review
+    agent: reviewer
+    requires: verification_result
+`), testValidationContext())
+	if err == nil || !strings.Contains(err.Error(), "requires must be a sequence or mapping") {
+		t.Fatalf("LoadBytes() error = %v, want malformed requires error", err)
+	}
+}
+
+func TestDefinitionValidateRejectsToolForbiddenByAgent(t *testing.T) {
+	ctx := testValidationContext()
+	ctx.Agents["planner"] = agent.Definition{
+		ID:           "planner",
+		AllowedTools: []string{tool.ReadToolName},
+	}
+	_, err := LoadBytes([]byte(`
+id: delivery
+phases:
+  - id: plan
+    agent: planner
+    tools:
+      allow:
+        - write
+`), ctx)
+	if !errors.Is(err, ErrWorkflowToolForbidden) {
+		t.Fatalf("LoadBytes() error = %v, want ErrWorkflowToolForbidden", err)
+	}
+}
+
+func TestDefinitionValidateRejectsMutationToolInReadOnlyPhase(t *testing.T) {
+	_, err := LoadBytes([]byte(`
+id: delivery
+phases:
+  - id: plan
+    agent: planner
+    mode: read_only
+    tools:
+      allow:
+        - write
+`), testValidationContext())
+	if !errors.Is(err, ErrWorkflowToolUnsafe) {
+		t.Fatalf("LoadBytes() error = %v, want ErrWorkflowToolUnsafe", err)
+	}
+}
+
+func TestDefinitionValidateRejectsSubagentOnlyPhaseAgent(t *testing.T) {
+	ctx := testValidationContext()
+	ctx.Agents["helper"] = agent.Definition{ID: "helper", Mode: agent.ModeSubagent}
+	_, err := LoadBytes([]byte(`
+id: delivery
+phases:
+  - id: help
+    agent: helper
+`), ctx)
+	if !errors.Is(err, agent.ErrAgentModeInvalid) {
+		t.Fatalf("LoadBytes() error = %v, want ErrAgentModeInvalid", err)
+	}
+}
+
+func TestLoadFileIncludesPathInValidationError(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "delivery.yaml")
+	if err := os.WriteFile(path, []byte(`
+id: delivery
+phases:
+  - id: plan
+    agent: missing
+`), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	_, err := LoadFile(path, testValidationContext())
+	if err == nil || !strings.Contains(err.Error(), path) || !errors.Is(err, ErrWorkflowAgentUnknown) {
+		t.Fatalf("LoadFile() error = %v, want path and ErrWorkflowAgentUnknown", err)
+	}
+}
+
+func testValidationContext() ValidationContext {
+	agents := []agent.Definition{
+		{ID: "builder"},
+		{ID: "engineer"},
+		{ID: "planner"},
+		{ID: "reviewer"},
+	}
+	return NewValidationContext(agents, tool.AllBuiltInTools())
+}
+
+func validDeliveryWorkflowYAML() string {
+	return `
+id: delivery
+description: Plan, implement, verify, and review a code change.
+review_mode: auto
+max_revision_loops: 2
+
+phases:
+  - id: plan
+    agent: planner
+    mode: read_only
+    requires_output:
+      - plan
+      - affected_files
+      - risks
+
+  - id: approve
+    type: user_approval
+    prompt: Approve this plan before edits?
+    skip_when:
+      max_affected_files: 2
+
+  - id: implement
+    agent: engineer
+    tools:
+      allow:
+        - read
+        - search
+        - apply_patch
+        - bash
+        - git_diff
+        - task_workflow
+    requires:
+      approved_phase: plan
+
+  - id: verify
+    type: verification
+    commands:
+      - go test ./...
+    required: true
+
+  - id: review
+    agent: reviewer
+    mode: read_only
+    requires:
+      - git_diff
+      - verification_result
+transitions:
+  - from: approve
+    on: skipped
+    to: implement
+  - from: verify
+    on: verification_failed
+    to: implement
+    max_loops: 2
+`
+}

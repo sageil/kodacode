@@ -690,6 +690,7 @@ func TestToolExecutorTaskWorkflowRejectsCompletionWithoutRecordedWork(t *testing
 				AllowedTools: []string{tool.TaskWorkflowToolName},
 			},
 			nil,
+			"",
 			false,
 			false,
 			"",

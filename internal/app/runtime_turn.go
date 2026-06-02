@@ -24,6 +24,7 @@ type RunSessionInput struct {
 	UserText      string
 	Attachments   []AttachmentInput
 	AgentID       string
+	WorkflowID    string
 	SkillIDs      []string
 	Fragments     []prompt.Fragment
 }
@@ -61,6 +62,7 @@ func (r *Runtime) RunSessionTurn(ctx context.Context, input RunSessionInput) (Ru
 		UserText:    input.UserText,
 		Attachments: append([]AttachmentInput(nil), input.Attachments...),
 		AgentID:     input.AgentID,
+		WorkflowID:  input.WorkflowID,
 		SkillIDs:    append([]string(nil), input.SkillIDs...),
 		Fragments:   input.Fragments,
 	})

@@ -18,7 +18,7 @@ import (
 func TestStartTurnCmdIncludesSkillIDs(t *testing.T) {
 	controller := &fakeController{}
 
-	msg := startTurnCmd(context.Background(), controller, "session-1", "turn-1", "review the code", nil, "engineer", false, "high", []string{"review", "go"})()
+	msg := startTurnCmd(context.Background(), controller, "session-1", "turn-1", "review the code", nil, "engineer", "delivery", false, "high", []string{"review", "go"})()
 	done, ok := msg.(operationDoneMsg)
 	if !ok {
 		t.Fatalf("cmd() msg = %#v", msg)
@@ -39,11 +39,60 @@ func TestStartTurnCmdIncludesSkillIDs(t *testing.T) {
 	if got.AgentID != "engineer" {
 		t.Fatalf("AgentID = %q, want engineer", got.AgentID)
 	}
+	if got.WorkflowID != "delivery" {
+		t.Fatalf("WorkflowID = %q, want delivery", got.WorkflowID)
+	}
 	if got.ThinkingMode != "high" {
 		t.Fatalf("ThinkingMode = %q, want high", got.ThinkingMode)
 	}
 	if !reflect.DeepEqual(got.SkillIDs, []string{"review", "go"}) {
 		t.Fatalf("SkillIDs = %#v", got.SkillIDs)
+	}
+}
+
+func TestModelWorkflowCommandSelectsWorkflow(t *testing.T) {
+	controller := &fakeController{
+		workflows: []app.AvailableWorkflow{{ID: "delivery", Description: "Delivery workflow"}},
+	}
+	model := NewModel(controller, ModelConfig{
+		Context:       context.Background(),
+		WorkspaceRoot: t.TempDir(),
+	})
+	model.composer.SetValue("/workflow delivery")
+
+	next, cmd := model.submitComposer()
+	if cmd == nil {
+		t.Fatal("submitComposer cmd = nil, want footer activity")
+	}
+	updated := next.(Model)
+	if updated.workflowID != "delivery" {
+		t.Fatalf("workflowID = %q, want delivery", updated.workflowID)
+	}
+}
+
+func TestModelSubmitComposerPassesSelectedWorkflow(t *testing.T) {
+	controller := &fakeController{}
+	model := NewModel(controller, ModelConfig{
+		Context:       context.Background(),
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: t.TempDir(),
+	})
+	model.workflowID = "delivery"
+	model.composer.SetValue("add the feature")
+
+	_, cmd := model.submitComposer()
+	if cmd == nil {
+		t.Fatal("submitComposer cmd = nil")
+	}
+	if done := operationDoneFromCmd(t, cmd); done.err != nil {
+		t.Fatalf("operation err = %v", done.err)
+	}
+	if len(controller.startCalls) != 1 {
+		t.Fatalf("startCalls = %#v", controller.startCalls)
+	}
+	if controller.startCalls[0].WorkflowID != "delivery" {
+		t.Fatalf("WorkflowID = %q, want delivery", controller.startCalls[0].WorkflowID)
 	}
 }
 

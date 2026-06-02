@@ -90,6 +90,10 @@ func (b *LocalBackend) ListAgents(ctx context.Context, workspaceRoot string) ([]
 	return b.runtime.ListAgents(ctx, workspaceRoot)
 }
 
+func (b *LocalBackend) ListWorkflows(ctx context.Context, workspaceRoot string) ([]app.AvailableWorkflow, error) {
+	return b.runtime.ListWorkflows(ctx, workspaceRoot)
+}
+
 func (b *LocalBackend) ListSkills(ctx context.Context, workspaceRoot string) ([]app.AvailableSkill, error) {
 	return b.runtime.ListSkills(ctx, workspaceRoot)
 }
@@ -98,13 +102,14 @@ func (b *LocalBackend) SetPermissionMode(ctx context.Context, sessionID string, 
 	return b.runtime.SetSessionPermissionMode(ctx, sessionID, mode)
 }
 
-func (b *LocalBackend) StartTurn(ctx context.Context, sessionID, turnID, userText string, attachments []app.AttachmentInput, agentID string, thinkingEnabled bool, thinkingMode string, skillIDs []string) error {
+func (b *LocalBackend) StartTurn(ctx context.Context, sessionID, turnID, userText string, attachments []app.AttachmentInput, agentID, workflowID string, thinkingEnabled bool, thinkingMode string, skillIDs []string) error {
 	_, err := b.runtime.StartSessionTurn(ctx, app.StartSessionTurnInput{
 		SessionID:       sessionID,
 		TurnID:          turnID,
 		UserText:        userText,
 		Attachments:     append([]app.AttachmentInput(nil), attachments...),
 		AgentID:         agentID,
+		WorkflowID:      workflowID,
 		SkillIDs:        append([]string(nil), skillIDs...),
 		ThinkingEnabled: thinkingEnabled,
 		ThinkingMode:    thinkingMode,

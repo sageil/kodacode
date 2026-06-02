@@ -32,6 +32,7 @@ type ModelConfig struct {
 	WorkspaceRoot      string
 	UserText           string
 	AgentID            string
+	WorkflowID         string
 	SkillIDs           []string
 	InitialState       *events.SessionState
 	InitialStateOwned  bool
@@ -55,6 +56,7 @@ type Model struct {
 	turnID                string
 	userText              string
 	agentID               string
+	workflowID            string
 	skillIDs              []string
 	thinkingEnabled       bool
 	reasoningVariant      string
@@ -260,6 +262,7 @@ type sessionView struct {
 	TurnID                string
 	UserText              string
 	AgentID               string
+	WorkflowID            string
 	SkillIDs              []string
 	ThinkingEnabled       bool
 	ReasoningVariant      string
@@ -294,6 +297,7 @@ func NewModel(backend Backend, cfg ModelConfig) Model {
 	workspace := cfg.WorkspaceRoot
 	userText := cfg.UserText
 	agentID := strings.TrimSpace(cfg.AgentID)
+	workflowID := strings.TrimSpace(cfg.WorkflowID)
 	skillIDs := append([]string(nil), cfg.SkillIDs...)
 	bootstrapped := false
 	if cfg.InitialState != nil {
@@ -305,6 +309,7 @@ func NewModel(backend Backend, cfg ModelConfig) Model {
 		workspace = resolvedWorkspaceRoot(*cfg.InitialState, cfg.WorkspaceRoot)
 		userText = resolvedUserText(*cfg.InitialState, sessionView{TurnID: cfg.TurnID, UserText: cfg.UserText})
 		agentID = resolvedAgentID(*cfg.InitialState, cfg.TurnID, agentID)
+		workflowID = resolvedWorkflowID(*cfg.InitialState, cfg.TurnID, workflowID)
 		if len(skillIDs) == 0 {
 			skillIDs = resolvedSkillIDs(*cfg.InitialState, cfg.TurnID, skillIDs)
 		}
@@ -335,6 +340,7 @@ func NewModel(backend Backend, cfg ModelConfig) Model {
 		turnID:                cfg.TurnID,
 		userText:              userText,
 		agentID:               pickFirstNonBlank(agentID, "builder"),
+		workflowID:            workflowID,
 		skillIDs:              skillIDs,
 		thinkingEnabled:       thinkingEnabled,
 		reasoningVariant:      reasoningVariant,

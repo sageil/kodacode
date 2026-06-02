@@ -18,6 +18,7 @@ type workspaceSessionOpenRequest struct {
 	TurnID            string
 	AgentID           string
 	StartTurnAgentID  string
+	WorkflowID        string
 	ThinkingEnabled   bool
 	ReasoningVariant  string
 	SkillIDs          []string
@@ -93,6 +94,7 @@ func openWorkspaceSessionCmd(ctx context.Context, backend Backend, req workspace
 				TurnID:           resolvedTurnID,
 				UserText:         req.UserText,
 				AgentID:          req.AgentID,
+				WorkflowID:       req.WorkflowID,
 				SkillIDs:         append([]string(nil), req.SkillIDs...),
 				ThinkingEnabled:  req.ThinkingEnabled,
 				ReasoningVariant: req.ReasoningVariant,
@@ -102,15 +104,16 @@ func openWorkspaceSessionCmd(ctx context.Context, backend Backend, req workspace
 				InspectorOpen:    req.InspectorOpen,
 				WideSidebarOpen:  req.WideSidebarOpen,
 			},
-			state:             state,
-			stateOwned:        true,
-			stream:            stream,
-			cancel:            cancel,
-			watchID:           req.WatchID,
-			startTurn:         strings.TrimSpace(req.UserText) != "",
-			startTurnAgentID:  strings.TrimSpace(req.StartTurnAgentID),
-			attachments:       append([]app.AttachmentInput(nil), req.Attachments...),
-			localShellCommand: req.LocalShellCommand,
+			state:               state,
+			stateOwned:          true,
+			stream:              stream,
+			cancel:              cancel,
+			watchID:             req.WatchID,
+			startTurn:           strings.TrimSpace(req.UserText) != "",
+			startTurnAgentID:    strings.TrimSpace(req.StartTurnAgentID),
+			startTurnWorkflowID: strings.TrimSpace(req.WorkflowID),
+			attachments:         append([]app.AttachmentInput(nil), req.Attachments...),
+			localShellCommand:   req.LocalShellCommand,
 		}
 	}
 }

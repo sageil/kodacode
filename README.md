@@ -139,6 +139,8 @@ See [TUI Layouts](https://kodacode.dev/reference/layouts/) for details.
 - `/timeline`: branch from an earlier completed turn or navigate related branches
 - `/trace`: inspect what happened in a turn
 - `/cost`: inspect spend and token savings
+- `Ctrl+W`: list or select a runtime workflow such as `delivery`, `debug`,
+  `review`, or `explore`
 
 See [Slash Commands](https://kodacode.dev/reference/commands/) for the full
 command surface.
@@ -150,6 +152,7 @@ kodacode "summarize this repository"
 kodacode --resume "continue the previous refactor"
 kodacode --add-dir ../shared "inspect both repos before editing"
 kodacode --skill migration "add the schema change and focused tests"
+kodacode --workflow delivery "implement this change and verify it"
 ```
 
 ## Documentation

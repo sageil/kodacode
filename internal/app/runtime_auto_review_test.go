@@ -212,6 +212,54 @@ func TestRuntimeRunSessionTurnAutoReviewUsesConfiguredReviewModel(t *testing.T) 
 	}
 }
 
+func TestRuntimeRunSessionTurnUsesWorkflowReviewModeOverride(t *testing.T) {
+	root := t.TempDir()
+	writeProjectWorkflow(t, root, "review-auto.yaml", `
+id: review-auto
+description: workflow review mode override
+review_mode: auto
+phases:
+  - id: implement
+    agent: engineer
+  - id: summarize
+    type: final
+`)
+	client := &fakeProvider{
+		streams: []provider.Stream{
+			provider.NewSliceStream([]provider.Event{{Kind: provider.EventKindAssistantDelta, AssistantDelta: "Engineer done."}}),
+			provider.NewSliceStream([]provider.Event{{Kind: provider.EventKindAssistantDelta, AssistantDelta: "Review passed."}}),
+		},
+	}
+	runtime := newRuntimeWithClient(t, client)
+	runtime.Config.Workflow.ReviewMode = WorkflowReviewManual
+
+	sessionID, err := runtime.CreateSession(context.Background(), root)
+	if err != nil {
+		t.Fatalf("CreateSession() error = %v", err)
+	}
+	completeTaskForAutoReviewTest(t, runtime, sessionID, "turn-setup", "Finished task", "done")
+
+	result, err := runtime.runExistingSessionTurn(context.Background(), runExistingTurnInput{
+		SessionID:  sessionID,
+		TurnID:     "turn-1",
+		UserText:   "Implement with workflow review mode",
+		AgentID:    "engineer",
+		WorkflowID: "review-auto",
+	})
+	if err != nil {
+		t.Fatalf("runExistingSessionTurn() error = %v", err)
+	}
+	if result.Status != TurnRunStatusCompleted {
+		t.Fatalf("result = %#v", result)
+	}
+	if len(client.requests) != 2 {
+		t.Fatalf("provider requests = %d, want engineer plus auto review", len(client.requests))
+	}
+	if client.requests[1].AgentID != "reviewer" {
+		t.Fatalf("review request agent = %q, want reviewer", client.requests[1].AgentID)
+	}
+}
+
 func TestRuntimeRunSessionTurnAutoReviewSkipsWhenWorkflowNotComplete(t *testing.T) {
 	root := t.TempDir()
 	client := &fakeProvider{

@@ -417,7 +417,7 @@ func (r *Runtime) executeDelegatedHandoff(ctx context.Context, parentState event
 		SupportsThinking:           thinkingSupported,
 	}
 	effectiveThinkingMode := capabilities.EffectiveReasoningVariant(thinkingMode)
-	if err := r.Runner.appendTurnConfigured(ctx, handoff.ChildSessionID, handoff.ChildTurnID, newTurnConfiguredPayload(capabilities, nil, false, effectiveThinkingEnabled, effectiveThinkingMode, responseStyle, false)); err != nil {
+	if err := r.Runner.appendTurnConfigured(ctx, handoff.ChildSessionID, handoff.ChildTurnID, newTurnConfiguredPayload(capabilities, nil, "", false, effectiveThinkingEnabled, effectiveThinkingMode, responseStyle, false)); err != nil {
 		return DelegateSessionTurnResult{}, err
 	}
 	stopPreview, err := r.startDelegatedHandoffPreview(ctx, handoff, previewAction)

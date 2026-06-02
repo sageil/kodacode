@@ -128,6 +128,7 @@ func cloneSessionState(state SessionState) SessionState {
 		NetworkGrants:                append([]NetworkGrantState(nil), state.NetworkGrants...),
 		TaskOrder:                    append([]string(nil), state.TaskOrder...),
 		Tasks:                        cloneTaskStates(state.Tasks),
+		Workflow:                     cloneWorkflowState(state.Workflow),
 		ReviewOrder:                  append([]string(nil), state.ReviewOrder...),
 		Reviews:                      cloneReviewStates(state.Reviews),
 		PlanOrder:                    append([]string(nil), state.PlanOrder...),

@@ -24,6 +24,8 @@ func (p *Projector) applyTurnContextPayload(event Event) (bool, error) {
 		turn.LastUpdatedAtSeq = event.Sequence
 		turn.Config = &TurnConfigState{
 			AgentID:                   payload.AgentID,
+			WorkflowID:                payload.WorkflowID,
+			WorkflowPhaseID:           payload.WorkflowPhaseID,
 			SkillIDs:                  append([]string(nil), payload.SkillIDs...),
 			SelectedSkillIDs:          slices.Clone(payload.SelectedSkillIDs),
 			Model:                     payload.Model,

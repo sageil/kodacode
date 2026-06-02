@@ -65,6 +65,7 @@ func (m Model) currentView() sessionView {
 		TurnID:                m.turnID,
 		UserText:              m.userText,
 		AgentID:               m.agentID,
+		WorkflowID:            m.workflowID,
 		SkillIDs:              append([]string(nil), m.skillIDs...),
 		ThinkingEnabled:       m.thinkingEnabled,
 		ReasoningVariant:      m.reasoningVariant,
@@ -92,6 +93,7 @@ func (m *Model) applyView(view sessionView, state events.SessionState, stateOwne
 	m.turnID = view.TurnID
 	m.userText = resolvedUserText(state, view)
 	m.agentID = resolvedAgentID(state, view.TurnID, view.AgentID)
+	m.workflowID = resolvedWorkflowID(state, view.TurnID, view.WorkflowID)
 	m.skillIDs = resolvedSkillIDs(state, view.TurnID, view.SkillIDs)
 	m.thinkingEnabled = resolvedThinkingEnabled(state, view.TurnID, view.ThinkingEnabled)
 	m.reasoningVariant = resolvedReasoningVariant(state, view.TurnID, view.ReasoningVariant)
@@ -203,6 +205,24 @@ func resolvedAgentID(state events.SessionState, turnID, fallback string) string 
 		return agentID
 	}
 	return "builder"
+}
+
+func resolvedWorkflowID(state events.SessionState, turnID, fallback string) string {
+	if turn := currentTurn(state, turnID); turn != nil && turn.Config != nil {
+		if workflowID := strings.TrimSpace(turn.Config.WorkflowID); workflowID != "" {
+			return workflowID
+		}
+	}
+	for idx := len(state.TurnOrder) - 1; idx >= 0; idx-- {
+		turn := state.Turns[state.TurnOrder[idx]]
+		if turn == nil || turn.Config == nil {
+			continue
+		}
+		if workflowID := strings.TrimSpace(turn.Config.WorkflowID); workflowID != "" {
+			return workflowID
+		}
+	}
+	return strings.TrimSpace(fallback)
 }
 
 func resolvedSkillIDs(state events.SessionState, turnID string, fallback []string) []string {

@@ -20,6 +20,7 @@ const (
 	QuestionPurposeTurnLoopResolution  = "turn_loop_resolution"
 	QuestionPurposePlannerSavePlan     = "planner_save_plan"
 	QuestionPurposePlannerPlanDecision = "planner_plan_decision"
+	QuestionPurposeWorkflowApproval    = "workflow_approval"
 )
 
 func (QuestionRequestedPayload) eventType() Type { return TypeQuestionRequested }

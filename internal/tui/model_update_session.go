@@ -53,13 +53,17 @@ func (m Model) handleSessionOpenedMsg(msg sessionOpenedMsg) (Model, tea.Cmd) {
 		if startAgentID == "" {
 			startAgentID = m.agentID
 		}
+		startWorkflowID := strings.TrimSpace(msg.startTurnWorkflowID)
+		if startWorkflowID == "" {
+			startWorkflowID = m.workflowID
+		}
 		m.busy = true
 		m.armLiveTurn()
 		return m, tea.Batch(
 			waitForEventCmd(m.stream, m.watchID),
 			loadBudgetStatusCmd(m.ctx, m.controller, m.sessionID),
 			loadSessionUsageSummaryCmd(m.ctx, m.controller, m.sessionID),
-			startTurnCmd(m.ctx, m.controller, m.sessionID, m.turnID, m.userText, append([]app.AttachmentInput(nil), msg.attachments...), startAgentID, m.thinkingEnabled, m.reasoningVariant, m.skillIDs),
+			startTurnCmd(m.ctx, m.controller, m.sessionID, m.turnID, m.userText, append([]app.AttachmentInput(nil), msg.attachments...), startAgentID, startWorkflowID, m.thinkingEnabled, m.reasoningVariant, m.skillIDs),
 			m.ensureWorkspaceStatusLoadedCmd(),
 			m.ensureAnimTicking(),
 			m.ensureSelectedToolResultLoadedCmd(),
@@ -153,7 +157,7 @@ func (m Model) handleSessionWatchOpenedMsg(msg sessionWatchOpenedMsg) (Model, te
 			waitForEventCmd(m.stream, m.watchID),
 			loadBudgetStatusCmd(m.ctx, m.controller, m.sessionID),
 			loadSessionUsageSummaryCmd(m.ctx, m.controller, m.sessionID),
-			startTurnCmd(m.ctx, m.controller, m.sessionID, m.turnID, m.userText, nil, m.agentID, m.thinkingEnabled, m.reasoningVariant, m.skillIDs),
+			startTurnCmd(m.ctx, m.controller, m.sessionID, m.turnID, m.userText, nil, m.agentID, m.workflowID, m.thinkingEnabled, m.reasoningVariant, m.skillIDs),
 			m.ensureWorkspaceStatusLoadedCmd(),
 			m.ensureAnimTicking(),
 			m.ensureSelectedToolResultLoadedCmd(),

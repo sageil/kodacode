@@ -15,6 +15,8 @@ func renderListBadge(th *theme.Theme, kind commandPaletteKind) string {
 		color, label = colorFor(th, "secondary", "#7dcfff"), "model"
 	case commandPaletteAgent:
 		color, label = colorFor(th, "primary", "#7aa2f7"), "agent"
+	case commandPaletteWorkflow:
+		color, label = colorFor(th, "warning", "#e0af68"), "flow"
 	case commandPaletteActions:
 		color, label = colorFor(th, "success", "#9ece6a"), "action"
 	default:

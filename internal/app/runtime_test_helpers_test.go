@@ -11,6 +11,7 @@ import (
 	"github.com/sageil/kodacode/internal/events"
 	"github.com/sageil/kodacode/internal/provider"
 	"github.com/sageil/kodacode/internal/skill"
+	workflowpkg "github.com/sageil/kodacode/internal/workflow"
 )
 
 func newRuntimeWithClient(t *testing.T, client provider.Client) *Runtime {
@@ -36,6 +37,10 @@ func newRuntimeWithClientAndStore(t *testing.T, client provider.Client, store ev
 	if err != nil {
 		t.Fatalf("skill.NewRegistry() error = %v", err)
 	}
+	workflows, err := workflowpkg.NewRegistry(workflowpkg.RegistryConfig{GlobalDir: t.TempDir()})
+	if err != nil {
+		t.Fatalf("workflow.NewRegistry() error = %v", err)
+	}
 
 	runtime := &Runtime{
 		Config: Config{
@@ -46,13 +51,14 @@ func newRuntimeWithClientAndStore(t *testing.T, client provider.Client, store ev
 				APIKey: "test-key",
 			},
 		},
-		Store:    sessions.store,
-		Sessions: sessions,
-		Tools:    tools,
-		Agents:   agents,
-		Skills:   skills,
-		Provider: wrapped,
-		Runner:   runner,
+		Store:     sessions.store,
+		Sessions:  sessions,
+		Tools:     tools,
+		Agents:    agents,
+		Workflows: workflows,
+		Skills:    skills,
+		Provider:  wrapped,
+		Runner:    runner,
 		rawProviderFactory: func(_ Config, _ string) (provider.Client, error) {
 			return client, nil
 		},
@@ -71,6 +77,7 @@ func newRuntimeWithClientAndStore(t *testing.T, client provider.Client, store ev
 	runtime.Runner.SetModelCatalog(runtime.ModelCatalog)
 	runtime.Tools.SetSkillRegistry(skills)
 	runtime.Tools.SetDelegateRuntime(runtime)
+	runtime.Tools.SetWorkflowPhaseCommandResolver(runtime.workflowPhaseCommands)
 	return runtime
 }
 
@@ -92,6 +99,10 @@ func newRuntimeWithClientConfigHome(t *testing.T, client provider.Client, config
 	if err != nil {
 		t.Fatalf("skill.NewRegistry() error = %v", err)
 	}
+	workflows, err := workflowpkg.NewRegistry(workflowpkg.RegistryConfig{GlobalDir: filepath.Join(configHome, "kodacode", "workflows")})
+	if err != nil {
+		t.Fatalf("workflow.NewRegistry() error = %v", err)
+	}
 
 	runtime := &Runtime{
 		Config: Config{
@@ -102,13 +113,14 @@ func newRuntimeWithClientConfigHome(t *testing.T, client provider.Client, config
 				APIKey: "test-key",
 			},
 		},
-		Store:    sessions.store,
-		Sessions: sessions,
-		Tools:    tools,
-		Agents:   agents,
-		Skills:   skills,
-		Provider: wrapped,
-		Runner:   runner,
+		Store:     sessions.store,
+		Sessions:  sessions,
+		Tools:     tools,
+		Agents:    agents,
+		Workflows: workflows,
+		Skills:    skills,
+		Provider:  wrapped,
+		Runner:    runner,
 		rawProviderFactory: func(_ Config, _ string) (provider.Client, error) {
 			return client, nil
 		},
@@ -127,6 +139,7 @@ func newRuntimeWithClientConfigHome(t *testing.T, client provider.Client, config
 	runtime.Runner.SetModelCatalog(runtime.ModelCatalog)
 	runtime.Tools.SetSkillRegistry(skills)
 	runtime.Tools.SetDelegateRuntime(runtime)
+	runtime.Tools.SetWorkflowPhaseCommandResolver(runtime.workflowPhaseCommands)
 	return runtime
 }
 
@@ -158,6 +171,10 @@ func newPersistentRuntimeWithClientConfigHome(t *testing.T, sessionDir string, c
 	if err != nil {
 		t.Fatalf("skill.NewRegistry() error = %v", err)
 	}
+	workflows, err := workflowpkg.NewRegistry(workflowpkg.RegistryConfig{GlobalDir: filepath.Join(configHome, "kodacode", "workflows")})
+	if err != nil {
+		t.Fatalf("workflow.NewRegistry() error = %v", err)
+	}
 
 	runtime := &Runtime{
 		Config: Config{
@@ -171,13 +188,14 @@ func newPersistentRuntimeWithClientConfigHome(t *testing.T, sessionDir string, c
 				DBPath: dbPath,
 			},
 		},
-		Store:    store,
-		Sessions: sessions,
-		Tools:    tools,
-		Agents:   agents,
-		Skills:   skills,
-		Provider: wrapped,
-		Runner:   runner,
+		Store:     store,
+		Sessions:  sessions,
+		Tools:     tools,
+		Agents:    agents,
+		Workflows: workflows,
+		Skills:    skills,
+		Provider:  wrapped,
+		Runner:    runner,
 		rawProviderFactory: func(_ Config, _ string) (provider.Client, error) {
 			return client, nil
 		},
@@ -196,6 +214,7 @@ func newPersistentRuntimeWithClientConfigHome(t *testing.T, sessionDir string, c
 	runtime.Runner.SetModelCatalog(runtime.ModelCatalog)
 	runtime.Tools.SetSkillRegistry(skills)
 	runtime.Tools.SetDelegateRuntime(runtime)
+	runtime.Tools.SetWorkflowPhaseCommandResolver(runtime.workflowPhaseCommands)
 	return runtime
 }
 

@@ -151,6 +151,14 @@ func skillSelectionFooterLabel(skillIDs []string) string {
 	return "Skills: " + strings.Join(skillIDs, ", ")
 }
 
+func workflowSelectionFooterLabel(workflowID string) string {
+	workflowID = strings.TrimSpace(workflowID)
+	if workflowID == "" {
+		return "Workflow: none"
+	}
+	return "Workflow: " + workflowID
+}
+
 func utilityModelFooterLabel(ref provider.ModelRef) string {
 	if strings.TrimSpace(ref.ProviderID) == "" && strings.TrimSpace(ref.ModelID) == "" {
 		return "Utility model: primary model fallback"

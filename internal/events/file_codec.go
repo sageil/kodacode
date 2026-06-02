@@ -164,6 +164,20 @@ func decodePayload(kind Type, raw json.RawMessage) (Payload, error) {
 		return decodePayloadAs[TaskCompletedPayload](raw)
 	case TypeTaskReviewed:
 		return decodePayloadAs[TaskReviewedPayload](raw)
+	case TypeWorkflowStarted:
+		return decodePayloadAs[WorkflowStartedPayload](raw)
+	case TypeWorkflowPhaseStarted:
+		return decodePayloadAs[WorkflowPhaseStartedPayload](raw)
+	case TypeWorkflowPhaseAdvanced:
+		return decodePayloadAs[WorkflowPhaseAdvancedPayload](raw)
+	case TypeWorkflowPhaseBlocked:
+		return decodePayloadAs[WorkflowPhaseBlockedPayload](raw)
+	case TypeWorkflowPhaseResumed:
+		return decodePayloadAs[WorkflowPhaseResumedPayload](raw)
+	case TypeWorkflowEvidenceRecorded:
+		return decodePayloadAs[WorkflowEvidenceRecordedPayload](raw)
+	case TypeWorkflowCompleted:
+		return decodePayloadAs[WorkflowCompletedPayload](raw)
 	case TypeAssistantPreviewDelta:
 		return decodePayloadAs[AssistantPreviewDeltaPayload](raw)
 	case TypeAssistantPreviewReset:

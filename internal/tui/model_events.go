@@ -16,6 +16,7 @@ type sessionOpenedMsg struct {
 	watchID               int
 	startTurn             bool
 	startTurnAgentID      string
+	startTurnWorkflowID   string
 	startReview           bool
 	reviewInstructions    string
 	reviewThinkingEnabled bool

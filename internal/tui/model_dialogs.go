@@ -39,6 +39,19 @@ func (m *Model) openAgentDialog() tea.Cmd {
 	}
 }
 
+func (m *Model) openWorkflowDialog() tea.Cmd {
+	return func() tea.Msg {
+		workflows, err := m.backend.ListWorkflows(m.ctx, m.workspace)
+		if err != nil {
+			return dialogOpenedMsg{err: err}
+		}
+		dialog := newWorkflowDialog(buildWorkflowItems(workflows), strings.TrimSpace(m.workflowID), !m.currentTurnRunning(), m.theme)
+		width, height := dialogRenderSize(*m, m.projector.CurrentState())
+		dialog.SetFrame(width, height)
+		return dialogOpenedMsg{dialog: dialog}
+	}
+}
+
 func (m *Model) openUtilityModelDialog() tea.Cmd {
 	return func() tea.Msg {
 		state, err := m.backend.DialogState(m.ctx)
@@ -214,6 +227,17 @@ func (m *Model) handleDialogClosed(msg dialogClosedMsg) (tea.Model, tea.Cmd) {
 			m.syncInspectorTabAvailability()
 			m.syncInspectorBody(true)
 			return *m, nil
+		case workflowSelectionResult:
+			if m.currentTurnRunning() {
+				m.closeAllDialogs()
+				return *m, nil
+			}
+			m.closeAllDialogs()
+			m.workflowID = strings.TrimSpace(typed.WorkflowID)
+			return *m, tea.Batch(
+				m.focusComposerAfterDialogSelection(),
+				m.showFooterActivity(workflowSelectionFooterLabel(m.workflowID), footerActivityToneInfo, ""),
+			)
 		case provider.ModelRef:
 			if m.currentTurnRunning() {
 				m.closeAllDialogs()
@@ -250,7 +274,7 @@ func (m *Model) handleDialogClosed(msg dialogClosedMsg) (tea.Model, tea.Cmd) {
 				setReviewerModelCmd(m.ctx, m.backend, typed.Ref),
 			)
 		case commandPaletteActionResult:
-			if m.currentTurnRunning() && (typed.ActionID == "select-model" || typed.ActionID == "select-agent" || typed.ActionID == "manage-sessions" || typed.ActionID == "timeline" || typed.ActionID == "new-session" || typed.ActionID == "select-utility-model" || typed.ActionID == "unset-utility-model" || typed.ActionID == "select-reviewer-model" || typed.ActionID == "unset-reviewer-model") {
+			if m.currentTurnRunning() && (typed.ActionID == "select-model" || typed.ActionID == "select-agent" || typed.ActionID == "select-workflow" || typed.ActionID == "manage-sessions" || typed.ActionID == "timeline" || typed.ActionID == "new-session" || typed.ActionID == "select-utility-model" || typed.ActionID == "unset-utility-model" || typed.ActionID == "select-reviewer-model" || typed.ActionID == "unset-reviewer-model") {
 				m.closeAllDialogs()
 				return *m, nil
 			}
@@ -259,6 +283,8 @@ func (m *Model) handleDialogClosed(msg dialogClosedMsg) (tea.Model, tea.Cmd) {
 				return *m, m.openModelDialog()
 			case "select-agent":
 				return *m, m.openAgentDialog()
+			case "select-workflow":
+				return *m, m.openWorkflowDialog()
 			case "select-theme":
 				return *m, m.openThemeDialog()
 			case "manage-sessions":
@@ -344,6 +370,7 @@ func (m *Model) handleDialogClosed(msg dialogClosedMsg) (tea.Model, tea.Cmd) {
 				TurnID:           app.NewTurnID(),
 				AgentID:          m.agentID,
 				StartTurnAgentID: m.agentID,
+				WorkflowID:       m.workflowID,
 				ThinkingEnabled:  m.thinkingEnabled,
 				ReasoningVariant: m.reasoningVariant,
 				SkillIDs:         append([]string(nil), m.skillIDs...),

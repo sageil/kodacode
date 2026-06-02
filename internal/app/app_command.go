@@ -84,10 +84,11 @@ func runCommand(ctx context.Context, in io.Reader, out io.Writer, args []string,
 		sessionID = session.SessionID
 	}
 	result, err := runtime.runExistingSessionTurn(ctx, runExistingTurnInput{
-		SessionID: sessionID,
-		TurnID:    NewTurnID(),
-		UserText:  input.UserText,
-		SkillIDs:  append([]string(nil), input.SkillIDs...),
+		SessionID:  sessionID,
+		TurnID:     NewTurnID(),
+		UserText:   input.UserText,
+		WorkflowID: input.WorkflowID,
+		SkillIDs:   append([]string(nil), input.SkillIDs...),
 	})
 	if err != nil {
 		return err

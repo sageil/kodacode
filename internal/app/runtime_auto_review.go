@@ -16,6 +16,7 @@ func (r *Runtime) maybeRunAutoReview(
 	ctx context.Context,
 	workspaceRoot, completedAgentID string,
 	result RunSessionResult,
+	reviewMode WorkflowReviewMode,
 ) (RunSessionResult, bool, error) {
 	if r == nil || strings.TrimSpace(completedAgentID) != "engineer" {
 		return RunSessionResult{}, false, nil
@@ -23,7 +24,10 @@ func (r *Runtime) maybeRunAutoReview(
 	if result.Status != TurnRunStatusCompleted || strings.TrimSpace(result.SessionID) == "" {
 		return RunSessionResult{}, false, nil
 	}
-	if strings.TrimSpace(string(r.Config.Workflow.ReviewMode)) != string(WorkflowReviewAuto) {
+	if strings.TrimSpace(string(reviewMode)) == "" {
+		reviewMode = r.Config.Workflow.ReviewMode
+	}
+	if strings.TrimSpace(string(reviewMode)) != string(WorkflowReviewAuto) {
 		return RunSessionResult{}, false, nil
 	}
 

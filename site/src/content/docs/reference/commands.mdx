@@ -48,6 +48,7 @@ behavior.
 - `/history`: search recent prompts through the searchable history popup
 - `/timeline`: branch a new session from a completed previous turn
 - `/review [instructions]`: run a focused runtime-owned review of the current workspace changes
+- `Ctrl+W`: list available runtime workflows or select one for later turns
 
 Use this group when you want to move between sessions, inspect prior work, or prepare the current session before another turn.
 
@@ -65,6 +66,12 @@ inspection, but only completed turns can be branched.
 `/compact` only affects durable session history. It calls the same history-compaction path used by automatic compaction instead of creating a separate manual workflow.
 
 `/review` is the exception in this group: it is a repository-work command, but it lives beside session controls because it is an explicit TUI action rather than a prompt convention. It starts a one-off runtime-owned review, defaults to the current workspace changes, uses the configured review model when available, and leaves your selected default agent unchanged for later turns. Review behavior is guided by the active `reviewer` agent definition, so you can tune it with a global or project-local `reviewer.md` override while runtime keeps the review scope and structured output contract authoritative.
+
+`Ctrl+W` opens the workflow dialog. Use it to choose `delivery`, `debug`,
+`review`, `explore`, or a project-defined workflow for later turns in the current
+session. Selected workflow state, active phase, blocked reason, and evidence are
+runtime-owned and visible in `/trace`; the status footer shows the active
+workflow and phase while a workflow is running.
 
 `!<command>` is not a slash command, but it shares the composer command path.
 It starts a normal local shell execution turn from the user instead of asking

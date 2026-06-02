@@ -18,9 +18,11 @@ func (r *TurnRunner) appendTurnConfigured(ctx context.Context, sessionID, turnID
 	return err
 }
 
-func newTurnConfiguredPayload(capabilities TurnCapabilities, selectedSkillIDs []string, preserveSessionModel bool, thinkingEnabled bool, thinkingMode string, responseStyle ResponseStyle, hideAssistantPreview bool) events.TurnConfiguredPayload {
+func newTurnConfiguredPayload(capabilities TurnCapabilities, selectedSkillIDs []string, workflowID string, preserveSessionModel bool, thinkingEnabled bool, thinkingMode string, responseStyle ResponseStyle, hideAssistantPreview bool) events.TurnConfiguredPayload {
 	return events.TurnConfiguredPayload{
 		AgentID:                   capabilities.AgentID,
+		WorkflowID:                strings.TrimSpace(workflowID),
+		WorkflowPhaseID:           "",
 		SkillIDs:                  append([]string(nil), capabilities.SkillIDs...),
 		SelectedSkillIDs:          cloneSelectedSkillIDs(selectedSkillIDs),
 		Model:                     capabilities.ModelRoute.Primary.String(),

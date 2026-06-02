@@ -98,6 +98,38 @@ func TestComposerSlashCommandDoesNotExposeSkillsDialog(t *testing.T) {
 	}
 }
 
+func TestComposerSlashPopupHidesWorkflowCommand(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context:       ctx,
+		Theme:         &defaultTheme,
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: "/repo",
+	})
+	model.chrome.focus = focusComposer
+	model.composer.SetValue("/")
+	model.setComposerCursorOffset(1)
+
+	cmd := model.refreshComposerPopup()
+	if cmd != nil {
+		t.Fatalf("refreshComposerPopup cmd = %#v, want nil for slash commands", cmd)
+	}
+	if model.composerState.popupMode != composerPopupSlash {
+		t.Fatalf("composer popup mode = %q, want slash", model.composerState.popupMode)
+	}
+	rendered := ansi.Strip(renderComposerPopup(model, 80))
+	if !strings.Contains(rendered, "/model") {
+		t.Fatalf("slash popup missing visible command /model\n%s", rendered)
+	}
+	if strings.Contains(rendered, "/workflow") {
+		t.Fatalf("slash popup exposed hidden workflow command\n%s", rendered)
+	}
+}
+
 func TestComposerDollarOpensSkillsPopupAndInsertsMention(t *testing.T) {
 	defaultTheme := theme.StaticDefault()
 	ctx, cancel := context.WithCancel(context.TODO())

@@ -8,9 +8,9 @@ import (
 	"github.com/sageil/kodacode/internal/events"
 )
 
-func startTurnCmd(ctx context.Context, controller controller, sessionID, turnID, userText string, attachments []app.AttachmentInput, agentID string, thinkingEnabled bool, thinkingMode string, skillIDs []string) tea.Cmd {
+func startTurnCmd(ctx context.Context, controller controller, sessionID, turnID, userText string, attachments []app.AttachmentInput, agentID, workflowID string, thinkingEnabled bool, thinkingMode string, skillIDs []string) tea.Cmd {
 	return func() tea.Msg {
-		return operationDoneMsg{err: controller.StartTurn(ctx, sessionID, turnID, userText, attachments, agentID, thinkingEnabled, thinkingMode, skillIDs)}
+		return operationDoneMsg{err: controller.StartTurn(ctx, sessionID, turnID, userText, attachments, agentID, workflowID, thinkingEnabled, thinkingMode, skillIDs)}
 	}
 }
 

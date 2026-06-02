@@ -178,6 +178,7 @@ func RunWithBackend(backend Backend, opts RunOpts) error {
 		TurnID:             turnID,
 		WorkspaceRoot:      workspaceRoot,
 		UserText:           input.UserText,
+		WorkflowID:         input.WorkflowID,
 		SkillIDs:           append([]string(nil), input.SkillIDs...),
 		InitialState:       initialState,
 		InitialStateOwned:  initialState != nil,

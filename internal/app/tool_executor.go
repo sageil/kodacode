@@ -27,18 +27,21 @@ var (
 )
 
 type ToolExecutor struct {
-	sessions  *SessionService
-	exec      *ExecutionService
-	tools     map[string]tool.Tool
-	mcpTools  map[string]struct{}
-	search    *searchsvc.Service
-	webSearch *websearchsvc.Service
-	skills    *skill.Registry
-	delegates delegateRuntime
-	codeIntel codeIntelRuntime
-	memory    *MemoryService
-	logger    *observability.Logger
+	sessions                     *SessionService
+	exec                         *ExecutionService
+	tools                        map[string]tool.Tool
+	mcpTools                     map[string]struct{}
+	search                       *searchsvc.Service
+	webSearch                    *websearchsvc.Service
+	skills                       *skill.Registry
+	delegates                    delegateRuntime
+	codeIntel                    codeIntelRuntime
+	memory                       *MemoryService
+	workflowPhaseCommandResolver workflowPhaseCommandResolver
+	logger                       *observability.Logger
 }
+
+type workflowPhaseCommandResolver func(ctx context.Context, workspaceRoot, workflowID, phaseID string) ([]string, error)
 
 func NewToolExecutor(sessions *SessionService, tools ...tool.Tool) (*ToolExecutor, error) {
 	return NewToolExecutorWithConfig(sessions, defaultExecutionConfig(), tools...)
@@ -95,6 +98,13 @@ func (e *ToolExecutor) SetDelegateRuntime(runtime delegateRuntime) {
 	e.delegates = runtime
 }
 
+func (e *ToolExecutor) SetWorkflowPhaseCommandResolver(resolver workflowPhaseCommandResolver) {
+	if e == nil {
+		return
+	}
+	e.workflowPhaseCommandResolver = resolver
+}
+
 func (e *ToolExecutor) ResumeBackgroundExecutions(ctx context.Context, sessionID string) error {
 	if e == nil || e.exec == nil {
 		return nil
@@ -104,6 +114,22 @@ func (e *ToolExecutor) ResumeBackgroundExecutions(ctx context.Context, sessionID
 
 func (e *ToolExecutor) Register(tl tool.Tool) {
 	e.tools[tl.Definition().Name] = tl
+}
+
+func (e *ToolExecutor) RegisteredToolsForValidation() []tool.Tool {
+	if e == nil {
+		return nil
+	}
+	names := make([]string, 0, len(e.tools))
+	for name := range e.tools {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	out := make([]tool.Tool, 0, len(names))
+	for _, name := range names {
+		out = append(out, e.tools[name])
+	}
+	return out
 }
 
 func (e *ToolExecutor) toolDefinition(toolName string) (tool.Definition, bool) {

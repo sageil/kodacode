@@ -16,6 +16,7 @@ const (
 	commandPaletteActions commandPaletteKind = iota
 	commandPaletteModel
 	commandPaletteAgent
+	commandPaletteWorkflow
 	commandPaletteUtilityModel
 	commandPaletteReviewerModel
 )
@@ -26,6 +27,10 @@ type utilityModelSelectionResult struct {
 
 type reviewerModelSelectionResult struct {
 	Ref provider.ModelRef
+}
+
+type workflowSelectionResult struct {
+	WorkflowID string
 }
 
 type modelCatalogRefreshRequestedMsg struct {
@@ -55,6 +60,7 @@ type commandPaletteListOption struct {
 	Description string
 	Disabled    bool
 	Agent       agentItem
+	Workflow    workflowItem
 	Model       modelItem
 	Action      commandPaletteAction
 }
@@ -78,8 +84,10 @@ type commandPaletteDialog struct {
 
 	actions            []commandPaletteAction
 	agentItems         []agentItem
+	workflowItems      []workflowItem
 	modelItems         []modelItem
 	currentAgent       string
+	currentWorkflow    string
 	currentModel       string
 	allowMutableSelect bool
 }
@@ -91,6 +99,7 @@ func newCommandPaletteActions(items commandPaletteActionsItems, th *theme.Theme)
 	dialog.actions = []commandPaletteAction{
 		{ID: "select-model", Title: "Switch model", Description: "Choose the primary model for this session"},
 		{ID: "select-agent", Title: "Switch agent", Description: "Choose the active agent"},
+		{ID: "select-workflow", Title: "Select workflow", Description: "Choose a workflow for the next turn"},
 		{ID: "select-theme", Title: "Switch theme", Description: "Choose the active theme"},
 		{ID: "manage-sessions", Title: "Manage Sessions", Description: "Open the sessions manager"},
 		{ID: "timeline", Title: "Timeline", Description: "Branch from a previous turn"},
@@ -139,6 +148,14 @@ func newAgentDialog(agentItems []agentItem, currentAgent string, allowMutableSel
 	dialog.currentAgent = currentAgent
 	dialog.allowMutableSelect = allowMutableSelection
 	dialog.agentItems = append([]agentItem(nil), agentItems...)
+	return dialog
+}
+
+func newWorkflowDialog(workflowItems []workflowItem, currentWorkflow string, allowMutableSelection bool, th *theme.Theme) *commandPaletteDialog {
+	dialog := newCommandPaletteDialog(dialogIDCommandPalette, commandPaletteWorkflow, th)
+	dialog.currentWorkflow = strings.TrimSpace(currentWorkflow)
+	dialog.allowMutableSelect = allowMutableSelection
+	dialog.workflowItems = append([]workflowItem(nil), workflowItems...)
 	return dialog
 }
 

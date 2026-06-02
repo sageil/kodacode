@@ -9,6 +9,7 @@ import (
 
 	"github.com/sageil/kodacode/internal/agent"
 	"github.com/sageil/kodacode/internal/provider"
+	workflowpkg "github.com/sageil/kodacode/internal/workflow"
 )
 
 type turnIssueKind string
@@ -28,6 +29,7 @@ const (
 	turnIssueNoProgress           turnIssueKind = "no_progress"
 	turnIssueProviderRequestLimit turnIssueKind = "provider_request_limit"
 	turnIssueAgentMissing         turnIssueKind = "agent_missing"
+	turnIssueWorkflowMissing      turnIssueKind = "workflow_missing"
 	turnIssueModelSelection       turnIssueKind = "model_selection"
 	turnIssuePlannerContract      turnIssueKind = "planner_contract"
 )
@@ -87,6 +89,8 @@ func userFacingTurnMessage(err error, retrying bool, retryAt time.Time) string {
 		message = "No provider connection is configured for this model."
 	case turnIssueAgentMissing:
 		message = "The selected agent could not be found."
+	case turnIssueWorkflowMissing:
+		message = "The selected workflow could not be found."
 	case turnIssueModelSelection:
 		message = ErrModelSelectionRequired.Error()
 	case turnIssuePlannerContract:
@@ -142,6 +146,8 @@ func classifyTurnIssue(err error) turnIssueKind {
 		return turnIssueContinuation
 	case errors.Is(err, agent.ErrAgentNotFound):
 		return turnIssueAgentMissing
+	case errors.Is(err, workflowpkg.ErrWorkflowNotFound):
+		return turnIssueWorkflowMissing
 	case errors.Is(err, ErrModelSelectionRequired):
 		return turnIssueModelSelection
 	case errors.Is(err, ErrTurnStalledNoProgress):

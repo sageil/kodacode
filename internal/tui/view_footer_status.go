@@ -40,6 +40,13 @@ func footerStatusSegments(m Model, state events.SessionState) []transcriptStatus
 	turn := currentTurn(metricsState, metricsTurnID)
 	segments := make([]transcriptStatusSegment, 0, 8)
 
+	if label, tone, bold := footerWorkflowLabel(m, state); label != "" {
+		segments = append(segments, transcriptStatusSegment{
+			Text:  label,
+			Color: tone,
+			Bold:  bold,
+		})
+	}
 	if agent := footerAgentLabel(m, state, turnID); agent != "" {
 		segments = append(segments, transcriptStatusSegment{
 			Text:  agent,
@@ -107,6 +114,49 @@ func footerStatusSegments(m Model, state events.SessionState) []transcriptStatus
 		})
 	}
 	return segments
+}
+
+func footerWorkflowLabel(m Model, state events.SessionState) (string, string, bool) {
+	workflow := state.Workflow
+	if workflow == nil || strings.TrimSpace(workflow.WorkflowID) == "" {
+		if workflowID := strings.TrimSpace(m.workflowID); workflowID != "" {
+			return "workflow:" + workflowID, colorFor(m.theme, "subtext", "#9da8ca"), false
+		}
+		return "", "", false
+	}
+	label := "workflow:" + strings.TrimSpace(workflow.WorkflowID)
+	if phaseID := strings.TrimSpace(workflow.CurrentPhaseID); phaseID != "" {
+		label += " phase:" + phaseID
+	}
+	status := strings.TrimSpace(workflow.Status)
+	if status != "" {
+		label += " " + status
+	}
+	if reason := workflowStopReason(workflow); reason != "" {
+		label += ": " + reason
+	}
+	switch status {
+	case events.WorkflowStatusBlocked:
+		return label, colorFor(m.theme, "warning", "#ffd28f"), true
+	case events.WorkflowStatusCompleted:
+		return label, colorFor(m.theme, "success", "#90e5b4"), false
+	default:
+		return label, colorFor(m.theme, "primary", "#7cc7ff"), false
+	}
+}
+
+func workflowStopReason(workflow *events.WorkflowState) string {
+	if workflow == nil {
+		return ""
+	}
+	if reason := strings.TrimSpace(workflow.StopReason); reason != "" {
+		return reason
+	}
+	phase := workflow.Phases[strings.TrimSpace(workflow.CurrentPhaseID)]
+	if phase == nil {
+		return ""
+	}
+	return strings.TrimSpace(phase.StopReason)
 }
 
 func footerStatusMeta(state events.SessionState, turnID string) string {

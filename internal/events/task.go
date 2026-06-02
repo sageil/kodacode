@@ -14,12 +14,14 @@ const (
 )
 
 type TaskCreatedPayload struct {
-	TaskID       string `json:"task_id"`
-	ParentTaskID string `json:"parent_task_id"`
-	Title        string `json:"title"`
-	Kind         string `json:"kind"`
-	Status       string `json:"status"`
-	Notes        string `json:"notes"`
+	TaskID          string `json:"task_id"`
+	ParentTaskID    string `json:"parent_task_id"`
+	WorkflowID      string `json:"workflow_id,omitempty"`
+	WorkflowPhaseID string `json:"workflow_phase_id,omitempty"`
+	Title           string `json:"title"`
+	Kind            string `json:"kind"`
+	Status          string `json:"status"`
+	Notes           string `json:"notes"`
 }
 
 func (TaskCreatedPayload) eventType() Type { return TypeTaskCreated }
@@ -38,10 +40,12 @@ func (p TaskCreatedPayload) validate() error {
 }
 
 type TaskProgressUpdatedPayload struct {
-	TaskID   string `json:"task_id"`
-	Status   string `json:"status"`
-	Progress string `json:"progress"`
-	Notes    string `json:"notes"`
+	TaskID          string `json:"task_id"`
+	WorkflowID      string `json:"workflow_id,omitempty"`
+	WorkflowPhaseID string `json:"workflow_phase_id,omitempty"`
+	Status          string `json:"status"`
+	Progress        string `json:"progress"`
+	Notes           string `json:"notes"`
 }
 
 func (TaskProgressUpdatedPayload) eventType() Type { return TypeTaskProgressUpdated }
@@ -60,9 +64,11 @@ func (p TaskProgressUpdatedPayload) validate() error {
 }
 
 type TaskBlockedPayload struct {
-	TaskID      string `json:"task_id"`
-	BlockReason string `json:"block_reason"`
-	Notes       string `json:"notes"`
+	TaskID          string `json:"task_id"`
+	WorkflowID      string `json:"workflow_id,omitempty"`
+	WorkflowPhaseID string `json:"workflow_phase_id,omitempty"`
+	BlockReason     string `json:"block_reason"`
+	Notes           string `json:"notes"`
 }
 
 func (TaskBlockedPayload) eventType() Type { return TypeTaskBlocked }
@@ -79,8 +85,10 @@ func (p TaskBlockedPayload) validate() error {
 }
 
 type TaskCompletedPayload struct {
-	TaskID  string `json:"task_id"`
-	Summary string `json:"summary"`
+	TaskID          string `json:"task_id"`
+	WorkflowID      string `json:"workflow_id,omitempty"`
+	WorkflowPhaseID string `json:"workflow_phase_id,omitempty"`
+	Summary         string `json:"summary"`
 }
 
 func (TaskCompletedPayload) eventType() Type { return TypeTaskCompleted }
@@ -96,9 +104,11 @@ func (p TaskCompletedPayload) validate() error {
 }
 
 type TaskReviewedPayload struct {
-	TaskID        string `json:"task_id"`
-	ReviewStatus  string `json:"review_status"`
-	ReviewSummary string `json:"review_summary"`
+	TaskID          string `json:"task_id"`
+	WorkflowID      string `json:"workflow_id,omitempty"`
+	WorkflowPhaseID string `json:"workflow_phase_id,omitempty"`
+	ReviewStatus    string `json:"review_status"`
+	ReviewSummary   string `json:"review_summary"`
 }
 
 func (TaskReviewedPayload) eventType() Type { return TypeTaskReviewed }

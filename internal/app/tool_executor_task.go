@@ -126,16 +126,18 @@ func mapTaskRecords(tasks []events.TaskState) []tool.TaskRecord {
 
 func mapTaskRecord(task events.TaskState) tool.TaskRecord {
 	return tool.TaskRecord{
-		TaskID:        task.TaskID,
-		ParentTaskID:  task.ParentTaskID,
-		Title:         task.Title,
-		Kind:          task.Kind,
-		Status:        task.Status,
-		Notes:         task.Notes,
-		Progress:      task.Progress,
-		BlockReason:   task.BlockReason,
-		ReviewStatus:  task.ReviewStatus,
-		ReviewSummary: task.ReviewSummary,
+		TaskID:          task.TaskID,
+		ParentTaskID:    task.ParentTaskID,
+		WorkflowID:      task.WorkflowID,
+		WorkflowPhaseID: task.WorkflowPhaseID,
+		Title:           task.Title,
+		Kind:            task.Kind,
+		Status:          task.Status,
+		Notes:           task.Notes,
+		Progress:        task.Progress,
+		BlockReason:     task.BlockReason,
+		ReviewStatus:    task.ReviewStatus,
+		ReviewSummary:   task.ReviewSummary,
 	}
 }
 

@@ -27,6 +27,12 @@ type agentItem struct {
 	Description string
 }
 
+type workflowItem struct {
+	ID          string
+	Description string
+	None        bool
+}
+
 type skillItem struct {
 	ID          string
 	Description string
@@ -130,6 +136,27 @@ func buildAgentItems(agents []app.AvailableAgent) []agentItem {
 		})
 	}
 	sort.Slice(items, func(i, j int) bool { return items[i].ID < items[j].ID })
+	return items
+}
+
+func buildWorkflowItems(workflows []app.AvailableWorkflow) []workflowItem {
+	items := make([]workflowItem, 0, len(workflows)+1)
+	items = append(items, workflowItem{
+		ID:          "",
+		Description: "Run without a workflow",
+		None:        true,
+	})
+	for _, workflow := range workflows {
+		id := strings.TrimSpace(workflow.ID)
+		if id == "" {
+			continue
+		}
+		items = append(items, workflowItem{
+			ID:          id,
+			Description: strings.TrimSpace(workflow.Description),
+		})
+	}
+	sort.Slice(items[1:], func(i, j int) bool { return items[i+1].ID < items[j+1].ID })
 	return items
 }
 

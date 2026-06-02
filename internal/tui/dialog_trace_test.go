@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/sageil/kodacode/internal/events"
@@ -246,6 +247,102 @@ func TestTraceDialogRendersDurableTurnDetails(t *testing.T) {
 		if !containsLine(bodyRendered, want) {
 			t.Fatalf("dialog body missing %q\nrendered:\n%s", want, bodyRendered)
 		}
+	}
+}
+
+func TestTraceDialogIncludesWorkflowPhaseHistory(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	exitCode := 1
+	successful := false
+	state := events.SessionState{
+		Workflow: &events.WorkflowState{
+			WorkflowID:        "delivery",
+			Status:            events.WorkflowStatusBlocked,
+			CurrentPhaseID:    "verify",
+			PhaseOrder:        []string{"plan", "approve", "implement", "verify"},
+			EvidenceOrder:     []string{"evidence-1"},
+			CompletedPhaseIDs: []string{"plan", "approve", "implement"},
+			BlockedPhaseIDs:   []string{"verify"},
+			StopReason:        "verification failed",
+			StartedAtSeq:      2,
+			UpdatedAtSeq:      9,
+			Phases: map[string]*events.WorkflowPhaseState{
+				"plan":      {PhaseID: "plan", Status: events.WorkflowPhaseStatusCompleted, StartedAtSeq: 2, CompletedAtSeq: 4, UpdatedAtSeq: 4},
+				"approve":   {PhaseID: "approve", Status: events.WorkflowPhaseStatusCompleted, StartedAtSeq: 4, CompletedAtSeq: 5, UpdatedAtSeq: 5},
+				"implement": {PhaseID: "implement", Status: events.WorkflowPhaseStatusCompleted, StartedAtSeq: 5, CompletedAtSeq: 7, UpdatedAtSeq: 7},
+				"verify": {
+					PhaseID:      "verify",
+					Status:       events.WorkflowPhaseStatusBlocked,
+					StopReason:   "verification failed",
+					EvidenceIDs:  []string{"evidence-1"},
+					StartedAtSeq: 7,
+					BlockedAtSeq: 9,
+					UpdatedAtSeq: 9,
+				},
+			},
+			Evidence: map[string]*events.WorkflowEvidenceState{
+				"evidence-1": {
+					EvidenceID:    "evidence-1",
+					WorkflowID:    "delivery",
+					PhaseID:       "verify",
+					Type:          events.WorkflowEvidenceTypeVerificationResult,
+					ToolCallID:    "call-1",
+					ExecutionID:   "exec-1",
+					Command:       "go test ./...",
+					ExitCode:      &exitCode,
+					Successful:    &successful,
+					Summary:       "verification failed",
+					RecordedAtSeq: 8,
+				},
+			},
+		},
+	}
+
+	rendered := traceDialogWorkflowSection(&defaultTheme, state)
+	for _, want := range []string{
+		"Workflow",
+		"Workflow: delivery | status blocked | phase verify | started seq 2 | updated seq 9",
+		"Stop reason: verification failed",
+		"Phase history:",
+		"1. plan | completed | started seq 2 | completed seq 4 | updated seq 4",
+		"4. verify | blocked | started seq 7 | blocked seq 9 | updated seq 9 | 1 evidence item",
+		"   stop: verification failed",
+		"Evidence:",
+		"1. verification_result | phase verify | seq 8 | failed | exit 1 | command go test ./... | verification failed | tool call-1, exec exec-1",
+	} {
+		if !containsLine(rendered, want) {
+			t.Fatalf("workflow trace missing %q\nrendered:\n%s", want, rendered)
+		}
+	}
+}
+
+func TestTraceDialogWorkflowSectionUsesSelectedTurnWorkflowPhase(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	state := events.SessionState{
+		Turns: map[string]*events.TurnState{
+			"turn-1": {
+				TurnID: "turn-1",
+				Config: &events.TurnConfigState{
+					AgentID:         "planner",
+					Model:           "openai/gpt-5",
+					WorkflowID:      "delivery",
+					WorkflowPhaseID: "plan",
+				},
+			},
+		},
+		Workflow: &events.WorkflowState{
+			WorkflowID:     "delivery",
+			Status:         events.WorkflowStatusActive,
+			CurrentPhaseID: "verify",
+		},
+	}
+
+	rendered := traceDialogBody(&defaultTheme, state, "turn-1")
+	if !strings.Contains(rendered, "Workflow: delivery | turn phase plan") {
+		t.Fatalf("trace missing selected turn workflow phase\nrendered:\n%s", rendered)
+	}
+	if strings.Contains(rendered, "phase verify") {
+		t.Fatalf("trace used current workflow phase for selected turn\nrendered:\n%s", rendered)
 	}
 }
 

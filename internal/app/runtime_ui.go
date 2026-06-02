@@ -14,6 +14,7 @@ type StartSessionTurnInput struct {
 	UserText           string
 	Attachments        []AttachmentInput
 	AgentID            string
+	WorkflowID         string
 	SkillIDs           []string
 	ThinkingEnabled    bool
 	ThinkingMode       string
@@ -38,6 +39,7 @@ func (r *Runtime) StartSessionTurn(ctx context.Context, input StartSessionTurnIn
 		UserText:           input.UserText,
 		Attachments:        append([]AttachmentInput(nil), input.Attachments...),
 		AgentID:            input.AgentID,
+		WorkflowID:         input.WorkflowID,
 		SkillIDs:           append([]string(nil), input.SkillIDs...),
 		ThinkingEnabled:    input.ThinkingEnabled,
 		ThinkingMode:       input.ThinkingMode,

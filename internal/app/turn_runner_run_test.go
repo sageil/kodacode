@@ -476,6 +476,7 @@ func TestTurnRunnerRunDeclaresAndExecutesToolCall(t *testing.T) {
 			AllowedTools: []string{tool.TaskWorkflowToolName},
 		},
 		nil,
+		"",
 		false,
 		false,
 		"",

@@ -122,6 +122,7 @@ type fakeController struct {
 	compressPromptSourcesResult app.CompressWorkspacePromptSourcesResult
 	promptHistory               []app.PromptHistoryEntry
 	agents                      []app.AvailableAgent
+	workflows                   []app.AvailableWorkflow
 	skills                      []app.AvailableSkill
 	workspacePaths              []app.WorkspacePath
 	openAIChallengeSet          bool
@@ -139,6 +140,7 @@ type startCall struct {
 	UserText        string
 	Attachments     []app.AttachmentInput
 	AgentID         string
+	WorkflowID      string
 	ThinkingEnabled bool
 	ThinkingMode    string
 	SkillIDs        []string
@@ -460,6 +462,10 @@ func (f *fakeController) ListAgents(_ context.Context, _ string) ([]app.Availabl
 	return append([]app.AvailableAgent(nil), f.agents...), nil
 }
 
+func (f *fakeController) ListWorkflows(_ context.Context, _ string) ([]app.AvailableWorkflow, error) {
+	return append([]app.AvailableWorkflow(nil), f.workflows...), nil
+}
+
 func (f *fakeController) ListSkills(_ context.Context, _ string) ([]app.AvailableSkill, error) {
 	return append([]app.AvailableSkill(nil), f.skills...), nil
 }
@@ -476,13 +482,14 @@ func (f *fakeController) SetPermissionMode(_ context.Context, sessionID string, 
 	return nil
 }
 
-func (f *fakeController) StartTurn(_ context.Context, sessionID, turnID, userText string, attachments []app.AttachmentInput, agentID string, thinkingEnabled bool, thinkingMode string, skillIDs []string) error {
+func (f *fakeController) StartTurn(_ context.Context, sessionID, turnID, userText string, attachments []app.AttachmentInput, agentID, workflowID string, thinkingEnabled bool, thinkingMode string, skillIDs []string) error {
 	f.startCalls = append(f.startCalls, startCall{
 		SessionID:       sessionID,
 		TurnID:          turnID,
 		UserText:        userText,
 		Attachments:     append([]app.AttachmentInput(nil), attachments...),
 		AgentID:         agentID,
+		WorkflowID:      workflowID,
 		ThinkingEnabled: thinkingEnabled,
 		ThinkingMode:    thinkingMode,
 		SkillIDs:        append([]string(nil), skillIDs...),
@@ -1831,6 +1838,197 @@ func TestCommandPaletteQueryShowsMatchingAgent(t *testing.T) {
 	for _, needle := range []string{"[ agent ]", "engineer", "workflow execution agent"} {
 		if !strings.Contains(rendered, needle) {
 			t.Fatalf("agent query render missing %q\nrendered:\n%s", needle, rendered)
+		}
+	}
+}
+
+func TestWorkflowDialogQueryShowsMatchingWorkflow(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	controller := &fakeController{
+		workflows: []app.AvailableWorkflow{
+			{ID: "delivery", Description: "Plan, implement, verify, and review a code change."},
+			{ID: "debug", Description: "Reproduce, localize, patch, verify, and review a bug fix."},
+		},
+	}
+	model := NewModel(controller, ModelConfig{
+		Context:       ctx,
+		Theme:         &defaultTheme,
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: "/repo",
+	})
+
+	opened, ok := model.openWorkflowDialog()().(dialogOpenedMsg)
+	if !ok {
+		t.Fatal("openWorkflowDialog() did not return dialogOpenedMsg")
+	}
+	dialog, ok := opened.dialog.(*commandPaletteDialog)
+	if !ok {
+		t.Fatalf("dialog = %#v", opened.dialog)
+	}
+	dialog.filter.SetValue("debug")
+	dialog.refilter()
+	rendered := renderTestDialogContentPlain(dialog)
+	for _, needle := range []string{"flow", "debug", "Reproduce, localize"} {
+		if !strings.Contains(rendered, needle) {
+			t.Fatalf("workflow query render missing %q\nrendered:\n%s", needle, rendered)
+		}
+	}
+}
+
+func TestComposerCtrlWOpensWorkflowDialog(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	controller := &fakeController{
+		workflows: []app.AvailableWorkflow{
+			{ID: "delivery", Description: "Plan, implement, verify, and review a code change."},
+			{ID: "debug", Description: "Reproduce, localize, patch, verify, and review a bug fix."},
+		},
+	}
+	model := NewModel(controller, ModelConfig{
+		Context:       ctx,
+		Theme:         &defaultTheme,
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: "/repo",
+	})
+	model.chrome.focus = focusComposer
+
+	_, cmd := model.Update(tea.KeyPressMsg{Code: 'w', Mod: tea.ModCtrl})
+	if cmd == nil {
+		t.Fatal("ctrl+w cmd = nil")
+	}
+	opened, ok := cmd().(dialogOpenedMsg)
+	if !ok {
+		t.Fatalf("cmd() = %#v, want dialogOpenedMsg", cmd())
+	}
+	dialog, ok := opened.dialog.(*commandPaletteDialog)
+	if !ok {
+		t.Fatalf("dialog = %#v", opened.dialog)
+	}
+	if dialog.kind != commandPaletteWorkflow {
+		t.Fatalf("dialog kind = %v, want workflow", dialog.kind)
+	}
+	rendered := renderTestDialogContentPlain(dialog)
+	for _, needle := range []string{"flow", "none", "delivery", "Plan, implement"} {
+		if !strings.Contains(rendered, needle) {
+			t.Fatalf("workflow dialog render missing %q\nrendered:\n%s", needle, rendered)
+		}
+	}
+}
+
+func TestWorkflowDialogSelectionSetsWorkflow(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	controller := &fakeController{
+		workflows: []app.AvailableWorkflow{
+			{ID: "delivery", Description: "Delivery workflow"},
+			{ID: "debug", Description: "Debug workflow"},
+		},
+	}
+	model := NewModel(controller, ModelConfig{
+		Context:       ctx,
+		Theme:         &defaultTheme,
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: "/repo",
+	})
+
+	opened, ok := model.openWorkflowDialog()().(dialogOpenedMsg)
+	if !ok {
+		t.Fatal("openWorkflowDialog() did not return dialogOpenedMsg")
+	}
+	dialog := opened.dialog.(*commandPaletteDialog)
+	dialog.filter.SetValue("debug")
+	dialog.refilter()
+	_, closeCmd := dialog.activateListSelection()
+	closed, ok := closeCmd().(dialogClosedMsg)
+	if !ok {
+		t.Fatalf("closeCmd() = %#v, want dialogClosedMsg", closeCmd())
+	}
+	next, _ := model.handleDialogClosed(closed)
+	if got := next.(Model).workflowID; got != "debug" {
+		t.Fatalf("workflowID = %q, want debug", got)
+	}
+}
+
+func TestWorkflowDialogNoneClearsWorkflow(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	controller := &fakeController{
+		workflows: []app.AvailableWorkflow{
+			{ID: "delivery", Description: "Delivery workflow"},
+		},
+	}
+	model := NewModel(controller, ModelConfig{
+		Context:       ctx,
+		Theme:         &defaultTheme,
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: "/repo",
+	})
+	model.workflowID = "delivery"
+
+	opened, ok := model.openWorkflowDialog()().(dialogOpenedMsg)
+	if !ok {
+		t.Fatal("openWorkflowDialog() did not return dialogOpenedMsg")
+	}
+	dialog := opened.dialog.(*commandPaletteDialog)
+	dialog.filter.SetValue("none")
+	dialog.refilter()
+	_, closeCmd := dialog.activateListSelection()
+	closed, ok := closeCmd().(dialogClosedMsg)
+	if !ok {
+		t.Fatalf("closeCmd() = %#v, want dialogClosedMsg", closeCmd())
+	}
+	next, _ := model.handleDialogClosed(closed)
+	if got := next.(Model).workflowID; got != "" {
+		t.Fatalf("workflowID = %q, want empty", got)
+	}
+}
+
+func TestCommandPaletteQueryShowsWorkflowAction(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	controller := &fakeController{
+		dialogState: app.DialogState{
+			ConnectedProviders: []app.ConnectedProvider{{ProviderID: "openai"}},
+			ModelRoute: provider.ModelRoute{
+				Primary: provider.ModelRef{ProviderID: "openai", ModelID: "gpt-5"},
+			},
+		},
+	}
+	model := NewModel(controller, ModelConfig{
+		Context:       ctx,
+		Theme:         &defaultTheme,
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: "/repo",
+	})
+
+	opened, ok := model.openCommandPaletteWithQuery("workflow")().(dialogOpenedMsg)
+	if !ok {
+		t.Fatal("openCommandPaletteWithQuery() did not return dialogOpenedMsg")
+	}
+	dialog, ok := opened.dialog.(*commandPaletteDialog)
+	if !ok {
+		t.Fatalf("dialog = %#v", opened.dialog)
+	}
+	rendered := renderTestDialogContentPlain(dialog)
+	for _, needle := range []string{"action", "Select workflow", "Choose a workflow"} {
+		if !strings.Contains(rendered, needle) {
+			t.Fatalf("command palette render missing %q\nrendered:\n%s", needle, rendered)
 		}
 	}
 }

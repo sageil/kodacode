@@ -13,6 +13,8 @@ func (d *commandPaletteDialog) defaultModalWidth() int {
 		return 136
 	case commandPaletteAgent:
 		return 72
+	case commandPaletteWorkflow:
+		return 92
 	case commandPaletteUtilityModel, commandPaletteReviewerModel:
 		return 136
 	default:
@@ -36,6 +38,8 @@ func (d *commandPaletteDialog) minWidth() int {
 		return 48
 	case commandPaletteAgent:
 		return 32
+	case commandPaletteWorkflow:
+		return 40
 	default:
 		return 32
 	}

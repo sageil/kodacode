@@ -44,7 +44,7 @@ func shellStatusHints(m Model, state events.SessionState) string {
 		}
 		return "h/l tabs · i insert · ctrl+l layout · ctrl+\\ drawer · ctrl+s sessions · ctrl+n new · pgup/pgdn scroll · ctrl+] normal"
 	case focusComposer:
-		hints := "enter submit · shift+enter nl · ctrl+e edit · ↑/↓ recall"
+		hints := "enter submit · shift+enter nl · ctrl+w workflow · ctrl+e edit · ↑/↓ recall"
 		if shellLayoutEnabled(m) {
 			hints += " · ctrl+t tools"
 		}

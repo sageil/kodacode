@@ -10,11 +10,226 @@ This page is the shortest path from "I installed KodaCode" to "I know which flow
 Use the workflow that matches your current job:
 
 - First-time setup: install, connect a provider, choose a model, and create workspace instructions
+- Delivery workflow: use `delivery` for planned implementation, verification, and review
+- Debug workflow: use `debug` for reproduce, localize, patch, regression, verify, review
+- Review workflow: use `review` for read-focused acceptance checks and regression review
+- Explore workflow: use `explore` for read-only architecture, ownership, or planning context
 - Daily coding session: open a repo, ask for implementation work, and inspect what happened
 - Resume paused work: continue an existing workspace session instead of starting over
 - Try another path: branch from a completed turn without losing the original session
 - Review a change: use a read-focused agent and inspect the turn trace before trusting the result
 - Explore a repo safely: inspect architecture or answer questions without editing files
+
+## Runtime workflows
+
+Runtime workflows are durable phase plans. They are different from prompt-only
+guidance: the selected workflow, active phase, blocked state, stop reason,
+verification evidence, and review outcomes are stored in session events and
+shown in `/trace`.
+
+KodaCode ships these built-in workflows:
+
+| Workflow | Use it for | Shape |
+| --- | --- | --- |
+| `delivery` | Serious code delivery | plan, approve, implement, verify, review, summarize |
+| `debug` | Bug reports and failing tests | reproduce, localize, patch, regression, verify, review, summarize |
+| `review` | Acceptance checks and regression review | inspect, review, summarize |
+| `explore` | Read-only repository exploration | inspect, map, summarize |
+
+Select a workflow in the TUI:
+
+```text
+Ctrl+W
+```
+
+Or select one for a one-shot CLI turn:
+
+```bash
+kodacode --workflow debug "reproduce and fix the failing cache test"
+```
+
+If a workflow is active, the footer shows the workflow id, current phase, and
+blocked reason when one exists. `/trace` shows phase history and recorded
+evidence.
+
+## Project-local workflow files
+
+Project-local workflow YAML files live under:
+
+```text
+.kodacode/workflows/*.yaml
+.kodacode/workflows/*.yml
+```
+
+Global user workflow files live under:
+
+```text
+~/.config/kodacode/workflows/*.yaml
+~/.config/kodacode/workflows/*.yml
+```
+
+Resolution order is built-in, then global, then project-local. That means a
+project-local file can add a workflow or override a built-in workflow with the
+same `id`.
+
+Workflow YAML is declarative. It can narrow the phase agent, phase mode, tool
+surface, evidence requirements, verification commands, and final summary
+includes. It cannot override sandbox policy, permission policy, workspace trust,
+network policy, provider credentials, or an agent's own forbidden tools.
+
+When a phase declares `requires_output`, the phase response must include one
+JSON object with those keys. Missing or unparsable fields block advancement
+instead of being inferred from prose. Verification phases with declared
+`commands` run those commands through the runtime-owned `test` tool, so normal
+execution permissions and verification evidence apply.
+
+`max_revision_loops` caps automatic loops from a failed verification phase back
+to an implementation phase. Approval phases can use
+`skip_when.max_affected_files` to skip human approval for small structured
+plans; the signal comes from the previous phase's `affected_files` output.
+Workflow `transitions` make non-linear movement explicit for supported events
+such as `skipped` and `verification_failed`.
+
+Example code-delivery workflow:
+
+```yaml
+id: team-delivery
+description: Plan, implement, verify, and review team code changes.
+review_mode: auto
+max_revision_loops: 2
+phases:
+  - id: plan
+    agent: planner
+    mode: read_only
+    requires_output:
+      - plan
+      - affected_files
+      - risks
+  - id: approve
+    type: user_approval
+    prompt: Approve this implementation plan before edits?
+    skip_when:
+      max_affected_files: 2
+  - id: implement
+    agent: engineer
+    requires:
+      approved_phase: plan
+    tools:
+      allow:
+        - read
+        - search
+        - apply_patch
+        - bash
+        - git_diff
+        - task_workflow
+  - id: verify
+    type: verification
+    commands:
+      - go test ./...
+    required: true
+  - id: review
+    agent: reviewer
+    mode: read_only
+    requires:
+      - verification_result
+  - id: summarize
+    type: final
+    include:
+      - changed_files
+      - verification_result
+      - review_outcome
+transitions:
+  - from: approve
+    on: skipped
+    to: implement
+  - from: verify
+    on: verification_failed
+    to: implement
+    max_loops: 2
+```
+
+Example debugging workflow:
+
+```yaml
+id: team-debug
+description: Reproduce, localize, patch, verify, and review a bug fix.
+max_revision_loops: 2
+phases:
+  - id: reproduce
+    agent: engineer
+  - id: localize
+    agent: planner
+    mode: read_only
+  - id: patch
+    agent: engineer
+    tools:
+      allow:
+        - read
+        - search
+        - apply_patch
+        - bash
+        - test
+        - diagnostics
+        - git_diff
+        - task_workflow
+  - id: verify
+    type: verification
+    commands:
+      - go test ./...
+    required: true
+  - id: review
+    agent: reviewer
+    mode: read_only
+    requires:
+      - verification_result
+  - id: summarize
+    type: final
+transitions:
+  - from: verify
+    on: verification_failed
+    to: patch
+    max_loops: 2
+```
+
+Example read-focused review workflow:
+
+```yaml
+id: team-review
+description: Review current changes without editing files.
+phases:
+  - id: inspect
+    agent: reviewer
+    mode: read_only
+  - id: review
+    agent: reviewer
+    mode: read_only
+  - id: summarize
+    type: final
+    include:
+      - review_outcome
+      - findings
+      - evidence
+```
+
+Example read-only exploration workflow:
+
+```yaml
+id: team-explore
+description: Map repository architecture and constraints without edits.
+phases:
+  - id: inspect
+    agent: planner
+    mode: read_only
+  - id: map
+    agent: planner
+    mode: read_only
+  - id: summarize
+    type: final
+    include:
+      - inspected_files
+      - architecture_notes
+      - next_steps
+```
 
 ## First-time setup
 

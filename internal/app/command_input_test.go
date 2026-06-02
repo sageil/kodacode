@@ -16,6 +16,7 @@ func TestParseCommandInputParsesRepeatedSkills(t *testing.T) {
 		"--skill", "review",
 		"--skill=go",
 		"--skill", "review",
+		"--workflow", "delivery",
 		"inspect", "the", "repo",
 	}, t.TempDir())
 	if err != nil {
@@ -29,6 +30,9 @@ func TestParseCommandInputParsesRepeatedSkills(t *testing.T) {
 	}
 	if !input.Resume {
 		t.Fatal("Resume = false, want true")
+	}
+	if input.WorkflowID != "delivery" {
+		t.Fatalf("WorkflowID = %q, want delivery", input.WorkflowID)
 	}
 }
 
@@ -138,6 +142,13 @@ func TestParseCommandInputParsesAdditionalWorkspaceRoots(t *testing.T) {
 
 func TestParseCommandInputRejectsMissingSkillValue(t *testing.T) {
 	_, err := ParseCommandInput([]string{"--skill"}, t.TempDir())
+	if !errors.Is(err, ErrCommandOptionValueRequired) {
+		t.Fatalf("ParseCommandInput() error = %v, want %v", err, ErrCommandOptionValueRequired)
+	}
+}
+
+func TestParseCommandInputRejectsMissingWorkflowValue(t *testing.T) {
+	_, err := ParseCommandInput([]string{"--workflow"}, t.TempDir())
 	if !errors.Is(err, ErrCommandOptionValueRequired) {
 		t.Fatalf("ParseCommandInput() error = %v, want %v", err, ErrCommandOptionValueRequired)
 	}

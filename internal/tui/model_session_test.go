@@ -326,6 +326,7 @@ func TestApplyViewRestoresTurnConfigAgentSkillsAndReasoning(t *testing.T) {
 		UserText:      "inspect repository",
 	})
 	model.agentID = "builder"
+	model.workflowID = "fallback-workflow"
 	model.skillIDs = []string{"fallback"}
 	model.reasoningVariant = "low"
 
@@ -338,6 +339,7 @@ func TestApplyViewRestoresTurnConfigAgentSkillsAndReasoning(t *testing.T) {
 		}),
 		draftEvent(2, events.TypeTurnConfigured, "session-1", "turn-1", events.TurnConfiguredPayload{
 			AgentID:          "planner",
+			WorkflowID:       "delivery",
 			SkillIDs:         []string{"review", "search"},
 			SelectedSkillIDs: []string{"review", "search"},
 			Model:            "openai/gpt-5-mini",
@@ -350,6 +352,7 @@ func TestApplyViewRestoresTurnConfigAgentSkillsAndReasoning(t *testing.T) {
 		SessionID:        "session-1",
 		TurnID:           "turn-1",
 		AgentID:          "builder",
+		WorkflowID:       "fallback-workflow",
 		SkillIDs:         []string{"fallback"},
 		ReasoningVariant: "low",
 		WorkspaceRoot:    "/repo",
@@ -357,6 +360,9 @@ func TestApplyViewRestoresTurnConfigAgentSkillsAndReasoning(t *testing.T) {
 
 	if model.agentID != "planner" {
 		t.Fatalf("agentID = %q, want planner", model.agentID)
+	}
+	if model.workflowID != "delivery" {
+		t.Fatalf("workflowID = %q, want delivery", model.workflowID)
 	}
 	if !reflect.DeepEqual(model.skillIDs, []string{"review", "search"}) {
 		t.Fatalf("skillIDs = %#v, want review/search", model.skillIDs)

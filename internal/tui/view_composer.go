@@ -33,7 +33,7 @@ func renderComposerBar(m Model, state events.SessionState, width int) string {
 		return contentBlock
 	}
 
-	subtitle := "enter submits • shift+enter newline • @ include path • ctrl+e editor"
+	subtitle := "enter submits • shift+enter newline • ctrl+w workflow • @ include path • ctrl+e editor"
 	border := lineTone(m)
 	focused := m.chrome.focus == focusComposer
 	if m.hasPendingInteraction() {

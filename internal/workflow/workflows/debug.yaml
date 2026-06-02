@@ -1,0 +1,84 @@
+id: debug
+description: Reproduce, localize, patch, verify, and review a bug fix.
+review_mode: auto
+max_revision_loops: 2
+
+phases:
+  - id: reproduce
+    agent: engineer
+    prompt: Reproduce the reported failure or capture the closest concrete signal before patching.
+    tools:
+      allow:
+        - read
+        - search
+        - bash
+        - test
+        - diagnostics
+        - git_diff
+        - task_workflow
+
+  - id: localize
+    agent: planner
+    mode: read_only
+    prompt: Identify likely ownership, root cause candidates, and the smallest patch surface.
+
+  - id: patch
+    agent: engineer
+    prompt: Patch the root cause and record task progress for meaningful steps.
+    tools:
+      allow:
+        - read
+        - search
+        - apply_patch
+        - bash
+        - test
+        - diagnostics
+        - git_diff
+        - task_workflow
+
+  - id: regression
+    agent: engineer
+    prompt: Add or update a regression check when the repository has a reasonable test surface.
+    tools:
+      allow:
+        - read
+        - search
+        - apply_patch
+        - bash
+        - test
+        - diagnostics
+        - git_diff
+        - task_workflow
+
+  - id: verify
+    type: verification
+    agent: engineer
+    prompt: Run the declared verification commands and report the result.
+    tools:
+      allow:
+        - test
+        - bash
+    commands:
+      - go test ./...
+    required: true
+
+  - id: review
+    agent: reviewer
+    mode: read_only
+    requires:
+      - verification_result
+
+  - id: summarize
+    type: final
+    include:
+      - failure_signal
+      - root_cause
+      - changed_files
+      - verification_result
+      - review_outcome
+
+transitions:
+  - from: verify
+    on: verification_failed
+    to: patch
+    max_loops: 2

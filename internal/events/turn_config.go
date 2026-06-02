@@ -8,6 +8,8 @@ import (
 
 type TurnConfiguredPayload struct {
 	AgentID                   string
+	WorkflowID                string
+	WorkflowPhaseID           string
 	SkillIDs                  []string
 	SelectedSkillIDs          []string
 	Model                     string
@@ -39,6 +41,8 @@ func (p TurnConfiguredPayload) validate() error {
 
 type TurnConfigState struct {
 	AgentID                   string
+	WorkflowID                string
+	WorkflowPhaseID           string
 	SkillIDs                  []string
 	SelectedSkillIDs          []string
 	Model                     string
@@ -58,6 +62,8 @@ func cloneTurnConfigState(state *TurnConfigState) *TurnConfigState {
 	}
 	return &TurnConfigState{
 		AgentID:                   state.AgentID,
+		WorkflowID:                state.WorkflowID,
+		WorkflowPhaseID:           state.WorkflowPhaseID,
 		SkillIDs:                  append([]string(nil), state.SkillIDs...),
 		SelectedSkillIDs:          slices.Clone(state.SelectedSkillIDs),
 		Model:                     state.Model,
