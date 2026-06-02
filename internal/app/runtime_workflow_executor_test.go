@@ -316,6 +316,62 @@ func TestRuntimeWorkflowFinalPhaseSynthesizesEvidenceSummary(t *testing.T) {
 	}
 }
 
+func TestRuntimeWorkflowFinalPhaseAggregatesReviewOutcomes(t *testing.T) {
+	ctx := context.Background()
+	runtime := newRuntimeWithClient(t, &fakeProvider{})
+	root := t.TempDir()
+	sessionID := createWorkflowTestSession(t, runtime, root)
+
+	startDeliveryAtVerify(t, runtime, sessionID, root)
+	recordDeliveryVerificationEvidence(t, runtime, sessionID, "turn-1", true, "go test ./... passed")
+	if err := runtime.AdvanceWorkflow(ctx, AdvanceWorkflowInput{
+		SessionID: sessionID,
+		TurnID:    "turn-1",
+		ToPhaseID: "review",
+	}); err != nil {
+		t.Fatalf("AdvanceWorkflow(review) error = %v", err)
+	}
+	recordDeliveryReviewPassEvidence(t, runtime, sessionID, "turn-1", "correctness", events.TaskReviewStatusPass, "behavior is covered")
+	recordDeliveryReviewPassEvidence(t, runtime, sessionID, "turn-1", "tests", events.TaskReviewStatusConcern, "missing edge-case assertion")
+	if err := runtime.AdvanceWorkflow(ctx, AdvanceWorkflowInput{
+		SessionID: sessionID,
+		TurnID:    "turn-1",
+		ToPhaseID: "summarize",
+	}); err != nil {
+		t.Fatalf("AdvanceWorkflow(summarize) error = %v", err)
+	}
+
+	result, err := runtime.runExistingSessionTurn(ctx, runExistingTurnInput{
+		SessionID: sessionID,
+		TurnID:    "turn-final",
+		UserText:  "summarize",
+		AgentID:   "engineer",
+	})
+	if err != nil {
+		t.Fatalf("runExistingSessionTurn(final) error = %v", err)
+	}
+	if result.Status != TurnRunStatusCompleted {
+		t.Fatalf("status = %q, want completed", result.Status)
+	}
+	state, err := runtime.Sessions.Snapshot(ctx, sessionID)
+	if err != nil {
+		t.Fatalf("Snapshot() error = %v", err)
+	}
+	turn := state.Turns["turn-final"]
+	if turn == nil {
+		t.Fatal("final turn missing")
+	}
+	for _, want := range []string{
+		"- review_outcome: 2 review outcomes: 1 pass, 1 concern.",
+		"pass correctness - behavior is covered",
+		"concern tests - missing edge-case assertion",
+	} {
+		if !strings.Contains(turn.AssistantText, want) {
+			t.Fatalf("final summary missing %q\nsummary:\n%s", want, turn.AssistantText)
+		}
+	}
+}
+
 func TestRuntimeWorkflowImplementationRequiresApprovalEvidence(t *testing.T) {
 	ctx := context.Background()
 	runtime := newRuntimeWithClient(t, &fakeProvider{})
@@ -798,6 +854,25 @@ func recordDeliveryReviewEvidence(t *testing.T, runtime *Runtime, sessionID, tur
 		Summary:    "review passed",
 	}); err != nil {
 		t.Fatalf("RecordWorkflowEvidence(review) error = %v", err)
+	}
+}
+
+func recordDeliveryReviewPassEvidence(t *testing.T, runtime *Runtime, sessionID, turnID, passID, status, summary string) {
+	t.Helper()
+	successful := status == events.TaskReviewStatusPass || status == events.TaskReviewStatusAccepted
+	if err := runtime.RecordWorkflowEvidence(context.Background(), RecordWorkflowEvidenceInput{
+		SessionID:  sessionID,
+		TurnID:     turnID,
+		PhaseID:    "review",
+		Type:       events.WorkflowEvidenceTypeReviewOutcome,
+		Successful: testBoolPointer(successful),
+		Summary:    summary,
+		Fields: map[string]string{
+			"review_pass":   passID,
+			"review_status": status,
+		},
+	}); err != nil {
+		t.Fatalf("RecordWorkflowEvidence(review %s) error = %v", passID, err)
 	}
 }
 

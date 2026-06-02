@@ -65,6 +65,13 @@ phases:
   - id: review
     agent: reviewer
     mode: read_only
+    review_passes:
+      - id: root-cause
+        description: Whether the patch addresses the reproduced root cause.
+      - id: regression
+        description: Regression coverage and edge cases for the failure.
+      - id: collateral
+        description: Compatibility, permissions, and nearby behavior risks.
     requires:
       - verification_result
 

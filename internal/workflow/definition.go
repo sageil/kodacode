@@ -26,6 +26,7 @@ var (
 	ErrWorkflowToolForbidden        = errors.New("workflow phase tool is forbidden by agent policy")
 	ErrWorkflowToolUnsafe           = errors.New("workflow phase tool is unsafe for phase mode")
 	ErrWorkflowReviewModeInvalid    = errors.New("workflow review_mode is invalid")
+	ErrWorkflowReviewPassInvalid    = errors.New("workflow review_passes is invalid")
 	ErrWorkflowRevisionLoopsInvalid = errors.New("workflow max_revision_loops is invalid")
 	ErrWorkflowApprovalSkipInvalid  = errors.New("workflow approval skip_when is invalid")
 	ErrWorkflowTransitionInvalid    = errors.New("workflow transition is invalid")
@@ -69,6 +70,7 @@ type Phase struct {
 	Required       bool                 `yaml:"required"`
 	Include        []string             `yaml:"include"`
 	SkipWhen       ApprovalSkipRules    `yaml:"skip_when"`
+	ReviewPasses   []ReviewPass         `yaml:"review_passes"`
 }
 
 type ToolPolicy struct {
@@ -83,6 +85,11 @@ type EvidenceRequirements struct {
 
 type ApprovalSkipRules struct {
 	MaxAffectedFiles int `yaml:"max_affected_files"`
+}
+
+type ReviewPass struct {
+	ID          string `yaml:"id"`
+	Description string `yaml:"description"`
 }
 
 type Transition struct {
@@ -207,6 +214,9 @@ func (p Phase) Validate(ctx ValidationContext) error {
 	if err := validatePhaseApprovalSkip(p); err != nil {
 		return err
 	}
+	if err := validatePhaseReviewPasses(p); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -278,6 +288,31 @@ func validatePhaseApprovalSkip(p Phase) error {
 		return fmt.Errorf("%w: skip_when is only supported on user_approval phases", ErrWorkflowApprovalSkipInvalid)
 	}
 	return nil
+}
+
+func validatePhaseReviewPasses(p Phase) error {
+	if len(p.ReviewPasses) == 0 {
+		return nil
+	}
+	if !phaseIsReviewLike(p) {
+		return fmt.Errorf("%w: review_passes are only supported on reviewer phases", ErrWorkflowReviewPassInvalid)
+	}
+	seen := map[string]struct{}{}
+	for index, pass := range p.ReviewPasses {
+		id := strings.TrimSpace(pass.ID)
+		if id == "" {
+			return fmt.Errorf("%w: pass %d id is required", ErrWorkflowReviewPassInvalid, index+1)
+		}
+		if _, ok := seen[id]; ok {
+			return fmt.Errorf("%w: duplicate pass id %s", ErrWorkflowReviewPassInvalid, id)
+		}
+		seen[id] = struct{}{}
+	}
+	return nil
+}
+
+func phaseIsReviewLike(p Phase) bool {
+	return strings.TrimSpace(p.Agent) == "reviewer" || strings.TrimSpace(p.ID) == "review"
 }
 
 func validateTransitions(transitions []Transition, phases map[string]struct{}) error {

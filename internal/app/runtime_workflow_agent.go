@@ -180,6 +180,21 @@ func workflowPhasePromptFragment(ctx workflowPhaseTurnContext, allowedTools []st
 	if len(ctx.Phase.Include) > 0 {
 		lines = append(lines, "- Final summary should include: "+strings.Join(trimmedWorkflowValues(ctx.Phase.Include), ", "))
 	}
+	if len(ctx.Phase.ReviewPasses) > 0 {
+		lines = append(lines, "- Review passes:")
+		for _, pass := range ctx.Phase.ReviewPasses {
+			id := strings.TrimSpace(pass.ID)
+			if id == "" {
+				continue
+			}
+			line := "  - " + id
+			if description := strings.TrimSpace(pass.Description); description != "" {
+				line += ": " + description
+			}
+			lines = append(lines, line)
+		}
+		lines = append(lines, "- Record review outcomes for the relevant pass or passes.")
+	}
 	if workflowPhaseIsReadFocused(ctx.Phase) {
 		lines = append(lines, "- This phase is read-focused. Do not perform workspace mutations.")
 	}

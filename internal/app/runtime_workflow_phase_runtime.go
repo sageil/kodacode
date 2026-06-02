@@ -804,7 +804,7 @@ func workflowFinalIncludedValue(workflow *events.WorkflowState, key string) stri
 	case "verification_result":
 		return workflowFinalLatestVerificationSummary(workflow)
 	case "review_outcome", "findings":
-		return workflowFinalLatestEvidenceSummary(workflow, events.WorkflowEvidenceTypeReviewOutcome, events.WorkflowEvidenceTypeReview, events.WorkflowEvidenceTypeTaskReview)
+		return workflowFinalReviewSummary(workflow)
 	case "evidence":
 		return workflowFinalEvidenceSummary(workflow)
 	default:
@@ -864,6 +864,108 @@ func workflowFinalLatestVerificationSummary(workflow *events.WorkflowState) stri
 		return prefix
 	}
 	return ""
+}
+
+func workflowFinalReviewSummary(workflow *events.WorkflowState) string {
+	entries := workflowFinalReviewEntries(workflow)
+	if len(entries) == 0 {
+		return ""
+	}
+	if len(entries) == 1 {
+		return entries[0].Summary
+	}
+	counts := map[string]int{}
+	details := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		status := entry.Status
+		if status == "" {
+			status = "recorded"
+		}
+		counts[status]++
+		detail := status
+		if entry.PassID != "" {
+			detail += " " + entry.PassID
+		}
+		if entry.Summary != "" {
+			detail += " - " + entry.Summary
+		}
+		details = append(details, detail)
+	}
+	return fmt.Sprintf("%d review outcomes: %s. %s", len(entries), workflowFinalReviewCountSummary(counts), strings.Join(details, "; "))
+}
+
+type workflowFinalReviewEntry struct {
+	Status  string
+	PassID  string
+	Summary string
+}
+
+func workflowFinalReviewEntries(workflow *events.WorkflowState) []workflowFinalReviewEntry {
+	if workflow == nil {
+		return nil
+	}
+	entries := []workflowFinalReviewEntry{}
+	for _, evidenceID := range workflow.EvidenceOrder {
+		evidence := workflow.Evidence[evidenceID]
+		if evidence == nil {
+			continue
+		}
+		switch evidence.Type {
+		case events.WorkflowEvidenceTypeReviewOutcome, events.WorkflowEvidenceTypeReview, events.WorkflowEvidenceTypeTaskReview:
+		default:
+			continue
+		}
+		summary := workflowFinalDisplayValue(evidence.Summary)
+		if summary == "" {
+			continue
+		}
+		entries = append(entries, workflowFinalReviewEntry{
+			Status:  workflowFinalReviewStatus(evidence),
+			PassID:  workflowFinalDisplayValue(evidence.Fields["review_pass"]),
+			Summary: summary,
+		})
+	}
+	if len(entries) == 0 {
+		return nil
+	}
+	return entries
+}
+
+func workflowFinalReviewStatus(evidence *events.WorkflowEvidenceState) string {
+	if evidence == nil {
+		return ""
+	}
+	if status := workflowFinalDisplayValue(evidence.Fields["review_status"]); status != "" {
+		return status
+	}
+	if evidence.Successful == nil {
+		return "recorded"
+	}
+	if *evidence.Successful {
+		return "pass"
+	}
+	return "fail"
+}
+
+func workflowFinalReviewCountSummary(counts map[string]int) string {
+	order := []string{"pass", "accepted", "concern", "fail", "recorded"}
+	parts := []string{}
+	used := map[string]struct{}{}
+	for _, status := range order {
+		count := counts[status]
+		if count == 0 {
+			continue
+		}
+		parts = append(parts, fmt.Sprintf("%d %s", count, status))
+		used[status] = struct{}{}
+	}
+	for status, count := range counts {
+		if _, ok := used[status]; ok || count == 0 {
+			continue
+		}
+		parts = append(parts, fmt.Sprintf("%d %s", count, status))
+	}
+	return strings.Join(parts, ", ")
 }
 
 func workflowFinalEvidenceSummary(workflow *events.WorkflowState) string {

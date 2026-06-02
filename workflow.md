@@ -43,6 +43,8 @@ contract is implemented and durable:
   evidence and call out requested fields that were not recorded.
 - Advisory workflow route recommendations are recorded per turn when no
   workflow is explicitly selected.
+- Review phases can declare review pass metadata, and final summaries aggregate
+  multiple recorded review outcomes.
 - Per-workflow `review_mode`.
 - TUI workflow selection, footer status, and trace visibility.
 
@@ -50,7 +52,7 @@ Remaining work:
 
 - Additional transition events beyond `skipped`, `verification_failed`, and
   `review_failed`.
-- Parallel review fan-out and aggregation.
+- Automatic reviewer child-session fan-out.
 - Per-workflow budgets and model routing.
 - Stronger revision evidence tying each retry to the exact failed check or
   review finding.
@@ -412,6 +414,13 @@ phases:
   - id: review
     agent: reviewer
     mode: read_only
+    review_passes:
+      - id: correctness
+        description: Behavioral regressions and implementation correctness.
+      - id: tests
+        description: Verification coverage, edge cases, and missing checks.
+      - id: contracts
+        description: API, config, permission, and compatibility contracts.
     requires:
       - git_diff
       - verification_result

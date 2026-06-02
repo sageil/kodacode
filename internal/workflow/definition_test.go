@@ -37,6 +37,9 @@ func TestLoadBytesParsesValidDeliveryWorkflow(t *testing.T) {
 	if strings.Join(review.Requires.Items, ",") != "git_diff,verification_result" {
 		t.Fatalf("review requires = %#v", review.Requires.Items)
 	}
+	if len(review.ReviewPasses) != 2 || review.ReviewPasses[0].ID != "correctness" || review.ReviewPasses[1].ID != "tests" {
+		t.Fatalf("review passes = %#v", review.ReviewPasses)
+	}
 	if len(definition.Transitions) != 3 {
 		t.Fatalf("transitions = %#v, want 3", definition.Transitions)
 	}
@@ -142,6 +145,20 @@ phases:
 `), testValidationContext())
 	if !errors.Is(err, ErrWorkflowApprovalSkipInvalid) {
 		t.Fatalf("LoadBytes() error = %v, want ErrWorkflowApprovalSkipInvalid", err)
+	}
+}
+
+func TestDefinitionValidateRejectsReviewPassesOnNonReviewPhase(t *testing.T) {
+	_, err := LoadBytes([]byte(`
+id: delivery
+phases:
+  - id: plan
+    agent: planner
+    review_passes:
+      - id: correctness
+`), testValidationContext())
+	if !errors.Is(err, ErrWorkflowReviewPassInvalid) {
+		t.Fatalf("LoadBytes() error = %v, want ErrWorkflowReviewPassInvalid", err)
 	}
 }
 
@@ -340,6 +357,11 @@ phases:
   - id: review
     agent: reviewer
     mode: read_only
+    review_passes:
+      - id: correctness
+        description: Behavioral regressions and implementation correctness.
+      - id: tests
+        description: Verification coverage, edge cases, and missing checks.
     requires:
       - git_diff
       - verification_result

@@ -46,6 +46,13 @@ phases:
   - id: review
     agent: reviewer
     mode: read_only
+    review_passes:
+      - id: correctness
+        description: Behavioral regressions and implementation correctness.
+      - id: tests
+        description: Verification coverage, edge cases, and missing checks.
+      - id: contracts
+        description: API, config, permission, and compatibility contracts.
     requires:
       - git_diff
       - verification_result

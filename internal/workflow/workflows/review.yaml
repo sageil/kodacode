@@ -12,6 +12,13 @@ phases:
     agent: reviewer
     mode: read_only
     prompt: Record concrete review findings or a durable pass/concern/fail outcome.
+    review_passes:
+      - id: correctness
+        description: Behavioral regressions and implementation correctness.
+      - id: tests
+        description: Verification coverage, edge cases, and missing checks.
+      - id: contracts
+        description: API, config, permission, and compatibility contracts.
 
   - id: summarize
     type: final

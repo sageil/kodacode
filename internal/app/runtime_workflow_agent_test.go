@@ -471,6 +471,14 @@ func TestRuntimeWorkflowReviewerPhaseCannotEditFiles(t *testing.T) {
 	if !containsString(gotTools, "task_review") {
 		t.Fatalf("review phase tools = %#v, want task_review preserved for durable review outcome", gotTools)
 	}
+	if !containsAll(client.requests[0].Instructions, []string{
+		"Review passes:",
+		"correctness: Behavioral regressions and implementation correctness.",
+		"tests: Verification coverage, edge cases, and missing checks.",
+		"contracts: API, config, permission, and compatibility contracts.",
+	}) {
+		t.Fatalf("review phase instructions missing review passes:\n%s", client.requests[0].Instructions)
+	}
 	state, err := runtime.Sessions.Snapshot(context.Background(), sessionID)
 	if err != nil {
 		t.Fatalf("Snapshot() error = %v", err)
