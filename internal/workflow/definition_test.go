@@ -22,6 +22,12 @@ func TestLoadBytesParsesValidDeliveryWorkflow(t *testing.T) {
 	if definition.MaxRevisionLoops != 2 {
 		t.Fatalf("MaxRevisionLoops = %d, want 2", definition.MaxRevisionLoops)
 	}
+	if definition.Budgets.MaxCost != 1.25 {
+		t.Fatalf("budget max cost = %v, want 1.25", definition.Budgets.MaxCost)
+	}
+	if definition.Budgets.MaxProviderRequestsPerTurn != 4 {
+		t.Fatalf("budget max provider requests = %d, want 4", definition.Budgets.MaxProviderRequestsPerTurn)
+	}
 	if definition.Model != "openai/gpt-5-mini" {
 		t.Fatalf("Model = %q, want openai/gpt-5-mini", definition.Model)
 	}
@@ -166,6 +172,32 @@ phases:
 `), testValidationContext())
 	if !errors.Is(err, ErrWorkflowRevisionLoopsInvalid) {
 		t.Fatalf("LoadBytes() error = %v, want ErrWorkflowRevisionLoopsInvalid", err)
+	}
+}
+
+func TestDefinitionValidateRejectsNegativeBudgets(t *testing.T) {
+	_, err := LoadBytes([]byte(`
+id: delivery
+budgets:
+  max_cost: -0.01
+phases:
+  - id: plan
+    agent: planner
+`), testValidationContext())
+	if !errors.Is(err, ErrWorkflowBudgetInvalid) {
+		t.Fatalf("LoadBytes() error = %v, want ErrWorkflowBudgetInvalid", err)
+	}
+
+	_, err = LoadBytes([]byte(`
+id: delivery
+budgets:
+  max_provider_requests_per_turn: -1
+phases:
+  - id: plan
+    agent: planner
+`), testValidationContext())
+	if !errors.Is(err, ErrWorkflowBudgetInvalid) {
+		t.Fatalf("LoadBytes() error = %v, want ErrWorkflowBudgetInvalid", err)
 	}
 }
 
@@ -368,6 +400,9 @@ description: Plan, implement, verify, and review a code change.
 model: openai/gpt-5-mini
 review_mode: auto
 max_revision_loops: 2
+budgets:
+  max_cost: 1.25
+  max_provider_requests_per_turn: 4
 
 phases:
   - id: plan

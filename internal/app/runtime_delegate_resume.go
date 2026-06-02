@@ -104,7 +104,7 @@ func (r *Runtime) ResolveDelegatedSessionTurn(ctx context.Context, input Resolve
 	if err != nil {
 		return ResolveDelegatedSessionTurnResult{}, err
 	}
-	result, resultPayload, reviewPayload, err := r.prepareDelegatedHandoffCompletion(ctx, handoffPayload, result, modelRoute)
+	result, resultPayload, reviewPayload, err := r.prepareDelegatedHandoffCompletion(ctx, handoffPayload, result, modelRoute, workflowTurnBudget{})
 	if err != nil {
 		return ResolveDelegatedSessionTurnResult{}, err
 	}
@@ -191,7 +191,7 @@ func (r *Runtime) AnswerDelegatedSessionQuestion(ctx context.Context, input Answ
 	if err != nil {
 		return AnswerDelegatedSessionQuestionResult{}, err
 	}
-	result, resultPayload, reviewPayload, err := r.prepareDelegatedHandoffCompletion(ctx, handoffPayload, result, modelRoute)
+	result, resultPayload, reviewPayload, err := r.prepareDelegatedHandoffCompletion(ctx, handoffPayload, result, modelRoute, workflowTurnBudget{})
 	if err != nil {
 		return AnswerDelegatedSessionQuestionResult{}, err
 	}

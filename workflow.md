@@ -48,6 +48,8 @@ contract is implemented and durable:
   recorded review outcomes.
 - Per-workflow `review_mode`.
 - Workflow and phase `model` routing with phase-level precedence.
+- Per-workflow budgets through `budgets.max_cost` and
+  `budgets.max_provider_requests_per_turn`.
 - TUI workflow selection, footer status, and trace visibility.
 
 Remaining work:
@@ -56,7 +58,6 @@ Remaining work:
   `review_failed`.
 - Parallel reviewer scheduling; current workflow fan-out runs bounded reviewer
   child sessions sequentially.
-- Per-workflow budgets.
 - Stronger revision evidence tying each retry to the exact failed check or
   review finding.
 - Broader verification command types when the `test` tool is too narrow.

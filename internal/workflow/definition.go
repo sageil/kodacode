@@ -32,6 +32,7 @@ var (
 	ErrWorkflowApprovalSkipInvalid  = errors.New("workflow approval skip_when is invalid")
 	ErrWorkflowTransitionInvalid    = errors.New("workflow transition is invalid")
 	ErrWorkflowModelInvalid         = errors.New("workflow model is invalid")
+	ErrWorkflowBudgetInvalid        = errors.New("workflow budgets are invalid")
 )
 
 type PhaseType string
@@ -56,6 +57,7 @@ type Definition struct {
 	Model            string       `yaml:"model"`
 	ReviewMode       string       `yaml:"review_mode"`
 	MaxRevisionLoops int          `yaml:"max_revision_loops"`
+	Budgets          Budgets      `yaml:"budgets"`
 	Phases           []Phase      `yaml:"phases"`
 	Transitions      []Transition `yaml:"transitions"`
 }
@@ -102,6 +104,11 @@ type Transition struct {
 	On       string `yaml:"on"`
 	To       string `yaml:"to"`
 	MaxLoops int    `yaml:"max_loops"`
+}
+
+type Budgets struct {
+	MaxCost                    float64 `yaml:"max_cost"`
+	MaxProviderRequestsPerTurn int     `yaml:"max_provider_requests_per_turn"`
 }
 
 const (
@@ -173,6 +180,9 @@ func (d Definition) Validate(ctx ValidationContext) error {
 	if d.MaxRevisionLoops < 0 {
 		return fmt.Errorf("%w: %d", ErrWorkflowRevisionLoopsInvalid, d.MaxRevisionLoops)
 	}
+	if err := validateBudgets(d.Budgets); err != nil {
+		return err
+	}
 	if len(d.Phases) == 0 {
 		return ErrWorkflowPhaseRequired
 	}
@@ -209,6 +219,16 @@ func validateWorkflowModel(value string) error {
 	}
 	if _, err := provider.ParseModelRef(value); err != nil {
 		return fmt.Errorf("%w: %v", ErrWorkflowModelInvalid, err)
+	}
+	return nil
+}
+
+func validateBudgets(budgets Budgets) error {
+	if budgets.MaxCost < 0 {
+		return fmt.Errorf("%w: max_cost must be non-negative", ErrWorkflowBudgetInvalid)
+	}
+	if budgets.MaxProviderRequestsPerTurn < 0 {
+		return fmt.Errorf("%w: max_provider_requests_per_turn must be non-negative", ErrWorkflowBudgetInvalid)
 	}
 	return nil
 }

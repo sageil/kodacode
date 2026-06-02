@@ -35,6 +35,7 @@ type DelegateSessionTurnInput struct {
 	ContextSummary     string
 	SourceHandoffIDs   []string
 	ModelRouteOverride provider.ModelRoute
+	WorkflowBudget     workflowTurnBudget
 }
 
 type DelegateSessionTurnResult struct {
@@ -177,7 +178,7 @@ func (r *Runtime) DelegateSessionTurn(ctx context.Context, input DelegateSession
 		"context_summary", input.ContextSummary,
 		"allowed_tools", effectiveTools,
 	)
-	return r.executeDelegatedHandoff(ctx, parentState, handoff, childDefinition, childModelRoute, effectiveTools, responseStyle, "starting child turn")
+	return r.executeDelegatedHandoff(ctx, parentState, handoff, childDefinition, childModelRoute, effectiveTools, responseStyle, input.WorkflowBudget, "starting child turn")
 }
 
 func effectiveDelegatedChildTools(childDefinition agent.Definition, tools []string, parentState events.SessionState) []string {
@@ -370,7 +371,7 @@ func (r *Runtime) retryDelegatedHandoff(ctx context.Context, parentState events.
 		"context_summary", payload.ContextSummary,
 		"allowed_tools", payload.AllowedTools,
 	)
-	return r.executeDelegatedHandoff(ctx, parentState, payload, childDefinition, childModelRoute, effectiveTools, responseStyle, "retrying child turn")
+	return r.executeDelegatedHandoff(ctx, parentState, payload, childDefinition, childModelRoute, effectiveTools, responseStyle, input.WorkflowBudget, "retrying child turn")
 }
 
 func (r *Runtime) appendDelegatedHandoff(ctx context.Context, handoff events.AgentHandoffPayload) error {
@@ -395,7 +396,7 @@ func (r *Runtime) appendDelegatedHandoff(ctx context.Context, handoff events.Age
 	return nil
 }
 
-func (r *Runtime) executeDelegatedHandoff(ctx context.Context, parentState events.SessionState, handoff events.AgentHandoffPayload, childDefinition agent.Definition, childModelRoute provider.ModelRoute, effectiveTools []string, responseStyle ResponseStyle, previewAction string) (DelegateSessionTurnResult, error) {
+func (r *Runtime) executeDelegatedHandoff(ctx context.Context, parentState events.SessionState, handoff events.AgentHandoffPayload, childDefinition agent.Definition, childModelRoute provider.ModelRoute, effectiveTools []string, responseStyle ResponseStyle, workflowBudget workflowTurnBudget, previewAction string) (DelegateSessionTurnResult, error) {
 	mcpState, err := r.syncSessionMCPState(ctx, handoff.ChildSessionID, parentState.WorkspaceRoot, parentState.MCP)
 	if err != nil {
 		return DelegateSessionTurnResult{}, err
@@ -446,6 +447,7 @@ func (r *Runtime) executeDelegatedHandoff(ctx context.Context, parentState event
 		ThinkingEnabled:   effectiveThinkingEnabled,
 		ThinkingMode:      effectiveThinkingMode,
 		AllowedTools:      slices.Clone(effectiveTools),
+		WorkflowBudget:    workflowBudget,
 	})
 	if err != nil {
 		r.log("runtime").Error("delegated handoff run failed", err,
@@ -478,6 +480,7 @@ func (r *Runtime) executeDelegatedHandoff(ctx context.Context, parentState event
 			ModelRouteOverride:   childModelRoute,
 			HideAssistantPreview: false,
 			DisableAutoReview:    true,
+			WorkflowBudget:       workflowBudget,
 		}, resolvedTurnCapabilities{TurnCapabilities: capabilities}, effectiveThinkingEnabled, effectiveThinkingMode)
 		if err != nil {
 			return DelegateSessionTurnResult{}, err
@@ -488,7 +491,7 @@ func (r *Runtime) executeDelegatedHandoff(ctx context.Context, parentState event
 			return DelegateSessionTurnResult{}, err
 		}
 	}
-	childResult, resultPayload, reviewPayload, err := r.prepareDelegatedHandoffCompletion(ctx, handoff, childResult, childModelRoute)
+	childResult, resultPayload, reviewPayload, err := r.prepareDelegatedHandoffCompletion(ctx, handoff, childResult, childModelRoute, workflowBudget)
 	if err != nil {
 		return DelegateSessionTurnResult{}, err
 	}
@@ -582,7 +585,7 @@ func (r *Runtime) appendAgentResultForHandoff(ctx context.Context, parentTurnID 
 	return nil
 }
 
-func (r *Runtime) prepareDelegatedHandoffCompletion(ctx context.Context, handoff events.AgentHandoffPayload, result RunSessionResult, modelRoute provider.ModelRoute) (RunSessionResult, events.AgentResultPayload, *events.ReviewRecordedPayload, error) {
+func (r *Runtime) prepareDelegatedHandoffCompletion(ctx context.Context, handoff events.AgentHandoffPayload, result RunSessionResult, modelRoute provider.ModelRoute, workflowBudget workflowTurnBudget) (RunSessionResult, events.AgentResultPayload, *events.ReviewRecordedPayload, error) {
 	payload := agentResultPayload(handoff, result)
 	if payload.Status != events.AgentResultStatusCompleted || strings.TrimSpace(handoff.ChildAgentID) != reviewerAgentID {
 		return result, payload, nil, nil
@@ -600,7 +603,7 @@ func (r *Runtime) prepareDelegatedHandoffCompletion(ctx context.Context, handoff
 		)
 	}
 
-	repairResult, repairErr := r.repairDelegatedReviewOutput(ctx, handoff, err, modelRoute)
+	repairResult, repairErr := r.repairDelegatedReviewOutput(ctx, handoff, err, modelRoute, workflowBudget)
 	if repairErr != nil {
 		return RunSessionResult{}, events.AgentResultPayload{}, nil, repairErr
 	}
@@ -636,7 +639,7 @@ func delegatedReviewPayload(handoff events.AgentHandoffPayload, raw string) (eve
 	return payload, nil
 }
 
-func (r *Runtime) repairDelegatedReviewOutput(ctx context.Context, handoff events.AgentHandoffPayload, validationErr error, modelRoute provider.ModelRoute) (RunSessionResult, error) {
+func (r *Runtime) repairDelegatedReviewOutput(ctx context.Context, handoff events.AgentHandoffPayload, validationErr error, modelRoute provider.ModelRoute, workflowBudget workflowTurnBudget) (RunSessionResult, error) {
 	repairTurnID := newRuntimeID("turn")
 	return r.runExistingSessionTurn(ctx, runExistingTurnInput{
 		SessionID:            handoff.ChildSessionID,
@@ -649,6 +652,7 @@ func (r *Runtime) repairDelegatedReviewOutput(ctx context.Context, handoff event
 		PreserveSessionModel: true,
 		HideAssistantPreview: false,
 		DisableAutoReview:    true,
+		WorkflowBudget:       workflowBudget,
 	})
 }
 

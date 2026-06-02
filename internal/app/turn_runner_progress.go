@@ -22,7 +22,10 @@ type repeatedToolLoopState struct {
 	Match  string
 }
 
-func (r *TurnRunner) maxTurnProviderRequestsPerTurn() int {
+func (r *TurnRunner) maxTurnProviderRequestsPerTurn(workflowBudget workflowTurnBudget) int {
+	if workflowBudget.MaxProviderRequestsPerTurn > 0 {
+		return workflowBudget.MaxProviderRequestsPerTurn
+	}
 	if r == nil {
 		return defaultMaxProviderRequestsPerTurn
 	}

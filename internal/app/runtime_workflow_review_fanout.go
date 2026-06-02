@@ -17,6 +17,8 @@ func (r *Runtime) startWorkflowReviewFanoutPhaseTurn(ctx context.Context, input 
 		}
 	}
 	phaseID := strings.TrimSpace(workflowPhase.Phase.ID)
+	workflowBudget := workflowTurnBudgetFromDefinition(workflowPhase.WorkflowID, workflowPhase.Definition)
+	workflowBudget.SessionID = input.SessionID
 	lines := []string{"Workflow review fan-out:"}
 	for _, pass := range workflowPhase.Phase.ReviewPasses {
 		passID := strings.TrimSpace(pass.ID)
@@ -34,6 +36,7 @@ func (r *Runtime) startWorkflowReviewFanoutPhaseTurn(ctx context.Context, input 
 			Task:               workflowReviewFanoutTask(workflowPhase.WorkflowID, pass),
 			ContextSummary:     workflowReviewFanoutContextSummary(ctx, r, input.SessionID, workflowPhase.WorkflowID, phaseID),
 			ModelRouteOverride: input.ModelRouteOverride,
+			WorkflowBudget:     workflowBudget,
 		})
 		if err != nil {
 			return RunSessionResult{}, err

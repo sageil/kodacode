@@ -155,6 +155,137 @@ phases:
 	}
 }
 
+func TestRuntimeRunSessionTurnEnforcesWorkflowMaxCost(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	writeProjectWorkflow(t, root, "budgeted.yaml", `
+id: budgeted
+description: workflow budget
+budgets:
+  max_cost: 0.40
+phases:
+  - id: implement
+    agent: engineer
+  - id: summarize
+    type: final
+`)
+	client := &fakeProvider{
+		streams: []provider.Stream{provider.NewSliceStream([]provider.Event{
+			{Kind: provider.EventKindAssistantDelta, AssistantDelta: "should not run"},
+		})},
+	}
+	runtime := newRuntimeWithClient(t, client)
+	sessionID, err := runtime.CreateSession(ctx, root)
+	if err != nil {
+		t.Fatalf("CreateSession() error = %v", err)
+	}
+	if err := runtime.StartWorkflow(ctx, StartWorkflowInput{
+		SessionID:     sessionID,
+		TurnID:        "turn-0",
+		WorkspaceRoot: root,
+		WorkflowID:    "budgeted",
+	}); err != nil {
+		t.Fatalf("StartWorkflow() error = %v", err)
+	}
+	if err := runtime.Runner.appendTurnConfigured(ctx, sessionID, "turn-0", newTurnConfiguredPayload(TurnCapabilities{
+		AgentID:    "engineer",
+		ModelRoute: baseModelRoute(),
+	}, nil, "budgeted", false, false, "", runtime.Config.Sessions.EffectiveResponseStyle(), false)); err != nil {
+		t.Fatalf("appendTurnConfigured() error = %v", err)
+	}
+	if _, err := runtime.Sessions.append(ctx, events.Draft{
+		SessionID: sessionID,
+		TurnID:    "turn-0",
+		Type:      events.TypeTurnProviderUsageRecorded,
+		Payload: events.TurnProviderUsageRecordedPayload{
+			Model:                     "openai/gpt-5",
+			Step:                      1,
+			Attempt:                   1,
+			EstimatedRequestTokens:    100,
+			EstimatedCompletionTokens: 20,
+			EstimatedInputCost:        0.30,
+			EstimatedOutputCost:       0.20,
+		},
+	}); err != nil {
+		t.Fatalf("append usage error = %v", err)
+	}
+
+	result, err := runtime.runExistingSessionTurn(ctx, runExistingTurnInput{
+		SessionID:  sessionID,
+		TurnID:     "turn-1",
+		UserText:   "continue the implementation",
+		AgentID:    "engineer",
+		WorkflowID: "budgeted",
+	})
+	if err != nil {
+		t.Fatalf("runExistingSessionTurn() error = %v", err)
+	}
+	if result.Status != TurnRunStatusFailed || result.ErrorCode != events.TurnFailureCodeBudgetExceeded {
+		t.Fatalf("result = %#v, want budget failure", result)
+	}
+	if !strings.Contains(result.Error, "Workflow budget reached") {
+		t.Fatalf("error = %q, want workflow budget message", result.Error)
+	}
+	if len(client.requests) != 0 {
+		t.Fatalf("provider requests = %d, want none", len(client.requests))
+	}
+}
+
+func TestRuntimeRunSessionTurnUsesWorkflowProviderRequestCap(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "app.go"), []byte("package main\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(app.go) error = %v", err)
+	}
+	writeProjectWorkflow(t, root, "capped.yaml", `
+id: capped
+description: workflow request cap
+budgets:
+  max_provider_requests_per_turn: 1
+phases:
+  - id: inspect
+    agent: engineer
+    tools:
+      allow:
+        - read
+  - id: summarize
+    type: final
+`)
+	client := &fakeProvider{
+		streams: []provider.Stream{
+			provider.NewSliceStream([]provider.Event{
+				{Kind: provider.EventKindToolCallDelta, ToolCallID: "call-1", ToolName: "read", InputDelta: `{"paths":["app.go"]`},
+				{Kind: provider.EventKindToolCallDelta, ToolCallID: "call-1", ToolName: "read", InputDelta: `}`},
+				{Kind: provider.EventKindToolCallDone, ToolCallID: "call-1", ToolName: "read"},
+			}),
+			provider.NewSliceStream([]provider.Event{
+				{Kind: provider.EventKindAssistantDelta, AssistantDelta: "done"},
+			}),
+		},
+	}
+	runtime := newRuntimeWithClient(t, client)
+	runtime.Config.Sessions.MaxProviderRequestsPerTurn = 4
+	runtime.Runner.SetSessionConfig(runtime.Config.Sessions)
+
+	result, err := runtime.RunSessionTurn(context.Background(), RunSessionInput{
+		WorkspaceRoot: root,
+		UserText:      "inspect app.go",
+		AgentID:       "engineer",
+		WorkflowID:    "capped",
+	})
+	if err != nil {
+		t.Fatalf("RunSessionTurn() error = %v", err)
+	}
+	if result.Status != TurnRunStatusPending || result.PendingQuestion == nil {
+		t.Fatalf("result = %#v, want provider request limit question", result)
+	}
+	if result.PendingQuestion.Purpose != events.QuestionPurposeTurnLoopResolution {
+		t.Fatalf("pending question = %#v, want turn loop resolution", result.PendingQuestion)
+	}
+	if len(client.requests) != 1 {
+		t.Fatalf("provider requests = %d, want workflow cap after first request", len(client.requests))
+	}
+}
+
 func TestRuntimeRunSessionTurnUsesPhaseModelBeforeWorkflowModel(t *testing.T) {
 	root := t.TempDir()
 	writeProjectWorkflow(t, root, "phase-modelled.yaml", `

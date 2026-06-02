@@ -15,8 +15,9 @@ var ErrSessionListingUnsupported = errors.New("session listing is not supported 
 type BudgetScope string
 
 const (
-	BudgetScopeSession BudgetScope = "session"
-	BudgetScopeTotal   BudgetScope = "cross-session"
+	BudgetScopeSession  BudgetScope = "session"
+	BudgetScopeWorkflow BudgetScope = "workflow"
+	BudgetScopeTotal    BudgetScope = "cross-session"
 )
 
 type BudgetExceededError struct {
@@ -28,7 +29,10 @@ type BudgetExceededError struct {
 
 func (e BudgetExceededError) Error() string {
 	label := "Session budget reached"
-	if e.Scope == BudgetScopeTotal {
+	switch e.Scope {
+	case BudgetScopeWorkflow:
+		label = "Workflow budget reached"
+	case BudgetScopeTotal:
 		label = "Cross-session budget reached"
 	}
 	return formatBudgetStatusMessage(label, e.Cost, e.Budget, e.MissingPricingTurns)

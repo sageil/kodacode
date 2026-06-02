@@ -30,6 +30,7 @@ type turnLoopInput struct {
 	TemporaryGrants             []workspace.Grant
 	TemporaryNetworkTargets     []string
 	ResetProviderRequestBudget  bool
+	WorkflowBudget              workflowTurnBudget
 }
 
 type turnLoopState struct {
@@ -165,10 +166,10 @@ func (r *TurnRunner) executeTurnLoop(ctx context.Context, input turnLoopInput) (
 
 	for {
 		providerRequestIndex++
-		if err := r.enforceBudgetLimit(ctx, input.SessionID); err != nil {
+		if err := r.enforceBudgetLimit(ctx, input.SessionID, input.WorkflowBudget); err != nil {
 			return r.failTurn(ctx, input.SessionID, input.TurnID, input.ModelRoute, err)
 		}
-		if limit := r.maxTurnProviderRequestsPerTurn(); !providerRequestLimitDisabled && limit > 0 && providerRequestIndex-providerRequestBudgetBase > limit {
+		if limit := r.maxTurnProviderRequestsPerTurn(input.WorkflowBudget); !providerRequestLimitDisabled && limit > 0 && providerRequestIndex-providerRequestBudgetBase > limit {
 			requestID, err := r.requestProviderRequestLimitQuestion(ctx, input.SessionID, input.TurnID)
 			if err != nil {
 				return RunTurnResult{}, err
@@ -442,7 +443,7 @@ func (r *TurnRunner) rollOverTurnForInputLimit(ctx context.Context, input turnLo
 	}, nil
 }
 
-func (r *TurnRunner) enforceBudgetLimit(ctx context.Context, sessionID string) error {
+func (r *TurnRunner) enforceBudgetLimit(ctx context.Context, sessionID string, workflowBudget workflowTurnBudget) error {
 	if r == nil || r.sessions == nil {
 		return nil
 	}
@@ -450,5 +451,8 @@ func (r *TurnRunner) enforceBudgetLimit(ctx context.Context, sessionID string) e
 	if err != nil {
 		return err
 	}
-	return status.ExceededError()
+	if err := status.ExceededError(); err != nil {
+		return err
+	}
+	return r.enforceWorkflowBudgetLimit(ctx, sessionID, workflowBudget)
 }

@@ -150,6 +150,7 @@ func (r *Runtime) continueRolledOverTurn(
 		PreserveSessionModel: true,
 		HideAssistantPreview: input.HideAssistantPreview,
 		DisableAutoReview:    input.DisableAutoReview,
+		WorkflowBudget:       input.WorkflowBudget,
 		InitialState:         initialState,
 		Continuation: &runtimeTurnContinuation{
 			PreviousTurnID: input.TurnID,

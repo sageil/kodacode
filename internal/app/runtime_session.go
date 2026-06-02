@@ -40,6 +40,7 @@ type runExistingTurnInput struct {
 	PreserveSessionModel bool
 	HideAssistantPreview bool
 	DisableAutoReview    bool
+	WorkflowBudget       workflowTurnBudget
 	InitialState         *turnLoopState
 	Continuation         *runtimeTurnContinuation
 }
@@ -231,6 +232,12 @@ func (r *Runtime) runExistingSessionTurn(ctx context.Context, input runExistingT
 	if selectedSkillIDs == nil {
 		selectedSkillIDs = input.SkillIDs
 	}
+	workflowBudget := workflowTurnBudget{}
+	if workflowPhase.Active {
+		workflowBudget = workflowTurnBudgetFromDefinition(workflowPhase.WorkflowID, workflowPhase.Definition)
+	} else {
+		workflowBudget = input.WorkflowBudget
+	}
 	r.log("runtime").Op("session turn started",
 		"session_id", input.SessionID,
 		"turn_id", input.TurnID,
@@ -305,6 +312,7 @@ func (r *Runtime) runExistingSessionTurn(ctx context.Context, input runExistingT
 		ContinuationReason:   continuationReason(input.Continuation),
 		SkipUserMessageEvent: input.Continuation != nil && strings.TrimSpace(input.UserText) == "" && len(resolvedAttachments) == 0,
 		TurnStartAfterSeq:    turnStartAfterSequence,
+		WorkflowBudget:       workflowBudget,
 	})
 	if turnHandle.canceled() {
 		loaded, cancelErr := r.loadCanceledSessionTurnResult(input.SessionID, input.TurnID, input.UserText, resolvedAttachments)
