@@ -29,6 +29,8 @@ func DefaultRuntimeTools() []Tool {
 		NewTestTool(),
 		NewTraceTool(),
 		NewWebFetchTool(),
+		NewWorkflowPhaseOutputTool(),
+		NewWorkflowReviewResultTool(),
 		NewWriteTool(),
 	}
 }

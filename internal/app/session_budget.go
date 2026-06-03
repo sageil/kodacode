@@ -39,6 +39,14 @@ func (e BudgetExceededError) Error() string {
 }
 
 type BudgetStatus struct {
+	WorkflowID                  string
+	WorkflowCost                float64
+	WorkflowBudget              float64
+	WorkflowWarnThreshold       float64
+	WorkflowWarn                bool
+	WorkflowExceeded            bool
+	WorkflowMissingPricingTurns int
+
 	SessionCost                float64
 	SessionBudget              float64
 	SessionWarnThreshold       float64
@@ -73,16 +81,24 @@ func (s BudgetStatus) HasSessionBudget() bool {
 	return s.SessionBudget > 0
 }
 
+func (s BudgetStatus) HasWorkflowBudget() bool {
+	return s.WorkflowBudget > 0
+}
+
 func (s BudgetStatus) HasTotalBudget() bool {
 	return s.TotalBudget > 0
 }
 
 func (s BudgetStatus) AnyWarn() bool {
-	return s.SessionWarn || s.TotalWarn
+	return s.WorkflowWarn || s.SessionWarn || s.TotalWarn
 }
 
 func (s BudgetStatus) AnyExceeded() bool {
-	return s.SessionExceeded || s.TotalExceeded
+	return s.WorkflowExceeded || s.SessionExceeded || s.TotalExceeded
+}
+
+func (s BudgetStatus) WorkflowPercent() (int, bool) {
+	return budgetPercent(s.WorkflowCost, s.WorkflowBudget)
 }
 
 func (s BudgetStatus) SessionPercent() (int, bool) {
@@ -97,6 +113,8 @@ func (s BudgetStatus) WarningMessage() string {
 	switch {
 	case s.TotalWarn:
 		return formatBudgetStatusMessage("Cross-session budget warning", s.TotalCost, s.TotalBudget, s.TotalMissingPricingTurns)
+	case s.WorkflowWarn:
+		return formatBudgetStatusMessage("Workflow budget warning", s.WorkflowCost, s.WorkflowBudget, s.WorkflowMissingPricingTurns)
 	case s.SessionWarn:
 		return formatBudgetStatusMessage("Session budget warning", s.SessionCost, s.SessionBudget, s.SessionMissingPricingTurns)
 	default:
@@ -112,6 +130,13 @@ func (s BudgetStatus) ExceededError() error {
 			Cost:                s.TotalCost,
 			Budget:              s.TotalBudget,
 			MissingPricingTurns: s.TotalMissingPricingTurns,
+		}
+	case s.WorkflowExceeded:
+		return BudgetExceededError{
+			Scope:               BudgetScopeWorkflow,
+			Cost:                s.WorkflowCost,
+			Budget:              s.WorkflowBudget,
+			MissingPricingTurns: s.WorkflowMissingPricingTurns,
 		}
 	case s.SessionExceeded:
 		return BudgetExceededError{
@@ -213,7 +238,33 @@ func (r *Runtime) BudgetStatus(ctx context.Context, sessionID string) (BudgetSta
 	if r == nil || r.Sessions == nil {
 		return BudgetStatus{}, nil
 	}
-	return r.Sessions.BudgetStatus(ctx, sessionID, r.Config.Sessions)
+	status, err := r.Sessions.BudgetStatus(ctx, sessionID, r.Config.Sessions)
+	if err != nil {
+		return BudgetStatus{}, err
+	}
+	state, definition, workflow, err := r.activeWorkflowState(ctx, sessionID)
+	if err != nil {
+		if errors.Is(err, ErrWorkflowStateMissing) || errors.Is(err, ErrWorkflowSessionNotConfigured) {
+			return status, nil
+		}
+		return BudgetStatus{}, err
+	}
+	workflowBudget := workflowTurnBudgetFromDefinition(workflow.WorkflowID, definition)
+	if !workflowBudget.enabled() {
+		return status, nil
+	}
+	summary, err := workflowBudgetSummaryFromState(ctx, r.Sessions, state, workflowBudget.WorkflowID)
+	if err != nil {
+		return BudgetStatus{}, err
+	}
+	status.WorkflowID = workflowBudget.WorkflowID
+	status.WorkflowCost = summary.Cost
+	status.WorkflowBudget = workflowBudget.MaxCost
+	status.WorkflowWarnThreshold = definition.Budgets.WarnThreshold
+	status.WorkflowMissingPricingTurns = summary.MissingPricingTurns
+	status.WorkflowWarn = status.WorkflowWarnThreshold > 0 && status.WorkflowCost >= status.WorkflowBudget*status.WorkflowWarnThreshold
+	status.WorkflowExceeded = status.WorkflowCost >= status.WorkflowBudget
+	return status, nil
 }
 
 func (s *SessionService) budgetSummary(ctx context.Context, sessionID string) (budgetSessionSummary, error) {

@@ -46,6 +46,7 @@ func (m sessionDelegateManager) Delegate(request tool.DelegateRequest) (tool.Del
 		Task:             request.Task,
 		ContextSummary:   request.ContextSummary,
 		SourceHandoffIDs: append([]string(nil), request.SourceHandoffIDs...),
+		WorkflowBudget:   m.input.WorkflowBudget,
 	})
 	if err != nil {
 		return tool.DelegateRecord{}, err

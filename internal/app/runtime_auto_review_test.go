@@ -260,6 +260,64 @@ phases:
 	}
 }
 
+func TestRuntimeRunSessionTurnSkipsAutoReviewWhileWorkflowActive(t *testing.T) {
+	root := t.TempDir()
+	writeProjectWorkflow(t, root, "review-auto-active.yaml", `
+id: review-auto-active
+description: workflow review mode while active
+review_mode: auto
+phases:
+  - id: implement
+    agent: engineer
+  - id: verify
+    type: verification
+    commands:
+      - tool: test
+        command: go test ./...
+    required: true
+  - id: summarize
+    type: final
+`)
+	client := &fakeProvider{
+		streams: []provider.Stream{
+			provider.NewSliceStream([]provider.Event{{Kind: provider.EventKindAssistantDelta, AssistantDelta: "Engineer done."}}),
+			provider.NewSliceStream([]provider.Event{{Kind: provider.EventKindAssistantDelta, AssistantDelta: "Review passed."}}),
+		},
+	}
+	runtime := newRuntimeWithClient(t, client)
+	runtime.Config.Workflow.ReviewMode = WorkflowReviewManual
+
+	sessionID, err := runtime.CreateSession(context.Background(), root)
+	if err != nil {
+		t.Fatalf("CreateSession() error = %v", err)
+	}
+	completeTaskForAutoReviewTest(t, runtime, sessionID, "turn-setup", "Finished task", "done")
+
+	result, err := runtime.runExistingSessionTurn(context.Background(), runExistingTurnInput{
+		SessionID:  sessionID,
+		TurnID:     "turn-1",
+		UserText:   "Implement with workflow review mode",
+		AgentID:    "engineer",
+		WorkflowID: "review-auto-active",
+	})
+	if err != nil {
+		t.Fatalf("runExistingSessionTurn() error = %v", err)
+	}
+	if result.Status != TurnRunStatusCompleted {
+		t.Fatalf("result = %#v", result)
+	}
+	if len(client.requests) != 1 {
+		t.Fatalf("provider requests = %d, want only active workflow phase", len(client.requests))
+	}
+	state, err := runtime.Sessions.Snapshot(context.Background(), sessionID)
+	if err != nil {
+		t.Fatalf("Snapshot() error = %v", err)
+	}
+	if state.Workflow == nil || state.Workflow.Status != events.WorkflowStatusActive || state.Workflow.CurrentPhaseID != "verify" {
+		t.Fatalf("workflow = %#v, want active verify phase", state.Workflow)
+	}
+}
+
 func TestRuntimeRunSessionTurnAutoReviewSkipsWhenWorkflowNotComplete(t *testing.T) {
 	root := t.TempDir()
 	client := &fakeProvider{

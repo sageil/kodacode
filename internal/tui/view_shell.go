@@ -138,18 +138,101 @@ func renderShellSeparator(m Model) string {
 func renderKodaShellFooter(m Model, state events.SessionState, width int, transcriptStatus string) string {
 	width = max(width, 1)
 	parts := make([]string, 0, 4)
-	if divider := renderComposerActivityStrip(m, state, width, composerBorderColor(m, state)); strings.TrimSpace(divider) != "" {
-		parts = append(parts, divider)
-	}
 	content := renderKodaShellComposer(m, state, width)
 	if strings.TrimSpace(content) != "" {
 		parts = append(parts, content)
+	}
+	if activity := renderKodaShellActivityLine(m, state, width); strings.TrimSpace(activity) != "" {
+		parts = append(parts, activity)
+	}
+	if workflow := renderKodaShellWorkflowStatusLine(m, state, width); strings.TrimSpace(workflow) != "" {
+		parts = append(parts, workflow)
 	}
 	if strings.TrimSpace(transcriptStatus) != "" {
 		parts = append(parts, transcriptStatus)
 	}
 	parts = append(parts, renderKodaShellStatusLine(m, state, width))
 	return strings.Join(parts, "\n")
+}
+
+func renderKodaShellActivityLine(m Model, state events.SessionState, width int) string {
+	activity, ok := composerActivityStripStateFor(m, state)
+	if !ok || strings.TrimSpace(activity.Label) == "" {
+		return ""
+	}
+	width = max(width, 1)
+	innerWidth := max(width-2, 1)
+	labelText := strings.TrimSpace(activity.Label)
+	spinnerText := ""
+	if activity.Spinning {
+		spinnerText = renderLiveSpinner(m) + " "
+	}
+	labelWidth := innerWidth - lipgloss.Width(spinnerText)
+	if metaText := strings.TrimSpace(activity.MetaText); metaText != "" {
+		labelWidth -= lipgloss.Width(metaText) + 1
+	}
+	labelWidth = max(labelWidth, 1)
+	label := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(activity.LabelColor)).
+		Bold(true).
+		Render(truncateEnd(labelText, labelWidth))
+	line := "  " + spinnerText + label
+	if metaText := strings.TrimSpace(activity.MetaText); metaText != "" {
+		metaWidth := max(width-lipgloss.Width(line)-1, 1)
+		meta := lipgloss.NewStyle().
+			Foreground(lipgloss.Color(activity.MetaColor)).
+			Render(truncateEnd(metaText, metaWidth))
+		line += " " + meta
+	}
+	return lipgloss.NewStyle().Width(width).Render(line)
+}
+
+func renderKodaShellWorkflowStatusLine(m Model, state events.SessionState, width int) string {
+	label, tone, bold := shellWorkflowStatusText(m, state)
+	if label == "" {
+		return ""
+	}
+	style := lipgloss.NewStyle().Foreground(lipgloss.Color(tone))
+	if bold {
+		style = style.Bold(true)
+	}
+	return lipgloss.NewStyle().
+		Width(max(width, 1)).
+		Render("  " + style.Render(truncateEnd(label, max(width-2, 1))))
+}
+
+func shellWorkflowStatusText(m Model, state events.SessionState) (string, string, bool) {
+	workflow := state.Workflow
+	if workflow == nil || strings.TrimSpace(workflow.WorkflowID) == "" {
+		if workflowID := strings.TrimSpace(m.workflowID); workflowID != "" {
+			return "Workflow " + workflowID, colorFor(m.theme, "subtext", "#9da8ca"), false
+		}
+		return "", "", false
+	}
+	parts := []string{"Workflow " + strings.TrimSpace(workflow.WorkflowID)}
+	if phaseID := strings.TrimSpace(workflow.CurrentPhaseID); phaseID != "" {
+		parts = append(parts, "phase "+phaseID)
+	}
+	status := strings.TrimSpace(workflow.Status)
+	if status != "" {
+		parts = append(parts, status)
+	}
+	if reason := workflowStopReason(workflow); reason != "" {
+		if len(parts) == 0 {
+			parts = append(parts, reason)
+		} else {
+			parts[len(parts)-1] += ": " + reason
+		}
+	}
+	label := strings.Join(parts, " · ")
+	switch status {
+	case events.WorkflowStatusBlocked:
+		return label, colorFor(m.theme, "warning", "#ffd28f"), true
+	case events.WorkflowStatusCompleted:
+		return label, colorFor(m.theme, "success", "#90e5b4"), false
+	default:
+		return label, colorFor(m.theme, "primary", "#7cc7ff"), false
+	}
 }
 
 func renderKodaShellComposer(m Model, state events.SessionState, width int) string {
@@ -172,7 +255,7 @@ func renderKodaShellStatusLine(m Model, state events.SessionState, width int) st
 		status = "idle"
 	}
 	left := renderShellText(m, status, shellStatusTone(status), "#9da8ca", true)
-	for _, segment := range footerStatusSegments(m, state) {
+	for _, segment := range shellStatusLineSegments(m, state) {
 		text := strings.TrimSpace(segment.Text)
 		if text == "" || text == status {
 			continue
@@ -186,6 +269,37 @@ func renderKodaShellStatusLine(m Model, state events.SessionState, width int) st
 	hints := shellStatusHints(m, state)
 	right := renderShellText(m, truncateEnd(hints, max(width/2, 8)), "subtext", "#9da8ca", false)
 	return lipgloss.NewStyle().Width(width).Render(joinBar(truncateVisibleEnd(left, max(width-lipgloss.Width(right)-1, 1)), right, width))
+}
+
+func shellStatusLineSegments(m Model, state events.SessionState) []transcriptStatusSegment {
+	turnID := effectiveFooterTurnID(m, state)
+	segments := make([]transcriptStatusSegment, 0, 4)
+	if agent := footerAgentLabel(m, state, turnID); agent != "" {
+		segments = append(segments, transcriptStatusSegment{
+			Text:  agent,
+			Color: colorFor(m.theme, "primary", "#7cc7ff"),
+		})
+	}
+	if pendingLoopQuestionFromState(state) != nil {
+		segments = append(segments, transcriptStatusSegment{
+			Text:  m.terminalIcon(terminalIconWarning) + " loop",
+			Color: colorFor(m.theme, "warning", "#ffd28f"),
+			Bold:  true,
+		})
+	}
+	if label, tone := footerBudgetLabel(m.theme, m.footerStatus.budget); label != "" {
+		segments = append(segments, transcriptStatusSegment{
+			Text:  label,
+			Color: tone,
+		})
+	}
+	if mode := strings.TrimSpace(sessionPermissionModeLabel(state.PermissionMode)); mode != "" {
+		segments = append(segments, transcriptStatusSegment{
+			Text:  "mode:" + mode,
+			Color: colorFor(m.theme, "subtext", "#9da8ca"),
+		})
+	}
+	return segments
 }
 
 func shellStatusTone(status string) string {

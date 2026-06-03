@@ -374,7 +374,11 @@ func (r *Runtime) resumeDelegatedParentTurn(ctx context.Context, parentSessionID
 	if err != nil {
 		return RunSessionResult{}, err
 	}
-	if !delegatedParentTurnResumable(state.Turns[parentTurnID], handoffID) {
+	turn := state.Turns[parentTurnID]
+	if !delegatedParentTurnResumable(turn, handoffID) {
+		if failed, ok := terminalFailedDelegatedHandoff(turn, handoffID); ok {
+			return r.failDelegatedParentTurnFromHandoff(ctx, parentSessionID, parentTurnID, failed)
+		}
 		return RunSessionResult{}, nil
 	}
 	mcpState, err := r.syncSessionMCPState(ctx, parentSessionID, state.WorkspaceRoot, state.MCP)
@@ -482,6 +486,41 @@ func (r *Runtime) resumeDelegatedParentTurn(ctx context.Context, parentSessionID
 		)
 	}
 	return r.finalizeTurnRunResult(ctx, turnCtx, turnHandle, parentSessionID, parentTurnID, result)
+}
+
+func terminalFailedDelegatedHandoff(turn *events.TurnState, handoffID string) (*events.AgentHandoffState, bool) {
+	if turn == nil || turn.Status != events.TurnStatusRunning || strings.TrimSpace(handoffID) == "" {
+		return nil, false
+	}
+	handoff := turn.Handoffs[strings.TrimSpace(handoffID)]
+	if handoff == nil || handoff.Status != events.AgentResultStatusFailed {
+		return nil, false
+	}
+	return handoff, true
+}
+
+func (r *Runtime) failDelegatedParentTurnFromHandoff(ctx context.Context, parentSessionID, parentTurnID string, handoff *events.AgentHandoffState) (RunSessionResult, error) {
+	failed, err := r.recordTurnFailure(ctx, parentSessionID, parentTurnID, "", nil, delegatedHandoffFailureCause(handoff))
+	if err != nil {
+		return RunSessionResult{}, err
+	}
+	if _, err := r.maybeApplyWorkflowTurnResultTransition(ctx, parentSessionID, parentTurnID, failed); err != nil {
+		return RunSessionResult{}, err
+	}
+	return failed, nil
+}
+
+func delegatedHandoffFailureCause(handoff *events.AgentHandoffState) error {
+	message := "delegated child turn failed"
+	if handoff != nil {
+		if childTurnID := strings.TrimSpace(handoff.ChildTurnID); childTurnID != "" {
+			message += " (" + childTurnID + ")"
+		}
+		if errText := strings.TrimSpace(handoff.Error); errText != "" {
+			message += ": " + errText
+		}
+	}
+	return errors.New(message)
 }
 
 func delegatedParentTurnResumable(turn *events.TurnState, handoffID string) bool {

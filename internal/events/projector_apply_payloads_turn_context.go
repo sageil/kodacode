@@ -143,6 +143,8 @@ func renderTurnContinuationTranscriptText(payload TurnContinuationStartedPayload
 		return "Continuing automatically after the previous turn reached the model input limit."
 	case TurnContinuationReasonQuestionAnswer:
 		return "Continuing in a new turn after the user answered a pending question."
+	case TurnContinuationReasonWorkflowPhase:
+		return "Continuing automatically with the next workflow phase."
 	default:
 		return "Continuing automatically from the previous turn."
 	}

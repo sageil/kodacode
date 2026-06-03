@@ -100,6 +100,10 @@ func (r *Runtime) DelegateSessionTurn(ctx context.Context, input DelegateSession
 
 	childTools := r.allowedToolsForTurn(parentState, childDefinition)
 	effectiveTools := effectiveDelegatedChildTools(childDefinition, childTools, parentState)
+	effectiveTools = allowWorkflowRuntimeOwnedTools(effectiveTools, workflowRuntimeToolScope{
+		ChildAgentID:  childDefinition.ID,
+		DelegatedTask: input.Task,
+	})
 	responseStyle := responseStyleForTurn(parentState.Turns[input.ParentTurnID], r.Config.Sessions.EffectiveResponseStyle())
 	if handoff := matchingDelegateHandoff(parentState.Turns[input.ParentTurnID], input, explorationEntries); handoff != nil {
 		switch handoff.Status {
@@ -411,6 +415,9 @@ func (r *Runtime) executeDelegatedHandoff(ctx context.Context, parentState event
 	}
 	fragments = append(fragments, handoffPromptFragments(handoff)...)
 	fragments = append(fragments, handoffSourceFragments(parentState, handoff.SourceHandoffIDs, childDefinition.ID)...)
+	if fragment, ok := r.runtimeBudgetPromptFragment(ctx, handoff.ChildSessionID, workflowBudget); ok {
+		fragments = append(fragments, fragment)
+	}
 	thinkingEnabled := false
 	thinkingMode := ""
 	if parentTurn := parentState.Turns[handoff.ParentTurnID]; parentTurn != nil && parentTurn.Config != nil {
@@ -587,7 +594,38 @@ func (r *Runtime) appendAgentResultForHandoff(ctx context.Context, parentTurnID 
 
 func (r *Runtime) prepareDelegatedHandoffCompletion(ctx context.Context, handoff events.AgentHandoffPayload, result RunSessionResult, modelRoute provider.ModelRoute, workflowBudget workflowTurnBudget) (RunSessionResult, events.AgentResultPayload, *events.ReviewRecordedPayload, error) {
 	payload := agentResultPayload(handoff, result)
-	if payload.Status != events.AgentResultStatusCompleted || strings.TrimSpace(handoff.ChildAgentID) != reviewerAgentID {
+	if payload.Status != events.AgentResultStatusCompleted {
+		return result, payload, nil, nil
+	}
+	if workflowReviewHandoff(handoff) {
+		if r.delegatedWorkflowReviewResultRecorded(ctx, handoff) {
+			return result, payload, nil, nil
+		}
+		repairResult, repairErr := r.repairDelegatedWorkflowReviewResult(ctx, handoff, errors.New("missing workflow_review_result tool call"), modelRoute, workflowBudget)
+		if repairErr != nil {
+			return RunSessionResult{}, events.AgentResultPayload{}, nil, repairErr
+		}
+		repairPayload := agentResultPayload(handoff, repairResult)
+		if repairPayload.Status != events.AgentResultStatusCompleted {
+			if strings.TrimSpace(repairPayload.Error) == "" {
+				repairPayload.Error = fmt.Errorf("%w after repair: child turn status %s", ErrDelegatedReviewStructuredOutputInvalid, repairResult.Status).Error()
+			}
+			repairPayload.Status = events.AgentResultStatusFailed
+			repairResult.Status = TurnRunStatusFailed
+			repairResult.Error = repairPayload.Error
+			return repairResult, repairPayload, nil, nil
+		}
+		if !r.delegatedWorkflowReviewResultRecorded(ctx, handoff) {
+			resultErr := fmt.Errorf("%w after repair: missing workflow_review_result tool call", ErrDelegatedReviewStructuredOutputInvalid)
+			repairPayload.Status = events.AgentResultStatusFailed
+			repairPayload.Error = resultErr.Error()
+			repairResult.Status = TurnRunStatusFailed
+			repairResult.Error = resultErr.Error()
+			return repairResult, repairPayload, nil, nil
+		}
+		return repairResult, repairPayload, nil, nil
+	}
+	if strings.TrimSpace(handoff.ChildAgentID) != reviewerAgentID {
 		return result, payload, nil, nil
 	}
 	reviewPayload, err := delegatedReviewPayload(handoff, payload.AssistantText)
@@ -629,6 +667,36 @@ func (r *Runtime) prepareDelegatedHandoffCompletion(ctx context.Context, handoff
 	return repairResult, repairPayload, &reviewPayload, nil
 }
 
+func workflowReviewHandoff(handoff events.AgentHandoffPayload) bool {
+	return strings.HasPrefix(strings.TrimSpace(handoff.Task), "Workflow review pass `")
+}
+
+func (r *Runtime) delegatedWorkflowReviewResultRecorded(ctx context.Context, handoff events.AgentHandoffPayload) bool {
+	state, err := r.Sessions.Snapshot(ctx, handoff.ParentSessionID)
+	if err != nil || state.Workflow == nil {
+		return false
+	}
+	passID := workflowReviewPassIDFromTask(handoff.Task)
+	if passID == "" {
+		return false
+	}
+	return workflowHasReviewPassEvidenceInState(state, state.Workflow.CurrentPhaseID, passID)
+}
+
+func workflowReviewPassIDFromTask(task string) string {
+	task = strings.TrimSpace(task)
+	const prefix = "Workflow review pass `"
+	if !strings.HasPrefix(task, prefix) {
+		return ""
+	}
+	rest := strings.TrimPrefix(task, prefix)
+	idx := strings.Index(rest, "`")
+	if idx < 0 {
+		return ""
+	}
+	return strings.TrimSpace(rest[:idx])
+}
+
 func delegatedReviewPayload(handoff events.AgentHandoffPayload, raw string) (events.ReviewRecordedPayload, error) {
 	payload, err := parseStructuredManualReview(raw, strings.TrimSpace(handoff.Task))
 	if err != nil {
@@ -656,12 +724,40 @@ func (r *Runtime) repairDelegatedReviewOutput(ctx context.Context, handoff event
 	})
 }
 
+func (r *Runtime) repairDelegatedWorkflowReviewResult(ctx context.Context, handoff events.AgentHandoffPayload, validationErr error, modelRoute provider.ModelRoute, workflowBudget workflowTurnBudget) (RunSessionResult, error) {
+	repairTurnID := newRuntimeID("turn")
+	return r.runExistingSessionTurn(ctx, runExistingTurnInput{
+		SessionID:           handoff.ChildSessionID,
+		TurnID:              repairTurnID,
+		UserText:            delegatedWorkflowReviewRepairUserText(validationErr),
+		AgentID:             handoff.ChildAgentID,
+		AdditionalFragments: delegatedWorkflowReviewRepairPromptFragments(handoff),
+		AllowedToolsOverride: workflowRuntimeOwnedTools(workflowRuntimeToolScope{
+			ChildAgentID:  handoff.ChildAgentID,
+			DelegatedTask: handoff.Task,
+		}),
+		ModelRouteOverride:   modelRoute,
+		PreserveSessionModel: true,
+		HideAssistantPreview: false,
+		DisableAutoReview:    true,
+		WorkflowBudget:       workflowBudget,
+	})
+}
+
 func delegatedReviewRepairUserText(validationErr error) string {
 	message := "The previous delegated review output was not valid structured JSON."
 	if validationErr != nil {
 		message += "\nValidation error: " + strings.TrimSpace(validationErr.Error())
 	}
 	return message + "\nReturn the corrected review as exactly one JSON object and nothing else."
+}
+
+func delegatedWorkflowReviewRepairUserText(validationErr error) string {
+	message := "The previous delegated workflow review answer did not record a valid workflow review result."
+	if validationErr != nil {
+		message += "\nValidation error: " + strings.TrimSpace(validationErr.Error())
+	}
+	return message + "\nCall `workflow_review_result` exactly once. Do not call read/search tools."
 }
 
 func delegatedReviewRepairPromptFragments(handoff events.AgentHandoffPayload) []prompt.Fragment {
@@ -672,8 +768,8 @@ func delegatedReviewRepairPromptFragments(handoff events.AgentHandoffPayload) []
 		Key:       "delegated-review-repair",
 		Label:     "delegated review repair",
 		Content: strings.Join([]string{
-			"Delegated reviewer repair contract.",
-			"The previous answer in this child session failed the structured review contract.",
+			"Delegated reviewer output repair.",
+			"The previous answer in this child session failed the structured review output format.",
 			"Return exactly one JSON object and nothing else. Do not wrap it in markdown or code fences.",
 			"The object must contain `findings`, `overall_correctness`, and `overall_summary`.",
 			"`findings` must be an array of objects with `severity`, `path`, `line`, `title`, and `explanation`.",
@@ -683,6 +779,27 @@ func delegatedReviewRepairPromptFragments(handoff events.AgentHandoffPayload) []
 			"`overall_summary` must be 1-3 sentences.",
 			"If there are no qualifying findings, return `\"findings\": []`.",
 			"Do not call tools during this repair turn.",
+			"Original delegated review task: " + strings.TrimSpace(handoff.Task),
+		}, "\n"),
+	}}
+}
+
+func delegatedWorkflowReviewRepairPromptFragments(handoff events.AgentHandoffPayload) []prompt.Fragment {
+	return []prompt.Fragment{{
+		Kind:      prompt.KindRuntime,
+		Source:    prompt.SourceRuntime,
+		Stability: prompt.StabilityDynamic,
+		Key:       "delegated-workflow-review-repair",
+		Label:     "workflow review repair",
+		Content: strings.Join([]string{
+			"Delegated workflow reviewer result repair.",
+			"The previous answer in this child session failed to call `workflow_review_result`.",
+			"Only call `workflow_review_result`; no read/search tools are available during this repair turn.",
+			"Use review_pass `" + workflowReviewPassIDFromTask(handoff.Task) + "`.",
+			"`overall_correctness` must be `correct` or `incorrect`.",
+			"`overall_summary` must be 1-3 sentences.",
+			"`findings` must be an array of objects with `severity`, `path`, `line`, `title`, and `explanation`.",
+			"If there are no qualifying findings, send an empty findings array.",
 			"Original delegated review task: " + strings.TrimSpace(handoff.Task),
 		}, "\n"),
 	}}

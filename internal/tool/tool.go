@@ -15,6 +15,8 @@ var ErrWorkspaceRequired = errors.New("workspace scope is required")
 var ErrQuestionAskerRequired = errors.New("question asker is required")
 var ErrCodeIntelRequired = errors.New("code intel is required")
 var ErrDelegateManagerRequired = errors.New("delegate manager is required")
+var ErrWorkflowPhaseOutputManagerRequired = errors.New("workflow phase output manager is required")
+var ErrWorkflowReviewResultManagerRequired = errors.New("workflow review result manager is required")
 
 type Definition struct {
 	Name                string
@@ -155,6 +157,8 @@ type ExecutionContext struct {
 	CodeIntelAPI    CodeIntel
 	MemoryManager   MemoryManager
 	SkillCatalog    SkillCatalog
+	WorkflowOutput  WorkflowPhaseOutputManager
+	WorkflowReview  WorkflowReviewResultManager
 }
 
 func (e ExecutionContext) ResolvePath(access workspace.Access, path string) (workspace.Decision, error) {
@@ -200,6 +204,20 @@ func (e ExecutionContext) Skills() (SkillCatalog, error) {
 		return nil, ErrSkillCatalogRequired
 	}
 	return e.SkillCatalog, nil
+}
+
+func (e ExecutionContext) WorkflowPhaseOutput() (WorkflowPhaseOutputManager, error) {
+	if e.WorkflowOutput == nil {
+		return nil, ErrWorkflowPhaseOutputManagerRequired
+	}
+	return e.WorkflowOutput, nil
+}
+
+func (e ExecutionContext) WorkflowReviewResult() (WorkflowReviewResultManager, error) {
+	if e.WorkflowReview == nil {
+		return nil, ErrWorkflowReviewResultManagerRequired
+	}
+	return e.WorkflowReview, nil
 }
 
 type Tool interface {

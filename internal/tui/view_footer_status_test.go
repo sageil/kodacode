@@ -121,6 +121,45 @@ func TestRenderFooterStatusBarIncludesGitAndTurnSignals(t *testing.T) {
 	}
 }
 
+func TestRenderFooterStatusBarSuppressesGitBranchInShellLayout(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context:       ctx,
+		Theme:         &defaultTheme,
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: "/repo",
+		Layout:        tuiLayoutShell,
+	})
+	model.footerStatus.workspace = app.WorkspaceStatus{
+		Git: &app.WorkspaceGitStatus{
+			Branch:       "main",
+			ChangedFiles: 2,
+		},
+	}
+	state := events.SessionState{
+		PermissionMode: "auto",
+		Turns: map[string]*events.TurnState{
+			"turn-1": {
+				TurnID: "turn-1",
+				Status: events.TurnStatusRunning,
+				Config: &events.TurnConfigState{AgentID: "builder"},
+			},
+		},
+	}
+
+	rendered := ansi.Strip(renderFooterStatusBar(model, state, 120))
+	if strings.Contains(rendered, "⎇ main") {
+		t.Fatalf("shell footer should suppress git branch already shown in header\nrendered:\n%s", rendered)
+	}
+	if !strings.Contains(rendered, "2 changed") {
+		t.Fatalf("shell footer should keep changed-file count\nrendered:\n%s", rendered)
+	}
+}
+
 func TestRenderFooterStatusBarShowsWorkflowStatusInClassicLayout(t *testing.T) {
 	defaultTheme := theme.StaticDefault()
 	ctx, cancel := context.WithCancel(context.TODO())
@@ -150,7 +189,7 @@ func TestRenderFooterStatusBarShowsWorkflowStatusInClassicLayout(t *testing.T) {
 	}
 }
 
-func TestRenderKodaShellStatusLineShowsBlockedWorkflowReason(t *testing.T) {
+func TestRenderKodaShellWorkflowStatusLineShowsBlockedWorkflowReason(t *testing.T) {
 	defaultTheme := theme.StaticDefault()
 	ctx, cancel := context.WithCancel(context.TODO())
 	defer cancel()
@@ -178,9 +217,84 @@ func TestRenderKodaShellStatusLineShowsBlockedWorkflowReason(t *testing.T) {
 		},
 	}
 
-	rendered := ansi.Strip(renderKodaShellStatusLine(model, state, 160))
-	if !strings.Contains(rendered, "workflow:delivery phase:approve blocked: missing approval evidence") {
-		t.Fatalf("shell status line missing blocked workflow reason\nrendered:\n%s", rendered)
+	workflowRendered := ansi.Strip(renderKodaShellWorkflowStatusLine(model, state, 160))
+	if !strings.Contains(workflowRendered, "Workflow delivery · phase approve · blocked: missing approval evidence") {
+		t.Fatalf("shell workflow line missing blocked workflow reason\nrendered:\n%s", workflowRendered)
+	}
+	statusRendered := ansi.Strip(renderKodaShellStatusLine(model, state, 160))
+	if strings.Contains(statusRendered, "workflow:delivery") {
+		t.Fatalf("shell bottom status line should not include workflow details\nrendered:\n%s", statusRendered)
+	}
+}
+
+func TestRenderKodaShellFooterPlacesActivityAndWorkflowBelowComposer(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context:       ctx,
+		Theme:         &defaultTheme,
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: "/repo",
+		Layout:        tuiLayoutShell,
+	})
+	model.composer.SetValue("z")
+	model.footerStatus.workspace = app.WorkspaceStatus{
+		Git: &app.WorkspaceGitStatus{
+			ChangedFiles: 15,
+		},
+		Search: &app.WorkspaceSearchStatus{
+			Configured:    true,
+			Tracking:      true,
+			TrackedFiles:  10,
+			IndexedFiles:  10,
+			IndexedChunks: 20,
+		},
+	}
+	state := events.SessionState{
+		PermissionMode: "full_access",
+		Turns: map[string]*events.TurnState{
+			"turn-1": {
+				TurnID: "turn-1",
+				Status: events.TurnStatusCanceled,
+				Config: &events.TurnConfigState{AgentID: "builder"},
+				ToolCalls: map[string]*events.ToolCallState{
+					"call-1": {CallID: "call-1", ToolName: "read", Declared: true},
+				},
+				ToolCallOrder: []string{"call-1"},
+				ProviderUsage: &events.TurnProviderUsageState{
+					Steps: 1,
+				},
+			},
+		},
+		Workflow: &events.WorkflowState{
+			WorkflowID:     "delivery",
+			Status:         events.WorkflowStatusActive,
+			CurrentPhaseID: "plan",
+			Phases: map[string]*events.WorkflowPhaseState{
+				"plan": {PhaseID: "plan", Status: events.WorkflowPhaseStatusInProgress},
+			},
+		},
+	}
+
+	rendered := ansi.Strip(renderKodaShellFooter(model, state, 160, ""))
+	composerIndex := strings.Index(rendered, "z")
+	cancelledIndex := strings.Index(rendered, "Cancelled")
+	workflowIndex := strings.Index(rendered, "Workflow delivery · phase plan · active")
+	if composerIndex < 0 || cancelledIndex < 0 || workflowIndex < 0 {
+		t.Fatalf("shell footer missing composer, activity, or workflow line\nrendered:\n%s", rendered)
+	}
+	if cancelledIndex < composerIndex || workflowIndex < composerIndex {
+		t.Fatalf("shell activity and workflow should render below composer\nrendered:\n%s", rendered)
+	}
+	lines := strings.Split(strings.TrimRight(rendered, "\n"), "\n")
+	lastLine := lines[len(lines)-1]
+	for _, unwanted := range []string{"Workflow delivery", "15 changed", "1 roundtrip", "1 tool", "search:warm"} {
+		if strings.Contains(lastLine, unwanted) {
+			t.Fatalf("shell bottom footer should not include crowded detail %q\nrendered:\n%s", unwanted, rendered)
+		}
 	}
 }
 

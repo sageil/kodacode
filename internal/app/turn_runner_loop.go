@@ -253,7 +253,7 @@ func (r *TurnRunner) executeTurnLoop(ctx context.Context, input turnLoopInput) (
 		if budget, ok := resolveModelInputBudgetForRequest(request, r.models); ok {
 			inputLimitTokens = budget.InputLimitTokens
 		}
-		roundtrip, err := r.runProviderRequest(ctx, request, attribution, input.SessionID, input.TurnID, providerRequestIndex, inputLimitTokens, append([]workspace.Grant(nil), input.TemporaryGrants...), append([]string(nil), input.TemporaryNetworkTargets...), &state)
+		roundtrip, err := r.runProviderRequest(ctx, request, attribution, input.SessionID, input.TurnID, providerRequestIndex, inputLimitTokens, append([]workspace.Grant(nil), input.TemporaryGrants...), append([]string(nil), input.TemporaryNetworkTargets...), input.WorkflowBudget, &state)
 		if err != nil {
 			if provider.IsInputLimitExceeded(err) {
 				if shouldRollOverTurnForInputLimit(providerRequestIndex, sessionContext, state) {

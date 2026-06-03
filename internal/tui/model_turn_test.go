@@ -106,7 +106,7 @@ func TestModelWorkflowCommandResumesBlockedWorkflow(t *testing.T) {
 	}
 }
 
-func TestModelWorkflowCommandRetryAliasesResume(t *testing.T) {
+func TestModelWorkflowCommandRetryDoesNotAliasResume(t *testing.T) {
 	controller := &fakeController{}
 	state := blockedWorkflowSessionState("session-1")
 	model := NewModel(controller, ModelConfig{
@@ -118,13 +118,16 @@ func TestModelWorkflowCommandRetryAliasesResume(t *testing.T) {
 	})
 	model.composer.SetValue("/workflow retry")
 
-	_, cmd := model.submitComposer()
-	if cmd == nil {
-		t.Fatal("submitComposer cmd = nil, want resume workflow command")
+	next, cmd := model.submitComposer()
+	if cmd != nil {
+		t.Fatalf("submitComposer cmd = %#v, want nil", cmd)
 	}
-	_ = cmd()
-	if len(controller.resumeWorkflowCalls) != 1 {
-		t.Fatalf("resumeWorkflowCalls = %#v, want one", controller.resumeWorkflowCalls)
+	updated := next.(Model)
+	if !strings.Contains(updated.composerState.err, "Workflow retry is not available") {
+		t.Fatalf("composer error = %q, want retry unavailable message", updated.composerState.err)
+	}
+	if len(controller.resumeWorkflowCalls) != 0 {
+		t.Fatalf("resumeWorkflowCalls = %#v, want none", controller.resumeWorkflowCalls)
 	}
 }
 

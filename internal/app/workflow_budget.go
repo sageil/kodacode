@@ -12,6 +12,7 @@ type workflowTurnBudget struct {
 	WorkflowID                 string
 	SessionID                  string
 	MaxCost                    float64
+	WarnThreshold              float64
 	MaxProviderRequestsPerTurn int
 }
 
@@ -19,6 +20,7 @@ func workflowTurnBudgetFromDefinition(workflowID string, definition workflowpkg.
 	return workflowTurnBudget{
 		WorkflowID:                 strings.TrimSpace(workflowID),
 		MaxCost:                    max(definition.Budgets.MaxCost, 0),
+		WarnThreshold:              max(definition.Budgets.WarnThreshold, 0),
 		MaxProviderRequestsPerTurn: max(definition.Budgets.MaxProviderRequestsPerTurn, 0),
 	}
 }

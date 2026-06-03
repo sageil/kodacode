@@ -71,6 +71,9 @@ func workflowPhaseAgentID(inputAgentID string, phase workflowpkg.Phase) string {
 	if phase.EffectiveType() == workflowpkg.PhaseTypeVerification {
 		return "engineer"
 	}
+	if phase.EffectiveType() == workflowpkg.PhaseTypeReview {
+		return reviewerAgentID
+	}
 	return strings.TrimSpace(inputAgentID)
 }
 
@@ -91,11 +94,44 @@ func workflowPhaseAllowedTools(base []string, phase workflowpkg.Phase) []string 
 	if workflowPhaseIsReadFocused(phase) {
 		allowed = removeWorkflowMutationTools(allowed)
 	}
+	return allowWorkflowRuntimeOwnedTools(allowed, workflowRuntimeToolScope{Phase: &phase})
+}
+
+type workflowRuntimeToolScope struct {
+	Phase         *workflowpkg.Phase
+	ChildAgentID  string
+	DelegatedTask string
+}
+
+// Workflow runtime-owned tools are durable workflow result channels, not
+// ordinary agent capabilities. Agent and phase allow/deny policy filters the
+// normal tool surface first; this pass then restores only the tools the active
+// workflow context requires the runtime to receive.
+func allowWorkflowRuntimeOwnedTools(allowed []string, scope workflowRuntimeToolScope) []string {
+	for _, name := range workflowRuntimeOwnedTools(scope) {
+		allowed = appendToolIfMissing(allowed, name)
+	}
 	return allowed
 }
 
+func workflowRuntimeOwnedTools(scope workflowRuntimeToolScope) []string {
+	var out []string
+	if scope.Phase != nil {
+		if len(trimmedWorkflowValues(scope.Phase.RequiresOutput)) > 0 {
+			out = appendToolIfMissing(out, tool.WorkflowPhaseOutputToolName)
+		}
+		if workflowPhaseIsReview(*scope.Phase) {
+			out = appendToolIfMissing(out, tool.WorkflowReviewResultToolName)
+		}
+	}
+	if workflowReviewPassIDFromTask(scope.DelegatedTask) != "" {
+		out = appendToolIfMissing(out, tool.WorkflowReviewResultToolName)
+	}
+	return out
+}
+
 func workflowPhaseIsReadFocused(phase workflowpkg.Phase) bool {
-	return phase.Mode == workflowpkg.PhaseModeReadOnly || strings.TrimSpace(phase.Agent) == reviewerAgentID
+	return phase.Mode == workflowpkg.PhaseModeReadOnly || phase.EffectiveType() == workflowpkg.PhaseTypeReview || strings.TrimSpace(phase.Agent) == reviewerAgentID
 }
 
 func workflowPhaseIsUserApproval(phase workflowpkg.Phase) bool {
@@ -126,7 +162,7 @@ func workflowPhaseIsFinal(phase workflowpkg.Phase) bool {
 }
 
 func workflowPhaseIsReview(phase workflowpkg.Phase) bool {
-	return strings.TrimSpace(phase.Agent) == reviewerAgentID || strings.TrimSpace(phase.ID) == "review"
+	return phase.EffectiveType() == workflowpkg.PhaseTypeReview
 }
 
 func removeWorkflowMutationTools(tools []string) []string {
@@ -182,7 +218,11 @@ func workflowPhasePromptFragment(ctx workflowPhaseTurnContext, allowedTools []st
 	if len(ctx.Phase.RequiresOutput) > 0 {
 		required := trimmedWorkflowValues(ctx.Phase.RequiresOutput)
 		lines = append(lines, "- Required phase outputs: "+strings.Join(required, ", "))
-		lines = append(lines, "- Return exactly one JSON object containing those required output keys. Do not use markdown fences.")
+		lines = append(lines, "- Before your final response, call `"+tool.WorkflowPhaseOutputToolName+"` with all required output keys.")
+		lines = append(lines, "- The final response may be human-readable after that tool call. If the tool is unavailable, return exactly one JSON object containing the required output keys and no markdown fences.")
+	}
+	if required := workflowPhaseCompletionRequirementLabels(ctx.Phase); len(required) > 0 {
+		lines = append(lines, "- Phase completion requirements: "+strings.Join(required, ", "))
 	}
 	if len(ctx.Phase.Commands) > 0 {
 		lines = append(lines, "- Declared verification commands: "+strings.Join(workflowVerificationCommandDisplays(ctx.Phase.Commands), " | "))
@@ -235,6 +275,33 @@ func trimmedWorkflowValues(values []string) []string {
 		}
 	}
 	return out
+}
+
+func workflowPhaseCompletionRequirementLabels(phase workflowpkg.Phase) []string {
+	items := trimmedWorkflowValues(phase.Completion.Requires.Items)
+	out := make([]string, 0, len(items))
+	for _, item := range items {
+		switch item {
+		case workflowpkg.CompletionRequirementActivePhaseTasksComplete:
+			out = append(out, "complete all tasks created for this workflow phase before finishing the phase")
+		default:
+			out = append(out, item)
+		}
+	}
+	return out
+}
+
+func appendToolIfMissing(values []string, value string) []string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return values
+	}
+	for _, existing := range values {
+		if strings.TrimSpace(existing) == value {
+			return values
+		}
+	}
+	return append(values, value)
 }
 
 func cloneWorkflowStateForRuntime(state *events.WorkflowState) *events.WorkflowState {

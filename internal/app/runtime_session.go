@@ -164,7 +164,7 @@ func (r *Runtime) runExistingSessionTurn(ctx context.Context, input runExistingT
 		}
 		return r.completeWorkflowFinalPhaseTurn(ctx, input, workflowPhase)
 	}
-	if workflowPhase.Active && workflowPhaseIsReview(workflowPhase.Phase) && workflowPhase.Phase.ReviewFanout {
+	if workflowPhase.Active && workflowPhaseIsReview(workflowPhase.Phase) && workflowPhase.Phase.ParallelReviewEnabled() {
 		if err := r.appendWorkflowPhaseTurnConfigured(ctx, input, view, workflowPhase, effectiveAgentID, effectiveWorkflowID, effectiveSkillIDs, effectiveThinkingEnabled, effectiveThinkingMode, responseStyle); err != nil {
 			return r.recordTurnFailure(ctx, input.SessionID, input.TurnID, input.UserText, nil, err)
 		}
@@ -208,8 +208,16 @@ func (r *Runtime) runExistingSessionTurn(ctx context.Context, input runExistingT
 	if len(input.AdditionalFragments) > 0 {
 		fragments = append(fragments, input.AdditionalFragments...)
 	}
+	workflowBudget := input.WorkflowBudget
+	if workflowPhase.Active {
+		workflowBudget = workflowTurnBudgetFromDefinition(workflowPhase.WorkflowID, workflowPhase.Definition)
+		workflowBudget.SessionID = input.SessionID
+	}
 	if workflowPhase.Active {
 		fragments = append(fragments, workflowPhasePromptFragment(workflowPhase, capabilities.AllowedTools))
+	}
+	if fragment, ok := r.runtimeBudgetPromptFragment(ctx, input.SessionID, workflowBudget); ok {
+		fragments = append(fragments, fragment)
 	}
 	if fragment, ok := r.deterministicContextPacketFragment(ctx, deterministicContextPacketRuntimeInput{
 		WorkspaceRoot:             view.workspaceRoot,
@@ -231,12 +239,6 @@ func (r *Runtime) runExistingSessionTurn(ctx context.Context, input runExistingT
 	selectedSkillIDs := input.SelectedSkillIDs
 	if selectedSkillIDs == nil {
 		selectedSkillIDs = input.SkillIDs
-	}
-	workflowBudget := workflowTurnBudget{}
-	if workflowPhase.Active {
-		workflowBudget = workflowTurnBudgetFromDefinition(workflowPhase.WorkflowID, workflowPhase.Definition)
-	} else {
-		workflowBudget = input.WorkflowBudget
 	}
 	r.log("runtime").Op("session turn started",
 		"session_id", input.SessionID,

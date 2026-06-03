@@ -54,7 +54,7 @@ func footerStatusSegments(m Model, state events.SessionState) []transcriptStatus
 		})
 	}
 	if git := footerGitStatus(m.footerStatus.workspace); git != nil {
-		if branch := strings.TrimSpace(git.Branch); branch != "" {
+		if branch := strings.TrimSpace(git.Branch); branch != "" && !shellLayoutEnabled(m) {
 			segments = append(segments, transcriptStatusSegment{
 				Text:  m.terminalIcon(terminalIconGitBranch) + " " + branch,
 				Color: colorFor(m.theme, "success", "#90e5b4"),
@@ -373,6 +373,8 @@ func footerBudgetLabel(th *theme.Theme, status app.BudgetStatus) (string, string
 	switch {
 	case status.TotalExceeded:
 		return "total hit", colorFor(th, "error", "#ff9aa6")
+	case status.WorkflowExceeded:
+		return "workflow hit", colorFor(th, "error", "#ff9aa6")
 	case status.SessionExceeded:
 		return "budget hit", colorFor(th, "error", "#ff9aa6")
 	case status.TotalWarn:
@@ -380,6 +382,11 @@ func footerBudgetLabel(th *theme.Theme, status app.BudgetStatus) (string, string
 			return fmt.Sprintf("total %d%%", percent), colorFor(th, "warning", "#ffd28f")
 		}
 		return "total warn", colorFor(th, "warning", "#ffd28f")
+	case status.WorkflowWarn:
+		if percent, ok := status.WorkflowPercent(); ok {
+			return fmt.Sprintf("workflow %d%%", percent), colorFor(th, "warning", "#ffd28f")
+		}
+		return "workflow warn", colorFor(th, "warning", "#ffd28f")
 	case status.SessionWarn:
 		if percent, ok := status.SessionPercent(); ok {
 			return fmt.Sprintf("budget %d%%", percent), colorFor(th, "warning", "#ffd28f")

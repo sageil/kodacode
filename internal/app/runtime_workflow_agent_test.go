@@ -9,7 +9,39 @@ import (
 
 	"github.com/sageil/kodacode/internal/events"
 	"github.com/sageil/kodacode/internal/provider"
+	"github.com/sageil/kodacode/internal/tool"
+	workflowpkg "github.com/sageil/kodacode/internal/workflow"
 )
+
+func TestWorkflowPhaseAllowedToolsRestoresRuntimeOwnedResultTools(t *testing.T) {
+	got := workflowPhaseAllowedTools([]string{
+		tool.ReadToolName,
+		tool.SearchToolName,
+		tool.WorkflowPhaseOutputToolName,
+		tool.WorkflowReviewResultToolName,
+	}, workflowpkg.Phase{
+		ID:             "review",
+		Type:           workflowpkg.PhaseTypeReview,
+		Agent:          reviewerAgentID,
+		Mode:           workflowpkg.PhaseModeReadOnly,
+		RequiresOutput: []string{"summary"},
+		Tools: workflowpkg.ToolPolicy{
+			Allow: []string{tool.ReadToolName},
+		},
+	})
+
+	if !containsString(got, tool.ReadToolName) {
+		t.Fatalf("tools = %#v, want read preserved", got)
+	}
+	for _, required := range []string{tool.WorkflowPhaseOutputToolName, tool.WorkflowReviewResultToolName} {
+		if !containsString(got, required) {
+			t.Fatalf("tools = %#v, want runtime-owned %s restored after phase allow filtering", got, required)
+		}
+	}
+	if containsString(got, tool.SearchToolName) {
+		t.Fatalf("tools = %#v, want ordinary search removed by phase allow filtering", got)
+	}
+}
 
 func TestRuntimeWorkflowPlanPhaseRunsPlannerReadFocused(t *testing.T) {
 	client := &fakeProvider{
@@ -40,8 +72,8 @@ func TestRuntimeWorkflowPlanPhaseRunsPlannerReadFocused(t *testing.T) {
 			t.Fatalf("plan phase tools = %#v, want %s removed", gotTools, blocked)
 		}
 	}
-	if !containsString(gotTools, "read") || !containsString(gotTools, "search") {
-		t.Fatalf("plan phase tools = %#v, want read/search", gotTools)
+	if !containsString(gotTools, "read") || !containsString(gotTools, "search") || !containsString(gotTools, tool.WorkflowPhaseOutputToolName) {
+		t.Fatalf("plan phase tools = %#v, want read/search/%s", gotTools, tool.WorkflowPhaseOutputToolName)
 	}
 	state, err := runtime.Sessions.Snapshot(context.Background(), result.SessionID)
 	if err != nil {
@@ -56,6 +88,51 @@ func TestRuntimeWorkflowPlanPhaseRunsPlannerReadFocused(t *testing.T) {
 	}
 	if state.Workflow == nil || state.Workflow.CurrentPhaseID != "approve" {
 		t.Fatalf("workflow = %#v, want advanced to approve", state.Workflow)
+	}
+}
+
+func TestRuntimeWorkflowPlanPhaseOutputToolRecordsEvidenceAndAllowsMarkdownFinal(t *testing.T) {
+	client := &fakeProvider{
+		streams: []provider.Stream{
+			provider.NewSliceStream([]provider.Event{
+				{
+					Kind:       provider.EventKindToolCallDelta,
+					ToolCallID: "call-phase-output",
+					ToolName:   tool.WorkflowPhaseOutputToolName,
+					InputDelta: `{"fields":{"plan":"inspect and patch","affected_files":"internal/app/runtime.go","risks":"regression"}}`,
+				},
+				{Kind: provider.EventKindToolCallDone, ToolCallID: "call-phase-output", ToolName: tool.WorkflowPhaseOutputToolName},
+			}),
+			provider.NewSliceStream([]provider.Event{
+				{Kind: provider.EventKindAssistantDelta, AssistantDelta: "## Plan\n\nInspect and patch the runtime."},
+			}),
+		},
+	}
+	runtime := newRuntimeWithClient(t, client)
+
+	result, err := runtime.RunSessionTurn(context.Background(), RunSessionInput{
+		WorkspaceRoot: t.TempDir(),
+		UserText:      "plan the change",
+		AgentID:       "engineer",
+		WorkflowID:    "delivery",
+	})
+	if err != nil {
+		t.Fatalf("RunSessionTurn() error = %v", err)
+	}
+	if result.Status != TurnRunStatusCompleted {
+		t.Fatalf("status = %q", result.Status)
+	}
+	state, err := runtime.Sessions.Snapshot(context.Background(), result.SessionID)
+	if err != nil {
+		t.Fatalf("Snapshot() error = %v", err)
+	}
+	if state.Workflow == nil || state.Workflow.CurrentPhaseID != "approve" {
+		t.Fatalf("workflow = %#v, want advanced to approve", state.Workflow)
+	}
+	if !workflowHasPhaseOutputEvidence(state.Workflow, "plan", "plan") ||
+		!workflowHasPhaseOutputEvidence(state.Workflow, "plan", "affected_files") ||
+		!workflowHasPhaseOutputEvidence(state.Workflow, "plan", "risks") {
+		t.Fatalf("workflow evidence = %#v, want required plan outputs", state.Workflow.Evidence)
 	}
 }
 
@@ -348,6 +425,7 @@ func TestRuntimeWorkflowVerificationPhaseRunsDeclaredCommandWithoutProvider(t *t
 	client := &fakeProvider{}
 	runtime := newRuntimeWithClient(t, client)
 	root := t.TempDir()
+	writeProjectWorkflow(t, root, "delivery.yaml", goVerificationNoAutoReviewWorkflowYAML())
 	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module example.com/workflowverify\n\ngo 1.22\n"), 0o644); err != nil {
 		t.Fatalf("WriteFile(go.mod) error = %v", err)
 	}
@@ -494,15 +572,11 @@ func TestRuntimeWorkflowFailedVerificationLoopsBackToImplementationWithinCap(t *
 }
 
 func TestRuntimeWorkflowReviewerPhaseCannotEditFiles(t *testing.T) {
-	client := &fakeProvider{
-		streams: []provider.Stream{provider.NewSliceStream([]provider.Event{
-			{Kind: provider.EventKindAssistantDelta, AssistantDelta: `{"findings":[],"overall_correctness":"correct","overall_summary":"Correctness pass clean."}`},
-		}), provider.NewSliceStream([]provider.Event{
-			{Kind: provider.EventKindAssistantDelta, AssistantDelta: `{"findings":[],"overall_correctness":"correct","overall_summary":"Tests pass clean."}`},
-		}), provider.NewSliceStream([]provider.Event{
-			{Kind: provider.EventKindAssistantDelta, AssistantDelta: `{"findings":[],"overall_correctness":"correct","overall_summary":"Contracts pass clean."}`},
-		})},
-	}
+	client := newWorkflowReviewResultProvider(map[string]string{
+		"correctness": "Correctness pass clean.",
+		"tests":       "Tests pass clean.",
+		"contracts":   "Contracts pass clean.",
+	})
 	runtime := newRuntimeWithClient(t, client)
 	root := t.TempDir()
 	sessionID := createWorkflowTestSession(t, runtime, root)
@@ -528,7 +602,7 @@ func TestRuntimeWorkflowReviewerPhaseCannotEditFiles(t *testing.T) {
 	if result.Status != TurnRunStatusCompleted {
 		t.Fatalf("status = %q", result.Status)
 	}
-	if len(client.requests) != 3 {
+	if len(client.requests) != 6 {
 		t.Fatalf("provider requests = %d, want one reviewer child per review pass", len(client.requests))
 	}
 	for _, request := range client.requests {
@@ -538,8 +612,8 @@ func TestRuntimeWorkflowReviewerPhaseCannotEditFiles(t *testing.T) {
 				t.Fatalf("review phase tools = %#v, want %s removed", gotTools, blocked)
 			}
 		}
-		if !strings.Contains(request.Inputs[len(request.Inputs)-1].Content, "structured review JSON object") {
-			t.Fatalf("review child input missing structured output contract:\n%#v", request.Inputs)
+		if !strings.Contains(request.Instructions, tool.WorkflowReviewResultToolName) && !strings.Contains(request.Inputs[len(request.Inputs)-1].Content, tool.WorkflowReviewResultToolName) {
+			t.Fatalf("review child input missing workflow review result channel:\n%#v", request.Inputs)
 		}
 	}
 	state, err := runtime.Sessions.Snapshot(context.Background(), sessionID)
@@ -705,6 +779,58 @@ func workflowVerificationEvidence(workflow *events.WorkflowState, phaseID string
 	return nil
 }
 
+func goVerificationNoAutoReviewWorkflowYAML() string {
+	return `
+id: delivery
+description: Test workflow with provider-free Go verification.
+phases:
+  - id: plan
+    agent: planner
+    mode: read_only
+    requires_output:
+      - plan
+      - affected_files
+      - risks
+
+  - id: approve
+    type: user_approval
+    skip_when:
+      max_affected_files: 2
+
+  - id: implement
+    agent: engineer
+    tools:
+      allow:
+        - read
+        - search
+        - apply_patch
+        - bash
+        - git_diff
+        - task_workflow
+    requires:
+      approved_phase: plan
+
+  - id: verify
+    type: verification
+    agent: engineer
+    tools:
+      allow:
+        - test
+    commands:
+      - tool: test
+        command: go test ./...
+    required: true
+
+  - id: review
+    type: review
+    agent: reviewer
+    mode: read_only
+    auto_continue: false
+    requires:
+      - verification_result
+`
+}
+
 func bashVerificationWorkflowYAML() string {
 	return `
 id: delivery
@@ -748,8 +874,10 @@ phases:
     required: true
 
   - id: review
+    type: review
     agent: reviewer
     mode: read_only
+    auto_continue: false
     requires:
       - verification_result
 `

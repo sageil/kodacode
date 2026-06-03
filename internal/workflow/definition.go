@@ -34,6 +34,7 @@ var (
 	ErrWorkflowModelInvalid         = errors.New("workflow model is invalid")
 	ErrWorkflowBudgetInvalid        = errors.New("workflow budgets are invalid")
 	ErrWorkflowCommandInvalid       = errors.New("workflow command is invalid")
+	ErrWorkflowAutoContinueInvalid  = errors.New("workflow auto_continue is invalid")
 )
 
 type PhaseType string
@@ -42,6 +43,7 @@ const (
 	PhaseTypeAgent        PhaseType = "agent"
 	PhaseTypeUserApproval PhaseType = "user_approval"
 	PhaseTypeVerification PhaseType = "verification"
+	PhaseTypeReview       PhaseType = "review"
 	PhaseTypeFinal        PhaseType = "final"
 )
 
@@ -72,13 +74,15 @@ type Phase struct {
 	Prompt         string                `yaml:"prompt"`
 	Tools          ToolPolicy            `yaml:"tools"`
 	Requires       EvidenceRequirements  `yaml:"requires"`
+	Completion     PhaseCompletion       `yaml:"completion"`
 	RequiresOutput []string              `yaml:"requires_output"`
 	Commands       []VerificationCommand `yaml:"commands"`
 	Required       bool                  `yaml:"required"`
 	Include        []string              `yaml:"include"`
 	SkipWhen       ApprovalSkipRules     `yaml:"skip_when"`
 	ReviewPasses   []ReviewPass          `yaml:"review_passes"`
-	ReviewFanout   bool                  `yaml:"review_fanout"`
+	ParallelReview bool                  `yaml:"parallel_review"`
+	AutoContinue   *bool                 `yaml:"auto_continue"`
 }
 
 type ToolPolicy struct {
@@ -89,6 +93,10 @@ type ToolPolicy struct {
 type EvidenceRequirements struct {
 	Items  []string
 	Fields map[string]string
+}
+
+type PhaseCompletion struct {
+	Requires EvidenceRequirements `yaml:"requires"`
 }
 
 type ApprovalSkipRules struct {
@@ -114,6 +122,7 @@ type Transition struct {
 
 type Budgets struct {
 	MaxCost                    float64 `yaml:"max_cost"`
+	WarnThreshold              float64 `yaml:"warn_threshold"`
 	MaxProviderRequestsPerTurn int     `yaml:"max_provider_requests_per_turn"`
 }
 
@@ -127,6 +136,10 @@ const (
 	TransitionOnNoProgress           = "no_progress"
 	TransitionOnCanceled             = "canceled"
 )
+
+const CompletionRequirementActivePhaseTasksComplete = "active_phase_tasks_complete"
+
+const MaxParallelReviewPasses = 8
 
 type ValidationContext struct {
 	Agents map[string]agent.Definition
@@ -238,6 +251,12 @@ func validateBudgets(budgets Budgets) error {
 	if budgets.MaxCost < 0 {
 		return fmt.Errorf("%w: max_cost must be non-negative", ErrWorkflowBudgetInvalid)
 	}
+	if budgets.WarnThreshold < 0 || budgets.WarnThreshold > 1 {
+		return fmt.Errorf("%w: warn_threshold must be between 0 and 1", ErrWorkflowBudgetInvalid)
+	}
+	if budgets.MaxCost <= 0 && budgets.WarnThreshold > 0 {
+		return fmt.Errorf("%w: warn_threshold requires a positive max_cost", ErrWorkflowBudgetInvalid)
+	}
 	if budgets.MaxProviderRequestsPerTurn < 0 {
 		return fmt.Errorf("%w: max_provider_requests_per_turn must be non-negative", ErrWorkflowBudgetInvalid)
 	}
@@ -273,13 +292,16 @@ func (p Phase) Validate(ctx ValidationContext) error {
 	if err := validatePhaseReviewPasses(p); err != nil {
 		return err
 	}
+	if err := validatePhaseAutoContinue(p); err != nil {
+		return err
+	}
 	return nil
 }
 
 func validatePhaseType(p Phase) error {
 	typ := p.EffectiveType()
 	switch typ {
-	case PhaseTypeAgent, PhaseTypeUserApproval, PhaseTypeVerification, PhaseTypeFinal:
+	case PhaseTypeAgent, PhaseTypeUserApproval, PhaseTypeVerification, PhaseTypeReview, PhaseTypeFinal:
 		return nil
 	default:
 		return fmt.Errorf("%w: %s", ErrWorkflowPhaseTypeInvalid, typ)
@@ -391,14 +413,17 @@ func validatePhaseApprovalSkip(p Phase) error {
 }
 
 func validatePhaseReviewPasses(p Phase) error {
-	if len(p.ReviewPasses) == 0 && !p.ReviewFanout {
+	if len(p.ReviewPasses) == 0 && !p.ParallelReviewEnabled() {
 		return nil
 	}
-	if !phaseIsReviewLike(p) {
-		return fmt.Errorf("%w: review_passes are only supported on reviewer phases", ErrWorkflowReviewPassInvalid)
+	if p.EffectiveType() != PhaseTypeReview {
+		return fmt.Errorf("%w: review_passes are only supported on review phases", ErrWorkflowReviewPassInvalid)
 	}
-	if p.ReviewFanout && len(p.ReviewPasses) == 0 {
-		return fmt.Errorf("%w: review_fanout requires review_passes", ErrWorkflowReviewPassInvalid)
+	if p.ParallelReviewEnabled() && len(p.ReviewPasses) == 0 {
+		return fmt.Errorf("%w: parallel review requires review_passes", ErrWorkflowReviewPassInvalid)
+	}
+	if p.ParallelReviewEnabled() && len(p.ReviewPasses) > MaxParallelReviewPasses {
+		return fmt.Errorf("%w: parallel review supports at most %d review_passes", ErrWorkflowReviewPassInvalid, MaxParallelReviewPasses)
 	}
 	seen := map[string]struct{}{}
 	for index, pass := range p.ReviewPasses {
@@ -414,8 +439,26 @@ func validatePhaseReviewPasses(p Phase) error {
 	return nil
 }
 
-func phaseIsReviewLike(p Phase) bool {
-	return strings.TrimSpace(p.Agent) == "reviewer" || strings.TrimSpace(p.ID) == "review"
+func (p Phase) ParallelReviewEnabled() bool {
+	return p.ParallelReview
+}
+
+func (p Phase) AutoContinueEnabled() bool {
+	return p.AutoContinue != nil && *p.AutoContinue
+}
+
+func (p Phase) AutoContinueDisabled() bool {
+	return p.AutoContinue != nil && !*p.AutoContinue
+}
+
+func validatePhaseAutoContinue(p Phase) error {
+	if p.AutoContinue == nil || !p.AutoContinueEnabled() {
+		return nil
+	}
+	if p.ParallelReviewEnabled() {
+		return nil
+	}
+	return fmt.Errorf("%w: auto_continue requires a runtime-runnable phase", ErrWorkflowAutoContinueInvalid)
 }
 
 func validateTransitions(transitions []Transition, phases map[string]struct{}) error {

@@ -192,6 +192,7 @@ func NewRuntime(config Config) (runtime *Runtime, err error) {
 	}
 	runtime.Tools.SetDelegateRuntime(runtime)
 	runtime.Tools.SetWorkflowPhaseCommandResolver(runtime.workflowPhaseCommands)
+	runtime.Sessions.SetWorkflowReviewPhaseResolver(runtime.workflowReviewPhase)
 	runtime.Runner.SetModelCatalog(runtime.ModelCatalog)
 	runtime.Runner.SetOutputBudgetConfig(config.OutputBudgets, config.ModelOverrides)
 	runtime.Runner.SetSessionConfig(config.Sessions)

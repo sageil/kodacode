@@ -415,6 +415,72 @@ func TestRuntimeWorkflowImplementationRequiresApprovalEvidence(t *testing.T) {
 	}
 }
 
+func TestRuntimeWorkflowImplementationRequiresPhaseTasksComplete(t *testing.T) {
+	ctx := context.Background()
+	runtime := newRuntimeWithClient(t, &fakeProvider{})
+	root := t.TempDir()
+	sessionID := createWorkflowTestSession(t, runtime, root)
+	startDeliveryAtImplement(t, runtime, sessionID, root)
+
+	if _, err := runtime.Sessions.CreateTask(ctx, CreateTaskInput{
+		SessionID: sessionID,
+		TurnID:    "turn-implement",
+		TaskID:    "task-implement",
+		Title:     "Finish implementation",
+		Status:    events.TaskStatusInProgress,
+	}); err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+
+	err := runtime.AdvanceWorkflow(ctx, AdvanceWorkflowInput{
+		SessionID: sessionID,
+		TurnID:    "turn-implement",
+		ToPhaseID: "verify",
+	})
+	if !errors.Is(err, ErrWorkflowEvidenceMissing) {
+		t.Fatalf("AdvanceWorkflow(verify with active task) error = %v, want ErrWorkflowEvidenceMissing", err)
+	}
+	state, err := runtime.Sessions.Snapshot(ctx, sessionID)
+	if err != nil {
+		t.Fatalf("Snapshot() error = %v", err)
+	}
+	if state.Workflow == nil || state.Workflow.Status != events.WorkflowStatusBlocked || state.Workflow.CurrentPhaseID != "implement" {
+		t.Fatalf("workflow = %#v, want blocked implement", state.Workflow)
+	}
+	if state.Workflow.StopReason != "workflow phase has unfinished task: task-implement" {
+		t.Fatalf("stop reason = %q", state.Workflow.StopReason)
+	}
+
+	if _, err := runtime.Sessions.CompleteTask(ctx, CompleteTaskInput{
+		SessionID: sessionID,
+		TurnID:    "turn-implement",
+		TaskID:    "task-implement",
+		Summary:   "implementation complete",
+	}); err != nil {
+		t.Fatalf("CompleteTask() error = %v", err)
+	}
+	if err := runtime.ResumeWorkflow(ctx, ResumeWorkflowInput{
+		SessionID: sessionID,
+		TurnID:    "turn-resume",
+	}); err != nil {
+		t.Fatalf("ResumeWorkflow() error = %v", err)
+	}
+	if err := runtime.AdvanceWorkflow(ctx, AdvanceWorkflowInput{
+		SessionID: sessionID,
+		TurnID:    "turn-implement",
+		ToPhaseID: "verify",
+	}); err != nil {
+		t.Fatalf("AdvanceWorkflow(verify after task complete) error = %v", err)
+	}
+	state, err = runtime.Sessions.Snapshot(ctx, sessionID)
+	if err != nil {
+		t.Fatalf("Snapshot(after advance) error = %v", err)
+	}
+	if state.Workflow == nil || state.Workflow.Status != events.WorkflowStatusActive || state.Workflow.CurrentPhaseID != "verify" {
+		t.Fatalf("workflow = %#v, want active verify", state.Workflow)
+	}
+}
+
 func TestRuntimeWorkflowReviewRequiresVerificationEvidence(t *testing.T) {
 	ctx := context.Background()
 	runtime := newRuntimeWithClient(t, &fakeProvider{})
@@ -812,6 +878,58 @@ func TestRuntimeWorkflowTaskReviewRecordsEvidence(t *testing.T) {
 	}
 	if !workflowHasAnyEvidenceType(state.Workflow, "review", events.WorkflowEvidenceTypeTaskReview) {
 		t.Fatalf("workflow evidence = %#v, want task_review evidence", state.Workflow.Evidence)
+	}
+}
+
+func TestRuntimeWorkflowTaskReviewRecordsEvidenceForTypedReviewPhase(t *testing.T) {
+	ctx := context.Background()
+	runtime := newRuntimeWithClient(t, &fakeProvider{})
+	root := t.TempDir()
+	writeProjectWorkflow(t, root, "security-review.yaml", `
+id: security-review
+description: Review phase with a custom phase id.
+phases:
+  - id: security
+    type: review
+    agent: reviewer
+    mode: read_only
+  - id: summarize
+    type: final
+`)
+	sessionID := createWorkflowTestSession(t, runtime, root)
+	if err := runtime.StartWorkflow(ctx, StartWorkflowInput{
+		SessionID:     sessionID,
+		TurnID:        "turn-1",
+		WorkspaceRoot: root,
+		WorkflowID:    "security-review",
+	}); err != nil {
+		t.Fatalf("StartWorkflow() error = %v", err)
+	}
+	if _, err := runtime.Sessions.CreateTask(ctx, CreateTaskInput{
+		SessionID: sessionID,
+		TurnID:    "turn-1",
+		TaskID:    "task-1",
+		Title:     "Review authorization boundary",
+		Status:    events.TaskStatusInProgress,
+	}); err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+	if _, err := runtime.Sessions.ReviewTask(ctx, ReviewTaskInput{
+		SessionID:     sessionID,
+		TurnID:        "turn-1",
+		TaskID:        "task-1",
+		ReviewStatus:  events.TaskReviewStatusPass,
+		ReviewSummary: "security review passed",
+	}); err != nil {
+		t.Fatalf("ReviewTask() error = %v", err)
+	}
+
+	state, err := runtime.Sessions.Snapshot(ctx, sessionID)
+	if err != nil {
+		t.Fatalf("Snapshot() error = %v", err)
+	}
+	if !workflowHasAnyEvidenceType(state.Workflow, "security", events.WorkflowEvidenceTypeTaskReview) {
+		t.Fatalf("workflow evidence = %#v, want task_review evidence for typed review phase", state.Workflow.Evidence)
 	}
 }
 

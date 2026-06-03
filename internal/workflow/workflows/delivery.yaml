@@ -30,6 +30,9 @@ phases:
         - task_workflow
     requires:
       approved_phase: plan
+    completion:
+      requires:
+        - active_phase_tasks_complete
 
   - id: verify
     type: verification
@@ -45,9 +48,10 @@ phases:
     required: true
 
   - id: review
+    type: review
     agent: reviewer
     mode: read_only
-    review_fanout: true
+    parallel_review: true
     review_passes:
       - id: correctness
         description: Behavioral regressions and implementation correctness.

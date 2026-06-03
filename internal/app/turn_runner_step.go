@@ -12,7 +12,7 @@ import (
 	"github.com/sageil/kodacode/internal/workspace"
 )
 
-func (r *TurnRunner) runProviderRequest(ctx context.Context, request provider.Request, attribution turnProviderRequestAttribution, sessionID, turnID string, providerRequestIndex int, inputLimitTokens int, temporaryGrants []workspace.Grant, temporaryNetworkTargets []string, state *turnLoopState) (assistantRoundtripResult, error) {
+func (r *TurnRunner) runProviderRequest(ctx context.Context, request provider.Request, attribution turnProviderRequestAttribution, sessionID, turnID string, providerRequestIndex int, inputLimitTokens int, temporaryGrants []workspace.Grant, temporaryNetworkTargets []string, workflowBudget workflowTurnBudget, state *turnLoopState) (assistantRoundtripResult, error) {
 	request.MaxOutputTokens = provider.EffectiveMaxOutputTokens(request)
 	initialState := cloneTurnLoopState(*state)
 	requestTokenSource := provider.TokenCountSourceEstimated
@@ -22,7 +22,7 @@ func (r *TurnRunner) runProviderRequest(ctx context.Context, request provider.Re
 		*state = cloneTurnLoopState(initialState)
 
 		r.logProviderRequestStarted(request, providerRequestIndex, attempt)
-		attemptResult := r.runProviderRequestAttempt(ctx, request, sessionID, turnID, providerRequestIndex, temporaryGrants, temporaryNetworkTargets, state)
+		attemptResult := r.runProviderRequestAttempt(ctx, request, sessionID, turnID, providerRequestIndex, temporaryGrants, temporaryNetworkTargets, workflowBudget, state)
 		attributedModel := providerUsageModelForTrace(request.Model, attemptResult.RouteTrace)
 		attributedRequest := request
 		attributedRequest.Model = attributedModel
@@ -285,7 +285,7 @@ func assistantTextDelta(before, after string) string {
 	return after
 }
 
-func (r *TurnRunner) runProviderRequestAttempt(ctx context.Context, request provider.Request, sessionID, turnID string, providerRequestIndex int, temporaryGrants []workspace.Grant, temporaryNetworkTargets []string, state *turnLoopState) providerRequestAttemptResult {
+func (r *TurnRunner) runProviderRequestAttempt(ctx context.Context, request provider.Request, sessionID, turnID string, providerRequestIndex int, temporaryGrants []workspace.Grant, temporaryNetworkTargets []string, workflowBudget workflowTurnBudget, state *turnLoopState) providerRequestAttemptResult {
 	startedAt := time.Now()
 	request.RawSSEObserver = r.providerRawSSEObserver(request, providerRequestIndex)
 	stream, err := r.provider.Stream(ctx, request)
@@ -308,6 +308,7 @@ func (r *TurnRunner) runProviderRequestAttempt(ctx context.Context, request prov
 	committedState := cloneTurnLoopState(*state)
 	streamClosed := false
 	stepExecutor := newStepToolExecutor(r.tools, requestToolNames(request.Tools), request.Inputs, temporaryGrants, temporaryNetworkTargets)
+	stepExecutor.workflowBudget = workflowBudget
 	capabilityResolver := newStepToolCapabilityResolver(r.tools)
 	completer := newStepAttemptCompleter(stepAttemptCompleterInput{
 		Stream:           stream,

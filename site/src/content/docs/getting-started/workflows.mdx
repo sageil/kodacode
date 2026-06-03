@@ -101,17 +101,24 @@ plans; the signal comes from the previous phase's `affected_files` output.
 Workflow `transitions` make non-linear movement explicit for supported events
 such as `skipped`, `verification_failed`, and `review_failed`.
 
+Workflow `budgets` can bound spend and provider loops for a selected workflow.
+`budgets.max_cost` is a hard estimated-cost limit for the active workflow,
+including delegated child sessions. `budgets.warn_threshold` is an optional
+workflow-local warning fraction, and `budgets.max_provider_requests_per_turn`
+overrides the session provider-request cap for workflow phase turns.
+
 Final phases synthesize their summary from recorded workflow evidence. The
 runtime fills requested `include` fields from exact phase-output fields or known
 evidence types such as `git_diff`, `verification_result`, and `review_outcome`.
 Requested fields without recorded evidence are shown as not recorded rather than
 being inferred.
 
-Reviewer phases can declare `review_passes`. The runtime includes those pass
-names and descriptions in the review phase prompt, and final summaries aggregate
-all recorded review outcomes instead of using only the latest review result.
-When `review_fanout: true` is set, the runtime runs one bounded reviewer child
-session for each declared pass and records each result as workflow evidence.
+Review phases (`type: review`) can declare `review_passes`. The runtime
+includes those pass names and descriptions in the review phase prompt, and final
+summaries aggregate all recorded review outcomes instead of using only the
+latest review result. When `parallel_review: true` is set, the runtime runs one
+bounded review session for each declared pass and records each result as
+workflow evidence.
 
 Example code-delivery workflow:
 
@@ -121,6 +128,10 @@ description: Plan, implement, verify, and review team code changes.
 model: openai/gpt-5-mini
 review_mode: auto
 max_revision_loops: 2
+budgets:
+  max_cost: 2
+  warn_threshold: 0.75
+  max_provider_requests_per_turn: 8
 phases:
   - id: plan
     agent: planner
@@ -154,9 +165,10 @@ phases:
         command: go test ./...
     required: true
   - id: review
+    type: review
     agent: reviewer
     mode: read_only
-    review_fanout: true
+    parallel_review: true
     review_passes:
       - id: correctness
         description: Behavioral regressions and implementation correctness.
@@ -218,9 +230,10 @@ phases:
         command: go test ./...
     required: true
   - id: review
+    type: review
     agent: reviewer
     mode: read_only
-    review_fanout: true
+    parallel_review: true
     review_passes:
       - id: root-cause
         description: Whether the patch addresses the reproduced root cause.
@@ -253,9 +266,10 @@ phases:
     agent: reviewer
     mode: read_only
   - id: review
+    type: review
     agent: reviewer
     mode: read_only
-    review_fanout: true
+    parallel_review: true
     review_passes:
       - id: correctness
         description: Behavioral regressions and implementation correctness.

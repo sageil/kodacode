@@ -419,6 +419,25 @@ func costDialogCurrentSessionSavingsMixLine(savings costDialogSavings) string {
 
 func costDialogBudgetLines(status app.BudgetStatus) []string {
 	lines := []string{}
+	if status.HasWorkflowBudget() {
+		label := "Workflow budget"
+		if strings.TrimSpace(status.WorkflowID) != "" {
+			label += " (" + strings.TrimSpace(status.WorkflowID) + ")"
+		}
+		line := fmt.Sprintf(
+			"%s: %s of %s used",
+			label,
+			formatEstimatedCost(status.WorkflowCost),
+			formatEstimatedCost(status.WorkflowBudget),
+		)
+		if status.WorkflowWarnThreshold > 0 {
+			line += fmt.Sprintf(" • warn at %.0f%%", status.WorkflowWarnThreshold*100)
+		}
+		if status.WorkflowMissingPricingTurns > 0 {
+			line += fmt.Sprintf(" • pricing missing for %s", pluralize(status.WorkflowMissingPricingTurns, "turn"))
+		}
+		lines = append(lines, line)
+	}
 	if status.HasSessionBudget() {
 		line := fmt.Sprintf(
 			"Session budget: %s of %s used",

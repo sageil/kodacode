@@ -65,7 +65,7 @@ inspection, but only completed turns can be branched.
 
 `/compact` only affects durable session history. It calls the same history-compaction path used by automatic compaction instead of creating a separate manual workflow.
 
-`/review` is the exception in this group: it is a repository-work command, but it lives beside session controls because it is an explicit TUI action rather than a prompt convention. It starts a one-off runtime-owned review, defaults to the current workspace changes, uses the configured review model when available, and leaves your selected default agent unchanged for later turns. Review behavior is guided by the active `reviewer` agent definition, so you can tune it with a global or project-local `reviewer.md` override while runtime keeps the review scope and structured output contract authoritative.
+`/review` is the exception in this group: it is a repository-work command, but it lives beside session controls because it is an explicit TUI action rather than a prompt convention. It starts a one-off runtime-owned review, defaults to the current workspace changes, uses the configured review model when available, and leaves your selected default agent unchanged for later turns. Review behavior is guided by the active `reviewer` agent definition, so you can tune it with a global or project-local `reviewer.md` override while runtime keeps the review scope and structured output format authoritative.
 
 `Ctrl+W` opens the workflow dialog. Use it to choose `delivery`, `debug`,
 `review`, `explore`, or a project-defined workflow for later turns in the current

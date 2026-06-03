@@ -365,6 +365,93 @@ func TestRuntimeAnswerDelegatedSessionQuestionResumesParentDelegateTurn(t *testi
 	}
 }
 
+func TestRuntimeResumeDelegatedParentFailsRunningParentWhenHandoffFailedAfterCompletedDelegateCall(t *testing.T) {
+	runtime := newRuntimeWithClient(t, &fakeProvider{})
+
+	sessionID, err := runtime.CreateSession(context.Background(), t.TempDir())
+	if err != nil {
+		t.Fatalf("CreateSession() error = %v", err)
+	}
+
+	ctx := context.Background()
+	drafts := []events.Draft{
+		{
+			SessionID: sessionID,
+			TurnID:    "turn-1",
+			Type:      events.TypeToolExecStart,
+			Payload: events.ToolExecStartPayload{
+				CallID:   "call-delegate",
+				ToolName: tool.DelegateToolName,
+				Input:    `{"agent_id":"reviewer","task":"review","context_summary":"inspect"}`,
+			},
+		},
+		{
+			SessionID: sessionID,
+			TurnID:    "turn-1",
+			Type:      events.TypeAgentHandoff,
+			Payload: events.AgentHandoffPayload{
+				HandoffID:       "handoff-1",
+				ToolCallID:      "call-delegate",
+				ParentSessionID: sessionID,
+				ParentTurnID:    "turn-1",
+				ParentAgentID:   "engineer",
+				ChildSessionID:  "child-session-1",
+				ChildTurnID:     "child-turn-1",
+				ChildAgentID:    "reviewer",
+				Task:            "review",
+				ContextSummary:  "inspect",
+				Model:           "openai/gpt-5",
+			},
+		},
+		{
+			SessionID: sessionID,
+			TurnID:    "turn-1",
+			Type:      events.TypeToolExecEnd,
+			Payload: events.ToolExecEndPayload{
+				CallID:    "call-delegate",
+				ToolName:  tool.DelegateToolName,
+				HandoffID: "handoff-1",
+				Succeeded: true,
+				Output:    `{"status":"pending_question","handoff_id":"handoff-1","child_session_id":"child-session-1","child_turn_id":"child-turn-1","child_agent_id":"reviewer"}`,
+			},
+		},
+		{
+			SessionID: sessionID,
+			TurnID:    "turn-1",
+			Type:      events.TypeAgentResult,
+			Payload: events.AgentResultPayload{
+				HandoffID:      "handoff-1",
+				ChildSessionID: "child-session-1",
+				ChildTurnID:    "child-turn-1",
+				Status:         events.AgentResultStatusFailed,
+				Error:          "child exhausted output length",
+			},
+		},
+	}
+	for _, draft := range drafts {
+		if _, err := runtime.Sessions.append(ctx, draft); err != nil {
+			t.Fatalf("append(%s) error = %v", draft.Type, err)
+		}
+	}
+
+	result, err := runtime.resumeDelegatedParentTurn(ctx, sessionID, "turn-1", "handoff-1")
+	if err != nil {
+		t.Fatalf("resumeDelegatedParentTurn() error = %v", err)
+	}
+	if result.Status != TurnRunStatusFailed {
+		t.Fatalf("resumeDelegatedParentTurn() result = %#v", result)
+	}
+
+	state, err := runtime.Sessions.Snapshot(ctx, sessionID)
+	if err != nil {
+		t.Fatalf("Snapshot() error = %v", err)
+	}
+	turn := state.Turns["turn-1"]
+	if turn == nil || turn.Status != events.TurnStatusFailed || turn.CompletedAtSeq == 0 {
+		t.Fatalf("parent turn = %#v", turn)
+	}
+}
+
 func TestRuntimeDelegatedReviewPlanProviderRequestLimitOffersSessionYOLO(t *testing.T) {
 	root := t.TempDir()
 	if err := os.WriteFile(filepath.Join(root, "app.go"), []byte("package main\n"), 0o644); err != nil {

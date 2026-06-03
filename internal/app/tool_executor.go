@@ -418,6 +418,7 @@ type ExecuteToolInput struct {
 	TemporaryNetworkTargets []string
 	ExecutionExecPolicy     *events.ExecutionPolicyAmendment
 	ExecutionNetworkPolicy  *events.ExecutionNetworkPolicyAmendment
+	WorkflowBudget          workflowTurnBudget
 }
 
 type ToolExecutionStatus string

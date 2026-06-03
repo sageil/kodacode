@@ -35,6 +35,9 @@ func (r *Runtime) maybeRunAutoReview(
 	if err != nil {
 		return RunSessionResult{}, false, err
 	}
+	if state.Workflow != nil && state.Workflow.Status != events.WorkflowStatusCompleted {
+		return RunSessionResult{}, false, nil
+	}
 	if !shouldAutoReviewTasks(state) {
 		return RunSessionResult{}, false, nil
 	}

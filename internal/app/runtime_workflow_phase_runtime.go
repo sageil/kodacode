@@ -181,6 +181,9 @@ func (r *Runtime) startWorkflowVerificationPhaseTurn(ctx context.Context, input 
 		}
 		return RunSessionResult{}, err
 	}
+	if continued, ok, err := r.continueWorkflowIfRunnable(ctx, input.SessionID, input.TurnID, result); err != nil || ok {
+		return continued, err
+	}
 	_, definition, _, err := r.activeWorkflowState(ctx, input.SessionID)
 	if err != nil {
 		if errors.Is(err, ErrWorkflowStateMissing) {
@@ -320,7 +323,24 @@ func (r *Runtime) appendWorkflowPhaseTurnConfigured(ctx context.Context, input r
 	}
 	turnConfig := newTurnConfiguredPayload(capabilities.TurnCapabilities, selectedSkillIDs, effectiveWorkflowID, input.PreserveSessionModel, effectiveThinkingEnabled, effectiveThinkingMode, responseStyle, input.HideAssistantPreview)
 	turnConfig.WorkflowPhaseID = strings.TrimSpace(workflowPhase.Phase.ID)
-	return r.Runner.appendTurnConfigured(ctx, input.SessionID, input.TurnID, turnConfig)
+	if err := r.Runner.appendTurnConfigured(ctx, input.SessionID, input.TurnID, turnConfig); err != nil {
+		return err
+	}
+	if input.InitialState != nil {
+		if err := r.Runner.appendTurnWorkStateUpdated(ctx, input.SessionID, input.TurnID, input.InitialState.WorkState); err != nil {
+			return err
+		}
+	}
+	if input.Continuation != nil {
+		summary := turnWorkSummary{}
+		if input.InitialState != nil {
+			summary = input.InitialState.WorkState.Summary
+		}
+		if err := r.Runner.appendTurnContinuationStarted(ctx, input.SessionID, input.TurnID, input.Continuation.PreviousTurnID, input.Continuation.Reason, summary); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (r *Runtime) answerWorkflowApproval(ctx context.Context, state events.SessionState, input AnswerSessionQuestionInput, turnID string, request *events.QuestionRequestState, answer string) (RunSessionResult, bool, error) {
@@ -407,7 +427,7 @@ func (r *Runtime) continueAfterWorkflowApproval(ctx context.Context, state event
 	if request != nil {
 		question = request.Question
 	}
-	return r.runExistingSessionTurn(ctx, runExistingTurnInput{
+	result, err := r.runExistingSessionTurn(ctx, runExistingTurnInput{
 		SessionID:            input.SessionID,
 		TurnID:               nextTurnID,
 		UserText:             "",
@@ -423,6 +443,10 @@ func (r *Runtime) continueAfterWorkflowApproval(ctx context.Context, state event
 			Question:       question,
 		},
 	})
+	if err != nil {
+		return RunSessionResult{}, err
+	}
+	return r.maybeAdvanceWorkflowAfterTurn(ctx, input.SessionID, nextTurnID, result)
 }
 
 func workflowApprovalSkipAllowed(state events.SessionState, phase workflowpkg.Phase) bool {
@@ -632,6 +656,9 @@ func (r *Runtime) maybeAdvanceWorkflowAfterTurn(ctx context.Context, sessionID, 
 		}
 		return RunSessionResult{}, err
 	}
+	if continued, ok, err := r.continueWorkflowIfRunnable(ctx, sessionID, turnID, result); err != nil || ok {
+		return continued, err
+	}
 	return r.completeFinalWorkflowPhaseIfReached(ctx, sessionID, turnID, definition, result)
 }
 
@@ -673,6 +700,113 @@ func (r *Runtime) maybeApplyWorkflowTurnResultTransition(ctx context.Context, se
 		return true, nil
 	}
 	return false, nil
+}
+
+func (r *Runtime) continueWorkflowIfRunnable(ctx context.Context, sessionID, previousTurnID string, result RunSessionResult) (RunSessionResult, bool, error) {
+	state, definition, workflow, err := r.activeWorkflowState(ctx, sessionID)
+	if err != nil {
+		if errors.Is(err, ErrWorkflowStateMissing) {
+			return result, false, nil
+		}
+		return RunSessionResult{}, false, err
+	}
+	if workflow == nil || workflow.Status != events.WorkflowStatusActive {
+		return result, false, nil
+	}
+	phase, ok := workflowPhaseByID(definition, workflow.CurrentPhaseID)
+	if !ok {
+		return RunSessionResult{}, false, ErrWorkflowTransitionInvalid
+	}
+	if !workflowPhaseRunnableWithoutUser(phase) {
+		return result, false, nil
+	}
+	nextTurnID := newRuntimeID("turn")
+	continued, err := r.runExistingSessionTurn(ctx, runExistingTurnInput{
+		SessionID:            sessionID,
+		TurnID:               nextTurnID,
+		UserText:             "",
+		AgentID:              workflowPhaseContinuationAgentID(state, previousTurnID, phase),
+		WorkflowID:           workflow.WorkflowID,
+		SkillIDs:             workflowPhaseContinuationSkillIDs(state, previousTurnID),
+		ThinkingEnabled:      workflowPhaseContinuationThinkingEnabled(state, previousTurnID),
+		ThinkingMode:         workflowPhaseContinuationThinkingMode(state, previousTurnID),
+		PreserveSessionModel: true,
+		InitialState:         workflowPhaseContinuationInitialState(state, previousTurnID, workflow.WorkflowID, phase.ID),
+		Continuation: &runtimeTurnContinuation{
+			PreviousTurnID: previousTurnID,
+			Reason:         events.TurnContinuationReasonWorkflowPhase,
+		},
+	})
+	if err != nil {
+		return RunSessionResult{}, false, err
+	}
+	return continued, true, nil
+}
+
+func workflowPhaseRunnableWithoutUser(phase workflowpkg.Phase) bool {
+	if phase.AutoContinueDisabled() {
+		return false
+	}
+	switch {
+	case workflowPhaseIsReview(phase) && phase.ParallelReviewEnabled():
+		return true
+	default:
+		return false
+	}
+}
+
+func workflowPhaseContinuationAgentID(state events.SessionState, previousTurnID string, phase workflowpkg.Phase) string {
+	if agentID := strings.TrimSpace(workflowPhaseAgentID("", phase)); agentID != "" {
+		return agentID
+	}
+	if turn := state.Turns[strings.TrimSpace(previousTurnID)]; turn != nil && turn.Config != nil {
+		if agentID := strings.TrimSpace(turn.Config.AgentID); agentID != "" {
+			return agentID
+		}
+	}
+	return "engineer"
+}
+
+func workflowPhaseContinuationSkillIDs(state events.SessionState, previousTurnID string) []string {
+	turn := state.Turns[strings.TrimSpace(previousTurnID)]
+	if turn == nil || turn.Config == nil {
+		return nil
+	}
+	return append([]string(nil), turn.Config.SkillIDs...)
+}
+
+func workflowPhaseContinuationThinkingEnabled(state events.SessionState, previousTurnID string) bool {
+	turn := state.Turns[strings.TrimSpace(previousTurnID)]
+	return turn != nil && turn.Config != nil && turn.Config.ThinkingEnabled
+}
+
+func workflowPhaseContinuationThinkingMode(state events.SessionState, previousTurnID string) string {
+	turn := state.Turns[strings.TrimSpace(previousTurnID)]
+	if turn == nil || turn.Config == nil {
+		return ""
+	}
+	return strings.TrimSpace(turn.Config.ThinkingMode)
+}
+
+func workflowPhaseContinuationInitialState(state events.SessionState, previousTurnID, workflowID, phaseID string) *turnLoopState {
+	turn := state.Turns[strings.TrimSpace(previousTurnID)]
+	workState := turnWorkState{}
+	if turn != nil && turn.WorkState != nil {
+		workState = turnWorkStateFromEventState(turn.WorkState)
+		workState.NativeContinuation = nil
+	}
+	if turnWorkSummaryEmpty(workState.Summary) {
+		workState.Summary = turnWorkSummary{
+			Objective: "Continue workflow `" + strings.TrimSpace(workflowID) + "`.",
+		}
+	}
+	if phaseID = strings.TrimSpace(phaseID); phaseID != "" {
+		workState.Summary.OpenItems = appendUniqueValues(workState.Summary.OpenItems, []string{"Run workflow phase `" + phaseID + "`."})
+	}
+	return &turnLoopState{
+		LatestToolStepStart: -1,
+		WorkState:           workState,
+	}
 }
 
 func workflowTurnResultTransitionEvidenceCount(workflow *events.WorkflowState, phaseID, transitionEvent string) int {
@@ -796,13 +930,18 @@ func (r *Runtime) recordWorkflowTurnCompletionEvidence(ctx context.Context, stat
 		}
 	}
 	if workflowPhaseIsReview(phase) && assistantText != "" && !workflowHasAnyEvidenceType(state.Workflow, phaseID, events.WorkflowEvidenceTypeReviewOutcome, events.WorkflowEvidenceTypeReview, events.WorkflowEvidenceTypeTaskReview) {
+		review, err := parseStructuredManualReview(assistantText, "Workflow review")
+		if err != nil {
+			return nil
+		}
+		successful := review.OverallCorrectness == events.ReviewOverallCorrectnessCorrect
 		if err := r.RecordWorkflowEvidence(ctx, RecordWorkflowEvidenceInput{
 			SessionID:  sessionID,
 			TurnID:     turnID,
 			PhaseID:    phaseID,
 			Type:       events.WorkflowEvidenceTypeReviewOutcome,
-			Successful: boolPointer(true),
-			Summary:    truncateWorkflowEvidenceSummary(assistantText),
+			Successful: &successful,
+			Summary:    truncateWorkflowEvidenceSummary(review.OverallSummary),
 		}); err != nil {
 			return err
 		}

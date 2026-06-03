@@ -25,6 +25,9 @@ func TestLoadBytesParsesValidDeliveryWorkflow(t *testing.T) {
 	if definition.Budgets.MaxCost != 1.25 {
 		t.Fatalf("budget max cost = %v, want 1.25", definition.Budgets.MaxCost)
 	}
+	if definition.Budgets.WarnThreshold != 0.75 {
+		t.Fatalf("budget warn threshold = %v, want 0.75", definition.Budgets.WarnThreshold)
+	}
 	if definition.Budgets.MaxProviderRequestsPerTurn != 4 {
 		t.Fatalf("budget max provider requests = %d, want 4", definition.Budgets.MaxProviderRequestsPerTurn)
 	}
@@ -45,6 +48,9 @@ func TestLoadBytesParsesValidDeliveryWorkflow(t *testing.T) {
 	if implement.Requires.Fields["approved_phase"] != "plan" {
 		t.Fatalf("implement requires = %#v, want approved_phase plan", implement.Requires.Fields)
 	}
+	if strings.Join(implement.Completion.Requires.Items, ",") != CompletionRequirementActivePhaseTasksComplete {
+		t.Fatalf("implement completion requires = %#v", implement.Completion.Requires.Items)
+	}
 	verify := definition.Phases[3]
 	if len(verify.Commands) != 1 || verify.Commands[0].Tool != "test" || verify.Commands[0].Command != "go test ./..." {
 		t.Fatalf("verify commands = %#v", verify.Commands)
@@ -53,8 +59,11 @@ func TestLoadBytesParsesValidDeliveryWorkflow(t *testing.T) {
 	if strings.Join(review.Requires.Items, ",") != "git_diff,verification_result" {
 		t.Fatalf("review requires = %#v", review.Requires.Items)
 	}
-	if !review.ReviewFanout {
-		t.Fatal("review_fanout = false, want true")
+	if !review.ParallelReview {
+		t.Fatal("parallel_review = false, want true")
+	}
+	if review.AutoContinue != nil {
+		t.Fatalf("auto_continue = %#v, want unset", review.AutoContinue)
 	}
 	if len(review.ReviewPasses) != 2 || review.ReviewPasses[0].ID != "correctness" || review.ReviewPasses[1].ID != "tests" {
 		t.Fatalf("review passes = %#v", review.ReviewPasses)
@@ -239,6 +248,31 @@ phases:
 	_, err = LoadBytes([]byte(`
 id: delivery
 budgets:
+  max_cost: 1.00
+  warn_threshold: 1.1
+phases:
+  - id: plan
+    agent: planner
+`), testValidationContext())
+	if !errors.Is(err, ErrWorkflowBudgetInvalid) {
+		t.Fatalf("LoadBytes() error = %v, want ErrWorkflowBudgetInvalid", err)
+	}
+
+	_, err = LoadBytes([]byte(`
+id: delivery
+budgets:
+  warn_threshold: 0.8
+phases:
+  - id: plan
+    agent: planner
+`), testValidationContext())
+	if !errors.Is(err, ErrWorkflowBudgetInvalid) {
+		t.Fatalf("LoadBytes() error = %v, want ErrWorkflowBudgetInvalid", err)
+	}
+
+	_, err = LoadBytes([]byte(`
+id: delivery
+budgets:
   max_provider_requests_per_turn: -1
 phases:
   - id: plan
@@ -277,16 +311,152 @@ phases:
 	}
 }
 
-func TestDefinitionValidateRejectsReviewFanoutWithoutPasses(t *testing.T) {
+func TestDefinitionValidateRequiresReviewTypeForReviewPasses(t *testing.T) {
+	_, err := LoadBytes([]byte(`
+id: delivery
+phases:
+  - id: review
+    agent: reviewer
+    review_passes:
+      - id: correctness
+`), testValidationContext())
+	if !errors.Is(err, ErrWorkflowReviewPassInvalid) {
+		t.Fatalf("LoadBytes() error = %v, want ErrWorkflowReviewPassInvalid", err)
+	}
+}
+
+func TestDefinitionValidateAllowsReviewTypeWithCustomAgent(t *testing.T) {
+	ctx := testValidationContext()
+	ctx.Agents["security-reviewer"] = agent.Definition{ID: "security-reviewer", Mode: agent.ModeAll}
+
+	definition, err := LoadBytes([]byte(`
+id: custom-review
+phases:
+  - id: security
+    type: review
+    agent: security-reviewer
+    parallel_review: true
+    review_passes:
+      - id: auth
+`), ctx)
+	if err != nil {
+		t.Fatalf("LoadBytes() error = %v", err)
+	}
+	phase := definition.Phases[0]
+	if phase.EffectiveType() != PhaseTypeReview {
+		t.Fatalf("phase type = %q, want %q", phase.EffectiveType(), PhaseTypeReview)
+	}
+	if phase.Agent != "security-reviewer" {
+		t.Fatalf("phase agent = %q, want custom reviewer", phase.Agent)
+	}
+}
+
+func TestDefinitionValidateRejectsParallelReviewWithoutPasses(t *testing.T) {
+	_, err := LoadBytes([]byte(`
+id: delivery
+phases:
+  - id: review
+    type: review
+    agent: reviewer
+    parallel_review: true
+`), testValidationContext())
+	if !errors.Is(err, ErrWorkflowReviewPassInvalid) {
+		t.Fatalf("LoadBytes() error = %v, want ErrWorkflowReviewPassInvalid", err)
+	}
+}
+
+func TestDefinitionValidateParsesAutoContinueParallelReview(t *testing.T) {
+	definition, err := LoadBytes([]byte(`
+id: review
+phases:
+  - id: review
+    type: review
+    agent: reviewer
+    parallel_review: true
+    auto_continue: true
+    review_passes:
+      - id: correctness
+`), testValidationContext())
+	if err != nil {
+		t.Fatalf("LoadBytes() error = %v", err)
+	}
+	if !definition.Phases[0].AutoContinueEnabled() {
+		t.Fatal("auto_continue = false, want true")
+	}
+}
+
+func TestDefinitionValidateParsesAutoContinueFalseAsOptOut(t *testing.T) {
+	definition, err := LoadBytes([]byte(`
+id: review
+phases:
+  - id: review
+    type: review
+    agent: reviewer
+    parallel_review: true
+    auto_continue: false
+    review_passes:
+      - id: correctness
+`), testValidationContext())
+	if err != nil {
+		t.Fatalf("LoadBytes() error = %v", err)
+	}
+	if !definition.Phases[0].AutoContinueDisabled() {
+		t.Fatal("auto_continue disabled = false, want true")
+	}
+}
+
+func TestDefinitionValidateRejectsAutoContinueUnsupportedPhase(t *testing.T) {
+	_, err := LoadBytes([]byte(`
+id: delivery
+phases:
+  - id: implement
+    agent: engineer
+    auto_continue: true
+`), testValidationContext())
+	if !errors.Is(err, ErrWorkflowAutoContinueInvalid) {
+		t.Fatalf("LoadBytes() error = %v, want ErrWorkflowAutoContinueInvalid", err)
+	}
+}
+
+func TestDefinitionValidateRejectsTooManyParallelReviewPasses(t *testing.T) {
+	_, err := LoadBytes([]byte(`
+id: delivery
+phases:
+  - id: review
+    type: review
+    agent: reviewer
+    parallel_review: true
+    review_passes:
+      - id: pass_1
+      - id: pass_2
+      - id: pass_3
+      - id: pass_4
+      - id: pass_5
+      - id: pass_6
+      - id: pass_7
+      - id: pass_8
+      - id: pass_9
+`), testValidationContext())
+	if !errors.Is(err, ErrWorkflowReviewPassInvalid) {
+		t.Fatalf("LoadBytes() error = %v, want ErrWorkflowReviewPassInvalid", err)
+	}
+	if err == nil || !strings.Contains(err.Error(), "at most 8") {
+		t.Fatalf("LoadBytes() error = %v, want pass limit detail", err)
+	}
+}
+
+func TestDefinitionValidateRejectsLegacyReviewFanoutKey(t *testing.T) {
 	_, err := LoadBytes([]byte(`
 id: delivery
 phases:
   - id: review
     agent: reviewer
     review_fanout: true
+    review_passes:
+      - id: correctness
 `), testValidationContext())
-	if !errors.Is(err, ErrWorkflowReviewPassInvalid) {
-		t.Fatalf("LoadBytes() error = %v, want ErrWorkflowReviewPassInvalid", err)
+	if err == nil || !strings.Contains(err.Error(), "field review_fanout not found") {
+		t.Fatalf("LoadBytes() error = %v, want unknown review_fanout field", err)
 	}
 }
 
@@ -485,6 +655,7 @@ review_mode: auto
 max_revision_loops: 2
 budgets:
   max_cost: 1.25
+  warn_threshold: 0.75
   max_provider_requests_per_turn: 4
 
 phases:
@@ -515,6 +686,9 @@ phases:
         - task_workflow
     requires:
       approved_phase: plan
+    completion:
+      requires:
+        - active_phase_tasks_complete
 
   - id: verify
     type: verification
@@ -524,9 +698,10 @@ phases:
     required: true
 
   - id: review
+    type: review
     agent: reviewer
     mode: read_only
-    review_fanout: true
+    parallel_review: true
     review_passes:
       - id: correctness
         description: Behavioral regressions and implementation correctness.

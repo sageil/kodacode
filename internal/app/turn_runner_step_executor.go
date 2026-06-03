@@ -17,6 +17,7 @@ type stepToolExecutor struct {
 	modelVisibleInputs      []provider.Input
 	temporaryGrants         []workspace.Grant
 	temporaryNetworkTargets []string
+	workflowBudget          workflowTurnBudget
 }
 
 func newStepToolExecutor(tools *ToolExecutor, allowedTools []string, modelVisibleInputs []provider.Input, temporaryGrants []workspace.Grant, temporaryNetworkTargets []string) stepToolExecutor {
@@ -57,6 +58,7 @@ func (e stepToolExecutor) executeInput(sessionID, turnID string, call stepToolCa
 		AllowedTools:            slices.Clone(e.allowedTools),
 		TemporaryGrants:         append([]workspace.Grant(nil), e.temporaryGrants...),
 		TemporaryNetworkTargets: append([]string(nil), e.temporaryNetworkTargets...),
+		WorkflowBudget:          e.workflowBudget,
 	}
 }
 

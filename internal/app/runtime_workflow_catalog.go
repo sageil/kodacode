@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/sageil/kodacode/internal/events"
 	"github.com/sageil/kodacode/internal/tool"
 	workflowpkg "github.com/sageil/kodacode/internal/workflow"
 )
@@ -74,6 +75,25 @@ func (r *Runtime) workflowPhaseCommands(ctx context.Context, workspaceRoot, work
 		return nil, ErrWorkflowTransitionInvalid
 	}
 	return workflowVerificationCommandSpecs(phase.Commands), nil
+}
+
+func (r *Runtime) workflowReviewPhase(ctx context.Context, state events.SessionState, workflowID, phaseID string) (bool, error) {
+	workflowID = strings.TrimSpace(workflowID)
+	if workflowID == "" && state.Workflow != nil {
+		workflowID = strings.TrimSpace(state.Workflow.WorkflowID)
+	}
+	if workflowID == "" || strings.TrimSpace(phaseID) == "" {
+		return false, nil
+	}
+	definition, err := r.resolveWorkflow(ctx, state.WorkspaceRoot, workflowID)
+	if err != nil {
+		return false, err
+	}
+	phase, ok := workflowPhaseByID(definition, phaseID)
+	if !ok {
+		return false, nil
+	}
+	return workflowPhaseIsReview(phase), nil
 }
 
 func (r *Runtime) workflowReviewMode(ctx context.Context, workspaceRoot, workflowID string) (WorkflowReviewMode, bool, error) {

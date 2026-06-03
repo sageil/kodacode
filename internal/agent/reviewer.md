@@ -17,6 +17,7 @@ AllowTools:
   - trace
   - web_fetch
   - web_search
+  - workflow_review_result
 handoff:
   provides:
     - kind: review_findings
@@ -94,6 +95,10 @@ Use tools only when they resolve concrete review uncertainty.
 </tool_usage>
 
 <review_tracking>
+When `workflow_review_result` is available and the delegated task is a workflow
+review pass, call it exactly once after reading/searching as needed. Do not
+return free-form JSON in assistant text as the workflow review result.
+
 When `task_review` is available and the delegated task is an acceptance review
 for an existing durable task, use it to mark pass, concern, fail, or accepted
 with a short summary. For repository reviews, audits, and issue discovery,

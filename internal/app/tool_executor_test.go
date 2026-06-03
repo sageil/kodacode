@@ -2739,12 +2739,20 @@ func TestToolExecutorExecuteDelegateToolPersistsHandoffID(t *testing.T) {
 	}
 
 	args := json.RawMessage(`{"agent_id":"reviewer","task":"Inspect the cache layer","context_summary":"Need a focused review."}`)
+	workflowBudget := workflowTurnBudget{
+		WorkflowID:                 "delivery",
+		SessionID:                  "session-1",
+		MaxCost:                    1.25,
+		WarnThreshold:              0.75,
+		MaxProviderRequestsPerTurn: 3,
+	}
 	result, err := executor.Execute(context.Background(), ExecuteToolInput{
-		SessionID:  "session-1",
-		TurnID:     "turn-1",
-		ToolCallID: "call-1",
-		ToolName:   tool.DelegateToolName,
-		Arguments:  args,
+		SessionID:      "session-1",
+		TurnID:         "turn-1",
+		ToolCallID:     "call-1",
+		ToolName:       tool.DelegateToolName,
+		Arguments:      args,
+		WorkflowBudget: workflowBudget,
 	})
 	if err != nil {
 		t.Fatalf("Execute() error = %v", err)
@@ -2754,6 +2762,9 @@ func TestToolExecutorExecuteDelegateToolPersistsHandoffID(t *testing.T) {
 	}
 	if runtime.last.ParentSessionID != "session-1" || runtime.last.ParentTurnID != "turn-1" || runtime.last.ParentToolCallID != "call-1" {
 		t.Fatalf("delegate input = %#v", runtime.last)
+	}
+	if runtime.last.WorkflowBudget != workflowBudget {
+		t.Fatalf("workflow budget = %#v, want %#v", runtime.last.WorkflowBudget, workflowBudget)
 	}
 
 	state, err := sessions.Snapshot(context.Background(), "session-1")

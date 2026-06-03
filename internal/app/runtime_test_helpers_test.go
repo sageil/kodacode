@@ -78,6 +78,7 @@ func newRuntimeWithClientAndStore(t *testing.T, client provider.Client, store ev
 	runtime.Tools.SetSkillRegistry(skills)
 	runtime.Tools.SetDelegateRuntime(runtime)
 	runtime.Tools.SetWorkflowPhaseCommandResolver(runtime.workflowPhaseCommands)
+	runtime.Sessions.SetWorkflowReviewPhaseResolver(runtime.workflowReviewPhase)
 	return runtime
 }
 
@@ -140,6 +141,7 @@ func newRuntimeWithClientConfigHome(t *testing.T, client provider.Client, config
 	runtime.Tools.SetSkillRegistry(skills)
 	runtime.Tools.SetDelegateRuntime(runtime)
 	runtime.Tools.SetWorkflowPhaseCommandResolver(runtime.workflowPhaseCommands)
+	runtime.Sessions.SetWorkflowReviewPhaseResolver(runtime.workflowReviewPhase)
 	return runtime
 }
 
@@ -215,6 +217,7 @@ func newPersistentRuntimeWithClientConfigHome(t *testing.T, sessionDir string, c
 	runtime.Tools.SetSkillRegistry(skills)
 	runtime.Tools.SetDelegateRuntime(runtime)
 	runtime.Tools.SetWorkflowPhaseCommandResolver(runtime.workflowPhaseCommands)
+	runtime.Sessions.SetWorkflowReviewPhaseResolver(runtime.workflowReviewPhase)
 	return runtime
 }
 

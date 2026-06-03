@@ -57,6 +57,30 @@ func TestEffectiveDelegatedChildToolsRemovesWorkflowToolsFromReviewAndPlan(t *te
 	}
 }
 
+func TestWorkflowRuntimeOwnedToolsRestoredForDelegatedWorkflowReview(t *testing.T) {
+	baseTools := []string{tool.ReadToolName}
+	filtered := effectiveDelegatedChildTools(agent.Definition{ID: reviewerAgentID}, baseTools, events.SessionState{})
+	got := allowWorkflowRuntimeOwnedTools(filtered, workflowRuntimeToolScope{
+		ChildAgentID:  reviewerAgentID,
+		DelegatedTask: "Workflow review pass `tests`: assess verification coverage.",
+	})
+
+	if !containsString(got, tool.ReadToolName) {
+		t.Fatalf("delegated workflow review tools = %#v, want read preserved", got)
+	}
+	if !containsString(got, tool.WorkflowReviewResultToolName) {
+		t.Fatalf("delegated workflow review tools = %#v, want %s restored", got, tool.WorkflowReviewResultToolName)
+	}
+
+	regularReview := allowWorkflowRuntimeOwnedTools(filtered, workflowRuntimeToolScope{
+		ChildAgentID:  reviewerAgentID,
+		DelegatedTask: "Review the repository changes.",
+	})
+	if containsString(regularReview, tool.WorkflowReviewResultToolName) {
+		t.Fatalf("regular delegated review tools = %#v, want workflow result tool only for workflow review handoffs", regularReview)
+	}
+}
+
 func TestRuntimeDelegateReviewerUsesReviewModelBeforeParentModel(t *testing.T) {
 	client := &fakeProvider{
 		streams: []provider.Stream{
@@ -289,7 +313,7 @@ func TestRuntimeDelegateSessionTurnCreatesChildSessionAndHandoff(t *testing.T) {
 	for _, tool := range child.Tools {
 		gotTools = append(gotTools, tool.Name)
 	}
-	wantTools := []string{"definition", "diagnostics", "git_diff", "git_show", "git_status", "locate", "question", "read", "refs", "search", "symbols", "trace", "web_fetch"}
+	wantTools := []string{"definition", "diagnostics", "git_diff", "git_show", "git_status", "locate", "question", "read", "refs", "search", "symbols", "trace", "web_fetch", "workflow_review_result"}
 	if len(gotTools) != len(wantTools) {
 		t.Fatalf("child tools = %#v, want %#v", gotTools, wantTools)
 	}
@@ -738,7 +762,7 @@ func TestRuntimeDelegateReviewerRepairsInvalidStructuredOutputInSameChildSession
 		t.Fatalf("repair tools = %#v, want no tools", repairRequest.Tools)
 	}
 	if !containsAll(repairRequest.Instructions, []string{
-		"Delegated reviewer repair contract.",
+		"Delegated reviewer output repair.",
 		"Return exactly one JSON object and nothing else.",
 	}) {
 		t.Fatalf("repair instructions = %q", repairRequest.Instructions)

@@ -9,10 +9,11 @@ phases:
     prompt: Inspect the relevant diff, files, tests, and runtime context before reporting findings.
 
   - id: review
+    type: review
     agent: reviewer
     mode: read_only
     prompt: Record concrete review findings or a durable pass/concern/fail outcome.
-    review_fanout: true
+    parallel_review: true
     review_passes:
       - id: correctness
         description: Behavioral regressions and implementation correctness.

@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/sageil/kodacode/internal/events"
 	"github.com/sageil/kodacode/internal/provider"
+	"github.com/sageil/kodacode/internal/tool"
 )
 
 func TestRuntimeListWorkflowsIncludesProjectOverrides(t *testing.T) {
@@ -165,6 +167,7 @@ id: budgeted
 description: workflow budget
 budgets:
   max_cost: 0.40
+  warn_threshold: 0.5
 phases:
   - id: implement
     agent: engineer
@@ -241,6 +244,7 @@ id: budget-transition
 description: workflow budget transition
 budgets:
   max_cost: 0.40
+  warn_threshold: 0.5
 phases:
   - id: implement
     agent: engineer
@@ -490,6 +494,57 @@ phases:
 	}
 }
 
+func TestRuntimeRunSessionTurnIncludesWorkflowBudgetContextInPrompt(t *testing.T) {
+	root := t.TempDir()
+	writeProjectWorkflow(t, root, "budget-context.yaml", `
+id: budget-context
+description: workflow budget prompt context
+budgets:
+  max_cost: 1
+  warn_threshold: 0.5
+  max_provider_requests_per_turn: 3
+phases:
+  - id: implement
+    agent: engineer
+  - id: summarize
+    type: final
+`)
+	client := &fakeProvider{
+		streams: []provider.Stream{provider.NewSliceStream([]provider.Event{
+			{Kind: provider.EventKindAssistantDelta, AssistantDelta: "done"},
+		})},
+	}
+	runtime := newRuntimeWithClient(t, client)
+
+	result, err := runtime.RunSessionTurn(context.Background(), RunSessionInput{
+		WorkspaceRoot: root,
+		UserText:      "implement the feature",
+		AgentID:       "engineer",
+		WorkflowID:    "budget-context",
+	})
+	if err != nil {
+		t.Fatalf("RunSessionTurn() error = %v", err)
+	}
+	if result.Status != TurnRunStatusCompleted {
+		t.Fatalf("status = %q, want completed", result.Status)
+	}
+	if len(client.requests) != 1 {
+		t.Fatalf("provider requests = %d, want 1", len(client.requests))
+	}
+	instructions := client.requests[0].Instructions
+	for _, want := range []string{
+		"Budget context:",
+		"Runtime enforces hard budget limits before provider calls",
+		"Workflow budget (budget-context): $0.00000 of $1.000 used (0%); warn at 50%",
+		"Workflow provider request cap for this turn: 3",
+		"focused evidence, bounded scope, and explicit user checkpoints",
+	} {
+		if !strings.Contains(instructions, want) {
+			t.Fatalf("instructions missing %q:\n%s", want, instructions)
+		}
+	}
+}
+
 func appendWorkflowBudgetTestUsage(t *testing.T, runtime *Runtime, sessionID, turnID, workflowID string) {
 	t.Helper()
 	if err := runtime.Runner.appendTurnConfigured(context.Background(), sessionID, turnID, newTurnConfiguredPayload(TurnCapabilities{
@@ -534,6 +589,32 @@ func workflowHasFailureEvidence(workflow *events.WorkflowState, phaseID, transit
 	return false
 }
 
+func workflowReviewResultStreams(passID, summary string) []provider.Stream {
+	return []provider.Stream{
+		provider.NewSliceStream(workflowReviewResultToolEvents("call-review-"+passID, passID, summary)),
+		provider.NewSliceStream([]provider.Event{
+			{Kind: provider.EventKindAssistantDelta, AssistantDelta: "Review result recorded."},
+		}),
+	}
+}
+
+func workflowReviewResultToolEvents(callID, passID, summary string) []provider.Event {
+	args := `{"review_pass":"` + passID + `","findings":[],"overall_correctness":"correct","overall_summary":"` + summary + `"}`
+	return []provider.Event{
+		{Kind: provider.EventKindToolCallDelta, ToolCallID: callID, ToolName: tool.WorkflowReviewResultToolName, InputDelta: args},
+		{Kind: provider.EventKindToolCallDone, ToolCallID: callID, ToolName: tool.WorkflowReviewResultToolName},
+	}
+}
+
+func providerRequestHasWorkflowReviewToolResult(req provider.Request) bool {
+	for _, input := range req.Inputs {
+		if input.Kind == provider.InputKindToolResult && input.ToolName == tool.WorkflowReviewResultToolName {
+			return true
+		}
+	}
+	return false
+}
+
 type blockingFanoutProvider struct {
 	want int
 
@@ -543,6 +624,68 @@ type blockingFanoutProvider struct {
 	maxActive       int
 	release         chan struct{}
 	releaseSignaled bool
+}
+
+type workflowReviewResultProvider struct {
+	mu        sync.Mutex
+	requests  []provider.Request
+	summaries map[string]string
+	prefix    []provider.Stream
+}
+
+func newWorkflowReviewResultProvider(summaries map[string]string, prefix ...provider.Stream) *workflowReviewResultProvider {
+	return &workflowReviewResultProvider{
+		summaries: summaries,
+		prefix:    prefix,
+	}
+}
+
+func (p *workflowReviewResultProvider) Stream(_ context.Context, req provider.Request) (provider.Stream, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.requests = append(p.requests, req)
+	if len(p.prefix) > 0 {
+		stream := p.prefix[0]
+		p.prefix = p.prefix[1:]
+		return stream, nil
+	}
+	if providerRequestHasWorkflowReviewToolResult(req) {
+		return provider.NewSliceStream([]provider.Event{
+			{Kind: provider.EventKindAssistantDelta, AssistantDelta: "Review result recorded."},
+		}), nil
+	}
+	passID := workflowReviewPassFromProviderRequest(req)
+	if passID == "" {
+		passID = "correctness"
+	}
+	summary := strings.TrimSpace(p.summaries[passID])
+	if summary == "" {
+		summary = "Correct."
+	}
+	return provider.NewSliceStream(workflowReviewResultToolEvents("call-review-"+passID, passID, summary)), nil
+}
+
+func (p *workflowReviewResultProvider) CountTokens(_ context.Context, req provider.Request) (int, provider.TokenCountSource, error) {
+	return 100, provider.TokenCountSourceEstimated, nil
+}
+
+func workflowReviewPassFromProviderRequest(req provider.Request) string {
+	for idx := len(req.Inputs) - 1; idx >= 0; idx-- {
+		if passID := workflowReviewPassIDFromTask(req.Inputs[idx].Content); passID != "" {
+			return passID
+		}
+		if req.Inputs[idx].Kind == provider.InputKindToolResult {
+			for _, marker := range []string{`"review_pass":"`, `"review_pass": "`} {
+				if start := strings.Index(req.Inputs[idx].Output, marker); start >= 0 {
+					rest := req.Inputs[idx].Output[start+len(marker):]
+					if end := strings.Index(rest, `"`); end >= 0 {
+						return strings.TrimSpace(rest[:end])
+					}
+				}
+			}
+		}
+	}
+	return ""
 }
 
 func newBlockingFanoutProvider(want int) *blockingFanoutProvider {
@@ -578,9 +721,16 @@ func (p *blockingFanoutProvider) Stream(ctx context.Context, req provider.Reques
 	p.mu.Lock()
 	p.active--
 	p.mu.Unlock()
-	return provider.NewSliceStream([]provider.Event{
-		{Kind: provider.EventKindAssistantDelta, AssistantDelta: `{"findings":[],"overall_correctness":"correct","overall_summary":"Correct."}`},
-	}), nil
+	if providerRequestHasWorkflowReviewToolResult(req) {
+		return provider.NewSliceStream([]provider.Event{
+			{Kind: provider.EventKindAssistantDelta, AssistantDelta: "Review result recorded."},
+		}), nil
+	}
+	passID := workflowReviewPassFromProviderRequest(req)
+	if passID == "" {
+		passID = "correctness"
+	}
+	return provider.NewSliceStream(workflowReviewResultToolEvents("call-review-"+passID, passID, "Correct.")), nil
 }
 
 func (p *blockingFanoutProvider) requestCount() int {
@@ -649,9 +799,10 @@ description: phase-level reviewer model route
 model: openai/gpt-5-mini
 phases:
   - id: review
+    type: review
     agent: reviewer
     model: openai/gpt-5
-    review_fanout: true
+    parallel_review: true
     review_passes:
       - id: correctness
         description: Behavioral correctness.
@@ -659,9 +810,7 @@ phases:
     type: final
 `)
 	client := &fakeProvider{
-		streams: []provider.Stream{provider.NewSliceStream([]provider.Event{
-			{Kind: provider.EventKindAssistantDelta, AssistantDelta: `{"findings":[],"overall_correctness":"correct","overall_summary":"Correct."}`},
-		})},
+		streams: workflowReviewResultStreams("correctness", "Correct."),
 	}
 	runtime := newRuntimeWithClient(t, client)
 	configureWorkflowModelTestCatalog(runtime)
@@ -681,8 +830,8 @@ phases:
 	if result.Status != TurnRunStatusCompleted {
 		t.Fatalf("status = %q, want completed", result.Status)
 	}
-	if len(client.requests) != 1 {
-		t.Fatalf("provider requests = %d, want one reviewer child", len(client.requests))
+	if len(client.requests) != 2 {
+		t.Fatalf("provider requests = %d, want reviewer child tool call and final response", len(client.requests))
 	}
 	if got := client.requests[0].Model.String(); got != "openai/gpt-5" {
 		t.Fatalf("review child model = %q, want phase model", got)
@@ -697,15 +846,84 @@ phases:
 	}
 }
 
+func TestRuntimeWorkflowReviewTypeFanoutUsesCustomAgent(t *testing.T) {
+	root := t.TempDir()
+	agentDir := filepath.Join(root, ".kodacode", "agents")
+	if err := os.MkdirAll(agentDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(agents) error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(agentDir, "security-reviewer.md"), []byte(`---
+description: custom security reviewer
+mode: all
+AllowTools:
+  - read
+---
+
+Review security-sensitive implementation details.
+`), 0o644); err != nil {
+		t.Fatalf("WriteFile(agent) error = %v", err)
+	}
+	writeProjectWorkflow(t, root, "custom-review.yaml", `
+id: custom-review
+description: custom review agent
+phases:
+  - id: security
+    type: review
+    agent: security-reviewer
+    parallel_review: true
+    review_passes:
+      - id: auth
+        description: Authorization and trust boundaries.
+  - id: summarize
+    type: final
+`)
+	client := &fakeProvider{
+		streams: workflowReviewResultStreams("auth", "Auth review clean."),
+	}
+	runtime := newRuntimeWithClient(t, client)
+
+	result, err := runtime.RunSessionTurn(context.Background(), RunSessionInput{
+		WorkspaceRoot: root,
+		UserText:      "review the change",
+		AgentID:       "engineer",
+		WorkflowID:    "custom-review",
+	})
+	if err != nil {
+		t.Fatalf("RunSessionTurn() error = %v", err)
+	}
+	if result.Status != TurnRunStatusCompleted {
+		t.Fatalf("status = %q, want completed", result.Status)
+	}
+	if len(client.requests) != 2 {
+		t.Fatalf("provider requests = %d, want review child and final response", len(client.requests))
+	}
+	child := client.requests[0]
+	if child.AgentID != "security-reviewer" {
+		t.Fatalf("review child agent = %q, want custom review agent", child.AgentID)
+	}
+	gotTools := requestToolNames(child.Tools)
+	if !containsString(gotTools, tool.ReadToolName) || !containsString(gotTools, tool.WorkflowReviewResultToolName) {
+		t.Fatalf("review child tools = %#v, want read and runtime-owned review result tool", gotTools)
+	}
+	state, err := runtime.Sessions.Snapshot(context.Background(), result.SessionID)
+	if err != nil {
+		t.Fatalf("Snapshot() error = %v", err)
+	}
+	if !workflowHasReviewPassEvidence(context.Background(), runtime, result.SessionID, "security", "auth") {
+		t.Fatalf("workflow evidence = %#v, want custom review phase auth evidence", state.Workflow.Evidence)
+	}
+}
+
 func TestRuntimeWorkflowReviewFanoutSchedulesReviewerPassesInParallel(t *testing.T) {
 	root := t.TempDir()
 	writeProjectWorkflow(t, root, "parallel-review.yaml", `
 id: parallel-review
-description: parallel reviewer fanout
+description: parallel reviewer passes
 phases:
   - id: review
+    type: review
     agent: reviewer
-    review_fanout: true
+    parallel_review: true
     review_passes:
       - id: correctness
         description: Behavioral correctness.
@@ -731,8 +949,8 @@ phases:
 	if result.Status != TurnRunStatusCompleted {
 		t.Fatalf("status = %q, want completed", result.Status)
 	}
-	if got := client.requestCount(); got != 2 {
-		t.Fatalf("provider requests = %d, want 2", got)
+	if got := client.requestCount(); got < 4 {
+		t.Fatalf("provider requests = %d, want at least 4", got)
 	}
 	if got := client.maxConcurrent(); got < 2 {
 		t.Fatalf("max concurrent provider requests = %d, want at least 2", got)
@@ -744,6 +962,422 @@ phases:
 	if !workflowHasReviewPassEvidence(ctx, runtime, result.SessionID, "review", "correctness") ||
 		!workflowHasReviewPassEvidence(ctx, runtime, result.SessionID, "review", "tests") {
 		t.Fatalf("workflow evidence = %#v, want both review pass outcomes", state.Workflow.Evidence)
+	}
+}
+
+func TestRuntimeWorkflowReviewFanoutReturnsPendingDelegatedHandoffID(t *testing.T) {
+	root := t.TempDir()
+	writeProjectWorkflow(t, root, "pending-parallel-review.yaml", `
+id: pending-parallel-review
+description: pending parallel reviewer pass
+phases:
+  - id: review
+    type: review
+    agent: reviewer
+    parallel_review: true
+    review_passes:
+      - id: correctness
+        description: Behavioral correctness.
+  - id: summarize
+    type: final
+`)
+	client := &fakeProvider{
+		streams: []provider.Stream{provider.NewSliceStream([]provider.Event{
+			{
+				Kind:       provider.EventKindToolCallDelta,
+				ToolCallID: "call-question",
+				ToolName:   tool.QuestionToolName,
+				InputDelta: `{"question":"Which branch should I inspect?","options":["current","base"],"purpose":"Need review scope."}`,
+			},
+			{Kind: provider.EventKindToolCallDone, ToolCallID: "call-question", ToolName: tool.QuestionToolName},
+		})},
+	}
+	runtime := newRuntimeWithClient(t, client)
+
+	result, err := runtime.RunSessionTurn(context.Background(), RunSessionInput{
+		WorkspaceRoot: root,
+		UserText:      "review the change",
+		AgentID:       "engineer",
+		WorkflowID:    "pending-parallel-review",
+	})
+	if err != nil {
+		t.Fatalf("RunSessionTurn() error = %v", err)
+	}
+	if result.Status != TurnRunStatusPending || result.PendingDelegated == nil {
+		t.Fatalf("result = %#v, want pending delegated handoff", result)
+	}
+	if result.PendingRequestID != result.PendingDelegated.HandoffID {
+		t.Fatalf("pending request id = %q, want handoff id %q", result.PendingRequestID, result.PendingDelegated.HandoffID)
+	}
+	if result.PendingDelegated.Status != events.AgentResultStatusPendingQuestion {
+		t.Fatalf("pending delegated = %#v, want pending question", result.PendingDelegated)
+	}
+}
+
+func TestRuntimeWorkflowAutoContinuesFromReviewerInspectIntoParallelReview(t *testing.T) {
+	client := newWorkflowReviewResultProvider(map[string]string{
+		"correctness": "Correct.",
+		"tests":       "Tests covered.",
+		"contracts":   "Contracts covered.",
+	},
+		provider.NewSliceStream([]provider.Event{
+			{Kind: provider.EventKindAssistantDelta, AssistantDelta: "Inspection complete. Ready for review."},
+		}),
+	)
+	runtime := newRuntimeWithClient(t, client)
+
+	result, err := runtime.RunSessionTurn(context.Background(), RunSessionInput{
+		WorkspaceRoot: t.TempDir(),
+		UserText:      "review the current project",
+		AgentID:       "engineer",
+		WorkflowID:    "review",
+	})
+	if err != nil {
+		t.Fatalf("RunSessionTurn() error = %v", err)
+	}
+	if result.Status != TurnRunStatusCompleted {
+		t.Fatalf("status = %q, want completed", result.Status)
+	}
+	if len(client.requests) != 7 {
+		t.Fatalf("provider requests = %d, want inspect plus three review tool turns", len(client.requests))
+	}
+	state, err := runtime.Sessions.Snapshot(context.Background(), result.SessionID)
+	if err != nil {
+		t.Fatalf("Snapshot() error = %v", err)
+	}
+	if state.Workflow == nil || state.Workflow.Status != events.WorkflowStatusCompleted {
+		t.Fatalf("workflow = %#v, want completed instead of parked review phase", state.Workflow)
+	}
+	parentTurns := 0
+	var reviewTurn *events.TurnState
+	for _, turnID := range state.TurnOrder {
+		turn := state.Turns[turnID]
+		if turn == nil || turn.Config == nil || turn.Config.WorkflowID != "review" {
+			continue
+		}
+		parentTurns++
+		if turn.Config.WorkflowPhaseID == "review" {
+			reviewTurn = turn
+		}
+	}
+	if parentTurns < 2 {
+		t.Fatalf("parent workflow turns = %d, want inspect and review turns", parentTurns)
+	}
+	if reviewTurn == nil || reviewTurn.ContinuationStart == nil || reviewTurn.ContinuationStart.Reason != events.TurnContinuationReasonWorkflowPhase {
+		t.Fatalf("review turn continuation = %#v, want workflow phase continuation", reviewTurn)
+	}
+	if !workflowHasReviewPassEvidence(context.Background(), runtime, result.SessionID, "review", "correctness") ||
+		!workflowHasReviewPassEvidence(context.Background(), runtime, result.SessionID, "review", "tests") ||
+		!workflowHasReviewPassEvidence(context.Background(), runtime, result.SessionID, "review", "contracts") {
+		t.Fatalf("workflow evidence = %#v, want all review pass evidence", state.Workflow.Evidence)
+	}
+}
+
+func TestRuntimeWorkflowReviewFanoutSerializesWhenWorkflowBudgeted(t *testing.T) {
+	root := t.TempDir()
+	writeProjectWorkflow(t, root, "budgeted-parallel-review.yaml", `
+id: budgeted-parallel-review
+description: budgeted parallel reviewer passes
+budgets:
+  max_cost: 0.01
+phases:
+  - id: review
+    type: review
+    agent: reviewer
+    parallel_review: true
+    review_passes:
+      - id: correctness
+        description: Behavioral correctness.
+      - id: tests
+        description: Test coverage.
+  - id: summarize
+    type: final
+`)
+	client := &fakeProvider{
+		streams: workflowReviewResultStreams("correctness", "Correct."),
+	}
+	runtime := newRuntimeWithClient(t, client)
+	runtime.ModelCatalog = &fakeModelCatalog{
+		modelsByID: map[string][]provider.CatalogModel{
+			"openai": {{
+				ID:         "gpt-5",
+				CostInput:  100000,
+				CostOutput: 100000,
+			}},
+		},
+	}
+	runtime.Runner.SetModelCatalog(runtime.ModelCatalog)
+
+	result, err := runtime.RunSessionTurn(context.Background(), RunSessionInput{
+		WorkspaceRoot: root,
+		UserText:      "review the change",
+		AgentID:       "engineer",
+		WorkflowID:    "budgeted-parallel-review",
+	})
+	if err != nil {
+		t.Fatalf("RunSessionTurn() error = %v", err)
+	}
+	if result.Status != TurnRunStatusFailed || result.ErrorCode != events.TurnFailureCodeBudgetExceeded {
+		t.Fatalf("result = %#v, want budget failure", result)
+	}
+	if len(client.requests) != 1 {
+		t.Fatalf("provider requests = %d, want one pass before budget stop", len(client.requests))
+	}
+	state, err := runtime.Sessions.Snapshot(context.Background(), result.SessionID)
+	if err != nil {
+		t.Fatalf("Snapshot() error = %v", err)
+	}
+	if !workflowHasReviewPassEvidence(context.Background(), runtime, result.SessionID, "review", "correctness") {
+		t.Fatalf("workflow evidence = %#v, want first review pass recorded", state.Workflow.Evidence)
+	}
+	if workflowHasReviewPassEvidence(context.Background(), runtime, result.SessionID, "review", "tests") {
+		t.Fatalf("workflow evidence = %#v, want second review pass not launched", state.Workflow.Evidence)
+	}
+}
+
+func TestRuntimeWorkflowReviewFanoutBlocksOnlyMissingPassWhenReviewerChildFails(t *testing.T) {
+	root := t.TempDir()
+	writeProjectWorkflow(t, root, "failing-parallel-review.yaml", `
+id: failing-parallel-review
+description: failing parallel reviewer pass
+phases:
+  - id: review
+    type: review
+    agent: reviewer
+    parallel_review: true
+    review_passes:
+      - id: correctness
+        description: Behavioral correctness.
+  - id: summarize
+    type: final
+`)
+	client := &fakeProvider{
+		streams: []provider.Stream{
+			provider.NewSliceStream([]provider.Event{
+				{Kind: provider.EventKindAssistantDelta, AssistantDelta: "not structured json"},
+			}),
+			provider.NewSliceStream([]provider.Event{
+				{Kind: provider.EventKindAssistantDelta, AssistantDelta: "still not structured json"},
+			}),
+		},
+	}
+	runtime := newRuntimeWithClient(t, client)
+
+	result, err := runtime.RunSessionTurn(context.Background(), RunSessionInput{
+		WorkspaceRoot: root,
+		UserText:      "review the change",
+		AgentID:       "engineer",
+		WorkflowID:    "failing-parallel-review",
+	})
+	if err != nil {
+		t.Fatalf("RunSessionTurn() error = %v", err)
+	}
+	if result.Status != TurnRunStatusCompleted {
+		t.Fatalf("status = %q, want completed parent turn", result.Status)
+	}
+	if !strings.Contains(result.AssistantText, "correctness: invalid structured result, retry needed") {
+		t.Fatalf("assistant text = %q, want retryable failed review pass detail", result.AssistantText)
+	}
+	if !strings.Contains(result.AssistantText, "invalid structured result, retry needed") {
+		t.Fatalf("assistant text = %q, want invalid structured result summary", result.AssistantText)
+	}
+	if len(client.requests) != 2 {
+		t.Fatalf("provider requests = %d, want initial review plus repair", len(client.requests))
+	}
+	state, err := runtime.Sessions.Snapshot(context.Background(), result.SessionID)
+	if err != nil {
+		t.Fatalf("Snapshot() error = %v", err)
+	}
+	if state.Workflow == nil || state.Workflow.Status != events.WorkflowStatusBlocked || state.Workflow.CurrentPhaseID != "review" {
+		t.Fatalf("workflow = %#v, want blocked review phase", state.Workflow)
+	}
+	if workflowHasReviewPassEvidence(context.Background(), runtime, result.SessionID, "review", "correctness") {
+		t.Fatalf("workflow evidence = %#v, want missing pass retryable", state.Workflow.Evidence)
+	}
+}
+
+func TestRuntimeWorkflowReviewPhaseDoesNotRecordUnstructuredAssistantText(t *testing.T) {
+	root := t.TempDir()
+	writeProjectWorkflow(t, root, "plain-review.yaml", `
+id: plain-review
+description: single review must be structured
+phases:
+  - id: review
+    type: review
+    agent: reviewer
+  - id: summarize
+    type: final
+`)
+	client := &fakeProvider{
+		streams: []provider.Stream{provider.NewSliceStream([]provider.Event{
+			{Kind: provider.EventKindAssistantDelta, AssistantDelta: "Looks good to me."},
+		})},
+	}
+	runtime := newRuntimeWithClient(t, client)
+
+	result, err := runtime.RunSessionTurn(context.Background(), RunSessionInput{
+		WorkspaceRoot: root,
+		UserText:      "review the change",
+		AgentID:       "engineer",
+		WorkflowID:    "plain-review",
+	})
+	if err != nil {
+		t.Fatalf("RunSessionTurn() error = %v", err)
+	}
+	if result.Status != TurnRunStatusCompleted {
+		t.Fatalf("status = %q, want completed", result.Status)
+	}
+	state, err := runtime.Sessions.Snapshot(context.Background(), result.SessionID)
+	if err != nil {
+		t.Fatalf("Snapshot() error = %v", err)
+	}
+	if workflowHasAnyEvidenceType(state.Workflow, "review", events.WorkflowEvidenceTypeReviewOutcome, events.WorkflowEvidenceTypeReview, events.WorkflowEvidenceTypeTaskReview) {
+		t.Fatalf("workflow evidence = %#v, want no review evidence from unstructured text", state.Workflow.Evidence)
+	}
+	if state.Workflow == nil || state.Workflow.Status != events.WorkflowStatusBlocked {
+		t.Fatalf("workflow status = %#v, want blocked on missing review evidence", state.Workflow)
+	}
+}
+
+func TestRuntimeWorkflowReviewerInspectPhaseDoesNotRequireReviewEvidence(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	writeProjectWorkflow(t, root, "inspect-review.yaml", `
+id: inspect-review
+description: reviewer inspect phase before durable review output
+phases:
+  - id: inspect
+    agent: reviewer
+    mode: read_only
+  - id: review
+    type: review
+    agent: reviewer
+    mode: read_only
+  - id: summarize
+    type: final
+`)
+	runtime := newRuntimeWithClient(t, &fakeProvider{})
+	sessionID, err := runtime.CreateSession(ctx, root)
+	if err != nil {
+		t.Fatalf("CreateSession() error = %v", err)
+	}
+	if err := runtime.StartWorkflow(ctx, StartWorkflowInput{
+		SessionID:     sessionID,
+		TurnID:        "turn-1",
+		WorkspaceRoot: root,
+		WorkflowID:    "inspect-review",
+	}); err != nil {
+		t.Fatalf("StartWorkflow() error = %v", err)
+	}
+	if err := runtime.AdvanceWorkflow(ctx, AdvanceWorkflowInput{
+		SessionID: sessionID,
+		TurnID:    "turn-1",
+		ToPhaseID: "review",
+	}); err != nil {
+		t.Fatalf("AdvanceWorkflow(review from reviewer inspect) error = %v", err)
+	}
+
+	err = runtime.AdvanceWorkflow(ctx, AdvanceWorkflowInput{
+		SessionID: sessionID,
+		TurnID:    "turn-2",
+		ToPhaseID: "summarize",
+	})
+	if !errors.Is(err, ErrWorkflowEvidenceMissing) {
+		t.Fatalf("AdvanceWorkflow(summarize without review evidence) error = %v, want ErrWorkflowEvidenceMissing", err)
+	}
+	state, err := runtime.Sessions.Snapshot(ctx, sessionID)
+	if err != nil {
+		t.Fatalf("Snapshot() error = %v", err)
+	}
+	if state.Workflow == nil || state.Workflow.CurrentPhaseID != "review" || state.Workflow.Status != events.WorkflowStatusBlocked {
+		t.Fatalf("workflow = %#v, want blocked review phase", state.Workflow)
+	}
+	if state.Workflow.StopReason != "missing review evidence" {
+		t.Fatalf("stop reason = %q, want missing review evidence", state.Workflow.StopReason)
+	}
+}
+
+func TestRuntimeBudgetStatusIncludesActiveWorkflowBudget(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	writeProjectWorkflow(t, root, "live-budget.yaml", `
+id: live-budget
+description: live workflow budget status
+budgets:
+  max_cost: 0.40
+  warn_threshold: 0.5
+phases:
+  - id: implement
+    agent: engineer
+  - id: summarize
+    type: final
+`)
+	runtime := newRuntimeWithClient(t, &fakeProvider{})
+	sessionID, err := runtime.CreateSession(ctx, root)
+	if err != nil {
+		t.Fatalf("CreateSession() error = %v", err)
+	}
+	if err := runtime.StartWorkflow(ctx, StartWorkflowInput{
+		SessionID:     sessionID,
+		TurnID:        "turn-0",
+		WorkspaceRoot: root,
+		WorkflowID:    "live-budget",
+	}); err != nil {
+		t.Fatalf("StartWorkflow() error = %v", err)
+	}
+	appendWorkflowBudgetTestUsage(t, runtime, sessionID, "turn-0", "live-budget")
+
+	status, err := runtime.BudgetStatus(ctx, sessionID)
+	if err != nil {
+		t.Fatalf("BudgetStatus() error = %v", err)
+	}
+	if status.WorkflowID != "live-budget" || status.WorkflowBudget != 0.40 {
+		t.Fatalf("workflow budget status = %#v", status)
+	}
+	if status.WorkflowCost <= 0 || !status.WorkflowWarn || !status.WorkflowExceeded {
+		t.Fatalf("workflow budget flags = %#v, want live warning and exceeded status", status)
+	}
+}
+
+func TestRuntimeBudgetStatusDoesNotUseSessionWarnForWorkflowBudget(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	writeProjectWorkflow(t, root, "workflow-budget-no-warn.yaml", `
+id: workflow-budget-no-warn
+description: workflow budget without warning threshold
+budgets:
+  max_cost: 0.40
+phases:
+  - id: implement
+    agent: engineer
+  - id: summarize
+    type: final
+`)
+	runtime := newRuntimeWithClient(t, &fakeProvider{})
+	runtime.Config.Sessions.BudgetWarn = 0.5
+	sessionID, err := runtime.CreateSession(ctx, root)
+	if err != nil {
+		t.Fatalf("CreateSession() error = %v", err)
+	}
+	if err := runtime.StartWorkflow(ctx, StartWorkflowInput{
+		SessionID:     sessionID,
+		TurnID:        "turn-0",
+		WorkspaceRoot: root,
+		WorkflowID:    "workflow-budget-no-warn",
+	}); err != nil {
+		t.Fatalf("StartWorkflow() error = %v", err)
+	}
+	appendWorkflowBudgetTestUsage(t, runtime, sessionID, "turn-0", "workflow-budget-no-warn")
+
+	status, err := runtime.BudgetStatus(ctx, sessionID)
+	if err != nil {
+		t.Fatalf("BudgetStatus() error = %v", err)
+	}
+	if status.WorkflowWarnThreshold != 0 || status.WorkflowWarn {
+		t.Fatalf("workflow budget warning = %#v, want no workflow warning from session budget_warn", status)
+	}
+	if !status.WorkflowExceeded {
+		t.Fatalf("workflow budget status = %#v, want exceeded hard limit", status)
 	}
 }
 

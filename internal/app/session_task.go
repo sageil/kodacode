@@ -214,7 +214,14 @@ func (s *SessionService) appendWorkflowTaskReviewEvidence(ctx context.Context, i
 		return err
 	}
 	workflow := state.Workflow
-	if workflow == nil || workflow.Status != events.WorkflowStatusActive || strings.TrimSpace(workflow.CurrentPhaseID) != "review" {
+	if workflow == nil || workflow.Status != events.WorkflowStatusActive {
+		return nil
+	}
+	reviewPhase, err := s.workflowPhaseIsReview(ctx, state, workflow.WorkflowID, workflow.CurrentPhaseID)
+	if err != nil {
+		return err
+	}
+	if !reviewPhase {
 		return nil
 	}
 	successful := taskReviewStatusSuccessful(input.ReviewStatus)
@@ -236,6 +243,20 @@ func (s *SessionService) appendWorkflowTaskReviewEvidence(ctx context.Context, i
 		},
 	})
 	return err
+}
+
+func (s *SessionService) workflowPhaseIsReview(ctx context.Context, state events.SessionState, workflowID, phaseID string) (bool, error) {
+	phaseID = strings.TrimSpace(phaseID)
+	if phaseID == "" {
+		return false, nil
+	}
+	s.workflowReviewMu.RLock()
+	resolver := s.workflowReviewPhaseResolver
+	s.workflowReviewMu.RUnlock()
+	if resolver != nil {
+		return resolver(ctx, state, workflowID, phaseID)
+	}
+	return false, nil
 }
 
 func taskReviewStatusSuccessful(status string) bool {

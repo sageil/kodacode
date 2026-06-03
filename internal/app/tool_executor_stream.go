@@ -21,6 +21,8 @@ func (e *ToolExecutor) executionContext(ctx context.Context, state events.Sessio
 		CodeIntelAPI:    e.toolCodeIntel(state),
 		MemoryManager:   e.toolMemoryManager(state),
 		SkillCatalog:    e.toolSkillCatalog(state),
+		WorkflowOutput:  e.toolWorkflowPhaseOutputManager(ctx, state, input),
+		WorkflowReview:  e.toolWorkflowReviewResultManager(ctx, state, input),
 	}
 }
 

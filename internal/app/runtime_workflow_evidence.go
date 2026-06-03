@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/sageil/kodacode/internal/events"
+	"github.com/sageil/kodacode/internal/tool"
 	workflowpkg "github.com/sageil/kodacode/internal/workflow"
 )
 
@@ -135,8 +136,11 @@ func missingWorkflowPhaseCompletionEvidence(state events.SessionState, phase wor
 			continue
 		}
 		if !workflowHasPhaseOutputEvidence(state.Workflow, phaseID, key) {
-			return "missing required phase output: " + key
+			return "missing required phase output: " + key + " (call " + tool.WorkflowPhaseOutputToolName + " with all required keys, or return parseable phase-output JSON)"
 		}
+	}
+	if reason := missingWorkflowPhaseCompletionRequirement(state, phaseID, phase.Completion.Requires); reason != "" {
+		return reason
 	}
 	switch {
 	case phase.EffectiveType() == workflowpkg.PhaseTypeUserApproval:
@@ -147,10 +151,62 @@ func missingWorkflowPhaseCompletionEvidence(state events.SessionState, phase wor
 		if !workflowHasSuccessfulEvidence(state.Workflow, phaseID, events.WorkflowEvidenceTypeVerificationResult) {
 			return "missing successful verification evidence"
 		}
-	case strings.TrimSpace(phase.Agent) == "reviewer" || strings.TrimSpace(phase.ID) == "review":
+	case workflowPhaseIsReview(phase):
 		if !workflowHasAnyEvidenceType(state.Workflow, phaseID, events.WorkflowEvidenceTypeReviewOutcome, events.WorkflowEvidenceTypeReview, events.WorkflowEvidenceTypeTaskReview) {
 			return "missing review evidence"
 		}
+	}
+	return ""
+}
+
+func missingWorkflowPhaseCompletionRequirement(state events.SessionState, phaseID string, requirements workflowpkg.EvidenceRequirements) string {
+	for _, item := range requirements.Items {
+		item = strings.TrimSpace(item)
+		if item == "" {
+			continue
+		}
+		switch item {
+		case workflowpkg.CompletionRequirementActivePhaseTasksComplete:
+			if reason := missingActiveWorkflowPhaseTaskCompletion(state, phaseID); reason != "" {
+				return reason
+			}
+		default:
+			if !workflowHasAnyEvidenceType(state.Workflow, phaseID, item) {
+				return "missing required completion evidence: " + item
+			}
+		}
+	}
+	for key, value := range requirements.Fields {
+		key = strings.TrimSpace(key)
+		value = strings.TrimSpace(value)
+		if key == "" {
+			continue
+		}
+		if !workflowHasPhaseFieldEvidence(state.Workflow, phaseID, key, value) {
+			return "missing required completion evidence: " + key
+		}
+	}
+	return ""
+}
+
+func missingActiveWorkflowPhaseTaskCompletion(state events.SessionState, phaseID string) string {
+	if state.Workflow == nil {
+		return ""
+	}
+	workflowID := strings.TrimSpace(state.Workflow.WorkflowID)
+	phaseID = strings.TrimSpace(phaseID)
+	for _, taskID := range state.TaskOrder {
+		task := state.Tasks[strings.TrimSpace(taskID)]
+		if task == nil {
+			continue
+		}
+		if strings.TrimSpace(task.WorkflowID) != workflowID || strings.TrimSpace(task.WorkflowPhaseID) != phaseID {
+			continue
+		}
+		if strings.TrimSpace(task.Status) == events.TaskStatusCompleted {
+			continue
+		}
+		return "workflow phase has unfinished task: " + strings.TrimSpace(task.TaskID)
 	}
 	return ""
 }
@@ -236,6 +292,21 @@ func workflowHasAnyEvidenceType(workflow *events.WorkflowState, phaseID string, 
 
 func workflowHasFieldEvidence(workflow *events.WorkflowState, key, value string) bool {
 	return workflowHasEvidence(workflow, "", func(evidence *events.WorkflowEvidenceState) bool {
+		got, ok := evidence.Fields[key]
+		if !ok {
+			return false
+		}
+		if value == "" {
+			return strings.TrimSpace(got) != ""
+		}
+		return strings.TrimSpace(got) == value
+	})
+}
+
+func workflowHasPhaseFieldEvidence(workflow *events.WorkflowState, phaseID, key, value string) bool {
+	key = strings.TrimSpace(key)
+	value = strings.TrimSpace(value)
+	return workflowHasEvidence(workflow, phaseID, func(evidence *events.WorkflowEvidenceState) bool {
 		got, ok := evidence.Fields[key]
 		if !ok {
 			return false

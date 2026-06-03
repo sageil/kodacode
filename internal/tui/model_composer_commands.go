@@ -31,7 +31,7 @@ var composerCommands = []composerCommand{
 	{ID: "sessions", Name: "/sessions", Description: "manage sessions"},
 	{ID: "init", Name: "/init", Description: "initialize workspace instruction files"},
 	{ID: "model", Name: "/model", Description: "switch model"},
-	{ID: "workflow", Name: "/workflow", Description: "select workflow", Usage: "/workflow [id|off|resume|retry]", Hidden: true},
+	{ID: "workflow", Name: "/workflow", Description: "select workflow", Usage: "/workflow [id|off|resume]", Hidden: true},
 	{ID: "variant", Name: "/variant", Description: "set provider reasoning variant", Usage: "/variant [value]"},
 	{ID: "thinking", Name: "/thinking", Description: "toggle provider thinking output"},
 	{ID: "theme", Name: "/theme", Description: "switch theme"},
@@ -383,8 +383,13 @@ func (m *Model) runComposerCommand(invocation composerCommandInvocation) (tea.Mo
 
 func (m *Model) runWorkflowCommand(argument string) (tea.Model, tea.Cmd) {
 	argument = strings.TrimSpace(argument)
-	if strings.EqualFold(argument, "resume") || strings.EqualFold(argument, "retry") {
+	if strings.EqualFold(argument, "resume") {
 		return m.runWorkflowResumeCommand()
+	}
+	if strings.EqualFold(argument, "retry") {
+		m.clearFooterError()
+		m.setComposerError("Workflow retry is not available. Use /workflow resume to unblock the current phase.")
+		return *m, nil
 	}
 	if m.busy || m.hasPendingInteraction() {
 		m.clearFooterError()

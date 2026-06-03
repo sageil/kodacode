@@ -172,7 +172,7 @@ func manualReviewPromptFragments(instructions string) []prompt.Fragment {
 				"Review mode is active.",
 				"- Use the configured `reviewer` agent guidance to decide how to conduct the review.",
 				"- Primary target: the current uncommitted workspace changes, including newly added files when relevant.",
-				"Output contract:",
+				"Review output format:",
 				"- Return exactly one JSON object and nothing else. Do not wrap it in markdown or code fences.",
 				"- The object must contain `findings`, `overall_correctness`, and `overall_summary`.",
 				"- `findings` must be an array of objects with `severity`, `path`, `line`, `title`, and `explanation`.",
