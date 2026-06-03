@@ -709,12 +709,13 @@ func delegatedReviewPayload(handoff events.AgentHandoffPayload, raw string) (eve
 
 func (r *Runtime) repairDelegatedReviewOutput(ctx context.Context, handoff events.AgentHandoffPayload, validationErr error, modelRoute provider.ModelRoute, workflowBudget workflowTurnBudget) (RunSessionResult, error) {
 	repairTurnID := newRuntimeID("turn")
-	return r.runExistingSessionTurn(ctx, runExistingTurnInput{
+	sourceText := r.delegatedRepairSourceText(ctx, handoff)
+	return r.runDerivedSessionTurn(ctx, runExistingTurnInput{
 		SessionID:            handoff.ChildSessionID,
 		TurnID:               repairTurnID,
 		UserText:             delegatedReviewRepairUserText(validationErr),
 		AgentID:              handoff.ChildAgentID,
-		AdditionalFragments:  delegatedReviewRepairPromptFragments(handoff),
+		AdditionalFragments:  delegatedReviewRepairPromptFragments(handoff, sourceText),
 		AllowedToolsOverride: []string{},
 		ModelRouteOverride:   modelRoute,
 		PreserveSessionModel: true,
@@ -726,8 +727,8 @@ func (r *Runtime) repairDelegatedReviewOutput(ctx context.Context, handoff event
 
 func (r *Runtime) repairDelegatedWorkflowReviewResult(ctx context.Context, handoff events.AgentHandoffPayload, validationErr error, modelRoute provider.ModelRoute, workflowBudget workflowTurnBudget) (RunSessionResult, error) {
 	repairTurnID := newRuntimeID("turn")
-	sourceText := r.delegatedWorkflowReviewRepairSourceText(ctx, handoff)
-	return r.runExistingSessionTurn(ctx, runExistingTurnInput{
+	sourceText := r.delegatedRepairSourceText(ctx, handoff)
+	return r.runDerivedSessionTurn(ctx, runExistingTurnInput{
 		SessionID:           handoff.ChildSessionID,
 		TurnID:              repairTurnID,
 		UserText:            delegatedWorkflowReviewRepairUserText(validationErr),
@@ -742,11 +743,10 @@ func (r *Runtime) repairDelegatedWorkflowReviewResult(ctx context.Context, hando
 		HideAssistantPreview: false,
 		DisableAutoReview:    true,
 		WorkflowBudget:       workflowBudget,
-		HistoryMode:          turnHistoryModeCurrentTurnOnly,
 	})
 }
 
-func (r *Runtime) delegatedWorkflowReviewRepairSourceText(ctx context.Context, handoff events.AgentHandoffPayload) string {
+func (r *Runtime) delegatedRepairSourceText(ctx context.Context, handoff events.AgentHandoffPayload) string {
 	state, err := r.Sessions.Snapshot(ctx, handoff.ChildSessionID)
 	if err != nil {
 		return ""
@@ -773,27 +773,35 @@ func delegatedWorkflowReviewRepairUserText(validationErr error) string {
 	return message + "\nCall `workflow_review_result` exactly once. Do not call read/search tools."
 }
 
-func delegatedReviewRepairPromptFragments(handoff events.AgentHandoffPayload) []prompt.Fragment {
+func delegatedReviewRepairPromptFragments(handoff events.AgentHandoffPayload, sourceText string) []prompt.Fragment {
+	content := []string{
+		"Delegated reviewer output repair.",
+		"The previous answer in this child session failed the structured review output format.",
+		"Return exactly one JSON object and nothing else. Do not wrap it in markdown or code fences.",
+		"The object must contain `findings`, `overall_correctness`, and `overall_summary`.",
+		"`findings` must be an array of objects with `severity`, `path`, `line`, `title`, and `explanation`.",
+		"`severity` must be one of `P0`, `P1`, `P2`, or `P3`.",
+		"`path` must be workspace-relative and `line` must be a 1-based integer.",
+		"`overall_correctness` must be `correct` or `incorrect`.",
+		"`overall_summary` must be 1-3 sentences.",
+		"If there are no qualifying findings, return `\"findings\": []`.",
+		"Do not call tools during this repair turn.",
+		"Original delegated review task: " + strings.TrimSpace(handoff.Task),
+	}
+	if sourceText = boundedDerivedTurnSource(sourceText); sourceText != "" {
+		content = append(content,
+			"Convert the previous assistant answer below into the required JSON object. Do not continue the review or add new findings beyond that answer.",
+			"Previous assistant answer:",
+			sourceText,
+		)
+	}
 	return []prompt.Fragment{{
 		Kind:      prompt.KindRuntime,
 		Source:    prompt.SourceRuntime,
 		Stability: prompt.StabilityDynamic,
 		Key:       "delegated-review-repair",
 		Label:     "delegated review repair",
-		Content: strings.Join([]string{
-			"Delegated reviewer output repair.",
-			"The previous answer in this child session failed the structured review output format.",
-			"Return exactly one JSON object and nothing else. Do not wrap it in markdown or code fences.",
-			"The object must contain `findings`, `overall_correctness`, and `overall_summary`.",
-			"`findings` must be an array of objects with `severity`, `path`, `line`, `title`, and `explanation`.",
-			"`severity` must be one of `P0`, `P1`, `P2`, or `P3`.",
-			"`path` must be workspace-relative and `line` must be a 1-based integer.",
-			"`overall_correctness` must be `correct` or `incorrect`.",
-			"`overall_summary` must be 1-3 sentences.",
-			"If there are no qualifying findings, return `\"findings\": []`.",
-			"Do not call tools during this repair turn.",
-			"Original delegated review task: " + strings.TrimSpace(handoff.Task),
-		}, "\n"),
+		Content:   strings.Join(content, "\n"),
 	}}
 }
 
@@ -809,7 +817,7 @@ func delegatedWorkflowReviewRepairPromptFragments(handoff events.AgentHandoffPay
 		"If there are no qualifying findings, send an empty findings array.",
 		"Original delegated review task: " + strings.TrimSpace(handoff.Task),
 	}
-	if sourceText = boundedDelegatedWorkflowReviewRepairSource(sourceText); sourceText != "" {
+	if sourceText = boundedDerivedTurnSource(sourceText); sourceText != "" {
 		content = append(content,
 			"Convert the previous assistant answer below into the required tool call. Do not continue the review or add new findings beyond that answer.",
 			"Previous assistant answer:",
@@ -824,21 +832,6 @@ func delegatedWorkflowReviewRepairPromptFragments(handoff events.AgentHandoffPay
 		Label:     "workflow review repair",
 		Content:   strings.Join(content, "\n"),
 	}}
-}
-
-const delegatedWorkflowReviewRepairSourceMaxChars = 12000
-
-func boundedDelegatedWorkflowReviewRepairSource(sourceText string) string {
-	sourceText = strings.TrimSpace(sourceText)
-	runes := []rune(sourceText)
-	if len(runes) <= delegatedWorkflowReviewRepairSourceMaxChars {
-		return sourceText
-	}
-	headLen := delegatedWorkflowReviewRepairSourceMaxChars / 2
-	tailLen := delegatedWorkflowReviewRepairSourceMaxChars - headLen
-	return strings.TrimSpace(string(runes[:headLen])) +
-		"\n\n[...previous assistant answer truncated for repair...]\n\n" +
-		strings.TrimSpace(string(runes[len(runes)-tailLen:]))
 }
 
 func (r *Runtime) appendStructuredDelegatedReview(ctx context.Context, handoff events.AgentHandoffPayload, childTurnID string, payload events.ReviewRecordedPayload) error {

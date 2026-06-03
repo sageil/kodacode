@@ -1,5 +1,5 @@
 id: debug
-description: Reproduce, localize, patch, verify, and review a bug fix.
+description: Reproduce, identify, patch, verify, and review a bug fix.
 review_mode: auto
 max_revision_loops: 2
 
@@ -17,14 +17,14 @@ phases:
         - git_diff
         - task_workflow
 
-  - id: localize
+  - id: identify
     agent: planner
     mode: read_only
-    prompt: Identify likely ownership, root cause candidates, and the smallest patch surface.
+    prompt: Find the likely cause, the code area involved, and the smallest useful change.
 
   - id: patch
     agent: engineer
-    prompt: Patch the root cause and record task progress for meaningful steps.
+    prompt: Fix the cause and record useful task progress.
     tools:
       allow:
         - read
@@ -38,7 +38,7 @@ phases:
 
   - id: regression
     agent: engineer
-    prompt: Add or update a regression check when the repository has a reasonable test surface.
+    prompt: Add or update a test when there is a good place for one.
     tools:
       allow:
         - read
@@ -69,12 +69,12 @@ phases:
     mode: read_only
     parallel_review: true
     review_passes:
-      - id: root-cause
-        description: Whether the patch addresses the reproduced root cause.
+      - id: cause
+        description: Whether the patch fixes the reproduced cause.
       - id: regression
-        description: Regression coverage and edge cases for the failure.
-      - id: collateral
-        description: Compatibility, permissions, and nearby behavior risks.
+        description: Test coverage and edge cases for the failure.
+      - id: side-effects
+        description: Side effects in nearby code, config, or permissions.
     requires:
       - verification_result
 

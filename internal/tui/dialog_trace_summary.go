@@ -56,7 +56,7 @@ func traceDialogSummarySection(th *theme.Theme, state events.SessionState, turnI
 	}
 	lines = append(lines, lipgloss.NewStyle().
 		Foreground(lipgloss.Color(colorFor(th, "subtext", "#9da8ca"))).
-		Render("Trace source: durable runtime provider call records. Failed and successful provider calls are counted. Provider-reported usage is shown when available; cache pricing is applied when known and cost otherwise remains estimated. Request-mix attribution uses the same runtime token estimator used for budgeting when providers do not report per-component splits."))
+		Render("Trace source: stored runtime provider call records. Failed and successful provider calls are counted. Provider-reported usage is shown when available; cache pricing is applied when known and cost otherwise remains estimated. Request-mix attribution uses the same runtime token estimator used for budgeting when providers do not report per-component splits."))
 	return strings.Join(lines, "\n")
 }
 
@@ -340,7 +340,7 @@ func traceDialogProviderAttemptResult(attempt events.TurnProviderAttemptState) s
 		parts = append(parts, label+" "+errorText)
 	}
 	if attempt.DurableProgress {
-		parts = append(parts, "durable progress")
+		parts = append(parts, "saved progress")
 	}
 	if attempt.ExecutedTools > 0 {
 		parts = append(parts, traceDialogToolActivityLabel(attempt.ExecutedTools, "executed"))

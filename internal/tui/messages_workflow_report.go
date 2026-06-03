@@ -20,7 +20,7 @@ func renderCompletedWorkflowReportSections(m Model, state events.SessionState, w
 	if !shouldRenderCompletedWorkflowReport(state) {
 		return nil
 	}
-	body := completedWorkflowReportBody(state.Workflow)
+	body := completedWorkflowReportBody(state.Workflow, width)
 	if strings.TrimSpace(body) == "" {
 		return nil
 	}
@@ -36,7 +36,7 @@ func renderCompletedWorkflowReportSections(m Model, state events.SessionState, w
 	}}
 }
 
-func completedWorkflowReportBody(workflow *events.WorkflowState) string {
+func completedWorkflowReportBody(workflow *events.WorkflowState, width int) string {
 	if workflow == nil {
 		return ""
 	}
@@ -58,16 +58,33 @@ func completedWorkflowReportBody(workflow *events.WorkflowState) string {
 		if evidence == nil {
 			continue
 		}
+		if shouldHideCompletedWorkflowEvidence(workflow, evidence) {
+			continue
+		}
 		line := completedWorkflowEvidenceLine(evidence)
 		if line == "" {
 			continue
 		}
 		lines = append(lines, "- "+line)
-		for _, field := range completedWorkflowEvidenceFieldLines(evidence) {
-			lines = append(lines, "  "+field)
+		for _, field := range completedWorkflowEvidenceFieldLines(evidence, width) {
+			lines = append(lines, field)
 		}
 	}
 	return strings.Join(lines, "\n")
+}
+
+func shouldHideCompletedWorkflowEvidence(workflow *events.WorkflowState, evidence *events.WorkflowEvidenceState) bool {
+	if workflow == nil || evidence == nil {
+		return false
+	}
+	if strings.TrimSpace(evidence.Type) != events.WorkflowEvidenceTypePhaseOutput {
+		return false
+	}
+	if strings.TrimSpace(evidence.PhaseID) != strings.TrimSpace(workflow.CurrentPhaseID) {
+		return false
+	}
+	summary := strings.TrimSpace(evidence.Summary)
+	return strings.HasPrefix(summary, "Workflow ") && strings.Contains(summary, " completed.")
 }
 
 func completedWorkflowEvidenceLine(evidence *events.WorkflowEvidenceState) string {
@@ -90,7 +107,7 @@ func completedWorkflowEvidenceLine(evidence *events.WorkflowEvidenceState) strin
 	return strings.Join(nonBlankWorkflowReportParts(parts), " | ")
 }
 
-func completedWorkflowEvidenceFieldLines(evidence *events.WorkflowEvidenceState) []string {
+func completedWorkflowEvidenceFieldLines(evidence *events.WorkflowEvidenceState, width int) []string {
 	if evidence == nil || len(evidence.Fields) == 0 {
 		return nil
 	}
@@ -107,13 +124,27 @@ func completedWorkflowEvidenceFieldLines(evidence *events.WorkflowEvidenceState)
 		if shouldHideCompletedWorkflowEvidenceField(evidence, key) {
 			continue
 		}
-		value := workflowReportDisplayValue(evidence.Fields[key])
+		value := workflowReportFieldDisplayValue(evidence, evidence.Fields[key])
 		if value == "" {
 			continue
 		}
-		lines = append(lines, strings.TrimSpace(key)+": "+value)
+		if workflowShouldExpandEvidenceFields(evidence) {
+			lines = append(lines, "  "+strings.TrimSpace(key)+":")
+			for _, line := range wrapStructuredText(value, max(width-6, 24)) {
+				lines = append(lines, "    "+line)
+			}
+			continue
+		}
+		lines = append(lines, "  "+strings.TrimSpace(key)+": "+value)
 	}
 	return lines
+}
+
+func workflowShouldExpandEvidenceFields(evidence *events.WorkflowEvidenceState) bool {
+	if evidence == nil {
+		return false
+	}
+	return strings.TrimSpace(evidence.Type) == events.WorkflowEvidenceTypePhaseOutput
 }
 
 func shouldHideCompletedWorkflowEvidenceField(evidence *events.WorkflowEvidenceState, key string) bool {
@@ -188,6 +219,25 @@ func workflowEvidenceDisplayType(evidenceType string) string {
 }
 
 func workflowReportDisplayValue(value string) string {
+	value = workflowReportNormalizeValue(value)
+	if value == "" {
+		return ""
+	}
+	return summarizeInlineValue(value)
+}
+
+func workflowReportFieldDisplayValue(evidence *events.WorkflowEvidenceState, value string) string {
+	value = workflowReportNormalizeValue(value)
+	if value == "" {
+		return ""
+	}
+	if workflowShouldExpandEvidenceFields(evidence) {
+		return value
+	}
+	return summarizeInlineValue(value)
+}
+
+func workflowReportNormalizeValue(value string) string {
 	value = strings.TrimSpace(value)
 	if value == "" {
 		return ""
@@ -201,10 +251,10 @@ func workflowReportDisplayValue(value string) string {
 			}
 		}
 		if len(values) > 0 {
-			value = strings.Join(values, ", ")
+			return strings.Join(values, ", ")
 		}
 	}
-	return summarizeInlineValue(value)
+	return value
 }
 
 func nonBlankWorkflowReportParts(parts []string) []string {

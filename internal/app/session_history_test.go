@@ -564,12 +564,12 @@ func TestSelectSessionHistoryPageInTurnIDsIgnoresTurnScopedArtifactsWithoutPageI
 			name: "decision",
 			artifact: events.HistoryContinuationArtifact{
 				SettledDecisions: []events.HistoryDecisionPayload{{
-					Decision:     "keep one durable history authority",
+					Decision:     "keep one saved history authority",
 					Status:       events.HistoryDecisionStatusActive,
 					SourceTurnID: "turn-2",
 				}},
 			},
-			input: "Re-audit keep one durable history authority before continuing.",
+			input: "Re-audit keep one saved history authority before continuing.",
 		},
 		{
 			name: "episode",

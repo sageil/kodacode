@@ -6,7 +6,7 @@ description: Slash commands and direct composer actions available from the TUI
 KodaCode exposes a small runtime-owned command surface from the composer.
 Most entries are slash commands. The `!<command>` form is a direct composer
 action for local shell execution. These commands change session state, open
-management dialogs, inspect durable runtime data, or start an explicit user
+management dialogs, inspect stored runtime data, or start an explicit user
 execution turn. They are not prompt tricks; they call explicit product
 behavior.
 
@@ -43,7 +43,7 @@ behavior.
 - `/sessions`: manage workspace sessions, including delete and purge actions
 - `/init`: create workspace instruction files
 - `/compress`: compress `AGENTS.md` and project memory
-- `/compact`: rebuild older session history into the durable `History Summary` artifact now
+- `/compact`: rebuild older session history into the saved `History Summary` now
 - `/new`: start a new session
 - `/history`: search recent prompts through the searchable history popup
 - `/timeline`: branch a new session from a completed previous turn
@@ -63,7 +63,7 @@ branch with the configured utility model, and `e` to label a branch session.
 Opening Timeline does not generate summaries. Running turns can be selected for
 inspection, but only completed turns can be branched.
 
-`/compact` only affects durable session history. It calls the same history-compaction path used by automatic compaction instead of creating a separate manual workflow.
+`/compact` only affects stored session history. It calls the same history-compaction path used by automatic compaction instead of creating a separate manual workflow.
 
 `/review` is the exception in this group: it is a repository-work command, but it lives beside session controls because it is an explicit TUI action rather than a prompt convention. It starts a one-off runtime-owned review, defaults to the current workspace changes, uses the configured review model when available, and leaves your selected default agent unchanged for later turns. Review behavior is guided by the active `reviewer` agent definition, so you can tune it with a global or project-local `reviewer.md` override while runtime keeps the review scope and structured output format authoritative.
 

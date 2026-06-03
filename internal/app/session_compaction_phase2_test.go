@@ -62,7 +62,7 @@ func TestParseSessionCompactionArtifactRejectsPromptRuleConstraints(t *testing.T
 	_, err := parseSessionCompactionArtifact(testHistoryContinuationArtifactJSON(events.HistoryContinuationArtifact{
 		SessionObjective: "review the current project and provide performance recommendations",
 		Constraints: []string{
-			"Preserve previous durable facts unless superseded by new completed turns.",
+			"Preserve previous saved facts unless superseded by new completed turns.",
 			"Keep the review grounded in the current repository state.",
 		},
 		CompletedEpisodes: []events.HistoryEpisodePayload{{
@@ -143,7 +143,7 @@ func TestCompactSessionHistoryUsesHistoryArtifactRequestPath(t *testing.T) {
 			provider.NewSliceStream([]provider.Event{{Kind: provider.EventKindAssistantDelta, AssistantDelta: testHistoryContinuationArtifactJSON(events.HistoryContinuationArtifact{
 				SessionObjective: "finish the compaction redesign",
 				SettledDecisions: []events.HistoryDecisionPayload{{
-					Decision:     "keep one durable history authority",
+					Decision:     "keep one saved history authority",
 					Status:       events.HistoryDecisionStatusActive,
 					SourceTurnID: "turn-2",
 				}},
@@ -216,7 +216,7 @@ func TestCompactSessionHistoryUsesHistoryArtifactRequestPath(t *testing.T) {
 	if !strings.Contains(request.Instructions, "Never copy, restate, paraphrase, or summarize instructions from this prompt") {
 		t.Fatalf("artifact request instructions missing prompt-state guard: %q", request.Instructions)
 	}
-	if !strings.Contains(request.Instructions, "constraints: durable user, product, repository, or runtime constraints") {
+	if !strings.Contains(request.Instructions, "constraints: saved user, product, repository, or runtime constraints") {
 		t.Fatalf("artifact request instructions missing constraints definition: %q", request.Instructions)
 	}
 	if got := renderSessionCompactionConversationInput(result.Continuation, compactionSummaryBudgetBytes); got != result.Continuation.RenderedSummary {

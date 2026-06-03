@@ -41,7 +41,7 @@ Trust decisions are stored in a local SQLite database and scoped per workspace r
 
 ## Runtime approval flow
 
-When a tool requests access outside its default authority, KodaCode surfaces a durable approval prompt. The tool is paused until a decision is made.
+When a tool requests access outside its default authority, KodaCode shows a saved approval prompt. The tool is paused until a decision is made.
 
 ### Path and network approvals
 
@@ -92,7 +92,7 @@ If an identical execution (same command, working directory, and policies) is req
 | Action | Effect |
 | --- | --- |
 | `allow` | Skip the approval prompt for this pattern |
-| `ask` | Use the normal durable approval flow |
+| `ask` | Use the normal saved approval flow |
 | `deny` | Block immediately with an explicit runtime error |
 
 ### Pattern matching
@@ -134,7 +134,7 @@ When multiple subjects apply to one action, the runtime combines them by taking 
 | `read_only` | Approval required for all filesystem writes and external directory access |
 | `full_access` | Skips granular permission policy checks and routine approval prompts |
 
-In `full_access`, the tool surface (`AllowTools`/`DisallowedTools`) still applies, but the runtime does not stop on policy rules or ordinary approval prompts.
+In `full_access`, agent tool access (`AllowTools`/`DisallowedTools`) still applies, but the runtime does not stop on policy rules or ordinary approval prompts.
 
 ## Network policy
 
@@ -172,4 +172,4 @@ When a tool requests access to a resource, the runtime evaluates in this order:
 4. Built-in runtime defaults
 5. Interactive approval prompt
 
-The agent tool surface (`allow_tools`/`disallow_tools` in agent frontmatter) is a separate layer that controls which tools an agent is offered at all. It runs before this flow and is covered in the [Agents](/features/agents/) documentation.
+Agent tool access (`allow_tools`/`disallow_tools` in agent frontmatter) is a separate layer that controls which tools an agent is offered at all. It runs before this flow and is covered in the [Agents](/features/agents/) documentation.

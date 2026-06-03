@@ -1,26 +1,26 @@
 id: review
-description: Read-focused review workflow for current changes, regressions, and acceptance risks.
+description: Read-only review for current changes, possible bugs, and shipping risks.
 review_mode: manual
 
 phases:
   - id: inspect
     agent: reviewer
     mode: read_only
-    prompt: Inspect the relevant diff, files, tests, and runtime context before reporting findings.
+    prompt: Inspect the relevant diff, files, tests, and session context before reporting findings.
 
   - id: review
     type: review
     agent: reviewer
     mode: read_only
-    prompt: Record concrete review findings or a durable pass/concern/fail outcome.
+    prompt: Record concrete review findings or a saved pass, concern, or fail result.
     parallel_review: true
     review_passes:
       - id: correctness
-        description: Behavioral regressions and implementation correctness.
+        description: Behavior changes and whether the implementation is correct.
       - id: tests
-        description: Verification coverage, edge cases, and missing checks.
-      - id: contracts
-        description: API, config, permission, and compatibility contracts.
+        description: Test coverage, edge cases, and missing checks.
+      - id: architecture
+        description: APIs, config, permissions, compatibility, and system boundaries.
 
   - id: summarize
     type: final

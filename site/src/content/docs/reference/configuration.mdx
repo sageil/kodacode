@@ -94,7 +94,7 @@ Why this works well:
 - `sessions.budget` and `budget_warn` make cost visible before it becomes a surprise
 - `sessions.response_style` defaults to `terse`, which trims normal model prose without affecting safety-critical explanations
 - `execution.network: disabled` keeps command-backed tools conservative by default
-- `permissions` lets runtime default repeated safe cases to `allow`, `ask`, or `deny` without moving permission ownership into prompts
+- `permissions` lets runtime default repeated safe cases to `allow`, `ask`, or `deny` without moving permission decisions into prompts
 - `tui.layout` defaults to `shell`; use `classic` when you want the persistent side inspector
 
 ## OpenAI account types
@@ -556,7 +556,7 @@ initial budget was too small.
 ## Granular permission policy
 
 The optional top-level `permissions` block lets runtime default certain actions
-to `allow`, `ask`, or `deny` without replacing durable approvals.
+to `allow`, `ask`, or `deny` without replacing saved approvals.
 
 Supported subjects today:
 
@@ -602,9 +602,9 @@ How runtime evaluates these rules:
 - when multiple subjects apply to one action, runtime combines them by
   `deny` > `ask` > `allow`
 - `allow` skips the extra approval prompt for that concern
-- `ask` uses the normal durable approval flow
+- `ask` uses the normal saved approval flow
 - `deny` blocks immediately with an explicit runtime error
-- explicit session approvals and session grants still remain durable state
+- explicit session approvals and session grants still remain saved state
 - `permissions` is evaluated only in `auto` and `read_only`
 - `full_access` bypasses routine approval prompts and granular permission rules
 
@@ -622,7 +622,7 @@ behavior.
 - `total_budget`: cap estimated spend across all stored sessions; default `0` (no limit)
 - `total_budget_warn`: fraction of `total_budget` at which a warning is shown; default `0` (no warning); requires `total_budget > 0`
 - `response_style`: `default` or `terse`; default `terse`
-- `compaction_threshold`: start rebuilding older session history into the durable `History Summary` when replayed context reaches this fraction of the context limit; default `0.8`
+- `compaction_threshold`: start rebuilding older session history into the saved `History Summary` when replayed context reaches this fraction of the context limit; default `0.8`
 - `compaction_target_threshold`: accept any history-summary candidate at or below this fraction so the session gets breathing room; must be lower than `compaction_threshold`; default `0.60`
 - `max_provider_requests_per_turn`: stop one turn from making provider requests forever; use `-1` to remove the cap entirely; default `32`
 - `max_output_continuations`: automatically continue once when a provider explicitly reports an output-length stop; use `0` to disable; maximum `2`; default `1`
@@ -694,7 +694,7 @@ workflow:
   `reviewer`, but runtime does not inject a follow-up review turn automatically
 - `auto`: after an `engineer` turn completes, runtime starts a reviewer turn
   only when all current tasks are already completed and at least one completed
-  task still lacks a durable review outcome
+  task still lacks a saved review outcome
 
 `review_model` is optional. When set, the review turn uses that designated
 model instead of the session primary without affecting agent turns. Runtime
@@ -755,7 +755,7 @@ artifacts:
   `kodacode.db`, remove old persisted search-cache files, and remove old app
   log files; default `0` (disabled)
 
-This policy does not prune durable session history in `session_events`.
+This policy does not prune stored session history in `session_events`.
 
 Session deletion is explicit. Use `/sessions` when you want to remove or purge
 stored sessions themselves.

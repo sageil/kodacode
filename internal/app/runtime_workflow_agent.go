@@ -12,10 +12,12 @@ import (
 )
 
 type workflowPhaseTurnContext struct {
-	Active     bool
-	WorkflowID string
-	Definition workflowpkg.Definition
-	Phase      workflowpkg.Phase
+	Active            bool
+	WorkflowID        string
+	Definition        workflowpkg.Definition
+	Phase             workflowpkg.Phase
+	ResumedFromBlock  bool
+	BlockedStopReason string
 }
 
 func (r *Runtime) prepareWorkflowPhaseTurn(ctx context.Context, input runExistingTurnInput, view turnStartSessionView) (turnStartSessionView, workflowPhaseTurnContext, string, error) {
@@ -46,7 +48,42 @@ func (r *Runtime) prepareWorkflowPhaseTurn(ctx context.Context, input runExistin
 		return view, workflowPhaseTurnContext{}, workflowID, nil
 	}
 	if workflow.Status == events.WorkflowStatusBlocked {
-		return view, workflowPhaseTurnContext{}, workflow.WorkflowID, ErrWorkflowPhaseBlocked
+		blockedStopReason := strings.TrimSpace(workflow.StopReason)
+		if strings.TrimSpace(input.UserText) == "" && input.Continuation == nil {
+			return view, workflowPhaseTurnContext{}, workflow.WorkflowID, ErrWorkflowPhaseBlocked
+		}
+		if err := r.ResumeWorkflow(ctx, ResumeWorkflowInput{
+			SessionID: input.SessionID,
+			TurnID:    input.TurnID,
+			PhaseID:   workflow.CurrentPhaseID,
+		}); err != nil {
+			return view, workflowPhaseTurnContext{}, workflow.WorkflowID, err
+		}
+		reloaded, err := r.loadTurnStartSessionView(ctx, input.SessionID)
+		if err != nil {
+			return view, workflowPhaseTurnContext{}, workflow.WorkflowID, err
+		}
+		view = reloaded
+		workflow = view.workflow
+		if workflow == nil {
+			return view, workflowPhaseTurnContext{}, workflowID, ErrWorkflowStateMissing
+		}
+		definition, err := r.resolveWorkflow(ctx, view.workspaceRoot, workflow.WorkflowID)
+		if err != nil {
+			return view, workflowPhaseTurnContext{}, workflow.WorkflowID, err
+		}
+		phase, ok := workflowPhaseByID(definition, workflow.CurrentPhaseID)
+		if !ok {
+			return view, workflowPhaseTurnContext{}, workflow.WorkflowID, ErrWorkflowTransitionInvalid
+		}
+		return view, workflowPhaseTurnContext{
+			Active:            true,
+			WorkflowID:        workflow.WorkflowID,
+			Definition:        definition,
+			Phase:             phase,
+			ResumedFromBlock:  true,
+			BlockedStopReason: blockedStopReason,
+		}, workflow.WorkflowID, nil
 	}
 	definition, err := r.resolveWorkflow(ctx, view.workspaceRoot, workflow.WorkflowID)
 	if err != nil {
@@ -64,17 +101,11 @@ func (r *Runtime) prepareWorkflowPhaseTurn(ctx context.Context, input runExistin
 	}, workflow.WorkflowID, nil
 }
 
-func workflowPhaseAgentID(inputAgentID string, phase workflowpkg.Phase) string {
+func workflowPhaseAgentID(phase workflowpkg.Phase) string {
 	if agentID := strings.TrimSpace(phase.Agent); agentID != "" {
 		return agentID
 	}
-	if phase.EffectiveType() == workflowpkg.PhaseTypeVerification {
-		return "engineer"
-	}
-	if phase.EffectiveType() == workflowpkg.PhaseTypeReview {
-		return reviewerAgentID
-	}
-	return strings.TrimSpace(inputAgentID)
+	return ""
 }
 
 func workflowPhaseAllowedTools(base []string, phase workflowpkg.Phase) []string {
@@ -103,7 +134,7 @@ type workflowRuntimeToolScope struct {
 	DelegatedTask string
 }
 
-// Workflow runtime-owned tools are durable workflow result channels, not
+// Workflow runtime-owned tools are saved workflow result channels, not
 // ordinary agent capabilities. Agent and phase allow/deny policy filters the
 // normal tool surface first; this pass then restores only the tools the active
 // workflow context requires the runtime to receive.
@@ -212,14 +243,23 @@ func workflowPhasePromptFragment(ctx workflowPhaseTurnContext, allowedTools []st
 	if ctx.Phase.EffectiveType() != "" {
 		lines = append(lines, "- Phase type: "+string(ctx.Phase.EffectiveType()))
 	}
+	if ctx.ResumedFromBlock {
+		lines = append(lines, "- Workflow recovery: this phase was blocked and has been resumed for this turn.")
+		if reason := strings.TrimSpace(ctx.BlockedStopReason); reason != "" {
+			lines = append(lines, "- Previous block reason: "+reason)
+		}
+		lines = append(lines, "- Address the blocking condition before attempting to advance the workflow.")
+	}
 	if text := strings.TrimSpace(ctx.Phase.Prompt); text != "" {
 		lines = append(lines, "- Phase prompt: "+text)
 	}
 	if len(ctx.Phase.RequiresOutput) > 0 {
 		required := trimmedWorkflowValues(ctx.Phase.RequiresOutput)
 		lines = append(lines, "- Required phase outputs: "+strings.Join(required, ", "))
-		lines = append(lines, "- Before your final response, call `"+tool.WorkflowPhaseOutputToolName+"` with all required output keys.")
-		lines = append(lines, "- The final response may be human-readable after that tool call. If the tool is unavailable, return exactly one JSON object containing the required output keys and no markdown fences.")
+		lines = append(lines, "- You MUST record the required phase outputs before any final prose. Call `"+tool.WorkflowPhaseOutputToolName+"` with every required output key.")
+		lines = append(lines, "- If a required output has no findings, still record that key with a short value such as `None identified`.")
+		lines = append(lines, "- If you skip `"+tool.WorkflowPhaseOutputToolName+"`, the workflow phase will block instead of advancing.")
+		lines = append(lines, "- The final response may be human-readable after that tool call. If the tool is unavailable, return exactly one JSON object containing every required output key and no markdown fences.")
 	}
 	if required := workflowPhaseCompletionRequirementLabels(ctx.Phase); len(required) > 0 {
 		lines = append(lines, "- Phase completion requirements: "+strings.Join(required, ", "))

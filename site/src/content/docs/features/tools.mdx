@@ -1,9 +1,10 @@
 ---
 title: Built-in Tools
-description: The current built-in tool surface in kodacode
+description: The current built-in tools in kodacode
 ---
 
-KodaCode ships with a general-purpose built-in tool surface. The runtime keeps tool declarations separate from execution and permission policy.
+KodaCode ships with a general-purpose set of built-in tools. The runtime keeps
+tool declarations separate from execution and permission policy.
 
 ## Files and repo discovery
 
@@ -18,7 +19,7 @@ Use `search` for file contents and `locate` for file and directory paths. Keepin
 
 `locate` is intentionally bounded and non-pageable. It returns one candidate path set per call, defaults `max_matches` to `200`, and clamps higher values to `200`. If a broad path query hits that limit, narrow `query` or `path`, raise `max_matches` when you are still below `200`, or switch to `search` when you need content-based narrowing before reading files.
 
-Use `apply_patch` for localized edits to existing files. It accepts a freeform
+Use `apply_patch` for targeted edits to existing files. It accepts a freeform
 structured patch with `*** Begin Patch`, file operation headers, changed lines,
 and `*** End Patch`. Runtime matches hunks against current file contents and
 records before/after mutations. Use `write` for new files or deliberate
@@ -57,13 +58,13 @@ Use `search` when you need content matches or semantic ranking across code and
 text. Use `trace` or `refs` when the question is specifically about symbol
 relationships instead of matching file content.
 
-`rename_symbol` and `code_action` are the mutation side of this surface. Use
+`rename_symbol` and `code_action` are the editing side of these tools. Use
 them when the language server can perform a structured refactor or fix more
 safely than raw text edits.
 
 Agent access follows the agent's mutation boundary:
 
-- `builder` and `engineer` can use the full code-intelligence surface,
+- `builder` and `engineer` can use all code-intelligence tools,
   including `rename_symbol` and `code_action`
 - `reviewer` and `planner` can use read-only code-intelligence tools:
   `symbols`, `definition`, `diagnostics`, `refs`, and `trace`
@@ -116,13 +117,13 @@ The workflow tools are primarily relevant to the structured agent paths.
 
 Their responsibilities are intentionally separate:
 
-- `task_workflow`: create, list, update, block, and complete durable tasks
+- `task_workflow`: create, list, update, block, and complete saved tasks
 - `task_review`: list tasks and record `pass`, `concern`, `fail`, or
   `accepted` review outcomes without changing workflow status directly
 
 `delegate` starts a runtime-owned child agent handoff. It creates a child
-session, narrows the child tool surface through agent policy, and returns a
-durable handoff result instead of hiding orchestration in prompt text.
+session, narrows the child agent's tools through agent policy, and returns a
+saved handoff result instead of hiding orchestration in prompt text.
 
 In normal use, primary agents call `delegate` themselves when their markdown
 policy says a child boundary is the right tool. It is runtime plumbing for
@@ -139,12 +140,12 @@ task list.
 - `skill`
 - `search_skills`
 
-`memory` is the runtime-owned durable store for explicit project memory entries. It is separate from `AGENTS.md` and separate from selected skills. Entries are intentionally small: each saved memory is capped at 2000 characters, and total prompt-injected project memory is capped separately. Use it for durable facts, decisions, and constraints, not for full reports or plans. For large artifacts, save a normal workspace file and keep only a short summary plus path in project memory. See [Project Memory & Instructions](/features/project-memory/).
+`memory` is the runtime-owned saved store for explicit project memory entries. It is separate from `AGENTS.md` and separate from selected skills. Entries are intentionally small: each saved memory is capped at 2000 characters, and total prompt-injected project memory is capped separately. Use it for saved facts, decisions, and constraints, not for full reports or plans. For large artifacts, save a normal workspace file and keep only a short summary plus path in project memory. See [Project Memory & Instructions](/features/project-memory/).
 
 `question` is the runtime-owned blocking choice tool. It pauses the turn and
 waits for one user-selected answer instead of asking the model to guess when a
 real user decision is required.
 
-MCP servers extend the tool surface further, but they still sit under the same
-session and permission model. See [MCP Servers](/features/mcp/) for a
-copy-pasteable stdio server example and trust behavior.
+MCP servers add more tools, but they still sit under the same session and
+permission model. See [MCP Servers](/features/mcp/) for a copy-pasteable stdio
+server example and trust behavior.

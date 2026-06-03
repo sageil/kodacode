@@ -16,7 +16,7 @@ func NewTaskReviewTool() TaskReviewTool {
 func (TaskReviewTool) Definition() Definition {
 	return Definition{
 		Name:                TaskReviewToolName,
-		Description:         "Inspect durable tasks and record review outcomes. Use list to inspect tasks and review to record a pass, concern, fail, or accepted outcome for an existing task. Send only the fields relevant to the chosen action. This tool does not change workflow status directly.",
+		Description:         "Inspect saved tasks and record review outcomes. Use list to inspect tasks and review to record a pass, concern, fail, or accepted outcome for an existing task. Send only the fields relevant to the chosen action. This tool does not change workflow status directly.",
 		ProviderDescription: "List tasks or record a review outcome for an existing task.",
 		InputSchema:         json.RawMessage(`{"type":"object","properties":{"action":{"type":"string","enum":["list","review"],"description":"Review task operation to perform."},"task_id":{"type":["string","null"],"description":"Existing task identifier for review. Omit or use null for list."},"review_status":{"type":["string","null"],"enum":["pass","concern","fail","accepted",null],"description":"Required review outcome for review. Omit or use null for list."},"review_summary":{"type":["string","null"],"description":"Required short review summary for review. Omit or use null for list."}},"required":["action"],"additionalProperties":false}`),
 		ArgumentExamples: []string{

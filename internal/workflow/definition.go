@@ -22,6 +22,7 @@ var (
 	ErrWorkflowPhaseDuplicate       = errors.New("workflow phase id is duplicated")
 	ErrWorkflowPhaseTypeInvalid     = errors.New("workflow phase type is invalid")
 	ErrWorkflowPhaseModeInvalid     = errors.New("workflow phase mode is invalid")
+	ErrWorkflowAgentRequired        = errors.New("workflow phase agent is required")
 	ErrWorkflowAgentUnknown         = errors.New("workflow phase agent is unknown")
 	ErrWorkflowToolUnknown          = errors.New("workflow phase tool is unknown")
 	ErrWorkflowToolForbidden        = errors.New("workflow phase tool is forbidden by agent policy")
@@ -320,6 +321,10 @@ func validatePhaseMode(p Phase) error {
 func validatePhaseAgent(p Phase, ctx ValidationContext) error {
 	id := strings.TrimSpace(p.Agent)
 	if id == "" {
+		switch p.EffectiveType() {
+		case PhaseTypeAgent, PhaseTypeVerification, PhaseTypeReview:
+			return fmt.Errorf("%w: %s", ErrWorkflowAgentRequired, strings.TrimSpace(p.ID))
+		}
 		return nil
 	}
 	definition, ok := ctx.Agents[id]
@@ -455,10 +460,12 @@ func validatePhaseAutoContinue(p Phase) error {
 	if p.AutoContinue == nil || !p.AutoContinueEnabled() {
 		return nil
 	}
-	if p.ParallelReviewEnabled() {
+	switch p.EffectiveType() {
+	case PhaseTypeAgent, PhaseTypeReview, PhaseTypeVerification:
 		return nil
+	default:
+		return fmt.Errorf("%w: auto_continue requires a runtime-runnable phase", ErrWorkflowAutoContinueInvalid)
 	}
-	return fmt.Errorf("%w: auto_continue requires a runtime-runnable phase", ErrWorkflowAutoContinueInvalid)
 }
 
 func validateTransitions(transitions []Transition, phases map[string]struct{}) error {

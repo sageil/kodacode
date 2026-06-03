@@ -309,7 +309,7 @@ func (r *Runtime) runWorkflowReviewFanoutPass(ctx context.Context, input runExis
 		result.Err = err
 		return result
 	}
-	reviewAgentID := workflowPhaseAgentID(reviewerAgentID, workflowPhase.Phase)
+	reviewAgentID := workflowPhaseAgentID(workflowPhase.Phase)
 	child, err := r.DelegateSessionTurn(ctx, DelegateSessionTurnInput{
 		ParentSessionID:    input.SessionID,
 		ParentTurnID:       input.TurnID,

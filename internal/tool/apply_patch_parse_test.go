@@ -107,6 +107,42 @@ func TestParseApplyPatchAcceptsJSONPatchWrapper(t *testing.T) {
 	}
 }
 
+func TestParseApplyPatchAcceptsCommonModelWrappers(t *testing.T) {
+	patch := `*** Begin Patch
+*** Add File: notes.txt
++hello
+*** End Patch
+`
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{
+			name:  "markdown fence",
+			input: "```patch\n" + patch + "```\n",
+		},
+		{
+			name:  "assistant prose",
+			input: "I'll apply this patch now:\n\n" + patch + "\nDone.",
+		},
+		{
+			name:  "literal function call",
+			input: `apply_patch({"patch":"*** Begin Patch\n*** Add File: notes.txt\n+hello\n*** End Patch\n"})`,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			parsed, err := ParseApplyPatch(test.input)
+			if err != nil {
+				t.Fatalf("ParseApplyPatch() error = %v", err)
+			}
+			if len(parsed.Operations) != 1 || parsed.Operations[0].Kind != ApplyPatchOperationAdd || parsed.Operations[0].Path != "notes.txt" {
+				t.Fatalf("operations = %#v", parsed.Operations)
+			}
+		})
+	}
+}
+
 func TestParseApplyPatchRejectsMissingBoundary(t *testing.T) {
 	_, err := ParseApplyPatch(`*** Update File: app.go
 -old
@@ -204,6 +240,28 @@ old
 	}
 }
 
+func TestParseApplyPatchMalformedAddFileMarkerErrorIsActionable(t *testing.T) {
+	_, err := ParseApplyPatch(`*** Begin Patch
+*** Add File: app.go
++package main
+***
+*** End Patch
+`)
+	if !errors.Is(err, ErrApplyPatchMalformedLine) {
+		t.Fatalf("ParseApplyPatch() error = %v, want ErrApplyPatchMalformedLine", err)
+	}
+	got := err.Error()
+	for _, want := range []string{
+		`unexpected "***" inside Add File`,
+		`use "*** End Patch" to close the patch`,
+		`prefix it as "+***" if it is intended file content`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("ParseApplyPatch() error = %q, missing %q", got, want)
+		}
+	}
+}
+
 func TestParseApplyPatchMalformedLineErrorExplainsPatchSyntax(t *testing.T) {
 	_, err := ParseApplyPatch(`*** Begin Patch
 *** Update File: src/middleware/auth.ts
@@ -220,8 +278,10 @@ func TestParseApplyPatchMalformedLineErrorExplainsPatchSyntax(t *testing.T) {
 	for _, want := range []string{
 		"`apply_patch` failed.",
 		"invalid patch syntax",
-		`Use the apply_patch format with "*** Update File:" plus hunk lines starting with a space, "+", or "-"`,
+		`Use the apply_patch format with "*** Add File:", "*** Update File:", or "*** Delete File:" headers`,
+		`Add File content lines must all start with "+", including blank lines as "+"`,
 		`Do not include raw unified diff metadata such as "---", "+++", or "\ No newline at end of file"`,
+		"Retry by calling apply_patch again; do not print the corrected patch as assistant text",
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("ParseApplyPatch() error = %q, missing %q", got, want)

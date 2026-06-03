@@ -434,10 +434,11 @@ func nextWorkflowPhaseID(definition workflowpkg.Definition, fromPhaseID, request
 
 func isFinalWorkflowPhase(definition workflowpkg.Definition, phaseID string) bool {
 	phaseID = strings.TrimSpace(phaseID)
-	if phaseID == "" || len(definition.Phases) == 0 {
+	if phaseID == "" {
 		return false
 	}
-	return strings.TrimSpace(definition.Phases[len(definition.Phases)-1].ID) == phaseID
+	phase, ok := workflowPhaseByID(definition, phaseID)
+	return ok && workflowPhaseIsFinal(phase)
 }
 
 func workflowFailedVerificationEvidenceCount(workflow *events.WorkflowState, phaseID string) int {

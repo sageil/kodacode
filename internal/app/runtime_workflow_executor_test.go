@@ -311,8 +311,8 @@ func TestRuntimeWorkflowFinalPhaseSynthesizesEvidenceSummary(t *testing.T) {
 	if state.Workflow == nil || state.Workflow.Status != events.WorkflowStatusCompleted {
 		t.Fatalf("workflow = %#v, want completed", state.Workflow)
 	}
-	if !workflowHasPhaseOutputEvidence(state.Workflow, "summarize", "verification_result") {
-		t.Fatalf("workflow evidence = %#v, want final verification_result field", state.Workflow.Evidence)
+	if workflowHasAnyEvidenceType(state.Workflow, "summarize", events.WorkflowEvidenceTypePhaseOutput) {
+		t.Fatalf("workflow evidence = %#v, want no duplicate final summary phase output", state.Workflow.Evidence)
 	}
 }
 

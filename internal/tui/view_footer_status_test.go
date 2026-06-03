@@ -282,7 +282,7 @@ func TestRenderKodaShellFooterPlacesActivityAndWorkflowBelowComposer(t *testing.
 	rendered := ansi.Strip(renderKodaShellFooter(model, state, 160, ""))
 	composerIndex := strings.Index(rendered, "z")
 	cancelledIndex := strings.Index(rendered, "Cancelled")
-	workflowIndex := strings.Index(rendered, "Workflow delivery · phase plan · active")
+	workflowIndex := strings.Index(rendered, "Workflow delivery · phase plan · paused")
 	if composerIndex < 0 || cancelledIndex < 0 || workflowIndex < 0 {
 		t.Fatalf("shell footer missing composer, activity, or workflow line\nrendered:\n%s", rendered)
 	}
@@ -295,6 +295,99 @@ func TestRenderKodaShellFooterPlacesActivityAndWorkflowBelowComposer(t *testing.
 		if strings.Contains(lastLine, unwanted) {
 			t.Fatalf("shell bottom footer should not include crowded detail %q\nrendered:\n%s", unwanted, rendered)
 		}
+	}
+}
+
+func TestRenderKodaShellStatusLineUsesConfiguredPermissionModeBeforeSessionExists(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context:        ctx,
+		Theme:          &defaultTheme,
+		WorkspaceRoot:  "/repo",
+		Layout:         tuiLayoutShell,
+		PermissionMode: app.PermissionModeFullAccess,
+	})
+
+	rendered := ansi.Strip(renderKodaShellStatusLine(model, model.projector.CurrentState(), 160))
+	if !strings.Contains(rendered, "mode:full access") {
+		t.Fatalf("shell status should show configured permission mode before session exists\nrendered:\n%s", rendered)
+	}
+	if strings.Contains(rendered, "mode:auto") {
+		t.Fatalf("shell status should not fall back to auto before session exists\nrendered:\n%s", rendered)
+	}
+}
+
+func TestRenderKodaShellStatusLineUsesSessionPermissionModeOverConfiguredDefault(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context:        ctx,
+		Theme:          &defaultTheme,
+		WorkspaceRoot:  "/repo",
+		Layout:         tuiLayoutShell,
+		PermissionMode: app.PermissionModeFullAccess,
+	})
+	state := events.SessionState{
+		SessionID:      "session-1",
+		WorkspaceRoot:  "/repo",
+		PermissionMode: string(app.PermissionModeReadOnly),
+	}
+
+	rendered := ansi.Strip(renderKodaShellStatusLine(model, state, 160))
+	if !strings.Contains(rendered, "mode:read-only") {
+		t.Fatalf("shell status should prefer session permission mode\nrendered:\n%s", rendered)
+	}
+	if strings.Contains(rendered, "mode:full access") {
+		t.Fatalf("shell status should not show configured default after session mode exists\nrendered:\n%s", rendered)
+	}
+}
+
+func TestWorkflowDisplayStatusShowsPausedWhenActiveWorkflowHasNoRunningTurn(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context:       ctx,
+		Theme:         &defaultTheme,
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: "/repo",
+		Layout:        tuiLayoutShell,
+	})
+	state := events.SessionState{
+		Turns: map[string]*events.TurnState{
+			"turn-1": {TurnID: "turn-1", Status: events.TurnStatusCompleted},
+		},
+		Workflow: &events.WorkflowState{
+			WorkflowID:     "explore",
+			Status:         events.WorkflowStatusActive,
+			CurrentPhaseID: "map",
+			Phases: map[string]*events.WorkflowPhaseState{
+				"map": {PhaseID: "map", Status: events.WorkflowPhaseStatusInProgress},
+			},
+		},
+	}
+
+	shellRendered := ansi.Strip(renderKodaShellWorkflowStatusLine(model, state, 160))
+	if !strings.Contains(shellRendered, "Workflow explore · phase map · paused") {
+		t.Fatalf("shell workflow line should show paused for active parked workflow\nrendered:\n%s", shellRendered)
+	}
+	if strings.Contains(shellRendered, "active") {
+		t.Fatalf("shell workflow line should not show active after turn completion\nrendered:\n%s", shellRendered)
+	}
+
+	classicRendered := ansi.Strip(renderFooterStatusBar(model, state, 160))
+	if !strings.Contains(classicRendered, "workflow:explore phase:map paused") {
+		t.Fatalf("classic footer should show paused for active parked workflow\nrendered:\n%s", classicRendered)
+	}
+	if strings.Contains(classicRendered, "active") {
+		t.Fatalf("classic footer should not show active after turn completion\nrendered:\n%s", classicRendered)
 	}
 }
 

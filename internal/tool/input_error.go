@@ -455,7 +455,7 @@ func toolArgumentContractText(toolName string) string {
 	case TaskWorkflowToolName:
 		return `Use action "list", "create", "update", "block", or "complete"; include the fields required by that action.`
 	case ApplyPatchToolName:
-		return `Use the apply_patch format with "*** Update File:" plus hunk lines starting with a space, "+", or "-". Do not include read output line number prefixes like "40:" after patch prefixes. Do not include raw unified diff metadata such as "---", "+++", or "\ No newline at end of file".`
+		return `Use the apply_patch format with "*** Add File:", "*** Update File:", or "*** Delete File:" headers. Add File content lines must all start with "+", including blank lines as "+". Update File hunk lines must start with a space, "+", or "-". Do not include read output line number prefixes like "40:" after patch prefixes. Do not include raw unified diff metadata such as "---", "+++", or "\ No newline at end of file". Retry by calling apply_patch again; do not print the corrected patch as assistant text.`
 	default:
 		examples := toolArgumentExamples(toolName)
 		if len(examples) == 0 {

@@ -45,9 +45,9 @@ Use this file for repo-specific agent instructions.
 
 ## Architecture Notes
 - Document important ownership boundaries and source-of-truth files.
-- Record durable conventions that are easy to miss but should be followed.
+- Record saved conventions that are easy to miss but should be followed.
 
-Keep this file concise and repo-specific. Put durable policy here, not temporary task notes.
+Keep this file concise and repo-specific. Put saved policy here, not temporary task notes.
 `
 
 const defaultAnthropicPromptInstructionsTemplate = `# CLAUDE.md
@@ -64,7 +64,7 @@ Return JSON only with this shape:
 {"agents_md":"<full markdown file content>"}
 
 Requirements:
-- Write durable repository-specific instructions for coding agents.
+- Write saved repository-specific instructions for coding agents.
 - Use only facts or conservative inferences supported by the provided repository context.
 - Keep it concise and directly usable.
 - Prefer concrete workflow and architecture guidance when the repo context supports it.

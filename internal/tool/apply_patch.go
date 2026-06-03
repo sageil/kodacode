@@ -57,7 +57,7 @@ func NewApplyPatchTool() ApplyPatchTool {
 }
 
 func (ApplyPatchTool) Definition() Definition {
-	description := "Edit files by sending raw structured patch text. Do not wrap the patch in JSON. Patch lines MUST NOT include read output line number prefixes like \"40:\" either directly or after patch prefixes like \"-40:\" or \"+40:\". The required patch grammar is provided by this tool."
+	description := "Edit files by sending raw structured patch text directly to this custom/freeform tool, not a JSON object. First line must be \"*** Begin Patch\" and final line must be \"*** End Patch\". Use \"*** Add File:\", \"*** Update File:\", or \"*** Delete File:\" file headers. In Add File operations, every file-content line must start with \"+\", including blank lines as \"+\". In Update File operations, hunk lines must start with a space, \"+\", or \"-\". Patch lines MUST NOT include read output line number prefixes like \"40:\" either directly or after patch prefixes like \"-40:\" or \"+40:\". The required patch grammar is provided by this tool."
 	return Definition{
 		Name:                ApplyPatchToolName,
 		Description:         description,
@@ -69,7 +69,12 @@ func (ApplyPatchTool) Definition() Definition {
 			Syntax:     "lark",
 			Definition: applyPatchLarkGrammar,
 		},
-		ArgumentExamples:  []string{"*** Begin Patch\n*** Update File: file.txt\n-old\n+new\n*** End Patch\n"},
+		ArgumentExamples: []string{
+			"*** Begin Patch\n*** Update File: file.txt\n@@\n-old\n+new\n*** End Patch\n",
+			"*** Begin Patch\n*** Add File: file.txt\n+first line\n+\n+third line\n*** End Patch\n",
+			"*** Begin Patch\n*** Delete File: file.txt\n*** End Patch\n",
+			"*** Begin Patch\n*** Update File: old.txt\n*** Move to: new.txt\n*** End Patch\n",
+		},
 		RequiresWorkspace: true,
 	}
 }

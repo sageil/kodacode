@@ -142,7 +142,7 @@ func (r *Runtime) runExistingSessionTurn(ctx context.Context, input runExistingT
 	}
 	effectiveAgentID := input.AgentID
 	if workflowPhase.Active {
-		effectiveAgentID = workflowPhaseAgentID(input.AgentID, workflowPhase.Phase)
+		effectiveAgentID = workflowPhaseAgentID(workflowPhase.Phase)
 	}
 	if workflowPhase.Active && !hasConfiguredModelRoute(input.ModelRouteOverride) {
 		route, ok, err := r.workflowModelRouteOverride(workflowPhase.Definition, workflowPhase.Phase)

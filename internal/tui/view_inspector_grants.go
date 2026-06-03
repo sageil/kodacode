@@ -159,7 +159,7 @@ func renderGrantSummaryRows(m Model, state events.SessionState, width int) strin
 		}
 	}
 
-	appendUniqueRow("MODE", sessionPermissionModeLabel(state.PermissionMode))
+	appendUniqueRow("MODE", sessionPermissionModeLabel(effectiveSessionPermissionMode(m, state)))
 	if trimmed := strings.TrimSpace(state.WorkspaceRoot); trimmed != "" {
 		appendUniqueRow("ROOT", displaySessionPath(state.WorkspaceRoot, trimmed))
 	}

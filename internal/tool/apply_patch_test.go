@@ -23,7 +23,11 @@ func TestApplyPatchToolDefinitionIsCustomFreeform(t *testing.T) {
 	}
 	for _, want := range []string{
 		"raw structured patch text",
-		"Do not wrap the patch in JSON",
+		"custom/freeform tool",
+		"not a JSON object",
+		`"*** Add File:"`,
+		`"*** Update File:"`,
+		`every file-content line must start with "+"`,
 		`Patch lines MUST NOT include read output line number prefixes like "40:"`,
 		`after patch prefixes like "-40:" or "+40:"`,
 		"required patch grammar",
@@ -31,6 +35,9 @@ func TestApplyPatchToolDefinitionIsCustomFreeform(t *testing.T) {
 		if !strings.Contains(definition.Description, want) {
 			t.Fatalf("description missing %q: %q", want, definition.Description)
 		}
+	}
+	if len(definition.ArgumentExamples) < 4 {
+		t.Fatalf("ArgumentExamples = %#v, want examples for add/update/delete/move", definition.ArgumentExamples)
 	}
 }
 

@@ -17,7 +17,7 @@ These are the highest-leverage user-facing cost controls:
 | Control | What it changes | Best when |
 | --- | --- | --- |
 | default `sessions.response_style: terse` | Shorter ordinary assistant replies | You want less narration and lower output token cost |
-| `/compress` | Shrinks durable workspace prompt sources | Your `AGENTS.md` or project memory has become repetitive |
+| `/compress` | Shrinks saved workspace prompt sources | Your `AGENTS.md` or project memory has become repetitive |
 | `utility_model` | Routes runtime utility text work to a cheaper model | You want to keep the main coding model but reduce background cost |
 | `output_budgets` | Caps the output tokens requested by role | Provider/model ceilings are much larger than your normal turn needs |
 | `compaction_threshold` and `/compact` | Summarizes older stored history so long sessions do not replay full history forever | You work in long-lived sessions |
@@ -35,7 +35,7 @@ and `/trace` show the labels when savings apply.
 | Label | What saves cost | Quality impact |
 | --- | --- | --- |
 | `prompt compaction` | Sends a shorter rule-based copy of structured instructions | Best when instructions use headings and bullets. Long prose with subtle nuance may compress less safely. |
-| `history compaction` | Replays a durable summary of older turns instead of full raw history | Keeps long sessions usable. Exact old details may need to be recovered from files or `/trace`. |
+| `history compaction` | Replays a saved summary of older turns instead of full raw history | Keeps long sessions usable. Exact old details may need to be recovered from files or `/trace`. |
 | `current-turn projection` | Replaces earlier large tool results in the same turn with placeholders after later work has used them | Reduces noise. If exact old output matters again, the model may need to re-read or rerun a focused tool call. |
 | `tool catalog compression` | Shortens provider-facing tool schemas and descriptions while preserving required fields | Usually improves focus. Tools that need rich guidance keep it. |
 | `batch efficiency` | Handles compatible independent tool calls in one tool step | Does not remove information. Mutating and blocking tools still create runtime boundaries. |
@@ -43,13 +43,13 @@ and `/trace` show the labels when savings apply.
 These savings are estimates, not provider invoices. KodaCode converts avoided
 input tokens to estimated dollars only when model pricing is known.
 
-For best results, keep durable instructions concise and structured:
+For best results, keep saved instructions concise and structured:
 
 ```md
 ## Engineering Priorities
 
 - Correctness first
-- Clear ownership boundaries
+- Clear responsibility boundaries
 - Run focused tests before finishing
 ```
 
@@ -138,9 +138,9 @@ implementation turns. Runtime workflow YAML can also declare `model:
 provider/model` at the workflow or phase level when a whole workflow, or one
 phase inside it, should use a different primary model.
 
-## Durable workspace compression
+## Saved Workspace Compression
 
-`/compress` rewrites workspace `AGENTS.md` and project memory entries through the same utility-model path used for other runtime text tasks. Unlike prompt compaction, this changes the durable source files on disk, so future turns start from smaller inputs instead of only receiving a provider-compacted rendering.
+`/compress` rewrites workspace `AGENTS.md` and project memory entries through the same utility-model path used for other runtime text tasks. Unlike prompt compaction, this changes the saved source files on disk, so future turns start from smaller inputs instead of only receiving a provider-compacted rendering.
 
 Use it when:
 

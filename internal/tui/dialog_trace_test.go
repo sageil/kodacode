@@ -217,7 +217,7 @@ func TestTraceDialogRendersDurableTurnDetails(t *testing.T) {
 		"input savings: $0.00213 from 1200 avoided input tokens",
 		"savings mix: 100 prompt compaction • 900 history compaction • 200 tool catalog compression (180 schema • 20 descriptions)",
 		"2.1 | openai/gpt-5 | 910 ms | 500 input | 60 output | $0.00280",
-		"result: retryable error temporary provider error before retry | durable progress | 1 tool executed",
+		"result: retryable error temporary provider error before retry | saved progress | 1 tool executed",
 		"request mix: 180 prompt | 180 conversation | 140 tool surface (60 schema | 60 descriptions | 20 names | 1 tool)",
 		"input savings: $0.00202 from 1220 avoided input tokens",
 		"savings mix: 100 prompt compaction • 900 history compaction • 220 tool catalog compression (210 schema • 10 descriptions)",
@@ -611,7 +611,7 @@ func TestTraceDialogShowsCachePricingResolution(t *testing.T) {
 	dialog := newTraceDialog(model, state, "turn-1")
 	rendered := dialog.body.raw
 	for _, want := range []string{
-		"Trace source: durable runtime provider call records. Failed and successful provider calls are counted. Provider-reported usage is shown when available; cache pricing is applied when known and cost otherwise remains estimated. Request-mix attribution uses the same runtime token estimator used for budgeting when providers do not report per-component splits.",
+		"Trace source: stored runtime provider call records. Failed and successful provider calls are counted. Provider-reported usage is shown when available; cache pricing is applied when known and cost otherwise remains estimated. Request-mix attribution uses the same runtime token estimator used for budgeting when providers do not report per-component splits.",
 		"1.1 | openai/gpt-5 | 0 ms | 1400 input | 120 output | 300 cache-read | 40 cache-write | 1520 total | reported | $0.00270",
 		"result: cache pricing applied",
 	} {

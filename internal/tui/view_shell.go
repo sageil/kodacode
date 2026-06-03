@@ -213,7 +213,7 @@ func shellWorkflowStatusText(m Model, state events.SessionState) (string, string
 	if phaseID := strings.TrimSpace(workflow.CurrentPhaseID); phaseID != "" {
 		parts = append(parts, "phase "+phaseID)
 	}
-	status := strings.TrimSpace(workflow.Status)
+	status := workflowDisplayStatus(m, state, workflow)
 	if status != "" {
 		parts = append(parts, status)
 	}
@@ -293,7 +293,7 @@ func shellStatusLineSegments(m Model, state events.SessionState) []transcriptSta
 			Color: tone,
 		})
 	}
-	if mode := strings.TrimSpace(sessionPermissionModeLabel(state.PermissionMode)); mode != "" {
+	if mode := strings.TrimSpace(sessionPermissionModeLabel(effectiveSessionPermissionMode(m, state))); mode != "" {
 		segments = append(segments, transcriptStatusSegment{
 			Text:  "mode:" + mode,
 			Color: colorFor(m.theme, "subtext", "#9da8ca"),

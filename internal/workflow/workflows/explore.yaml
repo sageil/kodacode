@@ -1,16 +1,16 @@
 id: explore
-description: Read-only repository exploration for architecture, ownership, and planning context.
+description: Read-only repo exploration for structure, responsible code, and planning.
 
 phases:
   - id: inspect
     agent: planner
     mode: read_only
-    prompt: Inspect the minimum repository surface needed to answer the question.
+    prompt: Inspect only the parts of the repo needed to answer the question.
 
   - id: map
     agent: planner
     mode: read_only
-    prompt: Map the relevant architecture, files, dependencies, and tradeoffs without editing.
+    prompt: Summarize the relevant structure, files, dependencies, and tradeoffs without editing.
 
   - id: summarize
     type: final

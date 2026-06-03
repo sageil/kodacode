@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -136,6 +137,58 @@ func TestRuntimeWorkflowPlanPhaseOutputToolRecordsEvidenceAndAllowsMarkdownFinal
 	}
 }
 
+func TestRuntimeWorkflowPlanPhaseOpensApprovalQuestionWhenApprovalRequired(t *testing.T) {
+	client := &fakeProvider{
+		streams: []provider.Stream{
+			provider.NewSliceStream([]provider.Event{
+				{
+					Kind:       provider.EventKindToolCallDelta,
+					ToolCallID: "call-phase-output",
+					ToolName:   tool.WorkflowPhaseOutputToolName,
+					InputDelta: `{"fields":{"plan":"inspect and patch","affected_files":["internal/app/runtime.go","internal/app/runtime_workflow.go","internal/tui/view.go"],"risks":"regression"}}`,
+				},
+				{Kind: provider.EventKindToolCallDone, ToolCallID: "call-phase-output", ToolName: tool.WorkflowPhaseOutputToolName},
+			}),
+			provider.NewSliceStream([]provider.Event{
+				{Kind: provider.EventKindAssistantDelta, AssistantDelta: "## Plan\n\nInspect and patch the runtime."},
+			}),
+		},
+	}
+	runtime := newRuntimeWithClient(t, client)
+
+	result, err := runtime.RunSessionTurn(context.Background(), RunSessionInput{
+		WorkspaceRoot: t.TempDir(),
+		UserText:      "plan the change",
+		AgentID:       "engineer",
+		WorkflowID:    "delivery",
+	})
+	if err != nil {
+		t.Fatalf("RunSessionTurn() error = %v", err)
+	}
+	if result.Status != TurnRunStatusPending || result.PendingQuestion == nil {
+		t.Fatalf("result = %#v, want pending workflow approval question", result)
+	}
+	if result.PendingQuestion.Purpose != events.QuestionPurposeWorkflowApproval {
+		t.Fatalf("question purpose = %q", result.PendingQuestion.Purpose)
+	}
+	if result.PendingQuestion.Question != "Approve this plan before edits?" {
+		t.Fatalf("question = %q", result.PendingQuestion.Question)
+	}
+	if len(client.requests) != 2 {
+		t.Fatalf("provider requests = %d, want only plan phase requests", len(client.requests))
+	}
+	state, err := runtime.Sessions.Snapshot(context.Background(), result.SessionID)
+	if err != nil {
+		t.Fatalf("Snapshot() error = %v", err)
+	}
+	if state.Workflow == nil || state.Workflow.CurrentPhaseID != "approve" {
+		t.Fatalf("workflow = %#v, want approve phase", state.Workflow)
+	}
+	if len(state.PendingQuestions) != 1 {
+		t.Fatalf("pending questions = %#v, want one approval question", state.PendingQuestions)
+	}
+}
+
 func TestRuntimeWorkflowApprovalPhaseAsksDurableQuestionAndAnswerAdvances(t *testing.T) {
 	client := &fakeProvider{
 		streams: []provider.Stream{provider.NewSliceStream([]provider.Event{
@@ -144,6 +197,7 @@ func TestRuntimeWorkflowApprovalPhaseAsksDurableQuestionAndAnswerAdvances(t *tes
 	}
 	runtime := newRuntimeWithClient(t, client)
 	root := t.TempDir()
+	writeDeliveryWorkflowWithManualVerify(t, root)
 	sessionID := createWorkflowTestSession(t, runtime, root)
 	if err := runtime.StartWorkflow(context.Background(), StartWorkflowInput{
 		SessionID:     sessionID,
@@ -231,6 +285,7 @@ func TestRuntimeWorkflowApprovalPhaseSkipsForSmallAffectedFileSet(t *testing.T) 
 	}
 	runtime := newRuntimeWithClient(t, client)
 	root := t.TempDir()
+	writeDeliveryWorkflowWithManualVerify(t, root)
 	sessionID := createWorkflowTestSession(t, runtime, root)
 	if err := runtime.StartWorkflow(context.Background(), StartWorkflowInput{
 		SessionID:     sessionID,
@@ -286,7 +341,7 @@ func TestRuntimeWorkflowApprovalPhaseSkipsForSmallAffectedFileSet(t *testing.T) 
 	}
 }
 
-func TestRuntimeWorkflowApprovalContinuationPreservesConfiguredAgentForAgentlessPhase(t *testing.T) {
+func TestRuntimeWorkflowApprovalContinuationUsesYamlAgentAfterApproval(t *testing.T) {
 	client := &fakeProvider{
 		streams: []provider.Stream{provider.NewSliceStream([]provider.Event{
 			{Kind: provider.EventKindAssistantDelta, AssistantDelta: "implemented"},
@@ -294,9 +349,9 @@ func TestRuntimeWorkflowApprovalContinuationPreservesConfiguredAgentForAgentless
 	}
 	runtime := newRuntimeWithClient(t, client)
 	root := t.TempDir()
-	writeProjectWorkflow(t, root, "agentless.yaml", `
-id: agentless
-description: approval then selected agent
+	writeProjectWorkflow(t, root, "yaml-agent.yaml", `
+id: yaml-agent
+description: approval then yaml agent
 phases:
   - id: inspect
     agent: planner
@@ -306,7 +361,8 @@ phases:
     prompt: Continue?
   - id: implement
     type: agent
-    prompt: Implement with the selected agent.
+    agent: engineer
+    prompt: Implement with the configured phase agent.
   - id: summarize
     type: final
     prompt: Done.
@@ -316,7 +372,7 @@ phases:
 		SessionID:     sessionID,
 		TurnID:        "turn-1",
 		WorkspaceRoot: root,
-		WorkflowID:    "agentless",
+		WorkflowID:    "yaml-agent",
 	}); err != nil {
 		t.Fatalf("StartWorkflow() error = %v", err)
 	}
@@ -365,8 +421,8 @@ phases:
 		t.Fatalf("Snapshot() error = %v", err)
 	}
 	approvalTurn := state.Turns["turn-approve"]
-	if approvalTurn == nil || approvalTurn.Config == nil || approvalTurn.Config.AgentID != "engineer" || approvalTurn.Config.WorkflowPhaseID != "approve" {
-		t.Fatalf("approval turn config = %#v, want engineer approval binding", approvalTurn)
+	if approvalTurn == nil || approvalTurn.Config == nil || approvalTurn.Config.WorkflowPhaseID != "approve" {
+		t.Fatalf("approval turn config = %#v, want runtime-owned approval phase binding", approvalTurn)
 	}
 	implementTurn := state.Turns[completed.TurnID]
 	if implementTurn == nil || implementTurn.Config == nil || implementTurn.Config.AgentID != "engineer" || implementTurn.Config.WorkflowPhaseID != "implement" {
@@ -573,9 +629,9 @@ func TestRuntimeWorkflowFailedVerificationLoopsBackToImplementationWithinCap(t *
 
 func TestRuntimeWorkflowReviewerPhaseCannotEditFiles(t *testing.T) {
 	client := newWorkflowReviewResultProvider(map[string]string{
-		"correctness": "Correctness pass clean.",
-		"tests":       "Tests pass clean.",
-		"contracts":   "Contracts pass clean.",
+		"correctness":  "Correctness pass clean.",
+		"tests":        "Tests pass clean.",
+		"architecture": "Architecture pass clean.",
 	})
 	runtime := newRuntimeWithClient(t, client)
 	root := t.TempDir()
@@ -690,6 +746,62 @@ func TestRuntimeWorkflowFinalPhaseCompletesWithoutProviderFallback(t *testing.T)
 	}
 }
 
+func TestRuntimeWorkflowBlockedPhaseCanRecoverFromUserTurn(t *testing.T) {
+	client := &fakeProvider{
+		streams: []provider.Stream{provider.NewSliceStream([]provider.Event{
+			{Kind: provider.EventKindAssistantDelta, AssistantDelta: "I will continue repairing the blocked task."},
+		})},
+	}
+	runtime := newRuntimeWithClient(t, client)
+	root := t.TempDir()
+	sessionID := createWorkflowTestSession(t, runtime, root)
+	startDeliveryAtImplement(t, runtime, sessionID, root)
+
+	if _, err := runtime.Sessions.CreateTask(context.Background(), CreateTaskInput{
+		SessionID: sessionID,
+		TurnID:    "turn-implement",
+		TaskID:    "task-implement",
+		Title:     "Finish implementation",
+		Status:    events.TaskStatusInProgress,
+	}); err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+	if err := runtime.AdvanceWorkflow(context.Background(), AdvanceWorkflowInput{
+		SessionID: sessionID,
+		TurnID:    "turn-implement",
+		ToPhaseID: "verify",
+	}); !errors.Is(err, ErrWorkflowEvidenceMissing) {
+		t.Fatalf("AdvanceWorkflow(verify with active task) error = %v, want ErrWorkflowEvidenceMissing", err)
+	}
+
+	result, err := runtime.runExistingSessionTurn(context.Background(), runExistingTurnInput{
+		SessionID: sessionID,
+		TurnID:    "turn-recover",
+		UserText:  "fix all tasks",
+		AgentID:   "engineer",
+	})
+	if err != nil {
+		t.Fatalf("runExistingSessionTurn(recover) error = %v", err)
+	}
+	if result.Status != TurnRunStatusCompleted {
+		t.Fatalf("status = %q, want completed recovery turn", result.Status)
+	}
+	if len(client.requests) != 1 {
+		t.Fatalf("provider requests = %d, want recovery turn to reach provider", len(client.requests))
+	}
+	if !strings.Contains(client.requests[0].Instructions, "Workflow recovery") ||
+		!strings.Contains(client.requests[0].Instructions, "workflow phase has unfinished task: task-implement") {
+		t.Fatalf("recovery instructions missing block context:\n%s", client.requests[0].Instructions)
+	}
+	state, err := runtime.Sessions.Snapshot(context.Background(), sessionID)
+	if err != nil {
+		t.Fatalf("Snapshot() error = %v", err)
+	}
+	if state.Workflow == nil || state.Workflow.Status != events.WorkflowStatusBlocked || state.Workflow.CurrentPhaseID != "implement" {
+		t.Fatalf("workflow = %#v, want blocked implement until task is completed", state.Workflow)
+	}
+}
+
 func TestRuntimeWorkflowTaskStateRecordsPhaseBinding(t *testing.T) {
 	runtime := newRuntimeWithClient(t, &fakeProvider{})
 	root := t.TempDir()
@@ -761,6 +873,43 @@ func writeProjectWorkflow(t *testing.T, root, name, content string) {
 	if err := os.WriteFile(filepath.Join(workflowDir, name), []byte(content), 0o644); err != nil {
 		t.Fatalf("WriteFile(%s) error = %v", name, err)
 	}
+}
+
+func writeDeliveryWorkflowWithManualVerify(t *testing.T, root string) {
+	t.Helper()
+	writeProjectWorkflow(t, root, "delivery.yaml", `
+id: delivery
+description: Test delivery workflow that pauses before verification.
+phases:
+  - id: plan
+    agent: planner
+    mode: read_only
+    requires_output:
+      - plan
+      - affected_files
+      - risks
+
+  - id: approve
+    type: user_approval
+    prompt: Approve this plan before edits?
+    skip_when:
+      max_affected_files: 2
+
+  - id: implement
+    agent: engineer
+
+  - id: verify
+    type: verification
+    agent: engineer
+    auto_continue: false
+    commands:
+      - tool: test
+        command: go test ./...
+    required: true
+
+  - id: summarize
+    type: final
+`)
 }
 
 func workflowVerificationEvidence(workflow *events.WorkflowState, phaseID string) *events.WorkflowEvidenceState {

@@ -107,13 +107,32 @@ func footerStatusSegments(m Model, state events.SessionState) []transcriptStatus
 			Color: tone,
 		})
 	}
-	if mode := strings.TrimSpace(sessionPermissionModeLabel(state.PermissionMode)); mode != "" {
+	if mode := strings.TrimSpace(sessionPermissionModeLabel(effectiveSessionPermissionMode(m, state))); mode != "" {
 		segments = append(segments, transcriptStatusSegment{
 			Text:  "mode:" + mode,
 			Color: colorFor(m.theme, "subtext", "#9da8ca"),
 		})
 	}
 	return segments
+}
+
+func effectiveSessionPermissionMode(m Model, state events.SessionState) string {
+	if !sessionStateConfigured(state) {
+		if mode := strings.TrimSpace(m.permissionMode); mode != "" {
+			return mode
+		}
+	}
+	if mode := strings.TrimSpace(state.PermissionMode); mode != "" {
+		return mode
+	}
+	return strings.TrimSpace(m.permissionMode)
+}
+
+func sessionStateConfigured(state events.SessionState) bool {
+	return strings.TrimSpace(state.SessionID) != "" ||
+		strings.TrimSpace(state.WorkspaceRoot) != "" ||
+		len(state.TurnOrder) > 0 ||
+		len(state.Turns) > 0
 }
 
 func footerWorkflowLabel(m Model, state events.SessionState) (string, string, bool) {
@@ -128,7 +147,7 @@ func footerWorkflowLabel(m Model, state events.SessionState) (string, string, bo
 	if phaseID := strings.TrimSpace(workflow.CurrentPhaseID); phaseID != "" {
 		label += " phase:" + phaseID
 	}
-	status := strings.TrimSpace(workflow.Status)
+	status := workflowDisplayStatus(m, state, workflow)
 	if status != "" {
 		label += " " + status
 	}
@@ -143,6 +162,28 @@ func footerWorkflowLabel(m Model, state events.SessionState) (string, string, bo
 	default:
 		return label, colorFor(m.theme, "primary", "#7cc7ff"), false
 	}
+}
+
+func workflowDisplayStatus(m Model, state events.SessionState, workflow *events.WorkflowState) string {
+	if workflow == nil {
+		return ""
+	}
+	status := strings.TrimSpace(workflow.Status)
+	if status != events.WorkflowStatusActive {
+		return status
+	}
+	if m.busy || m.liveTurn.spinnerArmed {
+		return status
+	}
+	if turn := currentTurn(state, effectiveFooterTurnID(m, state)); turn != nil {
+		if turn.Status == events.TurnStatusRunning {
+			return status
+		}
+		if isTurnFinished(turn) {
+			return "paused"
+		}
+	}
+	return status
 }
 
 func workflowStopReason(workflow *events.WorkflowState) string {

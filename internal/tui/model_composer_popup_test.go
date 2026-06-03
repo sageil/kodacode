@@ -98,7 +98,7 @@ func TestComposerSlashCommandDoesNotExposeSkillsDialog(t *testing.T) {
 	}
 }
 
-func TestComposerSlashPopupHidesWorkflowCommand(t *testing.T) {
+func TestComposerSlashPopupShowsWorkflowCommand(t *testing.T) {
 	defaultTheme := theme.StaticDefault()
 	ctx, cancel := context.WithCancel(context.TODO())
 	defer cancel()
@@ -125,8 +125,8 @@ func TestComposerSlashPopupHidesWorkflowCommand(t *testing.T) {
 	if !strings.Contains(rendered, "/model") {
 		t.Fatalf("slash popup missing visible command /model\n%s", rendered)
 	}
-	if strings.Contains(rendered, "/workflow") {
-		t.Fatalf("slash popup exposed hidden workflow command\n%s", rendered)
+	if !strings.Contains(rendered, "/workflow") {
+		t.Fatalf("slash popup missing workflow command\n%s", rendered)
 	}
 }
 
@@ -1836,6 +1836,44 @@ func TestComposerSlashPopupTraceStagesCommandForTurnSelection(t *testing.T) {
 	nextModel := next.(Model)
 	if got := nextModel.composer.Value(); got != "/trace " {
 		t.Fatalf("composer value = %q, want staged trace command", got)
+	}
+	if nextModel.composerState.popupMode != composerPopupNone {
+		t.Fatalf("composer popup mode = %q, want none", nextModel.composerState.popupMode)
+	}
+}
+
+func TestComposerSlashPopupWorkflowStagesCommandForArgument(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	controller := &fakeController{
+		workflows: []app.AvailableWorkflow{{ID: "delivery", Description: "Delivery workflow"}},
+	}
+	model := NewModel(controller, ModelConfig{
+		Context:       ctx,
+		Theme:         &defaultTheme,
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: "/repo",
+	})
+	model.chrome.focus = focusComposer
+	model.composer.SetValue("/workflow")
+	_ = model.refreshComposerPopup()
+
+	next, cmd, handled := model.handleComposerPopupInput(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if !handled {
+		t.Fatal("enter should be handled by slash popup")
+	}
+	if cmd != nil {
+		t.Fatalf("cmd = %#v, want nil while staging workflow command", cmd)
+	}
+	nextModel := next.(Model)
+	if got := nextModel.composer.Value(); got != "/workflow " {
+		t.Fatalf("composer value = %q, want staged workflow command", got)
+	}
+	if nextModel.dialog != nil {
+		t.Fatal("workflow dialog opened while selecting slash command")
 	}
 	if nextModel.composerState.popupMode != composerPopupNone {
 		t.Fatalf("composer popup mode = %q, want none", nextModel.composerState.popupMode)

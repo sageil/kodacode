@@ -11,7 +11,7 @@ Workflow policy, permission gates, session state, and tool execution rules live 
 
 ## Events first
 
-The system persists a durable event stream. Live UI updates and replay both come from those same events, which keeps the TUI honest and resumable.
+The system persists a stored event stream. Live UI updates and replay both come from those same events, which keeps the TUI honest and resumable.
 
 ## Declaration is not execution
 
@@ -28,7 +28,7 @@ The working directory is the default filesystem scope. Anything outside it becom
 ## Main subsystems
 
 - `internal/provider`: provider clients and model streaming
-- `internal/events`: durable event model and replay
+- `internal/events`: stored event model and replay
 - `internal/engine`: prompt preparation and compile boundary
 - `internal/tool`: tool contracts and execution context
 - `internal/codeintel`: code-intelligence services backed by LSP servers

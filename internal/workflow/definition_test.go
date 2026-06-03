@@ -385,6 +385,22 @@ phases:
 	}
 }
 
+func TestDefinitionValidateParsesAutoContinueAgentPhase(t *testing.T) {
+	definition, err := LoadBytes([]byte(`
+id: delivery
+phases:
+  - id: implement
+    agent: engineer
+    auto_continue: true
+`), testValidationContext())
+	if err != nil {
+		t.Fatalf("LoadBytes() error = %v", err)
+	}
+	if !definition.Phases[0].AutoContinueEnabled() {
+		t.Fatal("auto_continue = false, want true")
+	}
+}
+
 func TestDefinitionValidateParsesAutoContinueFalseAsOptOut(t *testing.T) {
 	definition, err := LoadBytes([]byte(`
 id: review
@@ -409,8 +425,8 @@ func TestDefinitionValidateRejectsAutoContinueUnsupportedPhase(t *testing.T) {
 	_, err := LoadBytes([]byte(`
 id: delivery
 phases:
-  - id: implement
-    agent: engineer
+  - id: approve
+    type: user_approval
     auto_continue: true
 `), testValidationContext())
 	if !errors.Is(err, ErrWorkflowAutoContinueInvalid) {
@@ -506,6 +522,20 @@ phases:
 	}
 }
 
+func TestDefinitionValidateRejectsMissingRunnablePhaseAgent(t *testing.T) {
+	for _, typ := range []PhaseType{PhaseTypeAgent, PhaseTypeVerification, PhaseTypeReview} {
+		_, err := LoadBytes([]byte(`
+id: missing-agent
+phases:
+  - id: run
+    type: `+string(typ)+`
+`), testValidationContext())
+		if !errors.Is(err, ErrWorkflowAgentRequired) {
+			t.Fatalf("LoadBytes(type %q) error = %v, want ErrWorkflowAgentRequired", typ, err)
+		}
+	}
+}
+
 func TestDefinitionValidateRejectsUnknownTool(t *testing.T) {
 	_, err := LoadBytes([]byte(`
 id: delivery
@@ -527,6 +557,7 @@ id: delivery
 phases:
   - id: verify
     type: verification
+    agent: engineer
     tools:
       allow:
         - test
@@ -544,6 +575,7 @@ id: delivery
 phases:
   - id: verify
     type: verification
+    agent: engineer
     tools:
       allow:
         - test
@@ -692,6 +724,7 @@ phases:
 
   - id: verify
     type: verification
+    agent: engineer
     commands:
       - tool: test
         command: go test ./...
@@ -704,9 +737,9 @@ phases:
     parallel_review: true
     review_passes:
       - id: correctness
-        description: Behavioral regressions and implementation correctness.
+        description: Behavior changes and whether the implementation is correct.
       - id: tests
-        description: Verification coverage, edge cases, and missing checks.
+        description: Test coverage, edge cases, and missing checks.
     requires:
       - git_diff
       - verification_result

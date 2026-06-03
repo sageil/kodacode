@@ -501,6 +501,47 @@ func workflowAffectedFilesValueCount(value string) (int, bool) {
 	if err := json.Unmarshal([]byte(value), &array); err == nil {
 		return len(array), true
 	}
+	var scalar string
+	if err := json.Unmarshal([]byte(value), &scalar); err == nil {
+		return workflowAffectedFilesTextCount(scalar)
+	}
+	return workflowAffectedFilesTextCount(value)
+}
+
+func workflowAffectedFilesTextCount(value string) (int, bool) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return 0, false
+	}
+	normalized := strings.ToLower(value)
+	switch normalized {
+	case "none", "none identified", "no files", "no files identified", "[]":
+		return 0, true
+	}
+	lines := strings.Split(value, "\n")
+	if len(lines) > 1 {
+		count := 0
+		for _, line := range lines {
+			line = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(line), "-"))
+			if line != "" {
+				count++
+			}
+		}
+		return count, true
+	}
+	parts := strings.Split(value, ",")
+	if len(parts) > 1 {
+		count := 0
+		for _, part := range parts {
+			if strings.TrimSpace(part) != "" {
+				count++
+			}
+		}
+		return count, true
+	}
+	if strings.Contains(value, "/") || strings.Contains(value, "\\") || strings.Contains(value, ".") {
+		return 1, true
+	}
 	return 0, false
 }
 
@@ -717,7 +758,10 @@ func (r *Runtime) continueWorkflowIfRunnable(ctx context.Context, sessionID, pre
 	if !ok {
 		return RunSessionResult{}, false, ErrWorkflowTransitionInvalid
 	}
-	if !workflowPhaseRunnableWithoutUser(phase) {
+	if workflowPhaseIsUserApproval(phase) && workflowApprovalSkipAllowed(state, phase) {
+		return result, false, nil
+	}
+	if !workflowPhaseRunnableAsContinuation(phase) {
 		return result, false, nil
 	}
 	nextTurnID := newRuntimeID("turn")
@@ -725,7 +769,7 @@ func (r *Runtime) continueWorkflowIfRunnable(ctx context.Context, sessionID, pre
 		SessionID:            sessionID,
 		TurnID:               nextTurnID,
 		UserText:             "",
-		AgentID:              workflowPhaseContinuationAgentID(state, previousTurnID, phase),
+		AgentID:              workflowPhaseContinuationAgentID(phase),
 		WorkflowID:           workflow.WorkflowID,
 		SkillIDs:             workflowPhaseContinuationSkillIDs(state, previousTurnID),
 		ThinkingEnabled:      workflowPhaseContinuationThinkingEnabled(state, previousTurnID),
@@ -743,28 +787,20 @@ func (r *Runtime) continueWorkflowIfRunnable(ctx context.Context, sessionID, pre
 	return continued, true, nil
 }
 
-func workflowPhaseRunnableWithoutUser(phase workflowpkg.Phase) bool {
+func workflowPhaseRunnableAsContinuation(phase workflowpkg.Phase) bool {
 	if phase.AutoContinueDisabled() {
 		return false
 	}
-	switch {
-	case workflowPhaseIsReview(phase) && phase.ParallelReviewEnabled():
+	switch phase.EffectiveType() {
+	case workflowpkg.PhaseTypeAgent, workflowpkg.PhaseTypeReview, workflowpkg.PhaseTypeUserApproval, workflowpkg.PhaseTypeVerification:
 		return true
 	default:
 		return false
 	}
 }
 
-func workflowPhaseContinuationAgentID(state events.SessionState, previousTurnID string, phase workflowpkg.Phase) string {
-	if agentID := strings.TrimSpace(workflowPhaseAgentID("", phase)); agentID != "" {
-		return agentID
-	}
-	if turn := state.Turns[strings.TrimSpace(previousTurnID)]; turn != nil && turn.Config != nil {
-		if agentID := strings.TrimSpace(turn.Config.AgentID); agentID != "" {
-			return agentID
-		}
-	}
-	return "engineer"
+func workflowPhaseContinuationAgentID(phase workflowpkg.Phase) string {
+	return strings.TrimSpace(workflowPhaseAgentID(phase))
 }
 
 func workflowPhaseContinuationSkillIDs(state events.SessionState, previousTurnID string) []string {
@@ -1051,21 +1087,8 @@ func (r *Runtime) appendWorkflowFinalSummary(ctx context.Context, sessionID, tur
 	if err != nil {
 		return err
 	}
-	text, fields := workflowFinalAssistantText(workflowID, phase, state.Workflow)
-	if err := appendTextToParentTurn(ctx, r.Sessions, sessionID, turnID, text); err != nil {
-		return err
-	}
-	if workflowHasAnyEvidenceType(state.Workflow, strings.TrimSpace(phase.ID), events.WorkflowEvidenceTypePhaseOutput) {
-		return nil
-	}
-	return r.RecordWorkflowEvidence(ctx, RecordWorkflowEvidenceInput{
-		SessionID: sessionID,
-		TurnID:    turnID,
-		PhaseID:   phase.ID,
-		Type:      events.WorkflowEvidenceTypePhaseOutput,
-		Summary:   truncateWorkflowEvidenceSummary(text),
-		Fields:    fields,
-	})
+	text, _ := workflowFinalAssistantText(workflowID, phase, state.Workflow)
+	return appendTextToParentTurn(ctx, r.Sessions, sessionID, turnID, text)
 }
 
 func workflowFinalAssistantText(workflowID string, phase workflowpkg.Phase, workflow *events.WorkflowState) (string, map[string]string) {

@@ -31,7 +31,7 @@ var composerCommands = []composerCommand{
 	{ID: "sessions", Name: "/sessions", Description: "manage sessions"},
 	{ID: "init", Name: "/init", Description: "initialize workspace instruction files"},
 	{ID: "model", Name: "/model", Description: "switch model"},
-	{ID: "workflow", Name: "/workflow", Description: "select workflow", Usage: "/workflow [id|off|resume]", Hidden: true},
+	{ID: "workflow", Name: "/workflow", Description: "select or resume workflow", Usage: "/workflow [id|off|resume]", StageOnSelect: true},
 	{ID: "variant", Name: "/variant", Description: "set provider reasoning variant", Usage: "/variant [value]"},
 	{ID: "thinking", Name: "/thinking", Description: "toggle provider thinking output"},
 	{ID: "theme", Name: "/theme", Description: "switch theme"},

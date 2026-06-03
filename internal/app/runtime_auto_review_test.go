@@ -72,7 +72,7 @@ You are the reviewer agent.
 	runtime.Config.ModelRoute = provider.ModelRoute{
 		Primary: provider.ModelRef{ProviderID: "openai", ModelID: "gpt-5-mini"},
 	}
-	completeTaskForAutoReviewTest(t, runtime, sessionID, "turn-setup", "Improve middleware layer", "middleware refactor landed")
+	completedTask := completeTaskForAutoReviewTest(t, runtime, sessionID, "turn-setup", "Improve middleware layer", "middleware refactor landed")
 
 	result, err := runtime.runExistingSessionTurn(context.Background(), runExistingTurnInput{
 		SessionID: sessionID,
@@ -97,6 +97,20 @@ You are the reviewer agent.
 	}
 	if got := client.requests[1].Model.String(); got != "openai/gpt-5-mini" {
 		t.Fatalf("auto review request model = %q, want reviewer agent model", got)
+	}
+	reviewRequest := client.requests[1]
+	if len(reviewRequest.Inputs) != 1 {
+		t.Fatalf("auto review inputs = %#v, want current derived turn only", reviewRequest.Inputs)
+	}
+	if strings.Contains(reviewRequest.Inputs[0].Content, "Engineer done.") || strings.Contains(reviewRequest.Inputs[0].Content, "middleware refactor landed") {
+		t.Fatalf("auto review input replayed context instead of using compact fragment: %q", reviewRequest.Inputs[0].Content)
+	}
+	if !strings.Contains(reviewRequest.Instructions, "Auto-review compact context.") ||
+		!strings.Contains(reviewRequest.Instructions, "Session history is intentionally omitted for this derived review turn.") ||
+		!strings.Contains(reviewRequest.Instructions, "id="+completedTask.TaskID) ||
+		!strings.Contains(reviewRequest.Instructions, "summary=middleware refactor landed") ||
+		!strings.Contains(reviewRequest.Instructions, "Completed engineer turn assistant output:\nEngineer done.") {
+		t.Fatalf("auto review instructions missing compact context:\n%s", reviewRequest.Instructions)
 	}
 
 	state, err := runtime.Sessions.Snapshot(context.Background(), sessionID)
@@ -271,6 +285,8 @@ phases:
     agent: engineer
   - id: verify
     type: verification
+    agent: engineer
+    auto_continue: false
     commands:
       - tool: test
         command: go test ./...

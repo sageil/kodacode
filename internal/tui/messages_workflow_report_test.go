@@ -139,10 +139,84 @@ func TestCompletedWorkflowReportRendersLastAndHidesResultToolRows(t *testing.T) 
 	if reportIndex < toolIndex || reportIndex < draftIndex {
 		t.Fatalf("workflow report should be the last transcript section:\n%s", rendered)
 	}
-	for _, want := range []string{"Workflow review completed.", "decision: ship the fix", "correctness pass", "No regressions found."} {
+	for _, want := range []string{"Workflow review completed.", "decision:", "ship the fix", "correctness pass", "No regressions found."} {
 		if !strings.Contains(rendered, want) {
 			t.Fatalf("workflow report missing %q:\n%s", want, rendered)
 		}
+	}
+}
+
+func TestCompletedWorkflowReportExpandsPhaseOutputFields(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context:       ctx,
+		Theme:         &defaultTheme,
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: "/repo",
+	})
+
+	longConstraints := "TypeScript strict mode on both sides; shared validation schemas; session cookies; Socket.io live updates; pagination response shape; role-based permissions enforced server-side."
+	finalSummary := "Workflow `explore` completed. Summary: " + longConstraints
+	state := events.SessionState{
+		SessionID:     "session-1",
+		WorkspaceRoot: "/repo",
+		Workflow: &events.WorkflowState{
+			WorkflowID:        "explore",
+			Status:            events.WorkflowStatusCompleted,
+			CurrentPhaseID:    "summarize",
+			CompletedPhaseIDs: []string{"inspect", "map", "summarize"},
+			EvidenceOrder:     []string{"evidence-map", "evidence-summary"},
+			Evidence: map[string]*events.WorkflowEvidenceState{
+				"evidence-map": {
+					EvidenceID: "evidence-map",
+					WorkflowID: "explore",
+					PhaseID:    "map",
+					Type:       events.WorkflowEvidenceTypePhaseOutput,
+					Summary:    "workflow phase output recorded: architecture_notes, constraints, inspected_files, next_steps",
+					Fields: map[string]string{
+						"constraints":        longConstraints,
+						"architecture_notes": "Express API, Vue client, shared validation, and Socket.io.",
+						"inspected_files":    `["server.ts","routes/auth.ts","client/src/main.ts","client/src/router/index.ts"]`,
+						"next_steps":         "Verify missing views and confirm deployment pipeline.",
+					},
+				},
+				"evidence-summary": {
+					EvidenceID: "evidence-summary",
+					WorkflowID: "explore",
+					PhaseID:    "summarize",
+					Type:       events.WorkflowEvidenceTypePhaseOutput,
+					Summary:    finalSummary,
+					Fields: map[string]string{
+						"constraints": longConstraints,
+					},
+				},
+			},
+			StopReason:     "workflow completed",
+			CompletedAtSeq: 9,
+		},
+	}
+
+	rendered := ansi.Strip(renderTranscriptMessages(model, state, 92).content)
+	for _, want := range []string{
+		"constraints:",
+		"role-based permissions enforced",
+		"server-side.",
+		"inspected_files:",
+		"server.ts, routes/auth.ts, client/src/main.ts, client/src/router/index.ts",
+	} {
+		if !strings.Contains(rendered, want) {
+			t.Fatalf("workflow report missing expanded field %q:\n%s", want, rendered)
+		}
+	}
+	if strings.Contains(rendered, "role-based permissions enforced...") {
+		t.Fatalf("workflow report still truncates phase output field:\n%s", rendered)
+	}
+	if strings.Contains(rendered, "phase summarize") {
+		t.Fatalf("workflow report should hide final summary phase-output duplicate:\n%s", rendered)
 	}
 }
 

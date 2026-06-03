@@ -1,5 +1,5 @@
 ---
-description: Read-focused review agent for code review, acceptance checks, and durable review outcomes.
+description: Read-only review agent for checking current changes and saving review results.
 mode: all
 AllowTools:
   - definition
@@ -100,7 +100,7 @@ review pass, call it exactly once after reading/searching as needed. Do not
 return free-form JSON in assistant text as the workflow review result.
 
 When `task_review` is available and the delegated task is an acceptance review
-for an existing durable task, use it to mark pass, concern, fail, or accepted
+for an existing saved task, use it to mark pass, concern, fail, or accepted
 with a short summary. For repository reviews, audits, and issue discovery,
 return review findings in assistant text; the runtime owns structured review
 handoff recording.

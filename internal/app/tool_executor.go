@@ -255,12 +255,15 @@ func (e *ToolExecutor) providerToolSurfaceAllowedFiltered(allowed []string, incl
 }
 
 func providerFunctionApplyPatchDefinition(definition tool.Definition) tool.Definition {
-	description := "Edit files by sending JSON with one `patch` string. The patch string must follow the structured patch grammar. Patch lines MUST NOT include read output line number prefixes like \"40:\" either directly or after patch prefixes like \"-40:\" or \"+40:\"."
+	description := "Edit files by sending JSON with one `patch` string. The patch string must follow the structured patch grammar: first line \"*** Begin Patch\", final line \"*** End Patch\", and file headers \"*** Add File:\", \"*** Update File:\", or \"*** Delete File:\". In Add File operations, every file-content line must start with \"+\", including blank lines as \"+\". In Update File operations, hunk lines must start with a space, \"+\", or \"-\". Patch lines MUST NOT include read output line number prefixes like \"40:\" either directly or after patch prefixes like \"-40:\" or \"+40:\"."
 	definition.InputKind = tool.InputKindFunction
 	definition.InputFormat = nil
-	definition.InputSchema = json.RawMessage(`{"type":"object","properties":{"patch":{"type":"string","description":"Raw structured patch text. First line: *** Begin Patch. Final line: *** End Patch. Use file headers like *** Update File: path and prefixed changed lines. Patch lines MUST NOT include read output line number prefixes like \"40:\" either directly or after patch prefixes like \"-40:\" or \"+40:\"."}},"required":["patch"],"additionalProperties":false}`)
+	definition.InputSchema = json.RawMessage(`{"type":"object","properties":{"patch":{"type":"string","description":"Raw structured patch text. First line: *** Begin Patch. Final line: *** End Patch. Use file headers like *** Add File: path, *** Update File: path, or *** Delete File: path. Add File content lines must all start with +, including blank lines as +. Update File hunk lines must start with a space, +, or -. Patch lines MUST NOT include read output line number prefixes like \"40:\" either directly or after patch prefixes like \"-40:\" or \"+40:\"."}},"required":["patch"],"additionalProperties":false}`)
 	definition.ProviderDescription = description
-	definition.ArgumentExamples = []string{`{"patch":"*** Begin Patch\n*** Update File: file.txt\n-old\n+new\n*** End Patch\n"}`}
+	definition.ArgumentExamples = []string{
+		`{"patch":"*** Begin Patch\n*** Update File: file.txt\n@@\n-old\n+new\n*** End Patch\n"}`,
+		`{"patch":"*** Begin Patch\n*** Add File: file.txt\n+first line\n+\n+third line\n*** End Patch\n"}`,
+	}
 	definition.ProviderRichGuidance = true
 	return definition
 }

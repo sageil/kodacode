@@ -44,7 +44,7 @@ read-only tools such as `symbols`, `definition`, `diagnostics`, `refs`, and
 
 A structured execution agent with access to runtime task tools such as
 `task_workflow` and to the `delegate` tool. Use it when the work benefits from
-durable task state, planner/reviewer handoffs, or a more explicit execution
+saved task state, planner/reviewer handoffs, or a more explicit execution
 workflow. Its intended boundary is: narrow local planning stays inline, but
 repository-scoped plans and architecture mapping should be handed to `planner`.
 
@@ -55,9 +55,9 @@ language-server refactor or fix is safer than manual text edits.
 
 ### reviewer
 
-A read-focused agent for review and acceptance checks. It has a narrower tool
-surface and does not own file-editing tools. When external verification helps,
-it can also use `web_search` and `web_fetch`.
+A read-only agent for checking current changes. It has fewer tools than the
+coding agents and does not own file-editing tools. When external checks help, it
+can also use `web_search` and `web_fetch`.
 
 `reviewer` has read-only code-intelligence tools:
 
@@ -101,7 +101,7 @@ It does not have mutation tools, including `apply_patch`, `write`,
 The structured workflow path is centered on `engineer` and `reviewer`.
 
 - `engineer` owns `task_workflow` and the main implementation session
-- `reviewer` owns `task_review` and records durable review outcomes
+- `reviewer` owns `task_review` and records saved review outcomes
 - delegated reviewer sessions review the parent work session's tasks, not an
   empty child-local task list
 
@@ -218,7 +218,7 @@ files.
 When implementation is complete and you want an acceptance pass before
 finishing, delegate to `reviewer`.
 
-Use `task_workflow` when the work naturally breaks into durable steps.
+Use `task_workflow` when the work naturally breaks into saved steps.
 </workflow>
 
 <execution>
@@ -266,9 +266,9 @@ You only prepare release notes and changelog updates.
   removes the agent from the normal picker without deleting it from the
   catalog.
 - `AllowTools`:
-  the explicit tool surface this agent gets.
+  the explicit tools this agent gets.
 - `DisallowedTools`:
-  removes tools from the available surface.
+  removes tools from the available set.
 - Prompt body:
   the actual behavior instructions sent to the model.
 
@@ -300,23 +300,23 @@ targets when their mode is `subagent` or `all`.
 `AllowTools` and `DisallowedTools` are evaluated by runtime, not by prompt
 convention.
 
-- If neither `AllowTools` nor `DisallowedTools` is set, the agent gets the full current turn tool surface.
+- If neither `AllowTools` nor `DisallowedTools` is set, the agent gets all tools available to the current turn.
 - If `AllowTools` is not set and `DisallowedTools` is set, the agent gets all current turn tools except the denied ones.
 - If `AllowTools` is set, the agent only gets the listed tools.
 - If both are set, runtime starts from `AllowTools` and then removes anything listed in `DisallowedTools`.
 - `AllowTools: []` means no tools at all. That is an explicit no-tool agent, not a fallback.
-- If `AllowTools` names a tool that is not registered in the current runtime surface, runtime drops it instead of treating the agent as invalid.
+- If `AllowTools` names a tool that is not registered in the current runtime, runtime drops it instead of treating the agent as invalid.
 
 Tool names are matched by exact runtime tool name. MCP tools also support the
 wildcard `mcp:*`.
 
-This tool surface is not the same thing as runtime permission policy:
+This tool access is not the same thing as runtime permission policy:
 
 - `AllowTools` and `DisallowedTools` decide which tools exist in the turn
 - `execution.permission_mode` decides the runtime posture
 - top-level `config.yaml` `permissions` can default repeated actions to
   `allow`, `ask`, or `deny`
-- session approvals and grants remain durable runtime state
+- session approvals and grants remain saved runtime state
 
 That separation is intentional. Agent markdown can narrow tool availability,
 but it does not grant filesystem, execution, or network authority by itself.
@@ -343,7 +343,7 @@ There is no fallback model chain in agent frontmatter or session routing.
 
 ### Runtime behavior
 
-The `delegate` tool starts a child session and returns a durable handoff
+The `delegate` tool starts a child session and returns a saved handoff
 record. The record can be:
 
 - `completed`

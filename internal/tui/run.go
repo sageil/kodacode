@@ -94,6 +94,10 @@ func RunWithBackend(backend Backend, opts RunOpts) error {
 	if strings.TrimSpace(input.WorkspaceRoot) != "" {
 		workspaceRoot = input.WorkspaceRoot
 	}
+	startupPermissionMode, err := loadStartupPermissionMode(getenv)
+	if err != nil {
+		return err
+	}
 
 	tuiSettings, err := app.LoadTUISettings(getenv)
 	if err != nil {
@@ -180,6 +184,7 @@ func RunWithBackend(backend Backend, opts RunOpts) error {
 		UserText:           input.UserText,
 		WorkflowID:         input.WorkflowID,
 		SkillIDs:           append([]string(nil), input.SkillIDs...),
+		PermissionMode:     startupPermissionMode,
 		InitialState:       initialState,
 		InitialStateOwned:  initialState != nil,
 	})
@@ -202,6 +207,14 @@ func RunWithBackend(backend Backend, opts RunOpts) error {
 		return finished.Err()
 	}
 	return nil
+}
+
+func loadStartupPermissionMode(getenv func(string) string) (app.PermissionMode, error) {
+	config, err := app.LoadRuntimeConfig(getenv)
+	if err != nil {
+		return "", err
+	}
+	return config.Execution.PermissionMode, nil
 }
 
 func loadStartupTheme(name string) (*theme.Theme, string, bool, error) {

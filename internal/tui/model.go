@@ -34,6 +34,7 @@ type ModelConfig struct {
 	AgentID            string
 	WorkflowID         string
 	SkillIDs           []string
+	PermissionMode     app.PermissionMode
 	InitialState       *events.SessionState
 	InitialStateOwned  bool
 }
@@ -58,6 +59,7 @@ type Model struct {
 	agentID               string
 	workflowID            string
 	skillIDs              []string
+	permissionMode        string
 	thinkingEnabled       bool
 	reasoningVariant      string
 	workspace             string
@@ -299,6 +301,7 @@ func NewModel(backend Backend, cfg ModelConfig) Model {
 	agentID := strings.TrimSpace(cfg.AgentID)
 	workflowID := strings.TrimSpace(cfg.WorkflowID)
 	skillIDs := append([]string(nil), cfg.SkillIDs...)
+	permissionMode := strings.TrimSpace(string(cfg.PermissionMode))
 	bootstrapped := false
 	if cfg.InitialState != nil {
 		if cfg.InitialStateOwned {
@@ -312,6 +315,9 @@ func NewModel(backend Backend, cfg ModelConfig) Model {
 		workflowID = resolvedWorkflowID(*cfg.InitialState, cfg.TurnID, workflowID)
 		if len(skillIDs) == 0 {
 			skillIDs = resolvedSkillIDs(*cfg.InitialState, cfg.TurnID, skillIDs)
+		}
+		if stateMode := strings.TrimSpace(cfg.InitialState.PermissionMode); stateMode != "" {
+			permissionMode = stateMode
 		}
 		bootstrapped = true
 	}
@@ -342,6 +348,7 @@ func NewModel(backend Backend, cfg ModelConfig) Model {
 		agentID:               pickFirstNonBlank(agentID, "builder"),
 		workflowID:            workflowID,
 		skillIDs:              skillIDs,
+		permissionMode:        permissionMode,
 		thinkingEnabled:       thinkingEnabled,
 		reasoningVariant:      reasoningVariant,
 		workspace:             workspace,

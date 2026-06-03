@@ -54,11 +54,11 @@ phases:
     parallel_review: true
     review_passes:
       - id: correctness
-        description: Behavioral regressions and implementation correctness.
+        description: Behavior changes and whether the implementation is correct.
       - id: tests
-        description: Verification coverage, edge cases, and missing checks.
-      - id: contracts
-        description: API, config, permission, and compatibility contracts.
+        description: Test coverage, edge cases, and missing checks.
+      - id: architecture
+        description: APIs, config, permissions, compatibility, and system boundaries.
     requires:
       - git_diff
       - verification_result

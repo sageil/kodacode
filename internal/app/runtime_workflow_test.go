@@ -114,6 +114,132 @@ func TestRuntimeRunSessionTurnRecordsSelectedWorkflow(t *testing.T) {
 	}
 }
 
+func TestRuntimeAutoContinuesAgentPhaseByDefault(t *testing.T) {
+	root := t.TempDir()
+	writeProjectWorkflow(t, root, "auto-agent.yaml", `
+id: auto-agent
+description: Auto-continue arbitrary agent phase by default.
+phases:
+  - id: gather
+    agent: planner
+  - id: arbitrary_next_step
+    agent: planner
+  - id: summarize
+    type: final
+`)
+	client := &fakeProvider{
+		streams: []provider.Stream{
+			provider.NewSliceStream([]provider.Event{
+				{Kind: provider.EventKindAssistantDelta, AssistantDelta: "gathered"},
+			}),
+			provider.NewSliceStream([]provider.Event{
+				{Kind: provider.EventKindAssistantDelta, AssistantDelta: "continued"},
+			}),
+		},
+	}
+	runtime := newRuntimeWithClient(t, client)
+
+	result, err := runtime.RunSessionTurn(context.Background(), RunSessionInput{
+		WorkspaceRoot: root,
+		UserText:      "run the custom workflow",
+		AgentID:       "planner",
+		WorkflowID:    "auto-agent",
+	})
+	if err != nil {
+		t.Fatalf("RunSessionTurn() error = %v", err)
+	}
+	if result.Status != TurnRunStatusCompleted {
+		t.Fatalf("result status = %q, want completed", result.Status)
+	}
+	if len(client.requests) != 2 {
+		t.Fatalf("provider requests = %d, want 2", len(client.requests))
+	}
+	state, err := runtime.Sessions.Snapshot(context.Background(), result.SessionID)
+	if err != nil {
+		t.Fatalf("Snapshot() error = %v", err)
+	}
+	if state.Workflow == nil || state.Workflow.Status != events.WorkflowStatusCompleted {
+		t.Fatalf("workflow = %#v, want completed", state.Workflow)
+	}
+	if len(state.TurnOrder) != 2 {
+		t.Fatalf("turn order = %#v, want initial turn plus auto-continued turn", state.TurnOrder)
+	}
+	continuedTurn := state.Turns[state.TurnOrder[1]]
+	if continuedTurn == nil || continuedTurn.Config == nil {
+		t.Fatalf("continued turn missing config: %#v", continuedTurn)
+	}
+	if continuedTurn.Config.WorkflowPhaseID != "arbitrary_next_step" {
+		t.Fatalf("continued phase = %q, want arbitrary_next_step", continuedTurn.Config.WorkflowPhaseID)
+	}
+}
+
+func TestRuntimeActiveWorkflowBindsTurnToYamlPhaseAgentAndCompletesFinalPhase(t *testing.T) {
+	root := t.TempDir()
+	writeProjectWorkflow(t, root, "yaml-driven.yaml", `
+id: yaml-driven
+description: project-local workflow with arbitrary phase names
+phases:
+  - id: first_read
+    agent: planner
+    mode: read_only
+    prompt: Read only what is needed.
+  - id: second_read
+    agent: planner
+    mode: read_only
+    prompt: Summarize the relevant repository facts.
+  - id: done
+    type: final
+    include:
+      - arbitrary_summary
+`)
+	client := &fakeProvider{
+		streams: []provider.Stream{
+			provider.NewSliceStream([]provider.Event{{Kind: provider.EventKindAssistantDelta, AssistantDelta: "first phase complete"}}),
+			provider.NewSliceStream([]provider.Event{{Kind: provider.EventKindAssistantDelta, AssistantDelta: "second phase complete"}}),
+		},
+	}
+	runtime := newRuntimeWithClient(t, client)
+
+	result, err := runtime.RunSessionTurn(context.Background(), RunSessionInput{
+		WorkspaceRoot: root,
+		UserText:      "run the workflow",
+		AgentID:       "builder",
+		WorkflowID:    "yaml-driven",
+	})
+	if err != nil {
+		t.Fatalf("RunSessionTurn() error = %v", err)
+	}
+	if result.Status != TurnRunStatusCompleted {
+		t.Fatalf("result status = %q, want completed", result.Status)
+	}
+	state, err := runtime.Sessions.Snapshot(context.Background(), result.SessionID)
+	if err != nil {
+		t.Fatalf("Snapshot() error = %v", err)
+	}
+	if state.Workflow == nil || state.Workflow.Status != events.WorkflowStatusCompleted {
+		t.Fatalf("workflow = %#v, want completed from YAML final phase", state.Workflow)
+	}
+	if len(state.TurnOrder) != 2 {
+		t.Fatalf("turn order = %#v, want first phase plus auto-continued second phase", state.TurnOrder)
+	}
+	for _, turnID := range state.TurnOrder {
+		turn := state.Turns[turnID]
+		if turn == nil || turn.Config == nil {
+			t.Fatalf("turn %s missing config: %#v", turnID, turn)
+		}
+		if turn.Config.AgentID != "planner" {
+			t.Fatalf("turn %s agent = %q, want YAML phase agent planner", turnID, turn.Config.AgentID)
+		}
+	}
+	finalTurn := state.Turns[state.TurnOrder[len(state.TurnOrder)-1]]
+	if finalTurn == nil || !strings.Contains(finalTurn.AssistantText, "Workflow `yaml-driven` completed.") {
+		t.Fatalf("final assistant text missing workflow completion:\n%s", finalTurn.AssistantText)
+	}
+	if !strings.Contains(finalTurn.AssistantText, "Not recorded:") || !strings.Contains(finalTurn.AssistantText, "- arbitrary_summary") {
+		t.Fatalf("final assistant text should mark missing include fields as not recorded:\n%s", finalTurn.AssistantText)
+	}
+}
+
 func TestRuntimeRunSessionTurnUsesWorkflowModel(t *testing.T) {
 	root := t.TempDir()
 	writeProjectWorkflow(t, root, "modelled.yaml", `
@@ -1016,9 +1142,9 @@ phases:
 
 func TestRuntimeWorkflowAutoContinuesFromReviewerInspectIntoParallelReview(t *testing.T) {
 	client := newWorkflowReviewResultProvider(map[string]string{
-		"correctness": "Correct.",
-		"tests":       "Tests covered.",
-		"contracts":   "Contracts covered.",
+		"correctness":  "Correct.",
+		"tests":        "Tests covered.",
+		"architecture": "Architecture covered.",
 	},
 		provider.NewSliceStream([]provider.Event{
 			{Kind: provider.EventKindAssistantDelta, AssistantDelta: "Inspection complete. Ready for review."},
@@ -1068,7 +1194,7 @@ func TestRuntimeWorkflowAutoContinuesFromReviewerInspectIntoParallelReview(t *te
 	}
 	if !workflowHasReviewPassEvidence(context.Background(), runtime, result.SessionID, "review", "correctness") ||
 		!workflowHasReviewPassEvidence(context.Background(), runtime, result.SessionID, "review", "tests") ||
-		!workflowHasReviewPassEvidence(context.Background(), runtime, result.SessionID, "review", "contracts") {
+		!workflowHasReviewPassEvidence(context.Background(), runtime, result.SessionID, "review", "architecture") {
 		t.Fatalf("workflow evidence = %#v, want all review pass evidence", state.Workflow.Evidence)
 	}
 }
@@ -1257,7 +1383,7 @@ func TestRuntimeWorkflowReviewerInspectPhaseDoesNotRequireReviewEvidence(t *test
 	root := t.TempDir()
 	writeProjectWorkflow(t, root, "inspect-review.yaml", `
 id: inspect-review
-description: reviewer inspect phase before durable review output
+description: reviewer inspect phase before saved review output
 phases:
   - id: inspect
     agent: reviewer

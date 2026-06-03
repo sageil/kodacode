@@ -1865,7 +1865,7 @@ func TestWorkflowDialogQueryShowsMatchingWorkflow(t *testing.T) {
 	controller := &fakeController{
 		workflows: []app.AvailableWorkflow{
 			{ID: "delivery", Description: "Plan, implement, verify, and review a code change."},
-			{ID: "debug", Description: "Reproduce, localize, patch, verify, and review a bug fix."},
+			{ID: "debug", Description: "Reproduce, identify, patch, verify, and review a bug fix."},
 		},
 	}
 	model := NewModel(controller, ModelConfig{
@@ -1887,7 +1887,7 @@ func TestWorkflowDialogQueryShowsMatchingWorkflow(t *testing.T) {
 	dialog.filter.SetValue("debug")
 	dialog.refilter()
 	rendered := renderTestDialogContentPlain(dialog)
-	for _, needle := range []string{"flow", "debug", "Reproduce, localize"} {
+	for _, needle := range []string{"flow", "debug", "Reproduce, identify"} {
 		if !strings.Contains(rendered, needle) {
 			t.Fatalf("workflow query render missing %q\nrendered:\n%s", needle, rendered)
 		}
@@ -1902,7 +1902,7 @@ func TestComposerCtrlWOpensWorkflowDialog(t *testing.T) {
 	controller := &fakeController{
 		workflows: []app.AvailableWorkflow{
 			{ID: "delivery", Description: "Plan, implement, verify, and review a code change."},
-			{ID: "debug", Description: "Reproduce, localize, patch, verify, and review a bug fix."},
+			{ID: "debug", Description: "Reproduce, identify, patch, verify, and review a bug fix."},
 		},
 	}
 	model := NewModel(controller, ModelConfig{

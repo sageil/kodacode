@@ -568,7 +568,7 @@ func TestRuntimeDelegateReviewerUsesParentTaskScope(t *testing.T) {
 		ParentAgentID:   "planner",
 		ChildAgentID:    "reviewer",
 		Task:            "review the performance changes",
-		ContextSummary:  "Inspect the work and record a durable task review.",
+		ContextSummary:  "Inspect the work and record a saved task review.",
 	})
 	if err != nil {
 		t.Fatalf("DelegateSessionTurn() error = %v", err)
@@ -764,8 +764,15 @@ func TestRuntimeDelegateReviewerRepairsInvalidStructuredOutputInSameChildSession
 	if !containsAll(repairRequest.Instructions, []string{
 		"Delegated reviewer output repair.",
 		"Return exactly one JSON object and nothing else.",
+		"Previous assistant answer:\nSummary: no concrete issues found.",
 	}) {
 		t.Fatalf("repair instructions = %q", repairRequest.Instructions)
+	}
+	if len(repairRequest.Inputs) != 1 {
+		t.Fatalf("repair request inputs = %#v, want current repair turn only", repairRequest.Inputs)
+	}
+	if strings.Contains(repairRequest.Inputs[0].Content, "Summary: no concrete issues found.") {
+		t.Fatalf("repair input replayed prior assistant text: %q", repairRequest.Inputs[0].Content)
 	}
 
 	parentState, err := runtime.Sessions.Snapshot(context.Background(), sessionID)
