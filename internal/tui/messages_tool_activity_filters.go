@@ -42,6 +42,9 @@ func shouldRenderToolCallInTranscript(turn *events.TurnState, callID string, cal
 	if shouldHideFailedMutationInTranscript(call) {
 		return false
 	}
+	if shouldHideWorkflowResultToolCallInTranscript(call) {
+		return false
+	}
 	if strings.TrimSpace(call.ToolName) == "skill" {
 		return false
 	}
@@ -58,6 +61,18 @@ func shouldRenderToolCallInTranscript(turn *events.TurnState, callID string, cal
 		return false
 	}
 	return true
+}
+
+func shouldHideWorkflowResultToolCallInTranscript(call *events.ToolCallState) bool {
+	if call == nil {
+		return false
+	}
+	switch strings.TrimSpace(call.ToolName) {
+	case "workflow_review_result", "workflow_phase_output":
+		return true
+	default:
+		return false
+	}
 }
 
 func shouldHideDelegateToolCallInTranscript(turn *events.TurnState, call *events.ToolCallState) bool {

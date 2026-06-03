@@ -31,6 +31,7 @@ const (
 	transcriptLayoutChunkTurn                transcriptLayoutChunkKind = "turn"
 	transcriptLayoutChunkDraft               transcriptLayoutChunkKind = "draft"
 	transcriptLayoutChunkDelegatedPermission transcriptLayoutChunkKind = "delegated_permission"
+	transcriptLayoutChunkWorkflowReport      transcriptLayoutChunkKind = "workflow_report"
 )
 
 type transcriptLayoutChunk struct {
@@ -92,6 +93,7 @@ func buildTranscriptLayout(m Model, state events.SessionState, width int) transc
 		if i+1 < len(turnIDs) && shouldSuppressHistoryCompactionBeforeContinuation(state, turnID, turnIDs[i+1]) {
 			options.suppressHistoryCompaction = true
 		}
+		options.suppressCompletedWorkflowReviewEntries = shouldRenderCompletedWorkflowReport(state)
 		rendered, cacheKey := cachedTurnTranscriptRenderWithKey(m, state, turnID, turn, width, options)
 		layout.turnIndices[turnID] = len(layout.chunks)
 		layout.chunks = append(layout.chunks, transcriptLayoutChunk{
@@ -103,6 +105,10 @@ func buildTranscriptLayout(m Model, state events.SessionState, width int) transc
 		})
 	}
 
+	return appendTranscriptTrailingChunks(m, state, width, layout)
+}
+
+func appendTranscriptTrailingChunks(m Model, state events.SessionState, width int, layout transcriptLayout) transcriptLayout {
 	if draftSections := renderDraftTurnSections(m, state, width); len(draftSections) > 0 {
 		rendered := buildTranscriptChunk(draftSections)
 		layout.chunks = append(layout.chunks, transcriptLayoutChunk{
@@ -117,6 +123,14 @@ func buildTranscriptLayout(m Model, state events.SessionState, width int) transc
 		rendered := row.render(m)
 		layout.chunks = append(layout.chunks, transcriptLayoutChunk{
 			kind:      transcriptLayoutChunkDelegatedPermission,
+			rendered:  rendered,
+			lineCount: transcriptRenderLineCount(rendered),
+		})
+	}
+	if reportSections := renderCompletedWorkflowReportSections(m, state, width); len(reportSections) > 0 {
+		rendered := buildTranscriptChunk(reportSections)
+		layout.chunks = append(layout.chunks, transcriptLayoutChunk{
+			kind:      transcriptLayoutChunkWorkflowReport,
 			rendered:  rendered,
 			lineCount: transcriptRenderLineCount(rendered),
 		})

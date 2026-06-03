@@ -65,6 +65,9 @@ func turnTranscriptChunkCacheKeyWithOptions(m Model, state events.SessionState, 
 	if options.suppressHistoryCompaction {
 		b.WriteString("suppress_history_compaction")
 	}
+	if options.suppressCompletedWorkflowReviewEntries {
+		b.WriteString("suppress_completed_workflow_reviews")
+	}
 	b.WriteString("\x00")
 	b.WriteString(buildTurnCompactionSignature(effectiveTurnHistoryContinuation(state, turnID, turn)))
 	b.WriteString("\x00")

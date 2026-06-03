@@ -1184,6 +1184,19 @@ phases:
 	if len(client.requests) != 2 {
 		t.Fatalf("provider requests = %d, want initial review plus repair", len(client.requests))
 	}
+	repairRequest := client.requests[1]
+	if len(repairRequest.Inputs) != 1 {
+		t.Fatalf("repair request inputs = %#v, want current repair turn only", repairRequest.Inputs)
+	}
+	if !strings.Contains(repairRequest.Inputs[0].Content, "Call `workflow_review_result` exactly once") {
+		t.Fatalf("repair input = %q", repairRequest.Inputs[0].Content)
+	}
+	if strings.Contains(repairRequest.Inputs[0].Content, "not structured json") {
+		t.Fatalf("repair input replayed prior assistant text: %q", repairRequest.Inputs[0].Content)
+	}
+	if !strings.Contains(repairRequest.Instructions, "Previous assistant answer:\nnot structured json") {
+		t.Fatalf("repair instructions = %q, want bounded previous assistant answer", repairRequest.Instructions)
+	}
 	state, err := runtime.Sessions.Snapshot(context.Background(), result.SessionID)
 	if err != nil {
 		t.Fatalf("Snapshot() error = %v", err)

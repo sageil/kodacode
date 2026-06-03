@@ -7,7 +7,8 @@ import (
 )
 
 type transcriptTurnRenderOptions struct {
-	suppressHistoryCompaction bool
+	suppressHistoryCompaction              bool
+	suppressCompletedWorkflowReviewEntries bool
 }
 
 func renderTurnTranscriptSections(m Model, state events.SessionState, turnID string, turn *events.TurnState, width int) []transcriptSection {
@@ -78,6 +79,9 @@ func renderTurnTranscriptSectionsWithOptions(m Model, state events.SessionState,
 				compactionRendered = true
 			}
 		case events.TranscriptEntryReview:
+			if options.suppressCompletedWorkflowReviewEntries && isWorkflowReviewTranscriptEntry(turn) {
+				continue
+			}
 			maybeRenderFallbackCompaction()
 			row := newReviewTranscriptRow(turnID, turn, entry, i, width)
 			if section, ok := row.section(m); ok {
@@ -137,6 +141,13 @@ func renderTurnTranscriptSectionsWithOptions(m Model, state events.SessionState,
 	sections = append(sections, renderLiveToolCallPreviewSections(m, state, turnID, turn, width)...)
 	sections = append(sections, renderRemainingDelegatedHandoffTranscriptSections(m, turnID, turn, width, renderedHandoffIDs)...)
 	return sections
+}
+
+func isWorkflowReviewTranscriptEntry(turn *events.TurnState) bool {
+	if turn == nil || turn.Review == nil {
+		return false
+	}
+	return strings.HasPrefix(strings.TrimSpace(turn.Review.Title), "Workflow review:")
 }
 
 func anchoredShellDelegatedHandoff(m Model, turn *events.TurnState, call *events.ToolCallState) *events.AgentHandoffState {

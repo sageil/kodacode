@@ -153,6 +153,7 @@ type RunTurnInput struct {
 	SkipUserMessageEvent bool
 	TurnStartAfterSeq    int64
 	WorkflowBudget       workflowTurnBudget
+	HistoryMode          turnHistoryMode
 }
 
 type ResumeTurnInput struct {
@@ -228,6 +229,7 @@ func (r *TurnRunner) Run(ctx context.Context, input RunTurnInput) (RunTurnResult
 		HistoryReplayAfterSequence:  historyReplayAfterSequence,
 		ContinuationReason:          input.ContinuationReason,
 		WorkflowBudget:              input.WorkflowBudget,
+		HistoryMode:                 input.HistoryMode,
 		State:                       initialTurnLoopState(input),
 	})
 }

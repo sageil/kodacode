@@ -31,7 +31,15 @@ type turnLoopInput struct {
 	TemporaryNetworkTargets     []string
 	ResetProviderRequestBudget  bool
 	WorkflowBudget              workflowTurnBudget
+	HistoryMode                 turnHistoryMode
 }
+
+type turnHistoryMode string
+
+const (
+	turnHistoryModeDefault         turnHistoryMode = ""
+	turnHistoryModeCurrentTurnOnly turnHistoryMode = "current_turn_only"
+)
 
 type turnLoopState struct {
 	UserInput           provider.Input
@@ -143,16 +151,21 @@ func (r *TurnRunner) executeTurnLoop(ctx context.Context, input turnLoopInput) (
 		Overrides: r.modelOverrides,
 		Budgets:   r.outputBudgets,
 	})
-	historyTemplate, checkpointLoaded, replayedCount, err := r.loadSessionHistoryTemplateForRequest(ctx, sessionConversationRequest{
-		SessionID:       input.SessionID,
-		TurnID:          input.TurnID,
-		ModelRoute:      input.ModelRoute,
-		Instructions:    input.Instructions,
-		RequestTemplate: &baseRequest,
-		Tools:           providerTools,
-	})
-	if err != nil {
-		return RunTurnResult{}, err
+	var historyTemplate sessionHistoryState
+	var checkpointLoaded bool
+	var replayedCount int
+	if input.HistoryMode != turnHistoryModeCurrentTurnOnly {
+		historyTemplate, checkpointLoaded, replayedCount, err = r.loadSessionHistoryTemplateForRequest(ctx, sessionConversationRequest{
+			SessionID:       input.SessionID,
+			TurnID:          input.TurnID,
+			ModelRoute:      input.ModelRoute,
+			Instructions:    input.Instructions,
+			RequestTemplate: &baseRequest,
+			Tools:           providerTools,
+		})
+		if err != nil {
+			return RunTurnResult{}, err
+		}
 	}
 	providerRequestLimitDisabled, err := r.sessionProviderRequestLimitDisabled(ctx, input.SessionID)
 	if err != nil {
@@ -195,6 +208,15 @@ func (r *TurnRunner) executeTurnLoop(ctx context.Context, input turnLoopInput) (
 			history = preparedHistory
 			sessionContext = cloneTurnSessionConversationState(preparedSessionContext)
 			projection = preparedProjection
+		} else if input.HistoryMode == turnHistoryModeCurrentTurnOnly {
+			sessionContext = cloneTurnSessionConversationState(lastSessionContext)
+			projection, err = buildTurnProviderRequestProjection(baseRequest, sessionConversation{}, state)
+			if err != nil {
+				if errors.Is(err, ErrNativeToolContinuationContractUnsupported) {
+					return r.failTurn(ctx, input.SessionID, input.TurnID, input.ModelRoute, err)
+				}
+				return RunTurnResult{}, err
+			}
 		} else {
 			history, sessionContext, err = r.prepareTurnConversationHistory(ctx, historyRequest, lastSessionContext, historyTemplate, checkpointLoaded, replayedCount)
 			if err != nil {
@@ -347,8 +369,10 @@ func (r *TurnRunner) executeTurnLoop(ctx context.Context, input turnLoopInput) (
 	}); err != nil {
 		return RunTurnResult{}, err
 	}
-	if err := r.appendSessionHistoryCheckpoint(ctx, input.SessionID, input.ModelRoute, lastSessionContext.Continuation, &historyTemplate, input.HistoryReplayAfterSequence); err != nil {
-		return RunTurnResult{}, err
+	if input.HistoryMode != turnHistoryModeCurrentTurnOnly {
+		if err := r.appendSessionHistoryCheckpoint(ctx, input.SessionID, input.ModelRoute, lastSessionContext.Continuation, &historyTemplate, input.HistoryReplayAfterSequence); err != nil {
+			return RunTurnResult{}, err
+		}
 	}
 	return RunTurnResult{Status: TurnRunStatusCompleted}, nil
 }

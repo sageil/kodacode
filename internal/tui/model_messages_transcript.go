@@ -180,6 +180,7 @@ func (m Model) transcriptLayoutForTurnRefresh(state events.SessionState, turnIDs
 		if shouldSuppressHistoryCompactionBeforeContinuation(state, turnID, nextTranscriptLayoutTurnID(layout, turnID)) {
 			options.suppressHistoryCompaction = true
 		}
+		options.suppressCompletedWorkflowReviewEntries = shouldRenderCompletedWorkflowReport(state)
 		ctx := transcriptTurnChunkLifecycle{
 			state:   state,
 			turnID:  turnID,
@@ -253,6 +254,7 @@ func (m Model) buildVisibleTranscriptLayout(state events.SessionState, width int
 		if i+1 < len(turnIDs) && shouldSuppressHistoryCompactionBeforeContinuation(state, turnID, turnIDs[i+1]) {
 			options.suppressHistoryCompaction = true
 		}
+		options.suppressCompletedWorkflowReviewEntries = shouldRenderCompletedWorkflowReport(state)
 		ctx := transcriptTurnChunkLifecycle{
 			state:   state,
 			turnID:  turnID,
@@ -276,24 +278,7 @@ func (m Model) buildVisibleTranscriptLayout(state events.SessionState, width int
 		appendChunkLineCount(chunk.lineCount)
 	}
 
-	if draftSections := renderDraftTurnSections(m, state, width); len(draftSections) > 0 {
-		rendered := buildTranscriptChunk(draftSections)
-		layout.chunks = append(layout.chunks, transcriptLayoutChunk{
-			kind:      transcriptLayoutChunkDraft,
-			rendered:  rendered,
-			lineCount: transcriptRenderLineCount(rendered),
-		})
-	}
-
-	if handoff := m.pendingDelegatedPermission(); handoff != nil {
-		row := newDelegatedPermissionSystemRow(handoff, width)
-		rendered := row.render(m)
-		layout.chunks = append(layout.chunks, transcriptLayoutChunk{
-			kind:      transcriptLayoutChunkDelegatedPermission,
-			rendered:  rendered,
-			lineCount: transcriptRenderLineCount(rendered),
-		})
-	}
+	layout = appendTranscriptTrailingChunks(m, state, width, layout)
 	return m.renderLayoutVisibleTurnPlaceholders(state, width, layout, m.messages.AtBottom())
 }
 
@@ -345,6 +330,7 @@ func (m Model) buildInitialVisibleTranscriptLayout(state events.SessionState, wi
 		if i+1 < len(turnIDs) && shouldSuppressHistoryCompactionBeforeContinuation(state, turnID, turnIDs[i+1]) {
 			options.suppressHistoryCompaction = true
 		}
+		options.suppressCompletedWorkflowReviewEntries = shouldRenderCompletedWorkflowReport(state)
 		ctx := transcriptTurnChunkLifecycle{
 			state:   state,
 			turnID:  turnID,
@@ -376,24 +362,7 @@ func (m Model) buildInitialVisibleTranscriptLayout(state events.SessionState, wi
 		layout.chunks = append(layout.chunks, chunk)
 	}
 
-	if draftSections := renderDraftTurnSections(m, state, width); len(draftSections) > 0 {
-		rendered := buildTranscriptChunk(draftSections)
-		layout.chunks = append(layout.chunks, transcriptLayoutChunk{
-			kind:      transcriptLayoutChunkDraft,
-			rendered:  rendered,
-			lineCount: transcriptRenderLineCount(rendered),
-		})
-	}
-
-	if handoff := m.pendingDelegatedPermission(); handoff != nil {
-		row := newDelegatedPermissionSystemRow(handoff, width)
-		rendered := row.render(m)
-		layout.chunks = append(layout.chunks, transcriptLayoutChunk{
-			kind:      transcriptLayoutChunkDelegatedPermission,
-			rendered:  rendered,
-			lineCount: transcriptRenderLineCount(rendered),
-		})
-	}
+	layout = appendTranscriptTrailingChunks(m, state, width, layout)
 	return m.renderLayoutVisibleTurnPlaceholders(state, width, layout, m.messages.AtBottom())
 }
 
@@ -424,6 +393,7 @@ func (m Model) renderLayoutVisibleTurnPlaceholders(state events.SessionState, wi
 			if shouldSuppressHistoryCompactionBeforeContinuation(state, turnID, nextTranscriptLayoutTurnID(layout, turnID)) {
 				options.suppressHistoryCompaction = true
 			}
+			options.suppressCompletedWorkflowReviewEntries = shouldRenderCompletedWorkflowReport(state)
 			ctx := transcriptTurnChunkLifecycle{
 				state:   state,
 				turnID:  turnID,
@@ -529,7 +499,13 @@ func estimatedTurnTranscriptLineCount(m Model, ctx transcriptTurnChunkLifecycle)
 			if !ctx.options.suppressHistoryCompaction {
 				addSection(estimatedTranscriptBlockLineCount(entry.Text, ctx.width))
 			}
-		case events.TranscriptEntryReview, events.TranscriptEntryReasoning:
+		case events.TranscriptEntryReview:
+			if ctx.options.suppressCompletedWorkflowReviewEntries && isWorkflowReviewTranscriptEntry(turn) {
+				continue
+			}
+			addSection(estimatedFallbackCompactionLineCount(m, ctx))
+			addSection(estimatedTranscriptBlockLineCount(entry.Text, ctx.width))
+		case events.TranscriptEntryReasoning:
 			addSection(estimatedFallbackCompactionLineCount(m, ctx))
 			addSection(estimatedTranscriptBlockLineCount(entry.Text, ctx.width))
 		case events.TranscriptEntryTool:

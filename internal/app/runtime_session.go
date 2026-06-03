@@ -41,6 +41,7 @@ type runExistingTurnInput struct {
 	HideAssistantPreview bool
 	DisableAutoReview    bool
 	WorkflowBudget       workflowTurnBudget
+	HistoryMode          turnHistoryMode
 	InitialState         *turnLoopState
 	Continuation         *runtimeTurnContinuation
 }
@@ -315,6 +316,7 @@ func (r *Runtime) runExistingSessionTurn(ctx context.Context, input runExistingT
 		SkipUserMessageEvent: input.Continuation != nil && strings.TrimSpace(input.UserText) == "" && len(resolvedAttachments) == 0,
 		TurnStartAfterSeq:    turnStartAfterSequence,
 		WorkflowBudget:       workflowBudget,
+		HistoryMode:          input.HistoryMode,
 	})
 	if turnHandle.canceled() {
 		loaded, cancelErr := r.loadCanceledSessionTurnResult(input.SessionID, input.TurnID, input.UserText, resolvedAttachments)
