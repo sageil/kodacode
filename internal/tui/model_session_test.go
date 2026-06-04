@@ -69,6 +69,93 @@ func TestApplyViewRestoresTurnConfigAgentSkillsAndReasoning(t *testing.T) {
 	}
 }
 
+func TestApplyViewDoesNotRestoreCompletedWorkflowFromTurnConfig(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context:       ctx,
+		Theme:         &defaultTheme,
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: "/repo",
+	})
+	state := events.SessionState{
+		SessionID:     "session-1",
+		WorkspaceRoot: "/repo",
+		Workflow: &events.WorkflowState{
+			WorkflowID:     "delivery",
+			Status:         events.WorkflowStatusCompleted,
+			CurrentPhaseID: "review",
+			Evidence:       map[string]*events.WorkflowEvidenceState{},
+		},
+		TurnOrder: []string{"turn-1"},
+		Turns: map[string]*events.TurnState{
+			"turn-1": {
+				TurnID: "turn-1",
+				Config: &events.TurnConfigState{
+					WorkflowID: "delivery",
+				},
+			},
+		},
+	}
+
+	model.applyView(sessionView{
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: "/repo",
+	}, state, false, nil, nil, 0)
+
+	if model.workflowID != "" {
+		t.Fatalf("workflowID = %q, want empty for completed workflow", model.workflowID)
+	}
+}
+
+func TestApplyViewKeepsExplicitWorkflowSelectionAfterCompletedWorkflow(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context:       ctx,
+		Theme:         &defaultTheme,
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: "/repo",
+	})
+	state := events.SessionState{
+		SessionID:     "session-1",
+		WorkspaceRoot: "/repo",
+		Workflow: &events.WorkflowState{
+			WorkflowID:     "delivery",
+			Status:         events.WorkflowStatusCompleted,
+			CurrentPhaseID: "review",
+			Evidence:       map[string]*events.WorkflowEvidenceState{},
+		},
+		TurnOrder: []string{"turn-1"},
+		Turns: map[string]*events.TurnState{
+			"turn-1": {
+				TurnID: "turn-1",
+				Config: &events.TurnConfigState{
+					WorkflowID: "delivery",
+				},
+			},
+		},
+	}
+
+	model.applyView(sessionView{
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkflowID:    "debug",
+		WorkspaceRoot: "/repo",
+	}, state, false, nil, nil, 0)
+
+	if model.workflowID != "debug" {
+		t.Fatalf("workflowID = %q, want explicit fallback workflow", model.workflowID)
+	}
+}
+
 func TestApplyViewUsesSelectedSkillsInsteadOfEffectiveMentionSkills(t *testing.T) {
 	defaultTheme := theme.StaticDefault()
 	ctx, cancel := context.WithCancel(context.TODO())

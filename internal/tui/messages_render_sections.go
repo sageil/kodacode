@@ -376,14 +376,7 @@ func suppressAssistantEntryForStructuredReview(turn *events.TurnState, entryInde
 }
 
 func renderDraftTurnSections(m Model, state events.SessionState, width int) []transcriptSection {
-	if m.busy {
-		return nil
-	}
-	if strings.TrimSpace(m.userText) == "" {
-		return nil
-	}
-	turn := currentTurn(state, m.turnID)
-	if turn != nil && strings.TrimSpace(turn.UserText) != "" {
+	if !shouldRenderDraftTranscriptSection(m, state) {
 		return nil
 	}
 	row := newDraftTranscriptMessageRow(m.turnID, m.userText, width)
@@ -391,6 +384,20 @@ func renderDraftTurnSections(m Model, state events.SessionState, width int) []tr
 		return []transcriptSection{section}
 	}
 	return nil
+}
+
+func shouldRenderDraftTranscriptSection(m Model, state events.SessionState) bool {
+	if m.busy {
+		return false
+	}
+	if strings.TrimSpace(m.userText) == "" {
+		return false
+	}
+	turn := currentTurn(state, m.turnID)
+	if turn != nil && (strings.TrimSpace(turn.UserText) != "" || isTurnFinished(turn)) {
+		return false
+	}
+	return true
 }
 
 func visibleTranscriptTurnIDs(m Model, state events.SessionState) []string {

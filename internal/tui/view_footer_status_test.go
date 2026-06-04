@@ -227,6 +227,72 @@ func TestRenderKodaShellWorkflowStatusLineShowsBlockedWorkflowReason(t *testing.
 	}
 }
 
+func TestCompletedWorkflowStatusHiddenAfterSelectionReset(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context:       ctx,
+		Theme:         &defaultTheme,
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: "/repo",
+		Layout:        tuiLayoutShell,
+	})
+	state := events.SessionState{
+		SessionID: "session-1",
+		Turns: map[string]*events.TurnState{
+			"turn-1": {TurnID: "turn-1", Status: events.TurnStatusCompleted},
+		},
+		Workflow: &events.WorkflowState{
+			WorkflowID:     "explore",
+			Status:         events.WorkflowStatusCompleted,
+			CurrentPhaseID: "summarize",
+			StopReason:     "workflow completed",
+		},
+	}
+
+	if rendered := ansi.Strip(renderKodaShellWorkflowStatusLine(model, state, 160)); strings.TrimSpace(rendered) != "" {
+		t.Fatalf("shell workflow line should hide completed workflow after reset\nrendered:\n%s", rendered)
+	}
+	if rendered := ansi.Strip(renderFooterStatusBar(model, state, 160)); strings.Contains(rendered, "workflow:explore") {
+		t.Fatalf("classic footer should hide completed workflow after reset\nrendered:\n%s", rendered)
+	}
+}
+
+func TestCompletedWorkflowStatusFallsBackToExplicitSelection(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context:       ctx,
+		Theme:         &defaultTheme,
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: "/repo",
+		Layout:        tuiLayoutShell,
+	})
+	model.workflowID = "debug"
+	state := events.SessionState{
+		SessionID: "session-1",
+		Workflow: &events.WorkflowState{
+			WorkflowID:     "explore",
+			Status:         events.WorkflowStatusCompleted,
+			CurrentPhaseID: "summarize",
+			StopReason:     "workflow completed",
+		},
+	}
+
+	if rendered := ansi.Strip(renderKodaShellWorkflowStatusLine(model, state, 160)); !strings.Contains(rendered, "Workflow debug") {
+		t.Fatalf("shell workflow line should show explicit selected workflow\nrendered:\n%s", rendered)
+	}
+	if rendered := ansi.Strip(renderFooterStatusBar(model, state, 160)); !strings.Contains(rendered, "workflow:debug") {
+		t.Fatalf("classic footer should show explicit selected workflow\nrendered:\n%s", rendered)
+	}
+}
+
 func TestRenderKodaShellFooterPlacesActivityAndWorkflowBelowComposer(t *testing.T) {
 	defaultTheme := theme.StaticDefault()
 	ctx, cancel := context.WithCancel(context.TODO())

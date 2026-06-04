@@ -181,6 +181,7 @@ func (m Model) handleWatchEvents(watchID int, batch []events.Event, closed bool)
 	m.refreshTranscriptTurnSourceKeysForBatch(stateAfter, batch)
 	m.trackRolloverContinuationTurn(stateBefore, stateAfter)
 	m.trackPendingInteractionTurn(stateAfter)
+	m.clearAcknowledgedUserTextFromBatch(batch)
 	trackedTurnFinished := isFinishedInState(stateAfter, m.turnID)
 	holdLiveTurnState := resolutionInFlight && trackedTurnFinished
 	m.syncPendingResolutionState(stateAfter)
@@ -285,6 +286,25 @@ func (m Model) handleWatchEvents(watchID int, batch []events.Event, closed bool)
 		cmds = append(cmds, footerActivityCmd)
 	}
 	return m, tea.Batch(cmds...)
+}
+
+func (m *Model) clearAcknowledgedUserTextFromBatch(batch []events.Event) {
+	if m == nil || strings.TrimSpace(m.userText) == "" || strings.TrimSpace(m.turnID) == "" {
+		return
+	}
+	for _, event := range batch {
+		if event.Type != events.TypeUserMessage || strings.TrimSpace(event.TurnID) != strings.TrimSpace(m.turnID) {
+			continue
+		}
+		payload, ok := event.Payload.(events.UserMessagePayload)
+		if !ok {
+			continue
+		}
+		if strings.TrimSpace(payload.Content) == strings.TrimSpace(m.userText) {
+			m.userText = ""
+			return
+		}
+	}
 }
 
 type watchDialogTargets struct {

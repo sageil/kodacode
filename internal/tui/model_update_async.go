@@ -366,6 +366,7 @@ func (m Model) handleSessionSnapshotRefreshedMsg(msg sessionSnapshotRefreshedMsg
 	resolutionInFlight := m.interactionResolutionInFlight()
 	m.projector = events.NewProjectorFromSnapshot(msg.state)
 	m.primeTranscriptTurnSourceKeys(msg.state)
+	m.clearAcknowledgedUserTextFromState(msg.state)
 	trackedTurnFinished := isFinishedInState(msg.state, m.turnID)
 	holdLiveTurnState := resolutionInFlight && trackedTurnFinished
 	if trackedTurnFinished && !holdLiveTurnState {
@@ -379,4 +380,17 @@ func (m Model) handleSessionSnapshotRefreshedMsg(msg sessionSnapshotRefreshedMsg
 	m.syncTaskDetailDialog()
 	m.syncViewportLayout()
 	return m, loadSessionUsageSummaryCmd(m.ctx, m.controller, m.sessionID)
+}
+
+func (m *Model) clearAcknowledgedUserTextFromState(state events.SessionState) {
+	if m == nil || strings.TrimSpace(m.userText) == "" || strings.TrimSpace(m.turnID) == "" {
+		return
+	}
+	turn := currentTurn(state, m.turnID)
+	if turn == nil {
+		return
+	}
+	if strings.TrimSpace(turn.UserText) == strings.TrimSpace(m.userText) {
+		m.userText = ""
+	}
 }

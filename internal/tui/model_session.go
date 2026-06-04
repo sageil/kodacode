@@ -150,6 +150,9 @@ func resolvedAgentID(state events.SessionState, turnID, fallback string) string 
 }
 
 func resolvedWorkflowID(state events.SessionState, turnID, fallback string) string {
+	if workflow := state.Workflow; workflow != nil && workflow.Status == events.WorkflowStatusCompleted {
+		return strings.TrimSpace(fallback)
+	}
 	if turn := currentTurn(state, turnID); turn != nil && turn.Config != nil {
 		if workflowID := strings.TrimSpace(turn.Config.WorkflowID); workflowID != "" {
 			return workflowID

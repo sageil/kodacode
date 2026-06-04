@@ -202,7 +202,7 @@ func renderKodaShellWorkflowStatusLine(m Model, state events.SessionState, width
 }
 
 func shellWorkflowStatusText(m Model, state events.SessionState) (string, string, bool) {
-	workflow := state.Workflow
+	workflow := visibleFooterWorkflow(state)
 	if workflow == nil || strings.TrimSpace(workflow.WorkflowID) == "" {
 		if workflowID := strings.TrimSpace(m.workflowID); workflowID != "" {
 			return "Workflow " + workflowID, colorFor(m.theme, "subtext", "#9da8ca"), false

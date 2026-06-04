@@ -144,14 +144,7 @@ func sameOrderedTurnIDs(left, right []string) bool {
 }
 
 func hasDraftTranscriptSection(m Model, state events.SessionState) bool {
-	if m.busy {
-		return false
-	}
-	if strings.TrimSpace(m.userText) == "" {
-		return false
-	}
-	turn := currentTurn(state, m.turnID)
-	return turn == nil || strings.TrimSpace(turn.UserText) == ""
+	return shouldRenderDraftTranscriptSection(m, state)
 }
 
 func (m Model) shouldDeferLiveTranscriptRefresh() bool {

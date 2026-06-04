@@ -1303,8 +1303,11 @@ func TestQuestionResolutionSnapshotRefreshKeepsSameTurn(t *testing.T) {
 	if next.selection.detailTurnID != "turn-1" {
 		t.Fatalf("detailTurnID = %q, want turn-1", next.selection.detailTurnID)
 	}
-	if next.userText != "investigate failing task routes" {
-		t.Fatalf("userText = %q, want %q", next.userText, "investigate failing task routes")
+	if next.userText != "" {
+		t.Fatalf("userText = %q, want cleared after acknowledged snapshot state", next.userText)
+	}
+	if turn := currentTurn(next.projector.Snapshot(), "turn-1"); turn == nil || turn.UserText != "investigate failing task routes" {
+		t.Fatalf("turn-1 userText = %#v, want acknowledged prompt on turn state", turn)
 	}
 	if !next.busy {
 		t.Fatal("busy = false, want true while answer operation is still in flight")
@@ -1470,8 +1473,11 @@ func TestQuestionAnswerContinuationTracksNewTurnWithAnswerText(t *testing.T) {
 	if next.selection.detailTurnID != "turn-2" {
 		t.Fatalf("detailTurnID = %q, want question-answer continuation turn", next.selection.detailTurnID)
 	}
-	if next.userText != "Inspect middleware" {
-		t.Fatalf("userText = %q, want answer text", next.userText)
+	if next.userText != "" {
+		t.Fatalf("userText = %q, want cleared after acknowledged continuation user message", next.userText)
+	}
+	if turn := currentTurn(next.projector.Snapshot(), "turn-2"); turn == nil || turn.UserText != "Inspect middleware" {
+		t.Fatalf("turn-2 userText = %#v, want answer text on turn state", turn)
 	}
 	if !next.busy {
 		t.Fatal("busy = false, want true while question-answer continuation is running")
@@ -1487,8 +1493,11 @@ func TestQuestionAnswerContinuationTracksNewTurnWithAnswerText(t *testing.T) {
 	if next.turnID != "turn-2" {
 		t.Fatalf("turnID after operation done = %q, want question-answer continuation turn", next.turnID)
 	}
-	if next.userText != "Inspect middleware" {
-		t.Fatalf("userText after operation done = %q, want answer text", next.userText)
+	if next.userText != "" {
+		t.Fatalf("userText after operation done = %q, want cleared acknowledged text", next.userText)
+	}
+	if turn := currentTurn(next.projector.Snapshot(), "turn-2"); turn == nil || turn.UserText != "Inspect middleware" {
+		t.Fatalf("turn-2 userText after operation done = %#v, want answer text on turn state", turn)
 	}
 }
 

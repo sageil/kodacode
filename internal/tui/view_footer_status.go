@@ -136,7 +136,7 @@ func sessionStateConfigured(state events.SessionState) bool {
 }
 
 func footerWorkflowLabel(m Model, state events.SessionState) (string, string, bool) {
-	workflow := state.Workflow
+	workflow := visibleFooterWorkflow(state)
 	if workflow == nil || strings.TrimSpace(workflow.WorkflowID) == "" {
 		if workflowID := strings.TrimSpace(m.workflowID); workflowID != "" {
 			return "workflow:" + workflowID, colorFor(m.theme, "subtext", "#9da8ca"), false
@@ -162,6 +162,14 @@ func footerWorkflowLabel(m Model, state events.SessionState) (string, string, bo
 	default:
 		return label, colorFor(m.theme, "primary", "#7cc7ff"), false
 	}
+}
+
+func visibleFooterWorkflow(state events.SessionState) *events.WorkflowState {
+	workflow := state.Workflow
+	if workflow == nil || workflow.Status == events.WorkflowStatusCompleted {
+		return nil
+	}
+	return workflow
 }
 
 func workflowDisplayStatus(m Model, state events.SessionState, workflow *events.WorkflowState) string {
