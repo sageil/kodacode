@@ -69,11 +69,23 @@ phases:
     mode: read_only
     review_passes:
       - id: cause
-        description: Whether the patch fixes the reproduced cause.
+        description: Fixes the reproduced cause.
+        instructions:
+          - Compare the failure signal, identified cause, and patch.
+          - Check that the patch fixes the cause directly.
+          - Find masked symptoms, wrong fixes, or unresolved cause.
       - id: regression
-        description: Test coverage and edge cases for the failure.
+        description: Regression tests and edge cases.
+        instructions:
+          - Inspect tests for the reproduced failure.
+          - Check fail-before/pass-after behavior when practical.
+          - Find missing, brittle, unrelated, or edge-gap coverage.
       - id: side-effects
         description: Side effects in nearby code, config, or permissions.
+        instructions:
+          - Inspect nearby callers, helpers, config, and permission/auth checks.
+          - Check behavior outside the intended bug fix.
+          - Find unintended caller, config, permission, or runtime-path changes.
     requires:
       - verification_result
 

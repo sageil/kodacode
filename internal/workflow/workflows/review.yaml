@@ -15,11 +15,23 @@ phases:
     prompt: Record concrete review findings or a saved pass, concern, or fail result.
     review_passes:
       - id: correctness
-        description: Behavior changes and whether the implementation is correct.
+        description: Correctness against the intended change.
+        instructions:
+          - Inspect the diff and nearby behavior.
+          - Check that it satisfies the intended change without wrong paths.
+          - Find incorrect, incomplete, or mismatched behavior.
       - id: tests
-        description: Test coverage, edge cases, and missing checks.
+        description: Tests, edge cases, and missing checks.
+        instructions:
+          - Inspect relevant tests and verification evidence.
+          - Check coverage for important behavior and edge cases.
+          - Find missing tests, weak assertions, brittle coverage, or unverified behavior.
       - id: architecture
-        description: APIs, config, permissions, compatibility, and system boundaries.
+        description: APIs, data, config, permissions, and compatibility.
+        instructions:
+          - Inspect APIs, request/response shapes, persisted data, config, permissions, and nearby integrations.
+          - Check callers, stored data, config, and related modules.
+          - Find broken callers, incompatible data changes, config/permission risk, compatibility breaks, or maintainability issues.
 
   - id: summarize
     type: final

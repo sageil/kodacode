@@ -104,8 +104,9 @@ type ApprovalSkipRules struct {
 }
 
 type ReviewPass struct {
-	ID          string `yaml:"id"`
-	Description string `yaml:"description"`
+	ID           string   `yaml:"id"`
+	Description  string   `yaml:"description"`
+	Instructions []string `yaml:"instructions"`
 }
 
 type VerificationCommand struct {

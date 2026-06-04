@@ -53,11 +53,23 @@ phases:
     mode: read_only
     review_passes:
       - id: correctness
-        description: Behavior changes and whether the implementation is correct.
+        description: Correctness against the request and approved plan.
+        instructions:
+          - Compare behavior with the approved plan and request.
+          - Check the main path and important edge cases.
+          - Find incorrect, incomplete, or out-of-scope behavior.
       - id: tests
-        description: Test coverage, edge cases, and missing checks.
+        description: Tests, edge cases, and missing checks.
+        instructions:
+          - Inspect tests changed or affected.
+          - Check coverage for behavior, edge cases, and declared verification.
+          - Find missing, brittle, unrelated, or non-exercising tests.
       - id: architecture
-        description: APIs, config, permissions, compatibility, and system boundaries.
+        description: APIs, data, config, permissions, and compatibility.
+        instructions:
+          - Inspect APIs, request/response shapes, persisted data, config, permissions, and integrations.
+          - Check callers, stored data, config, and related modules.
+          - Find broken callers, incompatible data changes, permission/config risk, or maintainability issues.
     requires:
       - git_diff
       - verification_result

@@ -322,6 +322,32 @@ phases:
 	}
 }
 
+func TestDefinitionValidateParsesReviewPassInstructions(t *testing.T) {
+	definition, err := LoadBytes([]byte(`
+id: review
+phases:
+  - id: review
+    type: review
+    agent: reviewer
+    review_passes:
+      - id: side-effects
+        description: Side effects in nearby code, config, or permissions.
+        instructions:
+          - Inspect adjacent code paths.
+          - Check config and permissions.
+`), testValidationContext())
+	if err != nil {
+		t.Fatalf("LoadBytes() error = %v", err)
+	}
+	pass := definition.Phases[0].ReviewPasses[0]
+	if pass.ID != "side-effects" || pass.Description != "Side effects in nearby code, config, or permissions." {
+		t.Fatalf("review pass = %#v", pass)
+	}
+	if strings.Join(pass.Instructions, "|") != "Inspect adjacent code paths.|Check config and permissions." {
+		t.Fatalf("review pass instructions = %#v", pass.Instructions)
+	}
+}
+
 func TestDefinitionValidateAllowsReviewTypeWithCustomAgent(t *testing.T) {
 	ctx := testValidationContext()
 	ctx.Agents["security-reviewer"] = agent.Definition{ID: "security-reviewer", Mode: agent.ModeAll}

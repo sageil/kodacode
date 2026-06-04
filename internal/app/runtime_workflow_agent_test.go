@@ -44,6 +44,46 @@ func TestWorkflowPhaseAllowedToolsRestoresRuntimeOwnedResultTools(t *testing.T) 
 	}
 }
 
+func TestWorkflowPhasePromptFragmentExpandsReviewPassInstructions(t *testing.T) {
+	fragment := workflowPhasePromptFragment(workflowPhaseTurnContext{
+		Active:     true,
+		WorkflowID: "debug",
+		Phase: workflowpkg.Phase{
+			ID:    "review",
+			Type:  workflowpkg.PhaseTypeReview,
+			Agent: reviewerAgentID,
+			Mode:  workflowpkg.PhaseModeReadOnly,
+			ReviewPasses: []workflowpkg.ReviewPass{
+				{
+					ID:          "side-effects",
+					Description: "Side effects in nearby code, config, or permissions.",
+					Instructions: []string{
+						"Inspect adjacent code paths and callers affected by the change.",
+						"Check config, permissions, auth, routing, and runtime behavior touched nearby.",
+					},
+				},
+			},
+		},
+	}, []string{tool.ReadToolName, tool.WorkflowReviewResultToolName})
+
+	for _, want := range []string{
+		"Workflow review phase instructions:",
+		"Complete each required review pass below as a separate lens.",
+		"1. `side-effects`",
+		"Goal: Side effects in nearby code, config, or permissions.",
+		"- Inspect adjacent code paths and callers affected by the change.",
+		"- Check config, permissions, auth, routing, and runtime behavior touched nearby.",
+		"For each pass:",
+		"- Call `workflow_review_result` exactly once.",
+		"- Set `review_pass` to the pass id.",
+		"Do not skip passes, combine passes, or mutate workspace files.",
+	} {
+		if !strings.Contains(fragment.Content, want) {
+			t.Fatalf("workflow phase prompt missing %q:\n%s", want, fragment.Content)
+		}
+	}
+}
+
 func TestRuntimeWorkflowPlanPhaseRunsPlannerReadFocused(t *testing.T) {
 	client := &fakeProvider{
 		streams: []provider.Stream{provider.NewSliceStream([]provider.Event{

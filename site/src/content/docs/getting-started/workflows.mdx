@@ -108,11 +108,12 @@ workflow model for that phase. If no workflow model is declared, normal agent,
 session, and global config routing applies; the global `workflow.review_model`
 still applies to reviewer turns unless the workflow or phase declares a model.
 
-When a phase declares `requires_output`, the phase response must include one
-JSON object with those keys. Missing or invalid fields block moving to the next
-phase instead of being inferred from plain text. Verification phases with declared
-`commands` run those commands through the runtime-owned `test` tool, so normal
-execution permissions and check results apply.
+When a phase declares `requires_output`, the phase response must call
+`workflow_phase_output` with those keys. Missing or invalid fields block moving
+to the next phase instead of being inferred from plain text. Verification phases
+with declared `commands` run those commands through the declared execution tool,
+such as `test` or `bash`, so normal execution permissions and check results
+apply.
 
 `max_revision_loops` caps automatic loops from a failed verification phase back
 to an implementation phase. Approval phases can use
@@ -133,10 +134,17 @@ types such as `git_diff`, `verification_result`, and `review_outcome`.
 Requested fields without recorded results are shown as not recorded rather than
 being guessed.
 
-Review phases (`type: review`) can declare `review_passes`. The runtime
-includes those pass names and descriptions in the review phase prompt, and final
-summaries combine all recorded review outcomes instead of using only the latest
-review result.
+Each workflow phase is anchored to the turn that runs it before the phase prompt
+is assembled. Phase start, resume, and blocked-state recovery are stored as
+workflow events, so `/trace` can show which turn executed each phase.
+
+Review phases (`type: review`) can declare `review_passes`. Each pass has an
+`id`, an optional `description`, and optional `instructions`. The runtime expands
+those fields into a review directive in the phase prompt. For every required
+pass, the reviewer must call `workflow_review_result` exactly once with
+`review_pass` set to the pass id. Use `findings: []` when that pass found no
+issue. Final summaries combine all recorded review outcomes instead of using
+only the latest review result.
 
 ## Example workflows
 
@@ -199,11 +207,23 @@ phases: # Ordered workflow phases.
     mode: read_only # Keep review from mutating the workspace.
     review_passes: # Named review lenses included in the review prompt and final result.
       - id: correctness # Review pass id for implementation correctness.
-        description: Behavior changes and whether the implementation is correct. # Prompt text for this pass.
+        description: Correctness against the request and approved plan. # Goal text for this pass.
+        instructions: # Concrete checks included in the generated review directive.
+          - Compare behavior with the approved plan and request.
+          - Check the main path and important edge cases.
+          - Find incorrect, incomplete, or out-of-scope behavior.
       - id: tests # Review pass id for test coverage.
-        description: Test coverage, edge cases, and missing checks. # Prompt text for this pass.
-      - id: architecture # Review pass id for design and boundaries.
-        description: APIs, config, permissions, compatibility, and system boundaries. # Prompt text for this pass.
+        description: Tests, edge cases, and missing checks. # Goal text for this pass.
+        instructions: # Concrete checks included in the generated review directive.
+          - Inspect tests changed or affected.
+          - Check coverage for behavior, edge cases, and declared verification.
+          - Find missing, brittle, unrelated, or non-exercising tests.
+      - id: architecture # Review pass id for APIs, data structures, and integration points.
+        description: APIs, data, config, permissions, and compatibility. # Goal text for this pass.
+        instructions: # Concrete checks included in the generated review directive.
+          - Inspect APIs, request/response shapes, persisted data, config, permissions, and integrations.
+          - Check callers, stored data, config, and related modules.
+          - Find broken callers, incompatible data changes, permission/config risk, or maintainability issues.
     requires: # Evidence needed before entering review.
       - git_diff # Require recorded diff evidence.
       - verification_result # Require recorded verification evidence.
@@ -266,9 +286,23 @@ phases: # Ordered debug phases.
     mode: read_only # Keep review from editing files.
     review_passes: # Review lenses for this bug fix.
       - id: cause # Review pass id for cause coverage.
-        description: Whether the patch fixes the reproduced cause. # Prompt text for this pass.
+        description: Fixes the reproduced cause. # Goal text for this pass.
+        instructions:
+          - Compare the failure signal, identified cause, and patch.
+          - Check that the patch fixes the cause directly.
+          - Find masked symptoms, wrong fixes, or unresolved cause.
       - id: regression # Review pass id for regression coverage.
-        description: Test coverage and edge cases for the failure. # Prompt text for this pass.
+        description: Regression tests and edge cases. # Goal text for this pass.
+        instructions:
+          - Inspect tests for the reproduced failure.
+          - Check fail-before/pass-after behavior when practical.
+          - Find missing, brittle, unrelated, or edge-gap coverage.
+      - id: side-effects # Review pass id for nearby behavior risks.
+        description: Side effects in nearby code, config, or permissions. # Goal text for this pass.
+        instructions:
+          - Inspect nearby callers, helpers, config, and permission/auth checks.
+          - Check behavior outside the intended bug fix.
+          - Find unintended caller, config, permission, or runtime-path changes.
     requires: # Evidence needed before review.
       - verification_result # Require recorded verification data.
   - id: summarize # Stable phase id for the final workflow message.
@@ -299,11 +333,23 @@ phases: # Ordered review phases.
     mode: read_only # Keep review read-only.
     review_passes: # Named review lenses.
       - id: correctness # Review pass id for behavior correctness.
-        description: Behavior changes and whether the implementation is correct. # Prompt text for this pass.
+        description: Correctness against the intended change. # Goal text for this pass.
+        instructions:
+          - Inspect the diff and nearby behavior.
+          - Check that it satisfies the intended change without wrong paths.
+          - Find incorrect, incomplete, or mismatched behavior.
       - id: tests # Review pass id for test coverage.
-        description: Test coverage, edge cases, and missing checks. # Prompt text for this pass.
-      - id: architecture # Review pass id for design and boundaries.
-        description: APIs, config, permissions, compatibility, and system boundaries. # Prompt text for this pass.
+        description: Tests, edge cases, and missing checks. # Goal text for this pass.
+        instructions:
+          - Inspect relevant tests and verification evidence.
+          - Check coverage for important behavior and edge cases.
+          - Find missing tests, weak assertions, brittle coverage, or unverified behavior.
+      - id: architecture # Review pass id for APIs, data structures, and integration points.
+        description: APIs, data, config, permissions, and compatibility. # Goal text for this pass.
+        instructions:
+          - Inspect APIs, request/response shapes, persisted data, config, permissions, and nearby integrations.
+          - Check callers, stored data, config, and related modules.
+          - Find broken callers, incompatible data changes, config/permission risk, compatibility breaks, or maintainability issues.
   - id: summarize # Stable phase id for final output.
     type: final # Runtime builds the final summary.
     include: # Recorded data to include.

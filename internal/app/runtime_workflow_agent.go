@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/sageil/kodacode/internal/events"
@@ -270,19 +271,7 @@ func workflowPhasePromptFragment(ctx workflowPhaseTurnContext, allowedTools []st
 		lines = append(lines, "- Final summary should include: "+strings.Join(trimmedWorkflowValues(ctx.Phase.Include), ", "))
 	}
 	if len(ctx.Phase.ReviewPasses) > 0 {
-		lines = append(lines, "- Review passes:")
-		for _, pass := range ctx.Phase.ReviewPasses {
-			id := strings.TrimSpace(pass.ID)
-			if id == "" {
-				continue
-			}
-			line := "  - " + id
-			if description := strings.TrimSpace(pass.Description); description != "" {
-				line += ": " + description
-			}
-			lines = append(lines, line)
-		}
-		lines = append(lines, "- Record review outcomes for the relevant pass or passes.")
+		lines = append(lines, workflowReviewPassInstructionLines(ctx.Phase.ReviewPasses)...)
 	}
 	if workflowPhaseIsReadFocused(ctx.Phase) {
 		lines = append(lines, "- This phase is read-focused. Do not perform workspace mutations.")
@@ -304,6 +293,49 @@ func workflowPhasePromptFragment(ctx workflowPhaseTurnContext, allowedTools []st
 		Label:     "workflow-phase",
 		Content:   strings.Join(lines, "\n"),
 	}
+}
+
+func workflowReviewPassInstructionLines(passes []workflowpkg.ReviewPass) []string {
+	lines := []string{
+		"Workflow review phase instructions:",
+		"Complete each required review pass below as a separate lens. Follow its instructions, inspect only what is needed, then record exactly one `" + tool.WorkflowReviewResultToolName + "` result for that pass.",
+		"",
+		"Required review passes:",
+	}
+	number := 1
+	for _, pass := range passes {
+		id := strings.TrimSpace(pass.ID)
+		if id == "" {
+			continue
+		}
+		lines = append(lines, "")
+		lines = append(lines, strconv.Itoa(number)+". `"+id+"`")
+		number++
+		if description := strings.TrimSpace(pass.Description); description != "" {
+			lines = append(lines, "   Goal: "+description)
+		}
+		instructions := trimmedWorkflowValues(pass.Instructions)
+		if len(instructions) == 0 {
+			lines = append(lines, "   Instructions: None provided; use the goal above.")
+			continue
+		}
+		lines = append(lines, "   Instructions:")
+		for _, instruction := range instructions {
+			lines = append(lines, "   - "+instruction)
+		}
+	}
+	lines = append(lines,
+		"",
+		"For each pass:",
+		"- Call `"+tool.WorkflowReviewResultToolName+"` exactly once.",
+		"- Set `review_pass` to the pass id.",
+		"- Use `findings: []` if no issue was found for that pass.",
+		"- Set `overall_correctness` to \"correct\" only with no material issue; otherwise \"incorrect\".",
+		"- Summarize what you checked in `overall_summary`.",
+		"",
+		"Do not skip passes, combine passes, or mutate workspace files.",
+	)
+	return lines
 }
 
 func trimmedWorkflowValues(values []string) []string {
