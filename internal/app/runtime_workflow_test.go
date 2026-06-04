@@ -170,6 +170,18 @@ phases:
 	if continuedTurn.Config.WorkflowPhaseID != "arbitrary_next_step" {
 		t.Fatalf("continued phase = %q, want arbitrary_next_step", continuedTurn.Config.WorkflowPhaseID)
 	}
+	replayed, err := runtime.Store.Replay(context.Background(), events.Query{SessionID: result.SessionID, AfterSequence: -1})
+	if err != nil {
+		t.Fatalf("Replay() error = %v", err)
+	}
+	firstTurnID := state.TurnOrder[0]
+	continuedTurnID := state.TurnOrder[1]
+	if !hasWorkflowPhaseAdvancedEvent(replayed, firstTurnID, "gather", "arbitrary_next_step") {
+		t.Fatalf("workflow phase advance gather -> arbitrary_next_step missing from first turn %s", firstTurnID)
+	}
+	if !hasWorkflowPhaseStartedEvent(replayed, continuedTurnID, "arbitrary_next_step") {
+		t.Fatalf("workflow phase start for arbitrary_next_step missing from continuation turn %s; events: %s", continuedTurnID, workflowPhaseEventSummary(replayed))
+	}
 }
 
 func TestRuntimeActiveWorkflowBindsTurnToYamlPhaseAgentAndCompletesFinalPhase(t *testing.T) {
@@ -1340,4 +1352,51 @@ func TestRuntimeRunSessionTurnRejectsUnknownWorkflow(t *testing.T) {
 	if turn == nil || turn.Status != events.TurnStatusFailed {
 		t.Fatalf("turn = %#v, want failed turn", turn)
 	}
+}
+
+func hasWorkflowPhaseAdvancedEvent(replayed []events.Event, turnID, fromPhaseID, toPhaseID string) bool {
+	for _, event := range replayed {
+		if event.Type != events.TypeWorkflowPhaseAdvanced || strings.TrimSpace(event.TurnID) != strings.TrimSpace(turnID) {
+			continue
+		}
+		payload, ok := event.Payload.(events.WorkflowPhaseAdvancedPayload)
+		if !ok {
+			continue
+		}
+		if strings.TrimSpace(payload.FromPhaseID) == strings.TrimSpace(fromPhaseID) && strings.TrimSpace(payload.ToPhaseID) == strings.TrimSpace(toPhaseID) {
+			return true
+		}
+	}
+	return false
+}
+
+func hasWorkflowPhaseStartedEvent(replayed []events.Event, turnID, phaseID string) bool {
+	for _, event := range replayed {
+		if event.Type != events.TypeWorkflowPhaseStarted || strings.TrimSpace(event.TurnID) != strings.TrimSpace(turnID) {
+			continue
+		}
+		payload, ok := event.Payload.(events.WorkflowPhaseStartedPayload)
+		if !ok {
+			continue
+		}
+		if strings.TrimSpace(payload.PhaseID) == strings.TrimSpace(phaseID) {
+			return true
+		}
+	}
+	return false
+}
+
+func workflowPhaseEventSummary(replayed []events.Event) string {
+	var parts []string
+	for _, event := range replayed {
+		switch event.Type {
+		case events.TypeWorkflowPhaseStarted:
+			payload, _ := event.Payload.(events.WorkflowPhaseStartedPayload)
+			parts = append(parts, string(event.Type)+" "+event.TurnID+" "+payload.PhaseID)
+		case events.TypeWorkflowPhaseAdvanced:
+			payload, _ := event.Payload.(events.WorkflowPhaseAdvancedPayload)
+			parts = append(parts, string(event.Type)+" "+event.TurnID+" "+payload.FromPhaseID+"->"+payload.ToPhaseID)
+		}
+	}
+	return strings.Join(parts, "; ")
 }

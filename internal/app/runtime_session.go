@@ -265,6 +265,9 @@ func (r *Runtime) runExistingSessionTurn(ctx context.Context, input runExistingT
 	if workflowPhase.Active {
 		turnConfig.WorkflowPhaseID = strings.TrimSpace(workflowPhase.Phase.ID)
 	}
+	if err := r.appendWorkflowPhaseStartedForTurn(ctx, input, workflowPhase); err != nil {
+		return RunSessionResult{}, err
+	}
 	if err := r.Runner.appendTurnConfigured(ctx, input.SessionID, input.TurnID, turnConfig); err != nil {
 		return RunSessionResult{}, err
 	}

@@ -12,17 +12,19 @@ import (
 )
 
 type workflowPhaseTurnContext struct {
-	Active            bool
-	WorkflowID        string
-	Definition        workflowpkg.Definition
-	Phase             workflowpkg.Phase
-	ResumedFromBlock  bool
-	BlockedStopReason string
+	Active                     bool
+	WorkflowID                 string
+	Definition                 workflowpkg.Definition
+	Phase                      workflowpkg.Phase
+	PhaseStartRecordedThisTurn bool
+	ResumedFromBlock           bool
+	BlockedStopReason          string
 }
 
 func (r *Runtime) prepareWorkflowPhaseTurn(ctx context.Context, input runExistingTurnInput, view turnStartSessionView) (turnStartSessionView, workflowPhaseTurnContext, string, error) {
 	workflowID := strings.TrimSpace(input.WorkflowID)
 	workflow := view.workflow
+	phaseStartRecordedThisTurn := false
 	if workflowID != "" {
 		if workflow != nil && workflow.Status != events.WorkflowStatusCompleted && strings.TrimSpace(workflow.WorkflowID) != workflowID {
 			return view, workflowPhaseTurnContext{}, workflowID, ErrWorkflowAlreadyActive
@@ -36,6 +38,7 @@ func (r *Runtime) prepareWorkflowPhaseTurn(ctx context.Context, input runExistin
 			}); err != nil {
 				return view, workflowPhaseTurnContext{}, workflowID, err
 			}
+			phaseStartRecordedThisTurn = true
 			reloaded, err := r.loadTurnStartSessionView(ctx, input.SessionID)
 			if err != nil {
 				return view, workflowPhaseTurnContext{}, workflowID, err
@@ -77,12 +80,13 @@ func (r *Runtime) prepareWorkflowPhaseTurn(ctx context.Context, input runExistin
 			return view, workflowPhaseTurnContext{}, workflow.WorkflowID, ErrWorkflowTransitionInvalid
 		}
 		return view, workflowPhaseTurnContext{
-			Active:            true,
-			WorkflowID:        workflow.WorkflowID,
-			Definition:        definition,
-			Phase:             phase,
-			ResumedFromBlock:  true,
-			BlockedStopReason: blockedStopReason,
+			Active:                     true,
+			WorkflowID:                 workflow.WorkflowID,
+			Definition:                 definition,
+			Phase:                      phase,
+			PhaseStartRecordedThisTurn: false,
+			ResumedFromBlock:           true,
+			BlockedStopReason:          blockedStopReason,
 		}, workflow.WorkflowID, nil
 	}
 	definition, err := r.resolveWorkflow(ctx, view.workspaceRoot, workflow.WorkflowID)
@@ -94,10 +98,11 @@ func (r *Runtime) prepareWorkflowPhaseTurn(ctx context.Context, input runExistin
 		return view, workflowPhaseTurnContext{}, workflow.WorkflowID, ErrWorkflowTransitionInvalid
 	}
 	return view, workflowPhaseTurnContext{
-		Active:     true,
-		WorkflowID: workflow.WorkflowID,
-		Definition: definition,
-		Phase:      phase,
+		Active:                     true,
+		WorkflowID:                 workflow.WorkflowID,
+		Definition:                 definition,
+		Phase:                      phase,
+		PhaseStartRecordedThisTurn: phaseStartRecordedThisTurn,
 	}, workflow.WorkflowID, nil
 }
 

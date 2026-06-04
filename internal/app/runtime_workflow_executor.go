@@ -374,6 +374,19 @@ func (r *Runtime) appendWorkflowPhaseAdvanced(ctx context.Context, sessionID, tu
 	return err
 }
 
+func (r *Runtime) appendWorkflowPhaseStarted(ctx context.Context, sessionID, turnID, workflowID, phaseID string) error {
+	_, err := r.Sessions.append(ctx, events.Draft{
+		SessionID: sessionID,
+		TurnID:    workflowEventTurnID(turnID),
+		Type:      events.TypeWorkflowPhaseStarted,
+		Payload: events.WorkflowPhaseStartedPayload{
+			WorkflowID: strings.TrimSpace(workflowID),
+			PhaseID:    strings.TrimSpace(phaseID),
+		},
+	})
+	return err
+}
+
 func (r *Runtime) activeWorkflowState(ctx context.Context, sessionID string) (events.SessionState, workflowpkg.Definition, *events.WorkflowState, error) {
 	if strings.TrimSpace(sessionID) == "" {
 		return events.SessionState{}, workflowpkg.Definition{}, nil, ErrSessionIDRequired

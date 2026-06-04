@@ -307,6 +307,9 @@ func workflowVerificationToolResultSummary(result ToolExecutionResult) string {
 }
 
 func (r *Runtime) appendWorkflowPhaseTurnConfigured(ctx context.Context, input runExistingTurnInput, view turnStartSessionView, workflowPhase workflowPhaseTurnContext, effectiveAgentID, effectiveWorkflowID string, effectiveSkillIDs []string, effectiveThinkingEnabled bool, effectiveThinkingMode string, responseStyle ResponseStyle) error {
+	if err := r.appendWorkflowPhaseStartedForTurn(ctx, input, workflowPhase); err != nil {
+		return err
+	}
 	capabilities, err := r.resolveTurnCapabilitiesFromState(view.capabilitiesState(), resolveTurnCapabilitiesOptions{
 		AgentID:              effectiveAgentID,
 		SkillIDs:             append([]string(nil), effectiveSkillIDs...),
@@ -344,6 +347,13 @@ func (r *Runtime) appendWorkflowPhaseTurnConfigured(ctx context.Context, input r
 		}
 	}
 	return nil
+}
+
+func (r *Runtime) appendWorkflowPhaseStartedForTurn(ctx context.Context, input runExistingTurnInput, workflowPhase workflowPhaseTurnContext) error {
+	if !workflowPhase.Active || workflowPhase.PhaseStartRecordedThisTurn {
+		return nil
+	}
+	return r.appendWorkflowPhaseStarted(ctx, input.SessionID, input.TurnID, workflowPhase.WorkflowID, workflowPhase.Phase.ID)
 }
 
 func (r *Runtime) answerWorkflowApproval(ctx context.Context, state events.SessionState, input AnswerSessionQuestionInput, turnID string, request *events.QuestionRequestState, answer string) (RunSessionResult, bool, error) {
