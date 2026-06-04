@@ -4,7 +4,6 @@ import (
 	"context"
 	"path/filepath"
 	"reflect"
-	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -37,70 +36,63 @@ type fakeController struct {
 	initInstructionsErr      error
 	compressPromptSourcesErr error
 
-	startErr                      error
-	startReviewErr                error
-	cancelTurnErr                 error
-	localShellErr                 error
-	answerQuestionErr             error
-	answerDelegatedQuestionErr    error
-	answerQuestionResult          app.RunSessionResult
-	answerDelegatedQuestionResult app.AnswerDelegatedSessionQuestionResult
-	resolveErr                    error
-	delegatedResolveErr           error
-	dialogStateErr                error
-	listSessionsErr               error
-	deleteSessionErr              error
-	refreshDialogErr              error
-	beginOpenAIAuthErr            error
-	completeOpenAIAuthErr         error
-	beginGitHubCopilotAuthErr     error
-	completeGitHubCopilotErr      error
-	saveProviderErr               error
-	removeProviderErr             error
-	setTUILayoutErr               error
-	loadToolResultErr             error
-	loadToolMutationDetailErr     error
-	dialogStateSet                bool
-	gitHubCopilotStateSet         bool
+	startErr                  error
+	startReviewErr            error
+	cancelTurnErr             error
+	localShellErr             error
+	answerQuestionErr         error
+	answerQuestionResult      app.RunSessionResult
+	resolveErr                error
+	dialogStateErr            error
+	listSessionsErr           error
+	refreshDialogErr          error
+	beginOpenAIAuthErr        error
+	completeOpenAIAuthErr     error
+	beginGitHubCopilotAuthErr error
+	completeGitHubCopilotErr  error
+	saveProviderErr           error
+	removeProviderErr         error
+	setTUILayoutErr           error
+	loadToolResultErr         error
+	loadToolMutationDetailErr error
+	dialogStateSet            bool
+	gitHubCopilotStateSet     bool
 
-	startCalls                   []startCall
-	startReviewCalls             []startReviewCall
-	cancelTurnCalls              []cancelTurnCall
-	localShellCalls              []localShellCall
-	answerQuestionCalls          []answerQuestionCall
-	answerDelegatedQuestionCalls []answerDelegatedQuestionCall
-	permissionModeCalls          []permissionModeCall
-	resolveStartupTrustCalls     []app.ResolveStartupTrustInput
-	revokeTrustCalls             []app.RevokeTrustInput
-	snapshotCalls                []string
-	budgetStatusCalls            []string
-	sessionUsageSummaryCalls     []string
-	watchCalls                   []watchCall
-	resolveCalls                 []resolveCall
-	delegatedResolveCalls        []resolveDelegatedCall
-	deleteSessionCalls           []string
-	setTUILayoutCalls            []string
-	setSessionTitleCalls         []setSessionTitleCall
-	generateBranchSummaryCalls   []string
-	setPrimaryModelCalls         []setPrimaryModelCall
-	setUtilityModelCalls         []setUtilityModelCall
-	setReviewerModelCalls        []setReviewerModelCall
-	refreshDialogCalls           int
-	beginOpenAIAuthCalls         int
-	completeOpenAIAuthCalls      []app.OpenAIAuthChallenge
-	beginGitHubCopilotAuthCalls  []string
-	completeGitHubCopilotCalls   []app.GitHubCopilotAuthChallenge
-	saveProviderCalls            []app.ProviderConnectionInput
-	removeProviderCalls          []string
-	loadToolResultCalls          []sessionToolCallRef
-	loadToolMutationDetailCalls  []sessionToolCallRef
-	workspaceStatusCalls         []string
-	restoreTurnWritesCalls       []string
-	branchSessionCalls           []app.BranchSessionFromTurnInput
-	compactSessionCalls          []compactSessionCall
-	initInstructionCalls         []app.InitializeWorkspaceInstructionsInput
-	compressPromptSourceCalls    []app.CompressWorkspacePromptSourcesInput
-	promptHistoryCalls           []promptHistoryCall
+	startCalls                  []startCall
+	startReviewCalls            []startReviewCall
+	cancelTurnCalls             []cancelTurnCall
+	localShellCalls             []localShellCall
+	answerQuestionCalls         []answerQuestionCall
+	permissionModeCalls         []permissionModeCall
+	resolveStartupTrustCalls    []app.ResolveStartupTrustInput
+	revokeTrustCalls            []app.RevokeTrustInput
+	snapshotCalls               []string
+	budgetStatusCalls           []string
+	sessionUsageSummaryCalls    []string
+	watchCalls                  []watchCall
+	resolveCalls                []resolveCall
+	setTUILayoutCalls           []string
+	setSessionTitleCalls        []setSessionTitleCall
+	generateBranchSummaryCalls  []string
+	setPrimaryModelCalls        []setPrimaryModelCall
+	setUtilityModelCalls        []setUtilityModelCall
+	setReviewerModelCalls       []setReviewerModelCall
+	refreshDialogCalls          int
+	beginOpenAIAuthCalls        int
+	completeOpenAIAuthCalls     []app.OpenAIAuthChallenge
+	beginGitHubCopilotAuthCalls []string
+	completeGitHubCopilotCalls  []app.GitHubCopilotAuthChallenge
+	saveProviderCalls           []app.ProviderConnectionInput
+	removeProviderCalls         []string
+	loadToolResultCalls         []sessionToolCallRef
+	loadToolMutationDetailCalls []sessionToolCallRef
+	workspaceStatusCalls        []string
+	restoreTurnWritesCalls      []string
+	branchSessionCalls          []app.BranchSessionFromTurnInput
+	compactSessionCalls         []compactSessionCall
+	initInstructionCalls        []app.InitializeWorkspaceInstructionsInput
+	compressPromptSourceCalls   []app.CompressWorkspacePromptSourcesInput
+	promptHistoryCalls          []promptHistoryCall
 
 	dialogState                 app.DialogState
 	openAIChallenge             app.OpenAIAuthChallenge
@@ -197,12 +189,6 @@ type answerQuestionCall struct {
 	SkillIDs  []string
 }
 
-type answerDelegatedQuestionCall struct {
-	SessionID string
-	HandoffID string
-	Answer    string
-}
-
 type setPrimaryModelCall struct {
 	SessionID string
 	Model     provider.ModelRef
@@ -222,18 +208,6 @@ type resolveCall struct {
 	RequestID              string
 	UserText               string
 	SkillIDs               []string
-	Decision               events.PermissionDecision
-	Scope                  events.PermissionScope
-	GrantPath              string
-	Recursive              bool
-	ExecutionDecision      events.ExecutionApprovalDecision
-	ExecutionExecPolicy    *events.ExecutionPolicyAmendment
-	ExecutionNetworkPolicy *events.ExecutionNetworkPolicyAmendment
-}
-
-type resolveDelegatedCall struct {
-	SessionID              string
-	HandoffID              string
 	Decision               events.PermissionDecision
 	Scope                  events.PermissionScope
 	GrantPath              string
@@ -553,15 +527,6 @@ func (f *fakeController) AnswerQuestion(_ context.Context, sessionID, turnID, re
 	return f.answerQuestionResult, f.answerQuestionErr
 }
 
-func (f *fakeController) AnswerDelegatedQuestion(_ context.Context, sessionID, handoffID, answer string) (app.AnswerDelegatedSessionQuestionResult, error) {
-	f.answerDelegatedQuestionCalls = append(f.answerDelegatedQuestionCalls, answerDelegatedQuestionCall{
-		SessionID: sessionID,
-		HandoffID: handoffID,
-		Answer:    answer,
-	})
-	return f.answerDelegatedQuestionResult, f.answerDelegatedQuestionErr
-}
-
 func (f *fakeController) ResolvePermission(
 	_ context.Context,
 	sessionID, turnID, requestID, userText string,
@@ -589,31 +554,6 @@ func (f *fakeController) ResolvePermission(
 		ExecutionNetworkPolicy: executionNetworkPolicy,
 	})
 	return f.resolveErr
-}
-
-func (f *fakeController) ResolveDelegatedPermission(
-	_ context.Context,
-	sessionID, handoffID string,
-	decision events.PermissionDecision,
-	scope events.PermissionScope,
-	grantPath string,
-	recursive bool,
-	executionDecision events.ExecutionApprovalDecision,
-	executionExecPolicy *events.ExecutionPolicyAmendment,
-	executionNetworkPolicy *events.ExecutionNetworkPolicyAmendment,
-) error {
-	f.delegatedResolveCalls = append(f.delegatedResolveCalls, resolveDelegatedCall{
-		SessionID:              sessionID,
-		HandoffID:              handoffID,
-		Decision:               decision,
-		Scope:                  scope,
-		GrantPath:              grantPath,
-		Recursive:              recursive,
-		ExecutionDecision:      executionDecision,
-		ExecutionExecPolicy:    executionExecPolicy,
-		ExecutionNetworkPolicy: executionNetworkPolicy,
-	})
-	return f.delegatedResolveErr
 }
 
 func (f *fakeController) OpenWorkspaceSession(_ context.Context, workspaceRoot string, _ []string, resume bool) (app.OpenWorkspaceSessionResult, error) {
@@ -651,11 +591,6 @@ func (f *fakeController) GenerateBranchSummary(_ context.Context, sessionID stri
 		Summary:        "cached branch summary",
 		SourceSequence: 1,
 	}, nil
-}
-
-func (f *fakeController) DeleteSession(_ context.Context, sessionID string) error {
-	f.deleteSessionCalls = append(f.deleteSessionCalls, sessionID)
-	return f.deleteSessionErr
 }
 
 func (f *fakeController) SetSessionTitle(_ context.Context, sessionID, title string) error {
@@ -1152,7 +1087,7 @@ func TestRunComposerUtilityModelCommandOpensUtilityModelDialog(t *testing.T) {
 	if !strings.Contains(rendered, "GPT-5 Mini") {
 		t.Fatalf("utility model dialog missing model row\nrendered:\n%s", rendered)
 	}
-	if strings.Contains(rendered, "Manage Sessions") {
+	if strings.Contains(rendered, "Timeline") {
 		t.Fatalf("utility model dialog should not render action rows\nrendered:\n%s", rendered)
 	}
 	if updated.(Model).dialog != nil {
@@ -1207,7 +1142,7 @@ func TestRunComposerReviewerModelCommandOpensReviewerModelDialog(t *testing.T) {
 	if !strings.Contains(rendered, "GPT-5 Mini") {
 		t.Fatalf("reviewer model dialog missing model row\nrendered:\n%s", rendered)
 	}
-	if strings.Contains(rendered, "Manage Sessions") {
+	if strings.Contains(rendered, "Timeline") {
 		t.Fatalf("reviewer model dialog should not render action rows\nrendered:\n%s", rendered)
 	}
 	if updated.(Model).dialog != nil {
@@ -1578,7 +1513,7 @@ func TestCtrlPOpensUnifiedCommandPalette(t *testing.T) {
 		t.Fatalf("dialog id = %q, want %q", dialog.ID(), dialogIDCommandPalette)
 	}
 	rendered := renderTestDialogContentPlain(dialog)
-	for _, needle := range []string{"[action ]", "Switch model", "Switch agent", "Switch theme", "Manage Sessions", "Connect provider"} {
+	for _, needle := range []string{"[action ]", "Switch model", "Switch agent", "Switch theme", "Timeline", "Connect provider"} {
 		if !strings.Contains(rendered, needle) {
 			t.Fatalf("command palette missing %q\nrendered:\n%s", needle, rendered)
 		}
@@ -2171,60 +2106,6 @@ func TestCommandPaletteQueryShowsDisabledModelsWhileCurrentTurnRunning(t *testin
 	}
 }
 
-func TestCommandPaletteQueryShowsDisabledSessionsWhileCurrentTurnRunning(t *testing.T) {
-	defaultTheme := theme.StaticDefault()
-	ctx, cancel := context.WithCancel(context.TODO())
-	defer cancel()
-
-	controller := &fakeController{
-		dialogState: app.DialogState{
-			ConnectedProviders: []app.ConnectedProvider{{ProviderID: "openai"}},
-			ModelRoute: provider.ModelRoute{
-				Primary: provider.ModelRef{ProviderID: "openai", ModelID: "gpt-5"},
-			},
-		},
-		sessions: []app.SessionSummary{{
-			ID:    "session-2",
-			Title: "Previous session",
-		}},
-	}
-	state := events.SessionState{
-		SessionID:     "session-1",
-		WorkspaceRoot: "/repo",
-		TurnOrder:     []string{"turn-1"},
-		Turns: map[string]*events.TurnState{
-			"turn-1": {
-				TurnID: "turn-1",
-				Status: events.TurnStatusRunning,
-				Config: &events.TurnConfigState{AgentID: "builder"},
-			},
-		},
-	}
-	model := NewModel(controller, ModelConfig{
-		Context:       ctx,
-		Theme:         &defaultTheme,
-		SessionID:     "session-1",
-		TurnID:        "turn-1",
-		WorkspaceRoot: "/repo",
-		InitialState:  &state,
-	})
-
-	opened, ok := model.openCommandPaletteWithQuery("manage sessions")().(dialogOpenedMsg)
-	if !ok {
-		t.Fatal("openCommandPaletteWithQuery() did not return dialogOpenedMsg")
-	}
-	dialog, ok := opened.dialog.(*commandPaletteDialog)
-	if !ok {
-		t.Fatalf("dialog = %#v", opened.dialog)
-	}
-	rendered := renderTestDialogContentPlain(dialog)
-	for _, needle := range []string{"[action ]", "Manage Sessions", "locked while turn runs"} {
-		if !strings.Contains(rendered, needle) {
-			t.Fatalf("running turn palette missing disabled session result %q\nrendered:\n%s", needle, rendered)
-		}
-	}
-}
-
 func TestCommandPaletteQueryShowsDisabledTimelineWhileCurrentTurnRunning(t *testing.T) {
 	defaultTheme := theme.StaticDefault()
 	ctx, cancel := context.WithCancel(context.TODO())
@@ -2400,129 +2281,6 @@ func TestCommandPaletteModelQueryShowsCapabilitiesLikeKoda(t *testing.T) {
 	for _, needle := range []string{"Provider", "Model", "Input", "Window", "$/M", "Caps", "OpenAI", "GPT-5.4", "128k", "$1.2/$10", "R T V"} {
 		if !strings.Contains(rendered, needle) {
 			t.Fatalf("model dialog missing %q\nrendered:\n%s", needle, rendered)
-		}
-	}
-}
-
-func TestSessionsPurgeDialogArrowsNavigateOptionsNotButtons(t *testing.T) {
-	defaultTheme := theme.StaticDefault()
-	dialog := newSessionsDialog([]sessionItem{
-		{ID: "old-1", UpdatedAt: time.Now().Add(-10 * 24 * time.Hour).Unix()},
-		{ID: "old-2", UpdatedAt: time.Now().Add(-40 * 24 * time.Hour).Unix()},
-		{ID: "old-3", UpdatedAt: time.Now().Add(-200 * 24 * time.Hour).Unix()},
-	}, &defaultTheme)
-
-	if _, cmd := dialog.handleShortcutPurge(); cmd != nil {
-		cmd()
-	}
-	if dialog.mode != sessionsDialogPurge {
-		t.Fatalf("dialog mode = %v, want purge", dialog.mode)
-	}
-	if dialog.focusedButtonIndex() != -1 {
-		t.Fatalf("purge dialog should open with option focus, got button index %d", dialog.focusedButtonIndex())
-	}
-
-	dialog.handleDown()
-	if dialog.purgeCursor != 1 {
-		t.Fatalf("purge cursor = %d, want 1", dialog.purgeCursor)
-	}
-	if dialog.focusedButtonIndex() != -1 {
-		t.Fatalf("down should keep focus on purge options, got button index %d", dialog.focusedButtonIndex())
-	}
-
-	if cmd := dialog.moveFocus(1); cmd != nil {
-		cmd()
-	}
-	if dialog.focusedButtonIndex() != 0 {
-		t.Fatalf("tab should move focus to first button, got %d", dialog.focusedButtonIndex())
-	}
-
-	dialog.handleDown()
-	if dialog.purgeCursor != 2 {
-		t.Fatalf("purge cursor after button-focused down = %d, want 2", dialog.purgeCursor)
-	}
-	if dialog.focusedButtonIndex() != -1 {
-		t.Fatalf("down should leave button row and return to purge options, got button index %d", dialog.focusedButtonIndex())
-	}
-}
-
-func TestSessionsDialogViewOmitsDeleteAndPurgeShortcutHints(t *testing.T) {
-	defaultTheme := theme.StaticDefault()
-	dialog := newSessionsDialog([]sessionItem{
-		{ID: "one", Title: "Intro to Coding: Getting Started", UpdatedAt: time.Now().Add(-26 * time.Minute).Unix()},
-	}, &defaultTheme)
-	dialog.SetFrame(160, 40)
-
-	rendered := renderTestDialogContentPlain(dialog)
-	if strings.Contains(rendered, "ctrl+d delete") || strings.Contains(rendered, "ctrl+p purge") {
-		t.Fatalf("sessions dialog still shows delete/purge shortcuts\nrendered:\n%s", rendered)
-	}
-	if !strings.Contains(rendered, "↑/↓ select • tab buttons • enter confirm • esc back") {
-		t.Fatalf("sessions dialog missing updated footer hint\nrendered:\n%s", rendered)
-	}
-}
-
-func TestSessionsDialogWidthFitsButtonsAndHint(t *testing.T) {
-	defaultTheme := theme.StaticDefault()
-	dialog := newSessionsDialog([]sessionItem{
-		{ID: "one", Title: "Intro to Coding: Getting Started", UpdatedAt: time.Now().Add(-26 * time.Minute).Unix()},
-	}, &defaultTheme)
-	dialog.SetFrame(200, 40)
-
-	rendered := renderTestDialogContentPlain(dialog)
-	for _, needle := range []string{
-		"[ Open ]  [ New ]  [ Delete ]  [ Purge ]  [ Cancel ]",
-		"↑/↓ select • tab buttons • enter confirm • esc back",
-	} {
-		if !strings.Contains(rendered, needle) {
-			t.Fatalf("sessions dialog clipped %q\nrendered:\n%s", needle, rendered)
-		}
-	}
-}
-
-func TestPurgeSessionsAndReopenDialogCmdSkipsCurrentSession(t *testing.T) {
-	defaultTheme := theme.StaticDefault()
-	controller := &fakeController{
-		sessions: []app.SessionSummary{
-			{ID: "session-current", Title: "Current", UpdatedAt: time.Now()},
-			{ID: "session-a", Title: "A", UpdatedAt: time.Now().Add(-time.Hour)},
-			{ID: "session-b", Title: "B", UpdatedAt: time.Now().Add(-2 * time.Hour)},
-		},
-	}
-
-	cmd := purgeSessionsAndReopenDialogCmd(
-		context.Background(),
-		controller,
-		"session-current",
-		[]string{"session-current", "session-a", "session-b"},
-		&defaultTheme,
-		120,
-		40,
-	)
-	if cmd == nil {
-		t.Fatal("purgeSessionsAndReopenDialogCmd() = nil")
-	}
-	msg := cmd()
-	opened, ok := msg.(dialogOpenedMsg)
-	if !ok {
-		t.Fatalf("cmd() = %#v, want dialogOpenedMsg", msg)
-	}
-	if opened.err != nil {
-		t.Fatalf("dialogOpenedMsg.err = %v", opened.err)
-	}
-	if got, want := controller.deleteSessionCalls, []string{"session-a", "session-b"}; !slices.Equal(got, want) {
-		t.Fatalf("deleteSessionCalls = %#v, want %#v", got, want)
-	}
-	dialog, ok := opened.dialog.(*sessionsDialog)
-	if !ok {
-		t.Fatalf("dialog = %#v, want *sessionsDialog", opened.dialog)
-	}
-	if len(dialog.sessionItems) != 2 {
-		t.Fatalf("session item count = %d, want 2", len(dialog.sessionItems))
-	}
-	for _, item := range dialog.sessionItems {
-		if item.ID == "session-current" {
-			t.Fatalf("dialog included current session after purge: %#v", dialog.sessionItems)
 		}
 	}
 }
@@ -2759,7 +2517,6 @@ func TestCommandPaletteAgentSelectionRefreshesInspectorDetailsAgent(t *testing.T
 		},
 	})
 	model.selection.detailTurnID = "turn-0"
-	model.selection.handoffID = "handoff-1"
 	model.selection.callTurnID = "turn-0"
 	model.selection.callID = "call-1"
 
@@ -2777,9 +2534,6 @@ func TestCommandPaletteAgentSelectionRefreshesInspectorDetailsAgent(t *testing.T
 	}
 	if next.selection.detailTurnID != next.turnID {
 		t.Fatalf("detailTurnID = %q, want %q", next.selection.detailTurnID, next.turnID)
-	}
-	if next.selection.handoffID != "" {
-		t.Fatalf("selectedHandoffID = %q, want cleared", next.selection.handoffID)
 	}
 	if next.selection.callTurnID != "" || next.selection.callID != "" {
 		t.Fatalf("selected call = %q/%q, want cleared", next.selection.callTurnID, next.selection.callID)
@@ -2834,7 +2588,6 @@ func TestCommandPaletteAgentSelectionIgnoredWhileCurrentTurnRunning(t *testing.T
 		},
 	})
 	model.selection.detailTurnID = "turn-0"
-	model.selection.handoffID = "handoff-1"
 	model.selection.callTurnID = "turn-0"
 	model.selection.callID = "call-1"
 
@@ -2852,9 +2605,6 @@ func TestCommandPaletteAgentSelectionIgnoredWhileCurrentTurnRunning(t *testing.T
 	}
 	if next.selection.detailTurnID != "turn-0" {
 		t.Fatalf("detailTurnID = %q, want preserved while turn runs", next.selection.detailTurnID)
-	}
-	if next.selection.handoffID != "handoff-1" {
-		t.Fatalf("selectedHandoffID = %q, want preserved while turn runs", next.selection.handoffID)
 	}
 	if next.selection.callTurnID != "turn-0" || next.selection.callID != "call-1" {
 		t.Fatalf("selected call = %q/%q, want preserved while turn runs", next.selection.callTurnID, next.selection.callID)
@@ -2894,133 +2644,6 @@ func TestCommandPaletteModelSelectionIgnoredWhileCurrentTurnRunning(t *testing.T
 	}
 	if updated.(Model).busy {
 		t.Fatal("busy = true, want false")
-	}
-}
-
-func TestCommandPaletteSessionSelectionIgnoredWhileCurrentTurnRunning(t *testing.T) {
-	defaultTheme := theme.StaticDefault()
-	ctx, cancel := context.WithCancel(context.TODO())
-	defer cancel()
-
-	model := NewModel(&fakeController{}, ModelConfig{
-		Context:       ctx,
-		Theme:         &defaultTheme,
-		SessionID:     "session-1",
-		TurnID:        "turn-1",
-		WorkspaceRoot: "/repo",
-		InitialState: &events.SessionState{
-			SessionID:     "session-1",
-			WorkspaceRoot: "/repo",
-			TurnOrder:     []string{"turn-1"},
-			Turns: map[string]*events.TurnState{
-				"turn-1": {
-					TurnID: "turn-1",
-					Status: events.TurnStatusRunning,
-				},
-			},
-		},
-	})
-
-	updated, cmd := model.handleDialogClosed(dialogClosedMsg{
-		id: dialogIDCommandPalette,
-		result: sessionsDialogResult{
-			OpenSessionID: "session-2",
-		},
-	})
-	if cmd != nil {
-		t.Fatal("disabled session selection should not produce a command")
-	}
-	if updated.(Model).busy {
-		t.Fatal("busy = true, want false")
-	}
-}
-
-func TestCommandPaletteManageSessionsIgnoredWhileCurrentTurnRunning(t *testing.T) {
-	defaultTheme := theme.StaticDefault()
-	ctx, cancel := context.WithCancel(context.TODO())
-	defer cancel()
-
-	model := NewModel(&fakeController{}, ModelConfig{
-		Context:       ctx,
-		Theme:         &defaultTheme,
-		SessionID:     "session-1",
-		TurnID:        "turn-1",
-		WorkspaceRoot: "/repo",
-		InitialState: &events.SessionState{
-			SessionID:     "session-1",
-			WorkspaceRoot: "/repo",
-			TurnOrder:     []string{"turn-1"},
-			Turns: map[string]*events.TurnState{
-				"turn-1": {
-					TurnID: "turn-1",
-					Status: events.TurnStatusRunning,
-				},
-			},
-		},
-	})
-
-	updated, cmd := model.handleDialogClosed(dialogClosedMsg{
-		id:     dialogIDCommandPalette,
-		result: commandPaletteActionResult{ActionID: "manage-sessions"},
-	})
-	if cmd != nil {
-		t.Fatal("disabled manage sessions action should not produce a command")
-	}
-	if updated.(Model).dialog != nil {
-		t.Fatal("dialog should remain closed")
-	}
-}
-
-func TestCommandPaletteManageSessionsOpensSessionsDialog(t *testing.T) {
-	defaultTheme := theme.StaticDefault()
-	ctx, cancel := context.WithCancel(context.TODO())
-	defer cancel()
-
-	controller := &fakeController{
-		dialogState: app.DialogState{
-			ConnectedProviders: []app.ConnectedProvider{{ProviderID: "openai"}},
-			ModelRoute: provider.ModelRoute{
-				Primary: provider.ModelRef{ProviderID: "openai", ModelID: "gpt-5"},
-			},
-		},
-		sessions: []app.SessionSummary{{
-			ID:    "session-2",
-			Title: "Previous session",
-		}},
-	}
-
-	model := NewModel(controller, ModelConfig{
-		Context:       ctx,
-		Theme:         &defaultTheme,
-		SessionID:     "session-1",
-		TurnID:        "turn-1",
-		WorkspaceRoot: "/repo",
-		UserText:      "hello",
-	})
-
-	next, cmd := model.handleDialogClosed(dialogClosedMsg{
-		id:     dialogIDCommandPalette,
-		result: commandPaletteActionResult{ActionID: "manage-sessions"},
-	})
-	if cmd == nil {
-		t.Fatal("open sessions cmd = nil")
-	}
-	opened, ok := cmd().(dialogOpenedMsg)
-	if !ok {
-		t.Fatalf("cmd() = %#v", cmd())
-	}
-	if opened.err != nil {
-		t.Fatalf("dialogOpenedMsg.err = %v", opened.err)
-	}
-	dialog, ok := opened.dialog.(*sessionsDialog)
-	if !ok {
-		t.Fatalf("dialog = %#v", opened.dialog)
-	}
-	if dialog.ID() != dialogIDSessions {
-		t.Fatalf("dialog id = %q, want %q", dialog.ID(), dialogIDSessions)
-	}
-	if next.(Model).dialog != nil {
-		t.Fatal("palette dialog should be cleared before opening sessions dialog")
 	}
 }
 
@@ -3442,7 +3065,7 @@ func TestCommandPaletteViewDoesNotPaintFullDialogBackground(t *testing.T) {
 
 	stripped := ansi.Strip(rendered)
 	for _, want := range []string{
-		"Manage Sessions",
+		"Timeline",
 		"Connect provider",
 		"↑/↓ navigate",
 	} {

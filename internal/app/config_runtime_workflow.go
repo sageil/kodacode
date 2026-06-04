@@ -12,4 +12,7 @@ func applyStoredWorkflowConfig(config *WorkflowConfig, stored StoredWorkflowConf
 	if route, ok := storedModelRoute(stored.ReviewModel); ok {
 		config.ReviewModelRoute = route
 	}
+	if stored.PlannerApproval != nil {
+		config.PlannerApproval = *stored.PlannerApproval
+	}
 }

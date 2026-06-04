@@ -187,7 +187,6 @@ func TestRenderWideToolGroupSummarySectionUsesReadBasenameLabels(t *testing.T) {
 						Completed: true,
 					},
 				},
-				Handoffs: map[string]*events.AgentHandoffState{},
 			},
 		},
 	}
@@ -235,80 +234,6 @@ func TestShouldRenderToolCallInTranscriptHidesSupersededRetriedTaskCall(t *testi
 	}
 	if !shouldRenderToolCallInTranscript(turn, "call-2", turn.ToolCalls["call-2"]) {
 		t.Fatal("call-2 should remain visible")
-	}
-}
-
-func TestShouldRenderToolCallInTranscriptHidesDelegateCallWithHandoff(t *testing.T) {
-	turn := &events.TurnState{
-		TurnID:        "turn-1",
-		HandoffOrder:  []string{"handoff-1"},
-		ToolCallOrder: []string{"call-1"},
-		Handoffs: map[string]*events.AgentHandoffState{
-			"handoff-1": {
-				HandoffID:      "handoff-1",
-				ChildSessionID: "session-child",
-				ChildTurnID:    "turn-child",
-				ChildAgentID:   "reviewer",
-				Status:         events.AgentResultStatusCompleted,
-			},
-		},
-		ToolCalls: map[string]*events.ToolCallState{
-			"call-1": {
-				CallID:    "call-1",
-				ToolName:  "delegate",
-				HandoffID: "handoff-1",
-				Completed: true,
-				Succeeded: true,
-				Output:    `{"handoff_id":"handoff-1","child_session_id":"session-child","child_turn_id":"turn-child","child_agent_id":"reviewer","status":"completed","assistant_text":"done"}`,
-			},
-		},
-	}
-
-	if shouldRenderToolCallInTranscript(turn, "call-1", turn.ToolCalls["call-1"]) {
-		t.Fatal("delegate call should be hidden once a handoff owns its UI")
-	}
-}
-
-func TestShouldRenderToolCallInTranscriptHidesSupersededDelegateAttempt(t *testing.T) {
-	turn := &events.TurnState{
-		TurnID:        "turn-1",
-		HandoffOrder:  []string{"handoff-1"},
-		ToolCallOrder: []string{"call-1", "call-2"},
-		Handoffs: map[string]*events.AgentHandoffState{
-			"handoff-1": {
-				HandoffID:      "handoff-1",
-				ToolCallID:     "call-2",
-				ChildSessionID: "session-child",
-				ChildTurnID:    "turn-child",
-				ChildAgentID:   "planner",
-				Status:         events.AgentResultStatusCompleted,
-			},
-		},
-		ToolCalls: map[string]*events.ToolCallState{
-			"call-1": {
-				CallID:    "call-1",
-				ToolName:  "delegate",
-				Input:     `{"agent_id":"planner","task":"Inspect performance hotspots.","context_summary":"Ground the plan in the repository."}`,
-				Error:     "agent not found: planner",
-				Completed: true,
-			},
-			"call-2": {
-				CallID:    "call-2",
-				ToolName:  "delegate",
-				HandoffID: "handoff-1",
-				Input:     `{"agent_id":"planner","task":"Inspect performance hotspots.","context_summary":"Ground the plan in the repository."}`,
-				Output:    `{"handoff_id":"handoff-1","child_session_id":"session-child","child_turn_id":"turn-child","child_agent_id":"planner","status":"completed","assistant_text":"done"}`,
-				Completed: true,
-				Succeeded: true,
-			},
-		},
-	}
-
-	if shouldRenderToolCallInTranscript(turn, "call-1", turn.ToolCalls["call-1"]) {
-		t.Fatal("call-1 should be hidden once a later matching delegate attempt exists")
-	}
-	if shouldRenderToolCallInTranscript(turn, "call-2", turn.ToolCalls["call-2"]) {
-		t.Fatal("call-2 should stay hidden because the handoff owns its UI")
 	}
 }
 
@@ -393,19 +318,6 @@ func TestGroupedToolItemLabelUsesLocatePathWhenQueryOmitted(t *testing.T) {
 	}
 }
 
-func TestGroupedToolItemLabelUsesDelegatedAgentName(t *testing.T) {
-	call := &events.ToolCallState{
-		ToolName:  "delegate",
-		Input:     `{"agent_id":"planner","task":"Identify the required steps.","context_summary":"Ground the plan in the repo."}`,
-		Error:     "agent not found: planner",
-		Completed: true,
-	}
-
-	if got := groupedToolItemLabel("/repo", call); got != "Planner" {
-		t.Fatalf("groupedToolItemLabel() = %q, want %q", got, "Planner")
-	}
-}
-
 func TestGroupedToolItemLabelUsesTaskTitle(t *testing.T) {
 	call := &events.ToolCallState{
 		ToolName:  "task_workflow",
@@ -456,7 +368,6 @@ func TestRenderWideToolGroupSummarySectionOmitsExplorationCountSummary(t *testin
 						Completed: true,
 					},
 				},
-				Handoffs: map[string]*events.AgentHandoffState{},
 			},
 		},
 	}
@@ -515,7 +426,6 @@ func TestRenderWideToolGroupSummarySectionUsesSpinnerForRunningExploration(t *te
 						Executing: true,
 					},
 				},
-				Handoffs: map[string]*events.AgentHandoffState{},
 			},
 		},
 	}
@@ -570,7 +480,6 @@ func TestRenderCompactWideTaskOutcomeUsesFriendlyTaskLabel(t *testing.T) {
 						Completed: true,
 					},
 				},
-				Handoffs: map[string]*events.AgentHandoffState{},
 			},
 		},
 	}
@@ -635,7 +544,6 @@ func TestRenderWideToolGroupSummarySectionUsesCommandLabelsUnderRan(t *testing.T
 						Runtime:   &events.ToolExecRuntimeState{},
 					},
 				},
-				Handoffs: map[string]*events.AgentHandoffState{},
 			},
 		},
 	}
@@ -687,7 +595,6 @@ func TestRenderWideToolGroupSummarySectionUsesSpinnerForRunningCommandGroup(t *t
 						Executing: true,
 					},
 				},
-				Handoffs: map[string]*events.AgentHandoffState{},
 			},
 		},
 	}
@@ -739,7 +646,6 @@ func TestRenderFocusedToolTranscriptSectionTreatsBashAsExploration(t *testing.T)
 						Completed: true,
 					},
 				},
-				Handoffs: map[string]*events.AgentHandoffState{},
 			},
 		},
 	}
@@ -796,7 +702,6 @@ func TestCompactWideShellCommandOutcomeGroupsAsExploration(t *testing.T) {
 						Succeeded: false,
 					},
 				},
-				Handoffs: map[string]*events.AgentHandoffState{},
 			},
 		},
 	}
@@ -865,7 +770,6 @@ func TestCompactWideRunningShellCommandOutcomeGroupsAsExploration(t *testing.T) 
 						Execution: &events.ExecutionState{Effect: "unknown"},
 					},
 				},
-				Handoffs: map[string]*events.AgentHandoffState{},
 			},
 		},
 	}
@@ -895,77 +799,6 @@ func TestShowCommandToolInTranscriptHidesShellCommand(t *testing.T) {
 
 	if showCommandToolInTranscript(turn, call) {
 		t.Fatal("showCommandToolInTranscript = true, want false for shell command")
-	}
-}
-
-func TestRenderTranscriptMessagesWideHidesCompletedDelegateToolRow(t *testing.T) {
-	defaultTheme := theme.StaticDefault()
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	model := NewModel(&fakeController{}, ModelConfig{
-		Context:       ctx,
-		Theme:         &defaultTheme,
-		SessionID:     "session-1",
-		TurnID:        "turn-1",
-		WorkspaceRoot: "/repo",
-	})
-	modelIface, _ := model.Update(tea.WindowSizeMsg{Width: 140, Height: 40})
-	model = modelIface.(Model)
-
-	state := events.SessionState{
-		SessionID:     "session-1",
-		WorkspaceRoot: "/repo",
-		TurnOrder:     []string{"turn-1"},
-		Turns: map[string]*events.TurnState{
-			"turn-1": {
-				TurnID: "turn-1",
-				Transcript: []events.TranscriptEntryState{
-					{Kind: events.TranscriptEntryUser, Text: "perform a complete code review"},
-					{Kind: events.TranscriptEntryTool, CallID: "call-1"},
-					{Kind: events.TranscriptEntryAssistant, Text: "The reviewer agent has completed a high-level code review."},
-				},
-				HandoffOrder: []string{"handoff-1"},
-				Handoffs: map[string]*events.AgentHandoffState{
-					"handoff-1": {
-						HandoffID:      "handoff-1",
-						ToolCallID:     "call-1",
-						ChildSessionID: "session-child",
-						ChildTurnID:    "turn-child",
-						ChildAgentID:   "reviewer",
-						Task:           "Perform a complete code review of the project and recommend improvements.",
-						Status:         events.AgentResultStatusCompleted,
-						AssistantText:  "The reviewer agent has completed a high-level code review.",
-					},
-				},
-				ToolCallOrder: []string{"call-1"},
-				ToolCalls: map[string]*events.ToolCallState{
-					"call-1": {
-						CallID:    "call-1",
-						ToolName:  "delegate",
-						HandoffID: "handoff-1",
-						Input:     `{"agent_id":"reviewer","task":"Perform a complete code review of the project and recommend improvements.","context_summary":"Focus on code quality."}`,
-						Output:    `{"handoff_id":"handoff-1","child_session_id":"session-child","child_turn_id":"turn-child","child_agent_id":"reviewer","status":"completed","assistant_text":"The reviewer agent has completed a high-level code review."}`,
-						Completed: true,
-						Succeeded: true,
-					},
-				},
-			},
-		},
-	}
-
-	rendered := ansi.Strip(renderTranscriptMessages(model, state, 140).content)
-	if !strings.Contains(rendered, "The reviewer agent has completed a high-level code review.") {
-		t.Fatalf("transcript missing assistant response:\n%s", rendered)
-	}
-	for _, unwanted := range []string{
-		"delegate reviewer",
-		"agent: reviewer",
-		"task: Perform a complete code review",
-	} {
-		if strings.Contains(rendered, unwanted) {
-			t.Fatalf("transcript unexpectedly includes delegate tool row %q:\n%s", unwanted, rendered)
-		}
 	}
 }
 
@@ -1005,7 +838,6 @@ func TestRenderTranscriptMessagesWideShowsMCPOutput(t *testing.T) {
 						Succeeded: true,
 					},
 				},
-				Handoffs: map[string]*events.AgentHandoffState{},
 			},
 		},
 		MCP: &events.SessionMCPState{
@@ -1102,7 +934,6 @@ func TestRenderTranscriptMessagesWideShowsQuestionAndSelectedAnswer(t *testing.T
 						Succeeded: true,
 					},
 				},
-				Handoffs: map[string]*events.AgentHandoffState{},
 			},
 		},
 	}
@@ -1185,7 +1016,6 @@ func TestRenderWideToolGroupSummarySectionUsesMemoryDisplayLabelUnderUsed(t *tes
 						Completed: true,
 					},
 				},
-				Handoffs: map[string]*events.AgentHandoffState{},
 			},
 		},
 	}
@@ -1235,7 +1065,6 @@ func TestRenderWideToolGroupSummarySectionFlattensSingleUsedWebSearchGroup(t *te
 						Completed: true,
 					},
 				},
-				Handoffs: map[string]*events.AgentHandoffState{},
 			},
 		},
 	}
@@ -1289,7 +1118,6 @@ func TestRenderWideToolGroupSummarySectionUsesSkillDiscoveryLabels(t *testing.T)
 						Completed: true,
 					},
 				},
-				Handoffs: map[string]*events.AgentHandoffState{},
 			},
 		},
 	}
@@ -1349,7 +1177,6 @@ func TestRenderTranscriptMessagesHidesLoadedSkillToolCall(t *testing.T) {
 						Succeeded: true,
 					},
 				},
-				Handoffs: map[string]*events.AgentHandoffState{},
 			},
 		},
 	}

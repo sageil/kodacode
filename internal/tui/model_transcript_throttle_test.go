@@ -100,7 +100,6 @@ func TestTranscriptLayoutForTurnRefreshIgnoresHiddenTurnsWhenDisplayTurnsLimited
 					{Kind: events.TranscriptEntryAssistant, Text: "Older reply"},
 				},
 				ToolCalls: map[string]*events.ToolCallState{},
-				Handoffs:  map[string]*events.AgentHandoffState{},
 			},
 			"turn-2": {
 				TurnID: "turn-2",
@@ -109,7 +108,6 @@ func TestTranscriptLayoutForTurnRefreshIgnoresHiddenTurnsWhenDisplayTurnsLimited
 					{Kind: events.TranscriptEntryAssistant, Text: "Newest reply"},
 				},
 				ToolCalls: map[string]*events.ToolCallState{},
-				Handoffs:  map[string]*events.AgentHandoffState{},
 			},
 		},
 	}

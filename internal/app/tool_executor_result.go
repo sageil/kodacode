@@ -47,7 +47,7 @@ func (e *ToolExecutor) completeToolPreflightError(ctx context.Context, appender 
 	}, nil
 }
 
-func (e *ToolExecutor) completeToolPostflightError(ctx context.Context, appender toolExecutionEventAppender, input ExecuteToolInput, output string, observed []tool.ObservedResource, runtime *tool.ExecutionRuntime, cause error, retryOfCallID, handoffID string) (ToolExecutionResult, error) {
+func (e *ToolExecutor) completeToolPostflightError(ctx context.Context, appender toolExecutionEventAppender, input ExecuteToolInput, output string, observed []tool.ObservedResource, runtime *tool.ExecutionRuntime, cause error, retryOfCallID string) (ToolExecutionResult, error) {
 	if cause == nil {
 		return ToolExecutionResult{}, nil
 	}
@@ -65,7 +65,6 @@ func (e *ToolExecutor) completeToolPostflightError(ctx context.Context, appender
 		ToolName:          input.ToolName,
 		ToolKind:          string(inputToolKindOrDefault(input.ToolKind)),
 		RetryOfCallID:     retryOfCallID,
-		HandoffID:         handoffID,
 		Output:            stored.Output,
 		Error:             stored.Error,
 		ErrorDetail:       errorDetail,

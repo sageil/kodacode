@@ -71,7 +71,6 @@ func TestClearSelectedToolCallWithoutSelectionSkipsTranscriptRefresh(t *testing.
 				Status:     events.TurnStatusCompleted,
 				Transcript: []events.TranscriptEntryState{{Kind: events.TranscriptEntryAssistant, Text: strings.Repeat("line\n", 30)}},
 				ToolCalls:  map[string]*events.ToolCallState{},
-				Handoffs:   map[string]*events.AgentHandoffState{},
 			},
 		},
 	})

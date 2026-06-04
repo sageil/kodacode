@@ -15,7 +15,6 @@ import (
 const (
 	dialogIDCommandPalette    = "command-palette"
 	dialogIDTheme             = "theme"
-	dialogIDSessions          = "sessions"
 	dialogIDSkills            = "skills"
 	dialogIDConnect           = "connect"
 	dialogIDReasoningVariant  = "reasoning-variant"
@@ -26,7 +25,6 @@ const (
 	dialogIDTimeline          = "timeline"
 	dialogIDShellTools        = "shell-tools"
 	dialogIDToolDetail        = "tool-detail"
-	dialogIDHandoffDetail     = "handoff-detail"
 	dialogIDTaskDetail        = "task-detail"
 	dialogIDTrust             = "trust"
 )

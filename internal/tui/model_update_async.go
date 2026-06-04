@@ -136,7 +136,6 @@ func (m Model) handleOperationDoneMsg(msg operationDoneMsg) (Model, tea.Cmd) {
 	m.liveTurn.cancelRequested = false
 	if msg.err != nil {
 		m.interaction.resolveReq = ""
-		m.interaction.resolveHandoff = ""
 		m.disarmLiveTurn()
 		m.err = msg.err
 		m.chrome.focus = focusComposer
@@ -146,13 +145,9 @@ func (m Model) handleOperationDoneMsg(msg operationDoneMsg) (Model, tea.Cmd) {
 	if msg.sessionResult != nil {
 		m.trackSessionTurnResult(*msg.sessionResult)
 	}
-	if msg.delegatedQuestionResult != nil {
-		m.trackDelegatedQuestionResult(*msg.delegatedQuestionResult)
-	}
 	m.interaction.resolveReq = ""
-	m.interaction.resolveHandoff = ""
 	m.clearFooterError()
-	if m.isFinished() && !m.isDelegatedChildView() && !m.hasPendingApproval() {
+	if m.isFinished() && !m.hasPendingApproval() {
 		m.chrome.focus = focusComposer
 		m.syncViewportLayout()
 	} else if !m.hasPendingApproval() {
@@ -362,27 +357,7 @@ func (m Model) handleTurnCancelRequestedMsg(msg turnCancelRequestedMsg) (Model, 
 
 func (m Model) handleSessionSnapshotRefreshedMsg(msg sessionSnapshotRefreshedMsg) (Model, tea.Cmd) {
 	if msg.sessionID != m.sessionID {
-		delete(m.delegatedSnapshots.loading, msg.sessionID)
-		pendingRefreshCmd := m.consumePendingDelegatedSessionSnapshotRefreshCmd(msg.sessionID)
-		if msg.err != nil {
-			m.setFooterError(msg.err.Error())
-			return m, pendingRefreshCmd
-		}
-		if m.delegatedSnapshots.snapshots == nil {
-			m.delegatedSnapshots.snapshots = make(map[string]events.SessionState)
-		}
-		m.delegatedSnapshots.snapshots[msg.sessionID] = msg.state
-		m.syncShellToolsDialog()
-		m.syncToolDetailDialog()
-		m.syncHandoffDetailDialog()
-		m.syncInspectorBody(false)
-		m.syncViewportLayout()
-		return m, tea.Batch(
-			pendingRefreshCmd,
-			loadSessionUsageSummaryCmd(m.ctx, m.controller, m.sessionID),
-			m.ensureSelectedToolResultLoadedCmd(),
-			m.ensureOpenToolMutationDetailLoadedCmd(msg.state),
-		)
+		return m, nil
 	}
 	if msg.err != nil {
 		m.setFooterError(msg.err.Error())
@@ -401,11 +376,7 @@ func (m Model) handleSessionSnapshotRefreshedMsg(msg sessionSnapshotRefreshedMsg
 	}
 	m.syncToolDetailDialog()
 	m.syncShellToolsDialog()
-	m.syncHandoffDetailDialog()
 	m.syncTaskDetailDialog()
 	m.syncViewportLayout()
-	return m, tea.Batch(
-		loadSessionUsageSummaryCmd(m.ctx, m.controller, m.sessionID),
-		m.ensureRelevantDelegatedSessionSnapshotsLoadedCmd(msg.state),
-	)
+	return m, loadSessionUsageSummaryCmd(m.ctx, m.controller, m.sessionID)
 }

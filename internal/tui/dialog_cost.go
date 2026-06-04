@@ -243,16 +243,12 @@ func (m *Model) syncCostDialog() {
 func costDialogBody(th *theme.Theme, state events.SessionState, budgetStatus app.BudgetStatus, usageSummary app.SessionUsageSummary) string {
 	stats, pricedTurns, unpricedTurns := costDialogUsage(state)
 	aggregateUsage := usageSummary.ValidFor(state.SessionID) && usageSummary.HasUsage()
-	hasDelegatedUsage := aggregateUsage && usageSummary.HasDelegatedSessions()
 	sections := []string{costDialogSummarySection(th, state, stats, pricedTurns, unpricedTurns, budgetStatus, usageSummary)}
 	if stats.UsageTurns == 0 && !aggregateUsage {
 		return strings.Join(sections, "\n\n")
 	}
 	if len(pricedTurns) > 0 {
 		title := "Priced Turns by Estimated Cost"
-		if hasDelegatedUsage {
-			title = "Current Session Priced Turns by Estimated Cost"
-		}
 		sections = append(sections, dialogSectionStyle(th).Render(title))
 		for _, entry := range pricedTurns {
 			sections = append(sections, costDialogTurnSection(th, entry))
@@ -260,9 +256,6 @@ func costDialogBody(th *theme.Theme, state events.SessionState, budgetStatus app
 	}
 	if len(unpricedTurns) > 0 {
 		title := "Turns Without Pricing by Token Load"
-		if hasDelegatedUsage {
-			title = "Current Session Turns Without Pricing by Token Load"
-		}
 		sections = append(sections, dialogSectionStyle(th).Render(title))
 	}
 	for _, entry := range unpricedTurns {

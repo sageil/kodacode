@@ -1004,34 +1004,6 @@ func TestBuildSessionConversationStateUsesLatestCompactionEventAfterCheckpoint(t
 	}
 }
 
-func TestBuildSessionConversationReplaysReusedDelegatedResult(t *testing.T) {
-	replayed := []events.Event{
-		historyEvent(0, "session-1", "turn-1", events.UserMessagePayload{Content: "parent task"}),
-		historyEvent(1, "session-1", "turn-1", events.AssistantCommitPayload{Content: "parent reply"}),
-		historyEvent(2, "session-1", "turn-1", events.AgentResultReusedPayload{
-			HandoffID:      "handoff-1",
-			ChildSessionID: "session-2",
-			ChildTurnID:    "turn-2",
-			Content:        "Reused delegated result from planner.\nTask: inspect the runtime boundary\nResult:\nDelegated runtime summary",
-		}),
-		historyEvent(3, "session-1", "turn-1", events.TurnDonePayload{}),
-	}
-
-	history, err := buildSessionConversation(replayed, "turn-2")
-	if err != nil {
-		t.Fatalf("buildSessionConversation() error = %v", err)
-	}
-	if len(history.Inputs) != 3 {
-		t.Fatalf("inputs = %#v", history.Inputs)
-	}
-	if history.Inputs[2].Kind != provider.InputKindAssistantMessage {
-		t.Fatalf("input[2] = %#v", history.Inputs[2])
-	}
-	if history.Inputs[2].Content != "Reused delegated result from planner.\nTask: inspect the runtime boundary\nResult:\nDelegated runtime summary" {
-		t.Fatalf("input[2].Content = %q", history.Inputs[2].Content)
-	}
-}
-
 func TestBuildSessionConversationIncludesExecutionToolResult(t *testing.T) {
 	replayed := []events.Event{
 		historyEvent(0, "session-1", "turn-1", events.UserMessagePayload{Content: "run a command"}),
@@ -2008,8 +1980,6 @@ func historyEvent(sequence int64, sessionID, turnID string, payload events.Paylo
 		eventType = events.TypeTurnDone
 	case events.SessionHistoryContinuationUpdatedPayload:
 		eventType = events.TypeSessionHistoryContinuationUpdated
-	case events.AgentResultReusedPayload:
-		eventType = events.TypeAgentResultReused
 	case events.TurnErrorPayload:
 		eventType = events.TypeTurnError
 	case events.TurnCanceledPayload:

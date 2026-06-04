@@ -59,9 +59,6 @@ func TestLoadBytesParsesValidDeliveryWorkflow(t *testing.T) {
 	if strings.Join(review.Requires.Items, ",") != "git_diff,verification_result" {
 		t.Fatalf("review requires = %#v", review.Requires.Items)
 	}
-	if !review.ParallelReview {
-		t.Fatal("parallel_review = false, want true")
-	}
 	if review.AutoContinue != nil {
 		t.Fatalf("auto_continue = %#v, want unset", review.AutoContinue)
 	}
@@ -335,7 +332,6 @@ phases:
   - id: security
     type: review
     agent: security-reviewer
-    parallel_review: true
     review_passes:
       - id: auth
 `), ctx)
@@ -351,28 +347,13 @@ phases:
 	}
 }
 
-func TestDefinitionValidateRejectsParallelReviewWithoutPasses(t *testing.T) {
-	_, err := LoadBytes([]byte(`
-id: delivery
-phases:
-  - id: review
-    type: review
-    agent: reviewer
-    parallel_review: true
-`), testValidationContext())
-	if !errors.Is(err, ErrWorkflowReviewPassInvalid) {
-		t.Fatalf("LoadBytes() error = %v, want ErrWorkflowReviewPassInvalid", err)
-	}
-}
-
-func TestDefinitionValidateParsesAutoContinueParallelReview(t *testing.T) {
+func TestDefinitionValidateParsesAutoContinueReview(t *testing.T) {
 	definition, err := LoadBytes([]byte(`
 id: review
 phases:
   - id: review
     type: review
     agent: reviewer
-    parallel_review: true
     auto_continue: true
     review_passes:
       - id: correctness
@@ -408,7 +389,6 @@ phases:
   - id: review
     type: review
     agent: reviewer
-    parallel_review: true
     auto_continue: false
     review_passes:
       - id: correctness
@@ -434,33 +414,6 @@ phases:
 	}
 }
 
-func TestDefinitionValidateRejectsTooManyParallelReviewPasses(t *testing.T) {
-	_, err := LoadBytes([]byte(`
-id: delivery
-phases:
-  - id: review
-    type: review
-    agent: reviewer
-    parallel_review: true
-    review_passes:
-      - id: pass_1
-      - id: pass_2
-      - id: pass_3
-      - id: pass_4
-      - id: pass_5
-      - id: pass_6
-      - id: pass_7
-      - id: pass_8
-      - id: pass_9
-`), testValidationContext())
-	if !errors.Is(err, ErrWorkflowReviewPassInvalid) {
-		t.Fatalf("LoadBytes() error = %v, want ErrWorkflowReviewPassInvalid", err)
-	}
-	if err == nil || !strings.Contains(err.Error(), "at most 8") {
-		t.Fatalf("LoadBytes() error = %v, want pass limit detail", err)
-	}
-}
-
 func TestDefinitionValidateRejectsLegacyReviewFanoutKey(t *testing.T) {
 	_, err := LoadBytes([]byte(`
 id: delivery
@@ -471,8 +424,23 @@ phases:
     review_passes:
       - id: correctness
 `), testValidationContext())
-	if err == nil || !strings.Contains(err.Error(), "field review_fanout not found") {
-		t.Fatalf("LoadBytes() error = %v, want unknown review_fanout field", err)
+	if err == nil || !strings.Contains(err.Error(), "removed field review_fanout is not supported") || !strings.Contains(err.Error(), "remove this key") {
+		t.Fatalf("LoadBytes() error = %v, want removed review_fanout diagnostic", err)
+	}
+}
+
+func TestDefinitionValidateRejectsLegacyParallelReviewKey(t *testing.T) {
+	_, err := LoadBytes([]byte(`
+id: delivery
+phases:
+  - id: review
+    agent: reviewer
+    parallel_review: true
+    review_passes:
+      - id: correctness
+`), testValidationContext())
+	if err == nil || !strings.Contains(err.Error(), "removed field parallel_review is not supported") || !strings.Contains(err.Error(), "remove this key") {
+		t.Fatalf("LoadBytes() error = %v, want removed parallel_review diagnostic", err)
 	}
 }
 
@@ -734,7 +702,6 @@ phases:
     type: review
     agent: reviewer
     mode: read_only
-    parallel_review: true
     review_passes:
       - id: correctness
         description: Behavior changes and whether the implementation is correct.

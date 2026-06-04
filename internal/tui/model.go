@@ -72,36 +72,34 @@ type Model struct {
 	nextWatch int
 	cancel    context.CancelFunc
 
-	width              int
-	height             int
-	busy               bool
-	animation          animationState
-	interaction        interactionState
-	sessionNavigation  sessionNavigationState
-	holdOpen           bool
-	startTurn          bool
-	liveTurn           liveTurnState
-	selection          selectionState
-	chrome             chromeState
-	composer           textarea.Model
-	composerState      composerState
-	renderCache        renderCacheState
-	sessionsBody       Messages
-	messages           Messages
-	mouseRegions       inputMouseRegions
-	inputTrace         *inputTraceLogger
-	dialogRefresh      dialogRefreshState
-	transcriptRefresh  transcriptRefreshState
-	transcriptView     transcriptViewState
-	toolHydration      toolHydrationState
-	delegatedSnapshots delegatedSnapshotState
-	footerStatus       footerStatusState
-	inspector          inspectorState
-	dialog             dialogModel
-	dialogStack        []dialogModel
-	footerNotice       footerNoticeState
-	shuttingDown       bool
-	err                error
+	width             int
+	height            int
+	busy              bool
+	animation         animationState
+	interaction       interactionState
+	holdOpen          bool
+	startTurn         bool
+	liveTurn          liveTurnState
+	selection         selectionState
+	chrome            chromeState
+	composer          textarea.Model
+	composerState     composerState
+	renderCache       renderCacheState
+	sessionsBody      Messages
+	messages          Messages
+	mouseRegions      inputMouseRegions
+	inputTrace        *inputTraceLogger
+	dialogRefresh     dialogRefreshState
+	transcriptRefresh transcriptRefreshState
+	transcriptView    transcriptViewState
+	toolHydration     toolHydrationState
+	footerStatus      footerStatusState
+	inspector         inspectorState
+	dialog            dialogModel
+	dialogStack       []dialogModel
+	footerNotice      footerNoticeState
+	shuttingDown      bool
+	err               error
 }
 
 type dialogRefreshState struct {
@@ -189,12 +187,6 @@ type toolHydrationState struct {
 	loadingMutations map[scopedToolCallKey]bool
 }
 
-type delegatedSnapshotState struct {
-	snapshots map[string]events.SessionState
-	loading   map[string]bool
-	pending   map[string]bool
-}
-
 type footerStatusState struct {
 	workspace        app.WorkspaceStatus
 	workspaceLoading bool
@@ -217,16 +209,9 @@ type footerNoticeState struct {
 	nextID   int
 }
 
-type sessionNavigationState struct {
-	parentSessionID string
-	parentHandoffID string
-	viewStack       []sessionView
-}
-
 type interactionState struct {
-	resolveReq     string
-	resolveHandoff string
-	cursor         int
+	resolveReq string
+	cursor     int
 }
 
 type animationState struct {
@@ -250,7 +235,6 @@ type selectionState struct {
 	expandedCallTurnID    string
 	expandedCallID        string
 	taskID                string
-	handoffID             string
 }
 
 type liveTurnState struct {
@@ -269,8 +253,6 @@ type sessionView struct {
 	ThinkingEnabled       bool
 	ReasoningVariant      string
 	WorkspaceRoot         string
-	ParentSessionID       string
-	ParentHandoffID       string
 	DetailTurnID          string
 	SelectedCallSessionID string
 	SelectedCallTurnID    string
@@ -279,7 +261,6 @@ type sessionView struct {
 	ExpandedCallTurnID    string
 	ExpandedCallID        string
 	SelectedTaskID        string
-	SelectedHandoffID     string
 	Focus                 focusRegion
 	InspectorOpen         bool
 	WideSidebarOpen       bool
@@ -397,11 +378,6 @@ func NewModel(backend Backend, cfg ModelConfig) Model {
 			loadedMutations:  make(map[scopedToolCallKey]loadedToolMutationDetail),
 			loadingMutations: make(map[scopedToolCallKey]bool),
 		},
-		delegatedSnapshots: delegatedSnapshotState{
-			snapshots: make(map[string]events.SessionState),
-			loading:   make(map[string]bool),
-			pending:   make(map[string]bool),
-		},
 	}
 	if cfg.InitialState != nil {
 		model.primeTranscriptTurnSourceKeys(*cfg.InitialState)
@@ -445,10 +421,6 @@ func (m Model) Init() tea.Cmd {
 	}
 	if m.bootstrapped {
 		cmds = append(cmds, watchSessionCmd(m.ctx, m.controller, m.sessionID, m.projector.Snapshot().LastSequence, m.startTurn, m.nextWatch))
-		cmds = append(cmds,
-			m.ensureRelevantDelegatedSessionSnapshotsLoadedCmd(m.projector.Snapshot()),
-			m.ensureSelectedDelegatedSessionSnapshotLoadedCmd(),
-		)
 		return tea.Batch(cmds...)
 	}
 	cmds = append(cmds, openSessionCmd(m.ctx, m.controller, m.currentView(), m.startTurn, m.nextWatch))

@@ -13,15 +13,6 @@ type themeItem struct {
 	DisplayName string
 }
 
-type sessionItem struct {
-	ID                    string
-	Title                 string
-	Status                string
-	UpdatedAt             int64
-	BranchParentSessionID string
-	BranchParentTurnID    string
-}
-
 type agentItem struct {
 	ID          string
 	Description string
@@ -102,23 +93,6 @@ func buildThemeItems(names []string) []themeItem {
 			continue
 		}
 		items = append(items, themeItem{Name: name, DisplayName: name})
-	}
-	return items
-}
-
-func buildSessionItems(summaries []app.SessionSummary) []sessionItem {
-	items := make([]sessionItem, 0, len(summaries))
-	for _, summary := range summaries {
-		items = append(items, sessionItem{
-			ID:        summary.ID,
-			Title:     strings.TrimSpace(summary.Title),
-			Status:    string(summary.Status),
-			UpdatedAt: summary.UpdatedAt.Unix(),
-		})
-		if branch := summary.Branch; branch != nil {
-			items[len(items)-1].BranchParentSessionID = strings.TrimSpace(branch.ParentSessionID)
-			items[len(items)-1].BranchParentTurnID = strings.TrimSpace(branch.ParentTurnID)
-		}
 	}
 	return items
 }

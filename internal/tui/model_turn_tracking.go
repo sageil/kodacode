@@ -14,13 +14,6 @@ func (m *Model) trackSessionTurnResult(result app.RunSessionResult) {
 	m.trackTurnID(m.projector.CurrentState(), result.TurnID)
 }
 
-func (m *Model) trackDelegatedQuestionResult(result app.AnswerDelegatedSessionQuestionResult) {
-	if strings.TrimSpace(result.ChildTurn.SessionID) != strings.TrimSpace(m.sessionID) {
-		return
-	}
-	m.trackTurnID(m.projector.CurrentState(), result.ChildTurn.TurnID)
-}
-
 func (m *Model) trackTurnID(state events.SessionState, turnID string) bool {
 	turnID = strings.TrimSpace(turnID)
 	currentTurnID := strings.TrimSpace(m.turnID)

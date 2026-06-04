@@ -73,36 +73,7 @@ func (m Model) startQuestionResolution(choice int) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	m.busy = true
-	if m.isDelegatedChildView() {
-		m.interaction.resolveReq = ""
-		m.interaction.resolveHandoff = m.sessionNavigation.parentHandoffID
-		return m, tea.Batch(
-			answerDelegatedQuestionCmd(
-				m.ctx,
-				m.controller,
-				m.sessionNavigation.parentSessionID,
-				m.sessionNavigation.parentHandoffID,
-				answer,
-			),
-			m.ensureAnimTicking(),
-		)
-	}
-	if handoff := m.pendingDelegatedQuestion(); handoff != nil {
-		m.interaction.resolveReq = ""
-		m.interaction.resolveHandoff = handoff.HandoffID
-		return m, tea.Batch(
-			answerDelegatedQuestionCmd(
-				m.ctx,
-				m.controller,
-				m.sessionID,
-				handoff.HandoffID,
-				answer,
-			),
-			m.ensureAnimTicking(),
-		)
-	}
 	m.interaction.resolveReq = pending.QuestionID
-	m.interaction.resolveHandoff = ""
 	m.userText = ""
 	turnID := m.turnID
 	if strings.TrimSpace(pending.TurnID) != "" {

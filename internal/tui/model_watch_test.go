@@ -19,7 +19,6 @@ func TestShouldBatchWatchEventBatchesRapidVisibleTurnEvents(t *testing.T) {
 		events.TypeExecutionDeclared,
 		events.TypeExecutionStarted,
 		events.TypeExecutionBackgroundObserved,
-		events.TypeAgentHandoffPreview,
 		events.TypeTurnWorkStateUpdated,
 	}
 	for _, eventType := range batched {

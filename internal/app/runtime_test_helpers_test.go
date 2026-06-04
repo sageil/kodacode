@@ -19,6 +19,16 @@ func newRuntimeWithClient(t *testing.T, client provider.Client) *Runtime {
 	return newRuntimeWithClientConfigHome(t, client, t.TempDir())
 }
 
+func enablePlannerApprovalForTest(runtime *Runtime) {
+	if runtime == nil {
+		return
+	}
+	runtime.Config.Workflow.PlannerApproval = true
+	if runtime.Tools != nil {
+		runtime.Tools.SetWorkflowConfig(runtime.Config.Workflow)
+	}
+}
+
 func newRuntimeWithClientAndStore(t *testing.T, client provider.Client, store events.ReplayStore) *Runtime {
 	t.Helper()
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
@@ -76,7 +86,6 @@ func newRuntimeWithClientAndStore(t *testing.T, client provider.Client, store ev
 	}
 	runtime.Runner.SetModelCatalog(runtime.ModelCatalog)
 	runtime.Tools.SetSkillRegistry(skills)
-	runtime.Tools.SetDelegateRuntime(runtime)
 	runtime.Tools.SetWorkflowPhaseCommandResolver(runtime.workflowPhaseCommands)
 	runtime.Sessions.SetWorkflowReviewPhaseResolver(runtime.workflowReviewPhase)
 	return runtime
@@ -139,7 +148,6 @@ func newRuntimeWithClientConfigHome(t *testing.T, client provider.Client, config
 	}
 	runtime.Runner.SetModelCatalog(runtime.ModelCatalog)
 	runtime.Tools.SetSkillRegistry(skills)
-	runtime.Tools.SetDelegateRuntime(runtime)
 	runtime.Tools.SetWorkflowPhaseCommandResolver(runtime.workflowPhaseCommands)
 	runtime.Sessions.SetWorkflowReviewPhaseResolver(runtime.workflowReviewPhase)
 	return runtime
@@ -215,7 +223,6 @@ func newPersistentRuntimeWithClientConfigHome(t *testing.T, sessionDir string, c
 	}
 	runtime.Runner.SetModelCatalog(runtime.ModelCatalog)
 	runtime.Tools.SetSkillRegistry(skills)
-	runtime.Tools.SetDelegateRuntime(runtime)
 	runtime.Tools.SetWorkflowPhaseCommandResolver(runtime.workflowPhaseCommands)
 	runtime.Sessions.SetWorkflowReviewPhaseResolver(runtime.workflowReviewPhase)
 	return runtime

@@ -82,7 +82,6 @@ type Phase struct {
 	Include        []string              `yaml:"include"`
 	SkipWhen       ApprovalSkipRules     `yaml:"skip_when"`
 	ReviewPasses   []ReviewPass          `yaml:"review_passes"`
-	ParallelReview bool                  `yaml:"parallel_review"`
 	AutoContinue   *bool                 `yaml:"auto_continue"`
 }
 
@@ -140,8 +139,6 @@ const (
 
 const CompletionRequirementActivePhaseTasksComplete = "active_phase_tasks_complete"
 
-const MaxParallelReviewPasses = 8
-
 type ValidationContext struct {
 	Agents map[string]agent.Definition
 	Tools  map[string]struct{}
@@ -184,12 +181,31 @@ func LoadBytes(data []byte, ctx ValidationContext) (Definition, error) {
 	decoder := yaml.NewDecoder(bytes.NewReader(data))
 	decoder.KnownFields(true)
 	if err := decoder.Decode(&definition); err != nil {
-		return Definition{}, fmt.Errorf("workflow yaml: %w", err)
+		return Definition{}, workflowYAMLDecodeError(err)
 	}
 	if err := definition.Validate(ctx); err != nil {
 		return Definition{}, err
 	}
 	return definition, nil
+}
+
+var removedWorkflowYAMLFields = map[string]string{
+	"parallel_review": "parallel review fanout was removed with delegated workflow sessions; remove this key and keep review_passes for the review lenses that should run in the review phase",
+	"review_fanout":   "review fanout was removed with delegated workflow sessions; remove this key and keep review_passes for the review lenses that should run in the review phase",
+}
+
+func workflowYAMLDecodeError(err error) error {
+	var typeErr *yaml.TypeError
+	if errors.As(err, &typeErr) {
+		for _, msg := range typeErr.Errors {
+			for field, guidance := range removedWorkflowYAMLFields {
+				if strings.Contains(msg, "field "+field+" not found") {
+					return fmt.Errorf("workflow yaml: removed field %s is not supported: %s: %w", field, guidance, err)
+				}
+			}
+		}
+	}
+	return fmt.Errorf("workflow yaml: %w", err)
 }
 
 func (d Definition) Validate(ctx ValidationContext) error {
@@ -418,17 +434,11 @@ func validatePhaseApprovalSkip(p Phase) error {
 }
 
 func validatePhaseReviewPasses(p Phase) error {
-	if len(p.ReviewPasses) == 0 && !p.ParallelReviewEnabled() {
+	if len(p.ReviewPasses) == 0 {
 		return nil
 	}
 	if p.EffectiveType() != PhaseTypeReview {
 		return fmt.Errorf("%w: review_passes are only supported on review phases", ErrWorkflowReviewPassInvalid)
-	}
-	if p.ParallelReviewEnabled() && len(p.ReviewPasses) == 0 {
-		return fmt.Errorf("%w: parallel review requires review_passes", ErrWorkflowReviewPassInvalid)
-	}
-	if p.ParallelReviewEnabled() && len(p.ReviewPasses) > MaxParallelReviewPasses {
-		return fmt.Errorf("%w: parallel review supports at most %d review_passes", ErrWorkflowReviewPassInvalid, MaxParallelReviewPasses)
 	}
 	seen := map[string]struct{}{}
 	for index, pass := range p.ReviewPasses {
@@ -442,10 +452,6 @@ func validatePhaseReviewPasses(p Phase) error {
 		seen[id] = struct{}{}
 	}
 	return nil
-}
-
-func (p Phase) ParallelReviewEnabled() bool {
-	return p.ParallelReview
 }
 
 func (p Phase) AutoContinueEnabled() bool {
@@ -560,7 +566,6 @@ func mutationToolName(name string) bool {
 	case tool.ApplyPatchToolName,
 		tool.BashToolName,
 		tool.CodeActionToolName,
-		tool.DelegateToolName,
 		"mkdir",
 		tool.QuestionToolName,
 		tool.RenameSymbolToolName,

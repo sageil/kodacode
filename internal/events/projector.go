@@ -94,8 +94,6 @@ type TurnState struct {
 	Continuation          *HistoryContinuationState
 	ContextUsage          *TurnContextUsageState
 	WorkflowRoute         *WorkflowRouteRecommendationState
-	Handoffs              map[string]*AgentHandoffState
-	HandoffOrder          []string
 	AssistantText         string
 	StreamingText         string
 	ReasoningText         string

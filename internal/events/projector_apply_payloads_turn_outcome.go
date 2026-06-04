@@ -109,17 +109,4 @@ func (p *Projector) clearPendingInteractionsForTurn(turnID, message string) {
 	if turn == nil {
 		return
 	}
-	for _, handoffID := range turn.HandoffOrder {
-		handoff := turn.Handoffs[handoffID]
-		if handoff == nil {
-			continue
-		}
-		switch handoff.Status {
-		case AgentResultStatusPendingPermission, AgentResultStatusPendingQuestion:
-			handoff.Status = AgentResultStatusFailed
-			handoff.Error = message
-			handoff.PermissionRequestID = ""
-			handoff.QuestionRequestID = ""
-		}
-	}
 }

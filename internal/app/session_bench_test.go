@@ -409,7 +409,6 @@ func benchmarkSessionState(turnCount, toolCallsPerTurn int) events.SessionState 
 			UserText:         fmt.Sprintf("user prompt %d %s", turnIndex, inputText),
 			AssistantText:    fmt.Sprintf("assistant response %d %s", turnIndex, outputText),
 			ReasoningText:    reasoningText,
-			Handoffs:         map[string]*events.AgentHandoffState{},
 			Transcript:       make([]events.TranscriptEntryState, 0, 3+toolCallsPerTurn),
 			ToolCallOrder:    make([]string, 0, toolCallsPerTurn),
 			ToolCalls:        make(map[string]*events.ToolCallState, toolCallsPerTurn),

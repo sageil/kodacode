@@ -18,9 +18,6 @@ func renderInlinePermissionPrompt(m Model, state events.SessionState, width int)
 	if pending := m.pendingPermission(); pending != nil {
 		return renderInlinePermissionRequestPrompt(m, state, *pending, width)
 	}
-	if pending := m.pendingDelegatedPermission(); pending != nil {
-		return renderInlineDelegatedPermissionPrompt(m, state, *pending, width)
-	}
 	return ""
 }
 
@@ -39,44 +36,6 @@ func renderInlinePermissionRequestPrompt(m Model, state events.SessionState, pen
 	title := "Permission required"
 	details := []string{
 		strings.TrimSpace(pending.Reason),
-		strings.TrimSpace(pending.ToolName + " · " + permissionKindLabel(pending.Kind, pending.Access)),
-		inlinePermissionTargetLabel(state, pending),
-		inlineCommandSummary(pending.Command),
-	}
-	return renderInlineDecisionPrompt(m, width, title, details, inlinePermissionDecisionLabels())
-}
-
-func renderInlineDelegatedPermissionPrompt(m Model, state events.SessionState, handoff events.AgentHandoffState, width int) string {
-	agent := strings.TrimSpace(handoff.ChildAgentID)
-	if agent != "" {
-		agent = "agent: " + agent
-	}
-	if pending := delegatedExecutionApproval(&handoff); pending != nil {
-		title := "Execution approval required"
-		details := []string{
-			strings.TrimSpace(pending.Reason),
-			agent,
-			strings.TrimSpace(pending.ToolName + " · " + executionApprovalKindLabel(*pending)),
-			strings.TrimSpace(displayWorkingDirectory(state.WorkspaceRoot, pending.WorkingDirectory)),
-			inlineCommandSummary(pending.Command),
-		}
-		return renderInlineDecisionPrompt(m, width, title, details, executionDecisionLabels(*pending))
-	}
-
-	title := "Permission required"
-	pending := events.PermissionRequestState{
-		Kind:             handoff.PermissionKind,
-		RequestID:        handoff.PermissionRequestID,
-		Access:           handoff.PermissionAccess,
-		Path:             handoff.PermissionPath,
-		WorkingDirectory: handoff.PermissionDir,
-		ToolName:         handoff.PermissionToolName,
-		Command:          handoff.PermissionCommand,
-		Reason:           handoff.PermissionReason,
-	}
-	details := []string{
-		strings.TrimSpace(pending.Reason),
-		agent,
 		strings.TrimSpace(pending.ToolName + " · " + permissionKindLabel(pending.Kind, pending.Access)),
 		inlinePermissionTargetLabel(state, pending),
 		inlineCommandSummary(pending.Command),

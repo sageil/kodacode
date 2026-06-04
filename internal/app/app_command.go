@@ -111,71 +111,8 @@ func continueSessionTurn(ctx context.Context, in io.Reader, out io.Writer, runti
 			return writeCLIText(out, result.Error)
 		}
 
-		if result.Status != TurnRunStatusPending || (result.PendingPermission == nil && result.PendingExecution == nil && result.PendingQuestion == nil && result.PendingDelegated == nil) {
+		if result.Status != TurnRunStatusPending || (result.PendingPermission == nil && result.PendingExecution == nil && result.PendingQuestion == nil) {
 			return nil
-		}
-		if result.PendingDelegated != nil {
-			handoff := result.PendingDelegated
-			switch handoff.Status {
-			case events.AgentResultStatusPendingQuestion:
-				answer, err := promptQuestion(reader, out, events.QuestionRequestState{
-					QuestionID: handoff.HandoffID,
-					TurnID:     result.TurnID,
-					ToolName:   handoff.QuestionToolName,
-					Question:   handoff.QuestionText,
-					Options:    append([]string(nil), handoff.QuestionOptions...),
-				})
-				if err != nil {
-					return err
-				}
-				resolved, err := runtime.AnswerDelegatedSessionQuestion(ctx, AnswerDelegatedSessionQuestionInput{
-					ParentSessionID: result.SessionID,
-					HandoffID:       handoff.HandoffID,
-					Answer:          answer,
-				})
-				if err != nil {
-					return err
-				}
-				result = resolved.ParentTurn
-				continue
-			case events.AgentResultStatusPendingPermission:
-				resolvedInput := ResolveDelegatedSessionTurnInput{
-					ParentSessionID: result.SessionID,
-					HandoffID:       handoff.HandoffID,
-				}
-				if handoff.ExecutionApproval != nil {
-					decision, err := promptExecutionApproval(reader, out, *handoff.ExecutionApproval)
-					if err != nil {
-						return err
-					}
-					resolvedInput.ExecutionDecision = decision
-				} else {
-					decision, scope, grantPath, recursive, err := promptPermission(reader, out, events.PermissionRequestState{
-						Kind:             handoff.PermissionKind,
-						RequestID:        handoff.HandoffID,
-						TurnID:           result.TurnID,
-						Access:           handoff.PermissionAccess,
-						Path:             handoff.PermissionPath,
-						WorkingDirectory: handoff.PermissionDir,
-						ToolName:         handoff.PermissionToolName,
-						Command:          handoff.PermissionCommand,
-						Reason:           handoff.PermissionReason,
-					})
-					if err != nil {
-						return err
-					}
-					resolvedInput.Decision = decision
-					resolvedInput.Scope = scope
-					resolvedInput.GrantPath = grantPath
-					resolvedInput.Recursive = recursive
-				}
-				resolved, err := runtime.ResolveDelegatedSessionTurn(ctx, resolvedInput)
-				if err != nil {
-					return err
-				}
-				result = resolved.ParentTurn
-				continue
-			}
 		}
 		if result.PendingQuestion != nil {
 			answer, err := promptQuestion(reader, out, *result.PendingQuestion)

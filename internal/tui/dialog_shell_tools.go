@@ -20,7 +20,6 @@ type shellToolsDialog struct {
 	icons       terminalIconProfile
 	sessionID   string
 	state       events.SessionState
-	delegated   map[string]events.SessionState
 	allRefs     []sessionToolCallRef
 	refs        []sessionToolCallRef
 	search      string
@@ -43,7 +42,6 @@ func newShellToolsDialog(m Model, state events.SessionState) *shellToolsDialog {
 		icons:       m.terminalIcons,
 		sessionID:   strings.TrimSpace(m.sessionID),
 		state:       state,
-		delegated:   m.delegatedSnapshots.snapshots,
 		allRefs:     shellToolsDialogRefs(m, state),
 		frameWidth:  96,
 		frameHeight: shellToolsDialogDefaultHeight,
@@ -70,26 +68,6 @@ func shellToolsDialogRefs(m Model, state events.SessionState) []sessionToolCallR
 			continue
 		}
 		out = append(out, ref)
-		if !isDelegateToolCall(call) {
-			continue
-		}
-		turn, _ := sessionToolCall(state, ref)
-		handoff := delegateHandoffForCall(turn, call)
-		if handoff == nil || strings.TrimSpace(handoff.ChildSessionID) == "" {
-			continue
-		}
-		childSessionID := strings.TrimSpace(handoff.ChildSessionID)
-		childState, ok := m.delegatedSnapshot(childSessionID)
-		if !ok {
-			continue
-		}
-		for _, childRef := range orderedDelegatedChildToolCallRefs(childState) {
-			_, childCall := sessionToolCall(childState, childRef)
-			if childCall == nil {
-				continue
-			}
-			out = append(out, toolRefForSession(childSessionID, childRef))
-		}
 	}
 	return out
 }
@@ -220,7 +198,6 @@ func (d *shellToolsDialog) Sync(m Model, state events.SessionState) {
 	d.theme = m.theme
 	d.sessionID = strings.TrimSpace(m.sessionID)
 	d.state = state
-	d.delegated = m.delegatedSnapshots.snapshots
 	d.allRefs = shellToolsDialogRefs(m, state)
 	d.applySearchFilter(selected)
 	switch {
@@ -435,12 +412,6 @@ func (d *shellToolsDialog) renderBody(width, height int) string {
 }
 
 func (d *shellToolsDialog) stateForRef(ref sessionToolCallRef) events.SessionState {
-	sessionID := strings.TrimSpace(ref.SessionID)
-	if sessionID != "" && sessionID != strings.TrimSpace(d.state.SessionID) {
-		if state, ok := d.delegated[sessionID]; ok {
-			return state
-		}
-	}
 	return d.state
 }
 
@@ -467,9 +438,6 @@ func (d *shellToolsDialog) renderRowLeft(state events.SessionState, ref sessionT
 	if label == "" {
 		label = kind
 	}
-	if sessionID := strings.TrimSpace(ref.SessionID); sessionID != "" && sessionID != strings.TrimSpace(d.sessionID) {
-		label = delegatedShellToolDialogLabel(state, label)
-	}
 	if detail := strings.TrimSpace(groupedToolItemResultDetail(call)); detail != "" && !strings.Contains(label, detail) {
 		label += " · " + detail
 	}
@@ -481,18 +449,8 @@ func (d *shellToolsDialog) renderRowRightText(state events.SessionState, ref ses
 	if ordinal := sessionToolTurnOrdinal(state, ref.TurnID); ordinal > 0 {
 		parts = append(parts, fmt.Sprintf("t%d", ordinal))
 	}
-	if sessionID := strings.TrimSpace(ref.SessionID); sessionID != "" && sessionID != strings.TrimSpace(d.sessionID) {
-		parts = append(parts, "delegated")
-	}
 	parts = append(parts, shellToolStatusLabel(status))
 	return strings.Join(parts, " · ")
-}
-
-func delegatedShellToolDialogLabel(state events.SessionState, label string) string {
-	if sessionID := strings.TrimSpace(state.SessionID); sessionID != "" {
-		return sessionID + ": " + label
-	}
-	return "delegated: " + label
 }
 
 func shellToolKind(call *events.ToolCallState) string {

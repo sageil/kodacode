@@ -336,7 +336,7 @@ func toolArgumentErrorMessage(toolName string, malformed bool, cause error) stri
 		detail = strings.TrimSpace(detail)
 	}
 	message := fmt.Sprintf("%s failed. %s.", quotedToolName(toolName), strings.TrimSuffix(detail, "."))
-	if contract := toolArgumentContractText(toolName); contract != "" {
+	if contract := toolArgumentContractText(toolName, cause); contract != "" {
 		message += " " + contract
 	}
 	return message
@@ -444,7 +444,7 @@ func malformedArgumentDetail(args json.RawMessage) string {
 	return fmt.Sprintf("%q has an unquoted string value; wrap it in double quotes", field)
 }
 
-func toolArgumentContractText(toolName string) string {
+func toolArgumentContractText(toolName string, cause error) string {
 	switch strings.TrimSpace(toolName) {
 	case ReadToolName:
 		return `Use either path for one file or paths for one or more files; do not send both.`
@@ -455,13 +455,44 @@ func toolArgumentContractText(toolName string) string {
 	case TaskWorkflowToolName:
 		return `Use action "list", "create", "update", "block", or "complete"; include the fields required by that action.`
 	case ApplyPatchToolName:
-		return `Use the apply_patch format with "*** Add File:", "*** Update File:", or "*** Delete File:" headers. Add File content lines must all start with "+", including blank lines as "+". Update File hunk lines must start with a space, "+", or "-". Do not include read output line number prefixes like "40:" after patch prefixes. Do not include raw unified diff metadata such as "---", "+++", or "\ No newline at end of file". Retry by calling apply_patch again; do not print the corrected patch as assistant text.`
+		return applyPatchArgumentContractText(cause)
 	default:
 		examples := toolArgumentExamples(toolName)
 		if len(examples) == 0 {
 			return ""
 		}
 		return "Example: " + examples[0] + "."
+	}
+}
+
+func applyPatchArgumentContractText(cause error) string {
+	switch {
+	case errors.Is(cause, ErrApplyPatchMissingEnd):
+		return `Retry apply_patch with the complete patch ending in exactly "*** End Patch". Do not print the corrected patch as assistant text.`
+	case errors.Is(cause, ErrApplyPatchMissingBegin):
+		return `Retry apply_patch with raw patch text whose first line is exactly "*** Begin Patch". Do not print the corrected patch as assistant text.`
+	case errors.Is(cause, ErrApplyPatchEmpty), errors.Is(cause, ErrApplyPatchNoOperations):
+		return `Retry apply_patch with a complete patch containing at least one file operation and ending in exactly "*** End Patch".`
+	case errors.Is(cause, ErrApplyPatchEmptyAdd):
+		return `For Add File, include at least one file-content line prefixed with "+", and use "+" for blank lines.`
+	case errors.Is(cause, ErrApplyPatchEmptyUpdate):
+		return `For Update File, include hunk lines starting with a space, "+", or "-", or include a "*** Move to:" line for a move-only update.`
+	case errors.Is(cause, ErrApplyPatchReadLinePrefixes):
+		return `Remove read output line number prefixes like "40:" after patch prefixes, then retry apply_patch.`
+	case errors.Is(cause, ErrApplyPatchUnknownHeader):
+		return `Use one file operation header: "*** Add File:", "*** Update File:", or "*** Delete File:".`
+	case errors.Is(cause, ErrApplyPatchMalformedLine):
+		detail := strings.TrimSpace(errorDetailText(cause))
+		switch {
+		case strings.Contains(detail, "Add File") || strings.Contains(detail, "add file"):
+			return `For Add File, every file-content line must start with "+", including blank lines as "+".`
+		case strings.Contains(detail, "raw unified diff metadata"):
+			return `Do not include raw unified diff metadata such as "---", "+++", or "\ No newline at end of file".`
+		default:
+			return `Use Add File content lines starting with "+", and Update File hunk lines starting with a space, "+", or "-". Retry by calling apply_patch again, not by printing the patch as assistant text.`
+		}
+	default:
+		return `Use the apply_patch format with "*** Begin Patch", one or more file operation headers, and final line "*** End Patch".`
 	}
 }
 

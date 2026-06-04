@@ -101,7 +101,6 @@ func newCommandPaletteActions(items commandPaletteActionsItems, th *theme.Theme)
 		{ID: "select-agent", Title: "Switch agent", Description: "Choose the active agent"},
 		{ID: "select-workflow", Title: "Select workflow", Description: "Choose a workflow for the next turn"},
 		{ID: "select-theme", Title: "Switch theme", Description: "Choose the active theme"},
-		{ID: "manage-sessions", Title: "Manage Sessions", Description: "Open the sessions manager"},
 		{ID: "timeline", Title: "Timeline", Description: "Branch from a previous turn"},
 		{ID: "manage-trust", Title: "Manage trust", Description: "Review and revoke workspace or MCP trust"},
 		{ID: "new-session", Title: "New session", Description: "Start a fresh workspace session"},

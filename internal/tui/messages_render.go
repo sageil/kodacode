@@ -28,10 +28,9 @@ type transcriptSelectionLine struct {
 type transcriptLayoutChunkKind string
 
 const (
-	transcriptLayoutChunkTurn                transcriptLayoutChunkKind = "turn"
-	transcriptLayoutChunkDraft               transcriptLayoutChunkKind = "draft"
-	transcriptLayoutChunkDelegatedPermission transcriptLayoutChunkKind = "delegated_permission"
-	transcriptLayoutChunkWorkflowReport      transcriptLayoutChunkKind = "workflow_report"
+	transcriptLayoutChunkTurn           transcriptLayoutChunkKind = "turn"
+	transcriptLayoutChunkDraft          transcriptLayoutChunkKind = "draft"
+	transcriptLayoutChunkWorkflowReport transcriptLayoutChunkKind = "workflow_report"
 )
 
 type transcriptLayoutChunk struct {
@@ -118,15 +117,6 @@ func appendTranscriptTrailingChunks(m Model, state events.SessionState, width in
 		})
 	}
 
-	if handoff := m.pendingDelegatedPermission(); handoff != nil {
-		row := newDelegatedPermissionSystemRow(handoff, width)
-		rendered := row.render(m)
-		layout.chunks = append(layout.chunks, transcriptLayoutChunk{
-			kind:      transcriptLayoutChunkDelegatedPermission,
-			rendered:  rendered,
-			lineCount: transcriptRenderLineCount(rendered),
-		})
-	}
 	if reportSections := renderCompletedWorkflowReportSections(m, state, width); len(reportSections) > 0 {
 		rendered := buildTranscriptChunk(reportSections)
 		layout.chunks = append(layout.chunks, transcriptLayoutChunk{

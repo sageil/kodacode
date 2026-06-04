@@ -130,14 +130,8 @@ func missingWorkflowEvidenceReason(state events.SessionState, definition workflo
 
 func missingWorkflowPhaseCompletionEvidence(state events.SessionState, phase workflowpkg.Phase) string {
 	phaseID := strings.TrimSpace(phase.ID)
-	for _, key := range phase.RequiresOutput {
-		key = strings.TrimSpace(key)
-		if key == "" {
-			continue
-		}
-		if !workflowHasPhaseOutputEvidence(state.Workflow, phaseID, key) {
-			return "missing required phase output: " + key + " (call " + tool.WorkflowPhaseOutputToolName + " with all required keys, or return parseable phase-output JSON)"
-		}
+	if missing := missingWorkflowPhaseOutputKeys(state.Workflow, phaseID, phase.RequiresOutput); len(missing) > 0 {
+		return workflowMissingPhaseOutputReason(missing, phase.RequiresOutput)
 	}
 	if reason := missingWorkflowPhaseCompletionRequirement(state, phaseID, phase.Completion.Requires); reason != "" {
 		return reason
@@ -157,6 +151,33 @@ func missingWorkflowPhaseCompletionEvidence(state events.SessionState, phase wor
 		}
 	}
 	return ""
+}
+
+func missingWorkflowPhaseOutputKeys(workflow *events.WorkflowState, phaseID string, requiredKeys []string) []string {
+	phaseID = strings.TrimSpace(phaseID)
+	var missing []string
+	for _, key := range requiredKeys {
+		key = strings.TrimSpace(key)
+		if key == "" {
+			continue
+		}
+		if !workflowHasPhaseOutputEvidence(workflow, phaseID, key) {
+			missing = append(missing, key)
+		}
+	}
+	return missing
+}
+
+func workflowMissingPhaseOutputReason(missingKeys, requiredKeys []string) string {
+	missing := trimmedWorkflowValues(missingKeys)
+	if len(missing) == 0 {
+		return "missing required phase output"
+	}
+	required := trimmedWorkflowValues(requiredKeys)
+	if len(required) == 0 {
+		required = missing
+	}
+	return "missing required phase output: " + missing[0] + ". The phase cannot advance from prose. Call " + tool.WorkflowPhaseOutputToolName + " with all required fields: " + strings.Join(required, ", ") + "."
 }
 
 func missingWorkflowPhaseCompletionRequirement(state events.SessionState, phaseID string, requirements workflowpkg.EvidenceRequirements) string {

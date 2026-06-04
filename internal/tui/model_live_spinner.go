@@ -22,9 +22,6 @@ func (m Model) liveTurnSpinnerState(state events.SessionState) (bool, string) {
 	}
 	pendingSubmission := m.pendingInteractionSubmissionInFlightForState(state)
 	if pendingSubmission {
-		if label := m.activeDelegatedSpinnerLabel(state); label != "" {
-			return true, label
-		}
 		return true, "Continuing"
 	}
 	trackedTurnID := strings.TrimSpace(m.turnID)
@@ -61,29 +58,6 @@ func (m Model) liveTurnSpinnerState(state events.SessionState) (bool, string) {
 		return true, "Thinking"
 	}
 	return true, "Waiting for model"
-}
-
-func (m Model) activeDelegatedSpinnerLabel(state events.SessionState) string {
-	handoff := activeDelegatedHandoff(state, m)
-	if handoff == nil {
-		return ""
-	}
-	if action := strings.TrimSpace(handoff.PreviewAction); action != "" {
-		return action
-	}
-	if childState, ok := m.delegatedSnapshot(handoff.ChildSessionID); ok {
-		childTurnID := strings.TrimSpace(handoff.ChildTurnID)
-		if childTurnID == "" {
-			childTurnID = latestRunningTurnID(childState)
-		}
-		if label := liveTurnActivityLabel(currentTurn(childState, childTurnID)); label != "" {
-			return label
-		}
-	}
-	if strings.TrimSpace(handoff.PreviewToolName) != "" {
-		return "Running tools"
-	}
-	return "Waiting for delegate"
 }
 
 func latestRunningTurnID(state events.SessionState) string {

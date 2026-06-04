@@ -143,33 +143,6 @@ func (s *SessionService) append(ctx context.Context, draft events.Draft) (events
 	return event, nil
 }
 
-func (s *SessionService) DeleteSession(ctx context.Context, sessionID string) error {
-	if strings.TrimSpace(sessionID) == "" {
-		return ErrSessionIDRequired
-	}
-	deleter, ok := s.store.(sessionDeleter)
-	if !ok {
-		return nil
-	}
-	if err := deleter.DeleteSession(ctx, sessionID); err != nil {
-		return err
-	}
-
-	if runtime := s.existingRuntimeForSession(sessionID); runtime != nil {
-		runtime.mu.Lock()
-		s.clearBudgetSummaryLocked(runtime)
-		runtime.lastDurable = -1
-		runtime.snapshotSequence = -1
-		runtime.projector = nil
-		runtime.budget = budgetSessionSummary{}
-		runtime.budgetWarm = false
-		runtime.watchers = make(map[*sessionWatcher]struct{})
-		runtime.mu.Unlock()
-	}
-	s.removeRuntimeForSession(sessionID)
-	return nil
-}
-
 func (s *SessionService) publishEphemeral(sessionID, turnID string, typ events.Type, payload events.Payload) error {
 	runtime := s.runtimeForSession(sessionID)
 	event := events.Event{

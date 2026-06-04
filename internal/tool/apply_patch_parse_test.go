@@ -278,10 +278,8 @@ func TestParseApplyPatchMalformedLineErrorExplainsPatchSyntax(t *testing.T) {
 	for _, want := range []string{
 		"`apply_patch` failed.",
 		"invalid patch syntax",
-		`Use the apply_patch format with "*** Add File:", "*** Update File:", or "*** Delete File:" headers`,
-		`Add File content lines must all start with "+", including blank lines as "+"`,
-		`Do not include raw unified diff metadata such as "---", "+++", or "\ No newline at end of file"`,
-		"Retry by calling apply_patch again; do not print the corrected patch as assistant text",
+		`Use Add File content lines starting with "+", and Update File hunk lines starting with a space, "+", or "-"`,
+		"Retry by calling apply_patch again, not by printing the patch as assistant text",
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("ParseApplyPatch() error = %q, missing %q", got, want)

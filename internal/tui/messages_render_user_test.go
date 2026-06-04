@@ -199,7 +199,6 @@ func TestRenderTranscriptSuppressesQuestionAnswerContinuationBoilerplate(t *test
 						Succeeded: true,
 					},
 				},
-				Handoffs: map[string]*events.AgentHandoffState{},
 			},
 			"turn-2": {
 				TurnID:   "turn-2",
@@ -213,7 +212,6 @@ func TestRenderTranscriptSuppressesQuestionAnswerContinuationBoilerplate(t *test
 					{Kind: events.TranscriptEntryUser, Text: answer},
 				},
 				ToolCalls: map[string]*events.ToolCallState{},
-				Handoffs:  map[string]*events.AgentHandoffState{},
 			},
 		},
 	}
@@ -310,7 +308,6 @@ func TestWideTranscriptDoesNotRenderTurnSeparatorLine(t *testing.T) {
 					{Kind: events.TranscriptEntryAssistant, Text: "Hello there"},
 				},
 				ToolCalls: map[string]*events.ToolCallState{},
-				Handoffs:  map[string]*events.AgentHandoffState{},
 			},
 			"turn-2": {
 				TurnID: "turn-2",
@@ -319,7 +316,6 @@ func TestWideTranscriptDoesNotRenderTurnSeparatorLine(t *testing.T) {
 					{Kind: events.TranscriptEntryAssistant, Text: "I’m reviewing it now."},
 				},
 				ToolCalls: map[string]*events.ToolCallState{},
-				Handoffs:  map[string]*events.AgentHandoffState{},
 			},
 		},
 	}
@@ -365,7 +361,6 @@ func TestRenderTranscriptMessagesLimitsVisibleTurnsWhenConfigured(t *testing.T) 
 					{Kind: events.TranscriptEntryAssistant, Text: "First reply"},
 				},
 				ToolCalls: map[string]*events.ToolCallState{},
-				Handoffs:  map[string]*events.AgentHandoffState{},
 			},
 			"turn-2": {
 				TurnID: "turn-2",
@@ -374,7 +369,6 @@ func TestRenderTranscriptMessagesLimitsVisibleTurnsWhenConfigured(t *testing.T) 
 					{Kind: events.TranscriptEntryAssistant, Text: "Second reply"},
 				},
 				ToolCalls: map[string]*events.ToolCallState{},
-				Handoffs:  map[string]*events.AgentHandoffState{},
 			},
 			"turn-3": {
 				TurnID: "turn-3",
@@ -383,7 +377,6 @@ func TestRenderTranscriptMessagesLimitsVisibleTurnsWhenConfigured(t *testing.T) 
 					{Kind: events.TranscriptEntryAssistant, Text: "Third reply"},
 				},
 				ToolCalls: map[string]*events.ToolCallState{},
-				Handoffs:  map[string]*events.AgentHandoffState{},
 			},
 		},
 	}
@@ -435,7 +428,6 @@ func TestWideTranscriptShowsHistoryCompactionSummary(t *testing.T) {
 					1,
 				),
 				ToolCalls: map[string]*events.ToolCallState{},
-				Handoffs:  map[string]*events.AgentHandoffState{},
 			},
 		},
 	}
@@ -485,7 +477,6 @@ func TestTranscriptRendersPersistedReasoningSection(t *testing.T) {
 					{Kind: events.TranscriptEntryAssistant, Text: "I found the contract issue and fixed it."},
 				},
 				ToolCalls: map[string]*events.ToolCallState{},
-				Handoffs:  map[string]*events.AgentHandoffState{},
 			},
 		},
 	}
@@ -539,7 +530,6 @@ func TestWideTranscriptUsesDistinctCompactionSummarySurface(t *testing.T) {
 					1,
 				),
 				ToolCalls: map[string]*events.ToolCallState{},
-				Handoffs:  map[string]*events.AgentHandoffState{},
 			},
 		},
 	}
@@ -587,7 +577,6 @@ func TestTranscriptRendersMultipleReasoningSections(t *testing.T) {
 					{Kind: events.TranscriptEntryAssistant, Text: "Done."},
 				},
 				ToolCalls: map[string]*events.ToolCallState{},
-				Handoffs:  map[string]*events.AgentHandoffState{},
 			},
 		},
 	}
@@ -630,7 +619,6 @@ func TestTranscriptRendersAssistantWorklogAsAssistantMessage(t *testing.T) {
 					{Kind: events.TranscriptEntryWorklog, Text: "Checking the repository boundary before editing."},
 				},
 				ToolCalls: map[string]*events.ToolCallState{},
-				Handoffs:  map[string]*events.AgentHandoffState{},
 			},
 		},
 	}
@@ -682,7 +670,6 @@ func TestTranscriptStreamingPreviewUsesNativeMarkdownWithAssistantCard(t *testin
 					"> streaming provisional text",
 				}, "\n"),
 				ToolCalls: map[string]*events.ToolCallState{},
-				Handoffs:  map[string]*events.AgentHandoffState{},
 			},
 		},
 	}
@@ -738,7 +725,6 @@ func TestWideTranscriptShowsCompactionSummaryWithoutLeadMetadata(t *testing.T) {
 					CompactedPriorTurns: 5,
 				},
 				ToolCalls: map[string]*events.ToolCallState{},
-				Handoffs:  map[string]*events.AgentHandoffState{},
 			},
 		},
 	}
@@ -813,7 +799,6 @@ func TestWideTranscriptShowsMutationOutcomeDetails(t *testing.T) {
 						},
 					},
 				},
-				Handoffs: map[string]*events.AgentHandoffState{},
 			},
 		},
 	}
@@ -902,7 +887,6 @@ func TestWideTranscriptShowsWriteOutcomeDetails(t *testing.T) {
 						},
 					},
 				},
-				Handoffs: map[string]*events.AgentHandoffState{},
 			},
 		},
 	}
@@ -980,7 +964,6 @@ func TestWideTranscriptHidesSupersededFailedWriteRetry(t *testing.T) {
 						},
 					},
 				},
-				Handoffs: map[string]*events.AgentHandoffState{},
 			},
 		},
 	}
@@ -1038,7 +1021,6 @@ func TestWideTranscriptOmitsFailedWriteToolEntries(t *testing.T) {
 						Succeeded: false,
 					},
 				},
-				Handoffs: map[string]*events.AgentHandoffState{},
 			},
 		},
 	}
@@ -1101,7 +1083,6 @@ func TestTranscriptOmitsSelectedFailedWriteToolEntries(t *testing.T) {
 						Succeeded: false,
 					},
 				},
-				Handoffs: map[string]*events.AgentHandoffState{},
 			},
 		},
 	}

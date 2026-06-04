@@ -116,12 +116,12 @@ func NewRuntime(config Config) (runtime *Runtime, err error) {
 	tools, err := newRuntimeToolExecutor(runtimeToolExecutorConfig{
 		Sessions:     sessions,
 		Execution:    config.Execution,
+		Workflow:     config.Workflow,
 		Search:       search,
 		WebSearch:    webSearch,
 		CodeIntel:    codeIntel,
 		Memory:       memory,
 		Skills:       nil,
-		Delegate:     nil,
 		Logger:       nil,
 		Background:   backgroundLogs,
 		RuntimeTools: runtimeTools,
@@ -151,6 +151,7 @@ func NewRuntime(config Config) (runtime *Runtime, err error) {
 		return nil, err
 	}
 	tools.SetSkillRegistry(skills)
+	tools.SetWorkflowConfig(config.Workflow)
 
 	eng, err := engine.New(engine.Dependencies{
 		Compiler: prompt.NewStaticCompiler(),
@@ -190,7 +191,6 @@ func NewRuntime(config Config) (runtime *Runtime, err error) {
 		},
 		enableSessionTitles: true,
 	}
-	runtime.Tools.SetDelegateRuntime(runtime)
 	runtime.Tools.SetWorkflowPhaseCommandResolver(runtime.workflowPhaseCommands)
 	runtime.Sessions.SetWorkflowReviewPhaseResolver(runtime.workflowReviewPhase)
 	runtime.Runner.SetModelCatalog(runtime.ModelCatalog)

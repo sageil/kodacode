@@ -10,19 +10,18 @@ import (
 
 func (e *ToolExecutor) executionContext(ctx context.Context, state events.SessionState, input ExecuteToolInput, scope *workspace.Scope) tool.ExecutionContext {
 	return tool.ExecutionContext{
-		SessionID:       input.SessionID,
-		Workspace:       scope,
-		Search:          e.search,
-		WebSearch:       e.webSearch,
-		OutputEmitter:   nil,
-		QuestionAsker:   e.toolQuestionAsker(ctx, state, input),
-		TaskManager:     e.toolTaskManager(ctx, input),
-		DelegateManager: e.toolDelegateManager(ctx, state, input),
-		CodeIntelAPI:    e.toolCodeIntel(state),
-		MemoryManager:   e.toolMemoryManager(state),
-		SkillCatalog:    e.toolSkillCatalog(state),
-		WorkflowOutput:  e.toolWorkflowPhaseOutputManager(ctx, state, input),
-		WorkflowReview:  e.toolWorkflowReviewResultManager(ctx, state, input),
+		SessionID:      input.SessionID,
+		Workspace:      scope,
+		Search:         e.search,
+		WebSearch:      e.webSearch,
+		OutputEmitter:  nil,
+		QuestionAsker:  e.toolQuestionAsker(ctx, state, input),
+		TaskManager:    e.toolTaskManager(ctx, input),
+		CodeIntelAPI:   e.toolCodeIntel(state),
+		MemoryManager:  e.toolMemoryManager(state),
+		SkillCatalog:   e.toolSkillCatalog(state),
+		WorkflowOutput: e.toolWorkflowPhaseOutputManager(ctx, state, input),
+		WorkflowReview: e.toolWorkflowReviewResultManager(ctx, state, input),
 	}
 }
 

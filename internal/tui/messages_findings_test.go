@@ -291,9 +291,7 @@ func TestRenderTurnTranscriptSectionsPreferStructuredReviewOverRawJSON(t *testin
 		Review:         &events.ReviewState{Title: "Security Review", Findings: []events.ReviewFindingState{{Severity: "P1", Path: "internal/app/runtime_review.go", Line: 57, Title: "Silent fallback drops review state", Explanation: "When invalid output is accepted as plain text, structured review state is unavailable to downstream tooling."}}, OverallCorrectness: "incorrect", OverallSummary: "The review path needs structured output to be reliable."},
 		Transcript:     []events.TranscriptEntryState{{Kind: events.TranscriptEntryAssistant, Text: raw}, {Kind: events.TranscriptEntryReview}},
 		ToolCalls:      map[string]*events.ToolCallState{},
-		Handoffs:       map[string]*events.AgentHandoffState{},
 		ToolCallOrder:  nil,
-		HandoffOrder:   nil,
 		CompletedAtSeq: 2,
 	}
 
@@ -341,7 +339,6 @@ func TestRenderTurnTranscriptSectionsHideStructuredReviewPreviewWhileStreaming(t
 		Config:        &events.TurnConfigState{AgentID: "reviewer", HideAssistantPreview: true},
 		Transcript:    []events.TranscriptEntryState{{Kind: events.TranscriptEntryUser, Text: "[review] Review the current workspace changes and report concrete, actionable issues."}},
 		ToolCalls:     map[string]*events.ToolCallState{},
-		Handoffs:      map[string]*events.AgentHandoffState{},
 	}
 
 	sections := renderTurnTranscriptSections(model, events.SessionState{

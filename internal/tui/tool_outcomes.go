@@ -120,15 +120,6 @@ func filterNonMutationToolSelectionRefs(m Model, state events.SessionState, refs
 }
 
 func toolCallForSelectionRef(m Model, state events.SessionState, ref sessionToolCallRef) (events.SessionState, *events.TurnState, *events.ToolCallState) {
-	sessionID := strings.TrimSpace(ref.SessionID)
-	if sessionID != "" && sessionID != strings.TrimSpace(state.SessionID) {
-		childState, ok := m.delegatedSnapshot(sessionID)
-		if !ok {
-			return events.SessionState{}, nil, nil
-		}
-		turn, call := sessionToolCall(childState, ref)
-		return childState, turn, call
-	}
 	turn, call := sessionToolCall(state, ref)
 	return state, turn, call
 }
@@ -226,9 +217,6 @@ func orderedAllSessionToolCallRefs(state events.SessionState) []sessionToolCallR
 				continue
 			}
 			if shouldHideSupersededRetriedLogicalToolCall(turn, callID, call) {
-				continue
-			}
-			if shouldHideSupersededDelegateAttempt(turn, callID, call) {
 				continue
 			}
 			refs = append(refs, sessionToolCallRef{TurnID: turnID, CallID: callID})
@@ -361,9 +349,7 @@ func genericOutcomeRow(state events.SessionState, ref sessionToolCallRef, call *
 	if errorText := strings.TrimSpace(call.Error); errorText != "" && isTaskToolCall(call) {
 		detail = strings.TrimSpace(taskToolErrorSummary(call, errorText))
 	}
-	if isDelegateToolCall(call) {
-		detail = strings.Join(strings.Fields(detail), " ")
-	} else if strings.Contains(detail, "\n") {
+	if strings.Contains(detail, "\n") {
 		detail = summarizeInlineValue(detail)
 	}
 	return toolOutcomeRow{

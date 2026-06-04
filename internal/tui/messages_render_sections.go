@@ -21,7 +21,6 @@ func renderTurnTranscriptSectionsWithOptions(m Model, state events.SessionState,
 	}
 
 	sections := make([]transcriptSection, 0, len(turn.Transcript)+3)
-	renderedHandoffIDs := make(map[string]struct{})
 	hasCompactionTranscriptEntry := turnHasHistoryCompactionTranscriptEntry(turn)
 	compactionRendered := false
 	maybeRenderFallbackCompaction := func() {
@@ -107,15 +106,6 @@ func renderTurnTranscriptSectionsWithOptions(m Model, state events.SessionState,
 				for i < len(turn.Transcript) && turn.Transcript[i].Kind == events.TranscriptEntryTool {
 					callID := turn.Transcript[i].CallID
 					call := turn.ToolCalls[callID]
-					if handoff := anchoredShellDelegatedHandoff(m, turn, call); handoff != nil {
-						flushRefs()
-						sections = append(sections, renderDelegatedHandoffTranscriptSections(m, turnID, handoff, width)...)
-						if handoffID := strings.TrimSpace(handoff.HandoffID); handoffID != "" {
-							renderedHandoffIDs[handoffID] = struct{}{}
-						}
-						i++
-						continue
-					}
 					if toolRenderer.ShouldRenderCall(m, turn, callID, call) {
 						refs = append(refs, sessionToolCallRef{TurnID: turnID, CallID: callID})
 					}
@@ -139,7 +129,6 @@ func renderTurnTranscriptSectionsWithOptions(m Model, state events.SessionState,
 		sections = append(sections, section)
 	}
 	sections = append(sections, renderLiveToolCallPreviewSections(m, state, turnID, turn, width)...)
-	sections = append(sections, renderRemainingDelegatedHandoffTranscriptSections(m, turnID, turn, width, renderedHandoffIDs)...)
 	return sections
 }
 
@@ -148,47 +137,6 @@ func isWorkflowReviewTranscriptEntry(turn *events.TurnState) bool {
 		return false
 	}
 	return strings.HasPrefix(strings.TrimSpace(turn.Review.Title), "Workflow review:")
-}
-
-func anchoredShellDelegatedHandoff(m Model, turn *events.TurnState, call *events.ToolCallState) *events.AgentHandoffState {
-	if !shellLayoutEnabled(m) || !m.shellToolCallsVisible {
-		return nil
-	}
-	return delegateHandoffForCall(turn, call)
-}
-
-func renderDelegatedHandoffTranscriptSections(m Model, turnID string, handoff *events.AgentHandoffState, width int) []transcriptSection {
-	if handoff == nil {
-		return nil
-	}
-	return renderDelegatedHandoffListTranscriptSections(m, turnID, []*events.AgentHandoffState{handoff}, width)
-}
-
-func renderRemainingDelegatedHandoffTranscriptSections(m Model, turnID string, turn *events.TurnState, width int, rendered map[string]struct{}) []transcriptSection {
-	if turn == nil || len(turn.HandoffOrder) == 0 {
-		return nil
-	}
-	handoffs := make([]*events.AgentHandoffState, 0, len(turn.HandoffOrder))
-	for _, handoffID := range orderedHandoffIDs(turn) {
-		if _, ok := rendered[strings.TrimSpace(handoffID)]; ok {
-			continue
-		}
-		handoffs = append(handoffs, turn.Handoffs[handoffID])
-	}
-	return renderDelegatedHandoffListTranscriptSections(m, turnID, handoffs, width)
-}
-
-func renderDelegatedHandoffListTranscriptSections(m Model, turnID string, handoffs []*events.AgentHandoffState, width int) []transcriptSection {
-	if len(handoffs) == 0 {
-		return nil
-	}
-	sections := make([]transcriptSection, 0, 2)
-	delegationRow := newDelegationTranscriptRowForHandoffs(turnID, handoffs, m.selection.handoffID, width)
-	if section, ok := delegationRow.section(m); ok {
-		sections = append(sections, section)
-	}
-	sections = append(sections, renderShellDelegatedToolOutcomeSectionsForHandoffs(m, handoffs, width)...)
-	return sections
 }
 
 func renderLiveToolCallPreviewSections(m Model, state events.SessionState, turnID string, turn *events.TurnState, width int) []transcriptSection {

@@ -24,9 +24,6 @@ func traceDialogSummarySection(th *theme.Theme, state events.SessionState, turnI
 	if tools := len(orderedToolCallIDs(turn)); tools > 0 {
 		activity = append(activity, pluralize(tools, "tool call"))
 	}
-	if handoffs := len(orderedHandoffIDs(turn)); handoffs > 0 {
-		activity = append(activity, pluralize(handoffs, "handoff"))
-	}
 	if len(activity) > 0 {
 		lines = append(lines, "Activity: "+strings.Join(activity, " | "))
 	}

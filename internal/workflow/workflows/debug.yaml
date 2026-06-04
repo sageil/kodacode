@@ -67,7 +67,6 @@ phases:
     type: review
     agent: reviewer
     mode: read_only
-    parallel_review: true
     review_passes:
       - id: cause
         description: Whether the patch fixes the reproduced cause.

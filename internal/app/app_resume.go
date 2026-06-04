@@ -9,21 +9,6 @@ import (
 func pendingRunResult(state events.SessionState, sessionID string) (RunSessionResult, bool) {
 	if len(state.PendingPermissionOrder) == 0 {
 		if len(state.PendingExecutionOrder) == 0 && len(state.PendingQuestionOrder) == 0 {
-			if turnID, handoff := firstPendingDelegatedHandoffState(state); handoff != nil {
-				turn := state.Turns[turnID]
-				result := RunSessionResult{
-					SessionID:        sessionID,
-					TurnID:           turnID,
-					Status:           TurnRunStatusPending,
-					PendingRequestID: handoff.HandoffID,
-					PendingDelegated: copyAgentHandoffState(handoff),
-				}
-				if turn != nil {
-					result.UserText = turn.UserText
-					result.AssistantText = turn.AssistantText
-				}
-				return result, true
-			}
 			return RunSessionResult{}, false
 		}
 	}

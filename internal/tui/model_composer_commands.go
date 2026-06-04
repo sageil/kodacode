@@ -28,7 +28,6 @@ type composerCommandInvocation struct {
 
 var composerCommands = []composerCommand{
 	{ID: "palette", Name: "/palette", Description: "open command palette"},
-	{ID: "sessions", Name: "/sessions", Description: "manage sessions"},
 	{ID: "init", Name: "/init", Description: "initialize workspace instruction files"},
 	{ID: "model", Name: "/model", Description: "switch model"},
 	{ID: "workflow", Name: "/workflow", Description: "select or resume workflow", Usage: "/workflow [id|off|resume]", StageOnSelect: true},
@@ -168,9 +167,6 @@ func (m *Model) runComposerCommand(invocation composerCommandInvocation) (tea.Mo
 	case "palette":
 		m.clearComposerDraft()
 		return *m, m.openCommandPalette()
-	case "sessions":
-		m.clearComposerDraft()
-		return *m, m.openSessionsDialog()
 	case "compact":
 		activeTurnCompaction := m.busy && m.hasPendingInteraction()
 		if m.busy && !activeTurnCompaction {
@@ -202,7 +198,6 @@ func (m *Model) runComposerCommand(invocation composerCommandInvocation) (tea.Mo
 			m.selection.callTurnID = ""
 			m.selection.callID = ""
 			m.clearExpandedToolCall()
-			m.selection.handoffID = ""
 			m.inspector.tab = 1
 		}
 		m.clearComposerDraft()

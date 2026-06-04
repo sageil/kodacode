@@ -550,8 +550,6 @@ func groupedToolItemCommandLabel(workspaceRoot string, call *events.ToolCallStat
 
 func groupedToolItemWorkflowLabel(workspaceRoot string, call *events.ToolCallState) (string, bool) {
 	switch strings.TrimSpace(call.ToolName) {
-	case "delegate":
-		return delegateToolAgentLabel(call), true
 	case "question":
 		if prompt := strings.TrimSpace(questionToolPrompt(call)); prompt != "" {
 			return prompt, true

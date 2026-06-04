@@ -40,15 +40,15 @@ func shellStatusHints(m Model, state events.SessionState) string {
 	switch m.chrome.focus {
 	case focusInspector:
 		if effectiveInspectorTab(m) == inspectorTabTools {
-			return "j/k tools · enter details · h/l tabs · i insert · ctrl+l layout · ctrl+\\ drawer · ctrl+s sessions · ctrl+n new · pgup/pgdn scroll · ctrl+] normal"
+			return "j/k tools · enter details · h/l tabs · i insert · ctrl+l layout · ctrl+\\ drawer · ctrl+n new · pgup/pgdn scroll · ctrl+] normal"
 		}
-		return "h/l tabs · i insert · ctrl+l layout · ctrl+\\ drawer · ctrl+s sessions · ctrl+n new · pgup/pgdn scroll · ctrl+] normal"
+		return "h/l tabs · i insert · ctrl+l layout · ctrl+\\ drawer · ctrl+n new · pgup/pgdn scroll · ctrl+] normal"
 	case focusComposer:
 		hints := "enter submit · shift+enter nl · ctrl+w workflow · ctrl+e edit · ↑/↓ recall"
 		if shellLayoutEnabled(m) {
 			hints += " · ctrl+t tools"
 		}
-		hints += " · ctrl+s sessions · ctrl+n new · ctrl+\\ drawer · pgup/pgdn"
+		hints += " · ctrl+n new · ctrl+\\ drawer · pgup/pgdn"
 		if !m.currentTurnRunning() {
 			hints += " · tab agent"
 		}
@@ -62,9 +62,9 @@ func shellStatusHints(m Model, state events.SessionState) string {
 			if selectedTranscriptToolAvailable(m, state) && m.shellToolCallsVisible {
 				toolHint = "enter expand · " + toolHint
 			}
-			return toolHint + " · h/l chars · v select · i insert · ctrl+l layout · ctrl+s sessions · ctrl+n new"
+			return toolHint + " · h/l chars · v select · i insert · ctrl+l layout · ctrl+n new"
 		}
-		return "drag/v select · h/l chars · ↑↓ lines · j/k tools · i insert · ctrl+l layout · ctrl+\\ drawer · ctrl+s sessions · ctrl+n new"
+		return "drag/v select · h/l chars · ↑↓ lines · j/k tools · i insert · ctrl+l layout · ctrl+\\ drawer · ctrl+n new"
 	}
 }
 

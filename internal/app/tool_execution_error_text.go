@@ -4,7 +4,6 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/sageil/kodacode/internal/agent"
 	"github.com/sageil/kodacode/internal/events"
 	"github.com/sageil/kodacode/internal/tool"
 )
@@ -16,16 +15,13 @@ func toolExecutionErrorText(toolName string, cause error) string {
 	if errors.Is(cause, ErrPlannerSavePlanQuestionInvalid) {
 		return plannerSavePlanQuestionInvalidText
 	}
-	if errors.Is(cause, ErrHandoffSourceMissing) {
-		return "delegate failed: required source handoff is missing. Complete the source agent first or choose a compatible agent."
+	if errors.Is(cause, ErrPlannerPlanApprovalDisabledByWorkflow) {
+		return plannerPlanApprovalDisabledByWorkflowText
 	}
-	if errors.Is(cause, ErrHandoffSourceInvalid) {
-		return "delegate failed: source_handoff_ids must reference completed compatible handoffs."
+	if errors.Is(cause, ErrPlannerPlanApprovalDisabled) {
+		return plannerPlanApprovalDisabledText
 	}
 	name := strings.TrimSpace(toolName)
-	if name == tool.DelegateToolName && errors.Is(cause, agent.ErrAgentNotFound) {
-		return "delegate failed: agent was not found. Use an available agent id such as `reviewer` or `planner`."
-	}
 	if name == tool.TaskWorkflowToolName {
 		if text, ok := taskWorkflowActionText(cause); ok {
 			return text

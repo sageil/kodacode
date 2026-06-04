@@ -118,8 +118,6 @@ func liveToolPreviewRowTestState() events.SessionState {
 						Executing: true,
 					},
 				},
-				Handoffs:     map[string]*events.AgentHandoffState{},
-				HandoffOrder: []string{},
 			},
 		},
 	}

@@ -13,7 +13,6 @@ phases:
     agent: reviewer
     mode: read_only
     prompt: Record concrete review findings or a saved pass, concern, or fail result.
-    parallel_review: true
     review_passes:
       - id: correctness
         description: Behavior changes and whether the implementation is correct.

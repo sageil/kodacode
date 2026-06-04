@@ -34,7 +34,6 @@ type SessionUsageEntry struct {
 type SessionUsageSummary struct {
 	RootSessionID            string
 	SessionCount             int
-	ChildSessionCount        int
 	UsageTurns               int
 	ToolCalls                int
 	CompletedToolCalls       int
@@ -65,78 +64,6 @@ func (s SessionUsageSummary) HasUsage() bool {
 	return s.UsageTurns > 0 || s.RequestTokens > 0 || s.CompletionTokens > 0
 }
 
-func (s SessionUsageSummary) HasDelegatedSessions() bool {
-	return s.ChildSessionCount > 0
-}
-
-func (s SessionUsageSummary) DelegatedUsageTurns() int {
-	return max(s.UsageTurns-s.Local.UsageTurns, 0)
-}
-
-func (s SessionUsageSummary) DelegatedToolCalls() int {
-	return max(s.ToolCalls-s.Local.ToolCalls, 0)
-}
-
-func (s SessionUsageSummary) DelegatedCompletedToolCalls() int {
-	return max(s.CompletedToolCalls-s.Local.CompletedToolCalls, 0)
-}
-
-func (s SessionUsageSummary) DelegatedFailedToolCalls() int {
-	return max(s.FailedToolCalls-s.Local.FailedToolCalls, 0)
-}
-
-func (s SessionUsageSummary) DelegatedContractViolationCalls() int {
-	return max(s.ContractViolationCalls-s.Local.ContractViolationCalls, 0)
-}
-
-func (s SessionUsageSummary) DelegatedRequestTokens() int {
-	return max(s.RequestTokens-s.Local.RequestTokens, 0)
-}
-
-func (s SessionUsageSummary) DelegatedCompletionTokens() int {
-	return max(s.CompletionTokens-s.Local.CompletionTokens, 0)
-}
-
-func (s SessionUsageSummary) DelegatedUnpricedRequestTokens() int {
-	return max(s.UnpricedRequestTokens-s.Local.UnpricedRequestTokens, 0)
-}
-
-func (s SessionUsageSummary) DelegatedUnpricedCompletionTokens() int {
-	return max(s.UnpricedCompletionTokens-s.Local.UnpricedCompletionTokens, 0)
-}
-
-func (s SessionUsageSummary) DelegatedCacheReadInputTokens() int {
-	return max(s.CacheReadInputTokens-s.Local.CacheReadInputTokens, 0)
-}
-
-func (s SessionUsageSummary) DelegatedCacheWriteInputTokens() int {
-	return max(s.CacheWriteInputTokens-s.Local.CacheWriteInputTokens, 0)
-}
-
-func (s SessionUsageSummary) DelegatedReasoningTokens() int {
-	return max(s.ReasoningTokens-s.Local.ReasoningTokens, 0)
-}
-
-func (s SessionUsageSummary) DelegatedSteps() int {
-	return max(s.Steps-s.Local.Steps, 0)
-}
-
-func (s SessionUsageSummary) DelegatedAttempts() int {
-	return max(s.Attempts-s.Local.Attempts, 0)
-}
-
-func (s SessionUsageSummary) DelegatedEstimatedCost() float64 {
-	value := s.EstimatedCost - s.Local.EstimatedCost
-	if value < 0 {
-		return 0
-	}
-	return value
-}
-
-func (s SessionUsageSummary) DelegatedMissingPricingTurns() int {
-	return max(s.MissingPricingTurns-s.Local.MissingPricingTurns, 0)
-}
-
 func (s *SessionService) UsageSummary(ctx context.Context, sessionID string) (SessionUsageSummary, error) {
 	if strings.TrimSpace(sessionID) == "" {
 		return SessionUsageSummary{}, ErrSessionIDRequired
@@ -152,7 +79,6 @@ func (s *SessionService) UsageSummary(ctx context.Context, sessionID string) (Se
 	}, visited, &summary); err != nil {
 		return SessionUsageSummary{}, err
 	}
-	summary.ChildSessionCount = max(summary.SessionCount-1, 0)
 	return summary, nil
 }
 
@@ -387,38 +313,5 @@ func turnUsageAttemptHasReportedUsage(attempt events.TurnProviderAttemptState) b
 }
 
 func childUsageVisits(state events.SessionState) []sessionUsageVisit {
-	parentSessionID := strings.TrimSpace(state.SessionID)
-	if parentSessionID == "" {
-		return nil
-	}
-	visits := make([]sessionUsageVisit, 0, 4)
-	seen := make(map[string]struct{}, 4)
-	for _, turnID := range state.TurnOrder {
-		turn := state.Turns[turnID]
-		if turn == nil {
-			continue
-		}
-		for _, handoffID := range turn.HandoffOrder {
-			handoff := turn.Handoffs[handoffID]
-			if handoff == nil {
-				continue
-			}
-			if strings.TrimSpace(handoff.ParentSessionID) != parentSessionID {
-				continue
-			}
-			childSessionID := strings.TrimSpace(handoff.ChildSessionID)
-			if childSessionID == "" || childSessionID == parentSessionID {
-				continue
-			}
-			if _, ok := seen[childSessionID]; ok {
-				continue
-			}
-			seen[childSessionID] = struct{}{}
-			visits = append(visits, sessionUsageVisit{
-				SessionID: childSessionID,
-				AgentID:   strings.TrimSpace(handoff.ChildAgentID),
-			})
-		}
-	}
-	return visits
+	return nil
 }

@@ -95,9 +95,8 @@ type composerWorkspacePathsLoadedMsg struct {
 }
 
 type operationDoneMsg struct {
-	err                     error
-	sessionResult           *app.RunSessionResult
-	delegatedQuestionResult *app.AnswerDelegatedSessionQuestionResult
+	err           error
+	sessionResult *app.RunSessionResult
 }
 
 type workflowResumedMsg struct {

@@ -7,7 +7,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/sageil/kodacode/internal/app"
 	"github.com/sageil/kodacode/internal/events"
-	tuitheme "github.com/sageil/kodacode/internal/tui/theme"
 )
 
 type workspaceSessionOpenRequest struct {
@@ -252,53 +251,4 @@ func switchSessionCmd(ctx context.Context, backend Backend, req sessionSwitchReq
 			startTurn:  false,
 		}
 	}
-}
-
-func deleteSessionAndReopenDialogCmd(ctx context.Context, backend Backend, currentSessionID, targetSessionID string, th *tuitheme.Theme, width, height int) tea.Cmd {
-	return func() tea.Msg {
-		if strings.TrimSpace(targetSessionID) == "" {
-			return nil
-		}
-		if err := backend.DeleteSession(ctx, targetSessionID); err != nil {
-			return footerErrorMsg{err: err}
-		}
-		sessions, err := backend.ListSessions(ctx)
-		if err != nil {
-			return dialogOpenedMsg{err: err}
-		}
-		dialog := newSessionsDialog(buildSessionItems(filterSessionSummaries(sessions, currentSessionID)), th)
-		dialog.SetFrame(width, height)
-		return dialogOpenedMsg{dialog: dialog}
-	}
-}
-
-func purgeSessionsAndReopenDialogCmd(ctx context.Context, backend Backend, currentSessionID string, ids []string, th *tuitheme.Theme, width, height int) tea.Cmd {
-	return func() tea.Msg {
-		for _, id := range ids {
-			if id == currentSessionID {
-				continue
-			}
-			if err := backend.DeleteSession(ctx, id); err != nil {
-				return footerErrorMsg{err: err}
-			}
-		}
-		sessions, err := backend.ListSessions(ctx)
-		if err != nil {
-			return dialogOpenedMsg{err: err}
-		}
-		dialog := newSessionsDialog(buildSessionItems(filterSessionSummaries(sessions, currentSessionID)), th)
-		dialog.SetFrame(width, height)
-		return dialogOpenedMsg{dialog: dialog}
-	}
-}
-
-func filterSessionSummaries(summaries []app.SessionSummary, excludedSessionID string) []app.SessionSummary {
-	filtered := make([]app.SessionSummary, 0, len(summaries))
-	for _, session := range summaries {
-		if session.ID == excludedSessionID {
-			continue
-		}
-		filtered = append(filtered, session)
-	}
-	return filtered
 }

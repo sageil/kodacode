@@ -7,7 +7,6 @@ import (
 
 	"github.com/sageil/kodacode/internal/events"
 	"github.com/sageil/kodacode/internal/provider"
-	"github.com/sageil/kodacode/internal/tool"
 )
 
 func TestBuildTurnReplayIncludesExecutionToolResult(t *testing.T) {
@@ -336,56 +335,6 @@ func TestBuildTurnReplayPreservesMalformedToolCallAndError(t *testing.T) {
 	}
 }
 
-func TestBuildTurnReplayResolvesDelegatedHandoffRequest(t *testing.T) {
-	replayed := []events.Event{
-		turnHistoryEvent(0, "session-1", "turn-1", events.UserMessagePayload{Content: "perform a full code review"}),
-		turnHistoryEvent(1, "session-1", "turn-1", events.ToolCallDeclaredPayload{
-			CallID:   "call-delegate",
-			ToolName: tool.DelegateToolName,
-			Input:    `{"agent_id":"reviewer","task":"Review the repo","context_summary":"Stay grounded in the code."}`,
-		}),
-		turnHistoryEvent(2, "session-1", "turn-1", events.AgentHandoffPayload{
-			HandoffID:       "handoff-1",
-			ToolCallID:      "call-delegate",
-			ParentSessionID: "session-1",
-			ParentTurnID:    "turn-1",
-			ParentAgentID:   "planner",
-			ChildSessionID:  "session-2",
-			ChildTurnID:     "turn-2",
-			ChildAgentID:    "reviewer",
-			Task:            "Review the repo",
-			ContextSummary:  "Stay grounded in the code.",
-			Model:           "openai/gpt-5",
-			AllowedTools:    []string{"read", "search"},
-		}),
-		turnHistoryEvent(3, "session-1", "turn-1", events.AgentResultPayload{
-			HandoffID:         "handoff-1",
-			ChildSessionID:    "session-2",
-			ChildTurnID:       "turn-2",
-			Status:            events.AgentResultStatusPendingQuestion,
-			QuestionRequestID: "question-1",
-			QuestionText:      "Continue or stop this turn?",
-			QuestionOptions:   []string{"Continue", "Stop turn"},
-		}),
-	}
-
-	history, err := buildTurnReplay(replayed, ResumeTurnInput{
-		SessionID: "session-1",
-		TurnID:    "turn-1",
-		UserText:  "perform a full code review",
-		RequestID: "handoff-1",
-	})
-	if err != nil {
-		t.Fatalf("buildTurnReplay() error = %v", err)
-	}
-	if history.DelegatedHandoff == nil || history.DelegatedHandoff.HandoffID != "handoff-1" {
-		t.Fatalf("delegated handoff = %#v", history.DelegatedHandoff)
-	}
-	if history.PendingTool == nil || history.PendingTool.CallID != "call-delegate" {
-		t.Fatalf("pending tool = %#v", history.PendingTool)
-	}
-}
-
 func TestBuildTurnReplayPreservesReusedToolResultMetadata(t *testing.T) {
 	replayed := []events.Event{
 		turnHistoryEvent(0, "session-1", "turn-1", events.UserMessagePayload{Content: "inspect files"}),
@@ -679,10 +628,6 @@ func turnHistoryEvent(sequence int64, sessionID, turnID string, payload events.P
 		eventType = events.TypeQuestionRequested
 	case events.QuestionAnsweredPayload:
 		eventType = events.TypeQuestionAnswered
-	case events.AgentHandoffPayload:
-		eventType = events.TypeAgentHandoff
-	case events.AgentResultPayload:
-		eventType = events.TypeAgentResult
 	default:
 		panic("unsupported payload type")
 	}

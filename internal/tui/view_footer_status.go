@@ -206,12 +206,6 @@ func footerStatusMeta(state events.SessionState, turnID string) string {
 
 func footerAgentLabel(m Model, state events.SessionState, turnID string) string {
 	turn := currentTurn(state, turnID)
-	if handoff := activeDelegatedHandoff(state, m); handoff != nil && strings.TrimSpace(handoff.ChildAgentID) != "" {
-		return handoff.ChildAgentID
-	}
-	if handoff := explicitSelectedHandoff(turn, m.selection.handoffID); handoff != nil && strings.TrimSpace(handoff.ChildAgentID) != "" {
-		return handoff.ChildAgentID
-	}
 	if turn != nil && !isTurnFinished(turn) && turn.Config != nil {
 		if agentID := strings.TrimSpace(turn.Config.AgentID); agentID != "" {
 			return agentID
@@ -268,14 +262,7 @@ func effectiveFooterToolCount(m Model, state events.SessionState, turn *events.T
 }
 
 func effectiveFooterWorkflowSummary(m Model, state events.SessionState, delegated bool) (app.SessionUsageSummary, bool) {
-	if delegated || strings.TrimSpace(m.selection.handoffID) != "" {
-		return app.SessionUsageSummary{}, false
-	}
-	summary, ok := effectiveSessionUsageSummary(m, state)
-	if !ok || !summary.HasDelegatedSessions() {
-		return app.SessionUsageSummary{}, false
-	}
-	return summary, true
+	return app.SessionUsageSummary{}, false
 }
 
 func footerLSPLabel(status app.WorkspaceStatus) (string, string) {

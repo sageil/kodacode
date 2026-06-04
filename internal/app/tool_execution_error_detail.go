@@ -4,7 +4,6 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/sageil/kodacode/internal/agent"
 	"github.com/sageil/kodacode/internal/events"
 	"github.com/sageil/kodacode/internal/tool"
 )
@@ -66,12 +65,10 @@ func toolErrorCode(toolName string, cause error) (string, bool, string) {
 		return "plan_question_requires_visible_plan", true, toolErrorRecoveryRetryWithValidInput
 	case errors.Is(cause, ErrPlannerSavePlanQuestionInvalid):
 		return "plan_question_invalid", true, toolErrorRecoveryRetryWithValidInput
-	case errors.Is(cause, ErrHandoffSourceMissing):
-		return "delegate_handoff_source_missing", true, toolErrorRecoveryRetryWithValidInput
-	case errors.Is(cause, ErrHandoffSourceInvalid):
-		return "delegate_handoff_source_invalid", true, toolErrorRecoveryRetryWithValidInput
-	case name == tool.DelegateToolName && errors.Is(cause, agent.ErrAgentNotFound):
-		return "delegate_agent_not_found", true, toolErrorRecoveryRetryWithValidInput
+	case errors.Is(cause, ErrPlannerPlanApprovalDisabledByWorkflow):
+		return "plan_question_disabled_by_workflow", true, toolErrorRecoveryRetryWithValidInput
+	case errors.Is(cause, ErrPlannerPlanApprovalDisabled):
+		return "plan_question_disabled", true, toolErrorRecoveryRetryWithValidInput
 	}
 
 	if name == tool.TaskWorkflowToolName {
@@ -98,8 +95,6 @@ func invalidArgumentToolErrorCode(toolName string, cause error) (string, string)
 		return taskReviewToolErrorCode(cause)
 	case tool.QuestionToolName:
 		return questionToolErrorCode(cause)
-	case tool.DelegateToolName:
-		return delegateToolErrorCode(cause)
 	default:
 		return "", ""
 	}
@@ -190,19 +185,6 @@ func questionToolErrorCode(cause error) (string, string) {
 		return "question_options_required", toolErrorRecoveryRetryWithValidInput
 	case errors.Is(cause, tool.ErrQuestionOptionInvalid):
 		return "question_option_invalid", toolErrorRecoveryRetryWithValidInput
-	default:
-		return "", ""
-	}
-}
-
-func delegateToolErrorCode(cause error) (string, string) {
-	switch {
-	case errors.Is(cause, tool.ErrDelegateAgentRequired):
-		return "delegate_agent_required", toolErrorRecoveryRetryWithValidInput
-	case errors.Is(cause, tool.ErrDelegateTaskRequired):
-		return "delegate_task_required", toolErrorRecoveryRetryWithValidInput
-	case errors.Is(cause, tool.ErrDelegateContextRequired):
-		return "delegate_context_required", toolErrorRecoveryRetryWithValidInput
 	default:
 		return "", ""
 	}

@@ -209,10 +209,6 @@ func optionalSchemaProperties(toolName string) map[string]struct{} {
 		return map[string]struct{}{
 			"purpose": {},
 		}
-	case DelegateToolName:
-		return map[string]struct{}{
-			"source_handoff_ids": {},
-		}
 	case LocateToolName:
 		return map[string]struct{}{
 			"query":          {},

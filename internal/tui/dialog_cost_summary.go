@@ -23,29 +23,14 @@ func costDialogSummarySection(th *theme.Theme, state events.SessionState, stats 
 		return strings.Join(lines, "\n")
 	}
 
-	hasDelegatedUsage := aggregateUsage && usageSummary.HasDelegatedSessions()
 	summaryCost := stats.EstimatedCost
 	summaryMissingPricingTurns := stats.MissingPricingTurns
-	summaryRequestTokens := stats.RequestTokens
-	summaryCompletionTokens := stats.CompletionTokens
-	summaryCacheReadTokens := stats.CacheReadInputTokens
-	summaryCacheWriteTokens := stats.CacheWriteInputTokens
-	summaryReasoningTokens := stats.ReasoningTokens
-	summarySteps := stats.Steps
-	summaryAttempts := stats.Attempts
 	if aggregateUsage {
 		summaryCost = usageSummary.EstimatedCost
 		summaryMissingPricingTurns = usageSummary.MissingPricingTurns
 		stats.CompletedToolCalls = usageSummary.Local.CompletedToolCalls
 		stats.FailedToolCalls = usageSummary.Local.FailedToolCalls
 		stats.ContractViolationCalls = usageSummary.Local.ContractViolationCalls
-		summaryRequestTokens = usageSummary.RequestTokens
-		summaryCompletionTokens = usageSummary.CompletionTokens
-		summaryCacheReadTokens = usageSummary.CacheReadInputTokens
-		summaryCacheWriteTokens = usageSummary.CacheWriteInputTokens
-		summaryReasoningTokens = usageSummary.ReasoningTokens
-		summarySteps = usageSummary.Steps
-		summaryAttempts = usageSummary.Attempts
 	}
 
 	if summaryMissingPricingTurns > 0 {
@@ -62,40 +47,19 @@ func costDialogSummarySection(th *theme.Theme, state events.SessionState, stats 
 	} else {
 		lines = append(lines, fmt.Sprintf("Estimated session total: %s", formatEstimatedCost(summaryCost)))
 	}
-	if hasDelegatedUsage {
-		lines = append(lines,
-			fmt.Sprintf("Turns with usage: %d across %d sessions", usageSummary.UsageTurns, max(usageSummary.SessionCount, 1)),
-			costDialogAggregateTokenLine(summaryRequestTokens, summaryCompletionTokens, summaryCacheReadTokens, summaryCacheWriteTokens, summaryReasoningTokens),
-			fmt.Sprintf("Provider activity: %s • %s", assistantRoundtripLabel(summarySteps), providerCallLabel(summaryAttempts)),
-		)
-		if line := costDialogUsageKindLine("Current session utility compaction", stats.UtilityCompactionUsage); line != "" {
-			lines = append(lines, line)
-		}
-		if line := costDialogUsageKindLine("Current session branch summaries", stats.UtilityBranchSummaryUsage); line != "" {
-			lines = append(lines, line)
-		}
-		if line := costDialogHistoryCompactionActivityLine(stats); line != "" {
-			lines = append(lines, line)
-		}
-		lines = append(lines,
-			costDialogScopedUsageLine("Current session only", usageSummary.Local.RequestTokens, usageSummary.Local.CompletionTokens, usageSummary.Local.EstimatedCost, usageSummary.Local.MissingPricingTurns),
-			costDialogScopedUsageLine("Delegated child sessions", usageSummary.DelegatedRequestTokens(), usageSummary.DelegatedCompletionTokens(), usageSummary.DelegatedEstimatedCost(), usageSummary.DelegatedMissingPricingTurns()),
-		)
-	} else {
-		lines = append(lines,
-			fmt.Sprintf("Turns with usage: %d of %d", stats.UsageTurns, stats.TotalTurns),
-			costDialogSummaryTokenLine(stats),
-			fmt.Sprintf("Provider activity: %s • %s", assistantRoundtripLabel(stats.Steps), providerCallLabel(stats.Attempts)),
-		)
-		if line := costDialogUsageKindLine("Utility compaction", stats.UtilityCompactionUsage); line != "" {
-			lines = append(lines, line)
-		}
-		if line := costDialogUsageKindLine("Branch summaries", stats.UtilityBranchSummaryUsage); line != "" {
-			lines = append(lines, line)
-		}
-		if line := costDialogHistoryCompactionActivityLine(stats); line != "" {
-			lines = append(lines, line)
-		}
+	lines = append(lines,
+		fmt.Sprintf("Turns with usage: %d of %d", stats.UsageTurns, stats.TotalTurns),
+		costDialogSummaryTokenLine(stats),
+		fmt.Sprintf("Provider activity: %s • %s", assistantRoundtripLabel(stats.Steps), providerCallLabel(stats.Attempts)),
+	)
+	if line := costDialogUsageKindLine("Utility compaction", stats.UtilityCompactionUsage); line != "" {
+		lines = append(lines, line)
+	}
+	if line := costDialogUsageKindLine("Branch summaries", stats.UtilityBranchSummaryUsage); line != "" {
+		lines = append(lines, line)
+	}
+	if line := costDialogHistoryCompactionActivityLine(stats); line != "" {
+		lines = append(lines, line)
 	}
 	lines = append(lines, costDialogToolOutcomeSummaryLines(
 		aggregateUsage,
@@ -106,16 +70,16 @@ func costDialogSummarySection(th *theme.Theme, state events.SessionState, stats 
 		stats.FailedToolCalls,
 		stats.ContractViolationCalls,
 	)...)
-	if line := costDialogBatchEfficiencyLine(stats, hasDelegatedUsage); line != "" {
+	if line := costDialogBatchEfficiencyLine(stats, false); line != "" {
 		lines = append(lines, line)
 	}
-	lines = append(lines, costDialogScopedCurrentSessionDetailLines(stats, hasDelegatedUsage)...)
-	if line := costDialogPromptCacheSupportLine(state, hasDelegatedUsage); line != "" {
+	lines = append(lines, costDialogScopedCurrentSessionDetailLines(stats, false)...)
+	if line := costDialogPromptCacheSupportLine(state, false); line != "" {
 		lines = append(lines, line)
 	}
-	lines = append(lines, costDialogScopedToolOutcomeLines(usageSummary, hasDelegatedUsage)...)
+	lines = append(lines, costDialogScopedToolOutcomeLines(usageSummary, false)...)
 	lines = append(lines, costDialogBudgetLines(budgetStatus)...)
-	lines = append(lines, costDialogScopedCurrentSessionTurnHighlights(pricedTurns, unpricedTurns, hasDelegatedUsage)...)
+	lines = append(lines, costDialogScopedCurrentSessionTurnHighlights(pricedTurns, unpricedTurns, false)...)
 	if summaryMissingPricingTurns > 0 {
 		lines = append(lines, fmt.Sprintf("Pricing unavailable for %s", pluralize(summaryMissingPricingTurns, "turn")))
 	}
@@ -218,12 +182,6 @@ func costDialogScopedToolOutcomeLines(usageSummary app.SessionUsageSummary, scop
 		usageSummary.Local.CompletedToolCalls,
 		usageSummary.Local.FailedToolCalls,
 		usageSummary.Local.ContractViolationCalls,
-	))
-	lines = append(lines, costDialogToolOutcomeDetailLine(
-		"Delegated child tool outcomes",
-		usageSummary.DelegatedCompletedToolCalls(),
-		usageSummary.DelegatedFailedToolCalls(),
-		usageSummary.DelegatedContractViolationCalls(),
 	))
 	return lines
 }

@@ -67,13 +67,12 @@ func TestOperationErrorClearsPendingInteractionResolutionState(t *testing.T) {
 		UserText:      "say hello",
 	})
 	model.interaction.resolveReq = "q-1"
-	model.interaction.resolveHandoff = "handoff-1"
 	model.busy = true
 
 	updated, _ := model.Update(operationDoneMsg{err: errors.New("boom")})
 	next := updated.(Model)
-	if next.interaction.resolveReq != "" || next.interaction.resolveHandoff != "" {
-		t.Fatalf("resolve state = req %q handoff %q", next.interaction.resolveReq, next.interaction.resolveHandoff)
+	if next.interaction.resolveReq != "" {
+		t.Fatalf("resolve state = req %q", next.interaction.resolveReq)
 	}
 	if next.busy {
 		t.Fatal("busy = true, want false")
@@ -115,8 +114,8 @@ func TestOperationDoneKeepsQuestionResolutionOnSameTurn(t *testing.T) {
 	if next.selection.detailTurnID != "turn-1" {
 		t.Fatalf("detailTurnID = %q, want turn-1", next.selection.detailTurnID)
 	}
-	if next.interaction.resolveReq != "" || next.interaction.resolveHandoff != "" {
-		t.Fatalf("resolve state = req %q handoff %q", next.interaction.resolveReq, next.interaction.resolveHandoff)
+	if next.interaction.resolveReq != "" {
+		t.Fatalf("resolve state = req %q", next.interaction.resolveReq)
 	}
 	if next.busy {
 		t.Fatal("busy = true, want false")

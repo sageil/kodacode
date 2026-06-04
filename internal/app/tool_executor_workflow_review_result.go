@@ -74,15 +74,6 @@ func (m sessionWorkflowReviewResultManager) RecordWorkflowReviewResult(request t
 			Payload:   reviewPayload,
 		},
 	}
-	if strings.TrimSpace(target.childSessionID) != "" && strings.TrimSpace(target.childTurnID) != "" &&
-		(strings.TrimSpace(target.childSessionID) != target.parentSessionID || strings.TrimSpace(target.childTurnID) != target.parentTurnID) {
-		drafts = append(drafts, events.Draft{
-			SessionID: target.childSessionID,
-			TurnID:    target.childTurnID,
-			Type:      events.TypeReviewRecorded,
-			Payload:   reviewPayload,
-		})
-	}
 	drafts = append(drafts, events.Draft{
 		SessionID: target.parentSessionID,
 		TurnID:    workflowEventTurnID(target.parentTurnID),
@@ -115,8 +106,6 @@ func (m sessionWorkflowReviewResultManager) RecordWorkflowReviewResult(request t
 type workflowReviewResultTarget struct {
 	parentSessionID string
 	parentTurnID    string
-	childSessionID  string
-	childTurnID     string
 	reviewID        string
 	sourceHandoffID string
 	source          string
@@ -124,48 +113,15 @@ type workflowReviewResultTarget struct {
 }
 
 func (m sessionWorkflowReviewResultManager) target() (workflowReviewResultTarget, error) {
-	if handoff := delegatedChildHandoffForSession(m.state, m.input.SessionID, m.input.TurnID); handoff != nil {
-		parentSessionID := strings.TrimSpace(handoff.ParentSessionID)
-		parentTurnID := strings.TrimSpace(handoff.ParentTurnID)
-		parentState, err := m.sessions.Snapshot(m.ctx, parentSessionID)
-		if err != nil {
-			return workflowReviewResultTarget{}, err
-		}
-		return workflowReviewResultTarget{
-			parentSessionID: parentSessionID,
-			parentTurnID:    parentTurnID,
-			childSessionID:  strings.TrimSpace(m.input.SessionID),
-			childTurnID:     strings.TrimSpace(m.input.TurnID),
-			reviewID:        strings.TrimSpace(handoff.HandoffID),
-			sourceHandoffID: strings.TrimSpace(handoff.HandoffID),
-			source:          "parallel_review",
-			parentState:     parentState,
-		}, nil
-	}
 	if m.state.Workflow == nil {
 		return workflowReviewResultTarget{}, ErrWorkflowReviewResultTargetMissing
 	}
 	return workflowReviewResultTarget{
 		parentSessionID: strings.TrimSpace(m.input.SessionID),
 		parentTurnID:    strings.TrimSpace(m.input.TurnID),
-		childSessionID:  strings.TrimSpace(m.input.SessionID),
-		childTurnID:     strings.TrimSpace(m.input.TurnID),
 		source:          "workflow_review",
 		parentState:     m.state,
 	}, nil
-}
-
-func delegatedChildHandoffForSession(state events.SessionState, sessionID, preferredTurnID string) *events.AgentHandoffState {
-	if handoff := delegatedChildHandoffForTurn(state.Turns[strings.TrimSpace(preferredTurnID)], sessionID, preferredTurnID); handoff != nil {
-		return handoff
-	}
-	for idx := len(state.TurnOrder) - 1; idx >= 0; idx-- {
-		turnID := state.TurnOrder[idx]
-		if handoff := delegatedChildHandoffForTurn(state.Turns[turnID], sessionID, turnID); handoff != nil {
-			return handoff
-		}
-	}
-	return nil
 }
 
 func workflowReviewFindingsToEvents(findings []tool.WorkflowReviewFinding) []events.ReviewFindingPayload {
@@ -200,4 +156,26 @@ func workflowHasReviewPassEvidenceInState(state events.SessionState, phaseID, pa
 		}
 		return strings.TrimSpace(evidence.Fields["review_pass"]) == strings.TrimSpace(passID)
 	})
+}
+
+func workflowHasReviewPassEvidence(ctx context.Context, r *Runtime, sessionID, phaseID, passID string) bool {
+	state, err := r.Sessions.Snapshot(ctx, sessionID)
+	if err != nil || state.Workflow == nil {
+		return false
+	}
+	return workflowHasReviewPassEvidenceInState(state, phaseID, passID)
+}
+
+func workflowReviewPassIDFromTask(task string) string {
+	task = strings.TrimSpace(task)
+	const prefix = "Workflow review pass `"
+	if !strings.HasPrefix(task, prefix) {
+		return ""
+	}
+	rest := strings.TrimPrefix(task, prefix)
+	idx := strings.Index(rest, "`")
+	if idx < 0 {
+		return ""
+	}
+	return strings.TrimSpace(rest[:idx])
 }

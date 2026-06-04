@@ -37,10 +37,6 @@ func TestTurnTranscriptChunkCacheKeyDependsOnVisibleSelectionState(t *testing.T)
 				ToolCalls: map[string]*events.ToolCallState{
 					"call-1": {CallID: "call-1", ToolName: "read", Input: `{"paths":["a.txt"]}`},
 				},
-				HandoffOrder: []string{"handoff-1"},
-				Handoffs: map[string]*events.AgentHandoffState{
-					"handoff-1": {HandoffID: "handoff-1", ChildAgentID: "child"},
-				},
 			},
 		},
 	}
@@ -56,12 +52,6 @@ func TestTurnTranscriptChunkCacheKeyDependsOnVisibleSelectionState(t *testing.T)
 	selected.selection.callID = "call-1"
 	if got := turnTranscriptChunkCacheKey(selected, state, "turn-1", turn, 80); got == base {
 		t.Fatalf("turnTranscriptChunkCacheKey() did not vary with selected call")
-	}
-
-	handoffSelected := model
-	handoffSelected.selection.handoffID = "handoff-1"
-	if got := turnTranscriptChunkCacheKey(handoffSelected, state, "turn-1", turn, 80); got == base {
-		t.Fatalf("turnTranscriptChunkCacheKey() did not vary with selected handoff")
 	}
 
 	withoutQuestion := state
@@ -104,18 +94,14 @@ func TestRefreshTranscriptTurnSourceKeysForBatchUpdatesOnlyAffectedTurns(t *test
 		TurnOrder: []string{"turn-1", "turn-2"},
 		Turns: map[string]*events.TurnState{
 			"turn-1": {
-				TurnID:       "turn-1",
-				Transcript:   []events.TranscriptEntryState{{Kind: events.TranscriptEntryAssistant, Text: "before one"}},
-				ToolCalls:    map[string]*events.ToolCallState{},
-				Handoffs:     map[string]*events.AgentHandoffState{},
-				HandoffOrder: []string{},
+				TurnID:     "turn-1",
+				Transcript: []events.TranscriptEntryState{{Kind: events.TranscriptEntryAssistant, Text: "before one"}},
+				ToolCalls:  map[string]*events.ToolCallState{},
 			},
 			"turn-2": {
-				TurnID:       "turn-2",
-				Transcript:   []events.TranscriptEntryState{{Kind: events.TranscriptEntryAssistant, Text: "before two"}},
-				ToolCalls:    map[string]*events.ToolCallState{},
-				Handoffs:     map[string]*events.AgentHandoffState{},
-				HandoffOrder: []string{},
+				TurnID:     "turn-2",
+				Transcript: []events.TranscriptEntryState{{Kind: events.TranscriptEntryAssistant, Text: "before two"}},
+				ToolCalls:  map[string]*events.ToolCallState{},
 			},
 		},
 	}
@@ -127,11 +113,9 @@ func TestRefreshTranscriptTurnSourceKeysForBatchUpdatesOnlyAffectedTurns(t *test
 	nextState := state
 	nextState.Turns = map[string]*events.TurnState{
 		"turn-1": {
-			TurnID:       "turn-1",
-			Transcript:   []events.TranscriptEntryState{{Kind: events.TranscriptEntryAssistant, Text: "after one"}},
-			ToolCalls:    map[string]*events.ToolCallState{},
-			Handoffs:     map[string]*events.AgentHandoffState{},
-			HandoffOrder: []string{},
+			TurnID:     "turn-1",
+			Transcript: []events.TranscriptEntryState{{Kind: events.TranscriptEntryAssistant, Text: "after one"}},
+			ToolCalls:  map[string]*events.ToolCallState{},
 		},
 		"turn-2": state.Turns["turn-2"],
 	}
@@ -167,9 +151,7 @@ func TestTurnTranscriptChunkCacheKeyTracksCompletedAndLiveToolRows(t *testing.T)
 		Transcript: []events.TranscriptEntryState{
 			{Kind: events.TranscriptEntryUser, Text: "review cache invalidation"},
 		},
-		ToolCalls:    map[string]*events.ToolCallState{},
-		Handoffs:     map[string]*events.AgentHandoffState{},
-		HandoffOrder: []string{},
+		ToolCalls: map[string]*events.ToolCallState{},
 	}
 	baseState := events.SessionState{
 		WorkspaceRoot: "/repo",
@@ -195,8 +177,6 @@ func TestTurnTranscriptChunkCacheKeyTracksCompletedAndLiveToolRows(t *testing.T)
 				Completed: true,
 			},
 		},
-		Handoffs:     map[string]*events.AgentHandoffState{},
-		HandoffOrder: []string{},
 	}
 	liveState := events.SessionState{
 		WorkspaceRoot: "/repo",
@@ -236,16 +216,6 @@ func TestTurnTranscriptSourceKeyStaysCompactForLargeVisibleContent(t *testing.T)
 				Input:     `{"paths":["README.md"]}`,
 				Output:    strings.Repeat("tool output\n", 256),
 				Completed: true,
-			},
-		},
-		HandoffOrder: []string{"handoff-1"},
-		Handoffs: map[string]*events.AgentHandoffState{
-			"handoff-1": {
-				HandoffID:     "handoff-1",
-				ChildAgentID:  "child",
-				Task:          strings.Repeat("delegated task\n", 64),
-				AssistantText: strings.Repeat("delegated response\n", 64),
-				ReusedContent: strings.Repeat("reused content\n", 64),
 			},
 		},
 	}
@@ -299,7 +269,6 @@ func TestTurnTranscriptChunkCacheKeyStaysCompactForSelectedLoadedToolResult(t *t
 						LastUpdatedSeq: 12,
 					},
 				},
-				Handoffs: map[string]*events.AgentHandoffState{},
 			},
 		},
 	}

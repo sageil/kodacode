@@ -139,7 +139,6 @@ func shouldBatchWatchEvent(event events.Event) bool {
 		events.TypeExecutionBackgroundReady,
 		events.TypeExecutionBackgroundExited,
 		events.TypeExecutionBackgroundLost,
-		events.TypeAgentHandoffPreview,
 		events.TypeTurnWorkStateUpdated:
 		return true
 	default:
@@ -185,7 +184,7 @@ func (m Model) handleWatchEvents(watchID int, batch []events.Event, closed bool)
 	trackedTurnFinished := isFinishedInState(stateAfter, m.turnID)
 	holdLiveTurnState := resolutionInFlight && trackedTurnFinished
 	m.syncPendingResolutionState(stateAfter)
-	if m.interaction.resolveReq == "" && m.interaction.resolveHandoff == "" {
+	if m.interaction.resolveReq == "" {
 		m.interaction.cursor = 0
 	}
 	if trackedTurnFinished && !holdLiveTurnState {
@@ -242,14 +241,12 @@ func (m Model) handleWatchEvents(watchID int, batch []events.Event, closed bool)
 		dialogRefreshCmd = m.requestDialogRefresh(dialogIDTrace)
 	case refresh.refreshToolDetailDialog:
 		dialogRefreshCmd = m.requestDialogRefresh(dialogIDToolDetail)
-	case refresh.refreshHandoffDetailDialog:
-		dialogRefreshCmd = m.requestDialogRefresh(dialogIDHandoffDetail)
 	case refresh.refreshTaskDetailDialog:
 		dialogRefreshCmd = m.requestDialogRefresh(dialogIDTaskDetail)
 	}
 	trackedTurn := currentTurn(stateAfter, m.turnID)
 	trackedTurnCompleted := trackedTurn != nil && trackedTurn.Status == events.TurnStatusCompleted
-	if trackedTurnCompleted && !holdLiveTurnState && !hasPendingApprovalInState(stateAfter, m.turnID) && !m.isDelegatedChildView() {
+	if trackedTurnCompleted && !holdLiveTurnState && !hasPendingApprovalInState(stateAfter, m.turnID) {
 		m.chrome.focus = focusComposer
 		m.syncViewportLayout()
 	}
@@ -262,8 +259,6 @@ func (m Model) handleWatchEvents(watchID int, batch []events.Event, closed bool)
 		m.ensureAnimTicking(),
 		m.ensureSelectedToolResultLoadedCmd(),
 		m.ensureOpenToolMutationDetailLoadedCmd(stateAfter),
-		m.ensureRelevantDelegatedSessionSnapshotsLoadedCmd(stateAfter),
-		m.refreshRelevantDelegatedSessionSnapshotsCmd(stateAfter, refresh.delegatedSnapshotRefreshIDs),
 	}
 	if transcriptRefreshCmd != nil {
 		cmds = append(cmds, transcriptRefreshCmd)
@@ -280,7 +275,7 @@ func (m Model) handleWatchEvents(watchID int, batch []events.Event, closed bool)
 	if refresh.refreshBudgetStatus {
 		cmds = append(cmds, loadBudgetStatusCmd(m.ctx, m.controller, m.sessionID))
 	}
-	if refresh.refreshSessionUsageSummary || len(refresh.delegatedSnapshotRefreshIDs) > 0 {
+	if refresh.refreshSessionUsageSummary {
 		cmds = append(cmds, loadSessionUsageSummaryCmd(m.ctx, m.controller, m.sessionID))
 	}
 	if shouldRefreshSnapshotForStaleExecutionState(stateAfter, m.turnID, batch) {
@@ -297,23 +292,20 @@ type watchDialogTargets struct {
 	traceOpen     bool
 	traceTurnID   string
 	toolDetailRef sessionToolCallRef
-	handoffTarget inspectorHandoffTarget
 	taskDetailID  string
 }
 
 type watchBatchRefresh struct {
-	refreshTranscript           bool
-	refreshInspector            bool
-	refreshWorkspaceStatus      bool
-	refreshBudgetStatus         bool
-	refreshSessionUsageSummary  bool
-	refreshAvailableModels      bool
-	refreshCostDialog           bool
-	refreshTraceDialog          bool
-	refreshToolDetailDialog     bool
-	refreshHandoffDetailDialog  bool
-	refreshTaskDetailDialog     bool
-	delegatedSnapshotRefreshIDs []string
+	refreshTranscript          bool
+	refreshInspector           bool
+	refreshWorkspaceStatus     bool
+	refreshBudgetStatus        bool
+	refreshSessionUsageSummary bool
+	refreshAvailableModels     bool
+	refreshCostDialog          bool
+	refreshTraceDialog         bool
+	refreshToolDetailDialog    bool
+	refreshTaskDetailDialog    bool
 }
 
 func captureWatchDialogTargets(m Model) watchDialogTargets {
@@ -326,10 +318,6 @@ func captureWatchDialogTargets(m Model) watchDialogTargets {
 	if dialog, ok := m.dialog.(*toolDetailDialog); ok {
 		targets.toolDetailRef = dialog.ref
 	}
-	if dialog, ok := m.dialog.(*handoffDetailDialog); ok {
-		targets.handoffTarget = dialog.target
-		targets.handoffTarget.SessionID = normalizeToolTargetSessionID(m.sessionID, dialog.sessionID)
-	}
 	if dialog, ok := m.dialog.(*taskDetailDialog); ok {
 		targets.taskDetailID = strings.TrimSpace(dialog.taskID)
 	}
@@ -337,9 +325,7 @@ func captureWatchDialogTargets(m Model) watchDialogTargets {
 }
 
 func (m *Model) applyWatchEventBatch(batch []events.Event, dialogTargets watchDialogTargets) (watchBatchRefresh, error) {
-	refresh := watchBatchRefresh{
-		delegatedSnapshotRefreshIDs: make([]string, 0, 4),
-	}
+	refresh := watchBatchRefresh{}
 	for _, event := range batch {
 		lastSequence := m.projector.CurrentState().LastSequence
 		if event.Sequence < lastSequence {
@@ -347,9 +333,6 @@ func (m *Model) applyWatchEventBatch(batch []events.Event, dialogTargets watchDi
 		}
 		if !event.Ephemeral && event.Sequence == lastSequence {
 			continue
-		}
-		if sessionID := delegatedSessionSnapshotRefreshID(m.projector.CurrentState(), event); sessionID != "" {
-			refresh.delegatedSnapshotRefreshIDs = append(refresh.delegatedSnapshotRefreshIDs, sessionID)
 		}
 		if err := m.projector.Apply(event); err != nil {
 			return refresh, err
@@ -375,9 +358,6 @@ func (m *Model) applyWatchEventBatch(batch []events.Event, dialogTargets watchDi
 		if dialogTargets.toolDetailRef.TurnID != "" && dialogTargets.toolDetailRef.CallID != "" {
 			refresh.refreshToolDetailDialog = refresh.refreshToolDetailDialog || shouldSyncToolDetailDialogForEvent(event, dialogTargets.toolDetailRef)
 		}
-		if dialogTargets.handoffTarget.HandoffID != "" {
-			refresh.refreshHandoffDetailDialog = refresh.refreshHandoffDetailDialog || shouldSyncHandoffDetailDialogForEvent(event, dialogTargets.handoffTarget)
-		}
 		if dialogTargets.taskDetailID != "" {
 			refresh.refreshTaskDetailDialog = refresh.refreshTaskDetailDialog || shouldSyncTaskDetailDialogForEvent(event, dialogTargets.taskDetailID)
 		}
@@ -402,9 +382,6 @@ func (m *Model) syncPendingResolutionState(state events.SessionState) {
 		}
 	} else if pending := pendingQuestionFromState(state); pending == nil || pending.QuestionID != m.interaction.resolveReq {
 		m.interaction.resolveReq = ""
-	}
-	if handoff := pendingDelegatedInteractionFromState(state, m.turnID); handoff == nil || handoff.HandoffID != m.interaction.resolveHandoff {
-		m.interaction.resolveHandoff = ""
 	}
 }
 

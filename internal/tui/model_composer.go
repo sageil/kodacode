@@ -114,7 +114,6 @@ func (m *Model) submitComposer() (tea.Model, tea.Cmd) {
 		m.selection.callTurnID = ""
 		m.selection.callID = ""
 		m.clearExpandedToolCall()
-		m.selection.handoffID = ""
 		m.inspector.tab = 1
 		m.clearComposerDraft()
 		m.chrome.focus = focusTranscript
@@ -183,7 +182,6 @@ func (m *Model) submitAgentTurn(userText string, attachments []app.AttachmentInp
 	m.selection.callTurnID = ""
 	m.selection.callID = ""
 	m.clearExpandedToolCall()
-	m.selection.handoffID = ""
 	m.inspector.tab = 1
 	m.clearComposerDraft()
 	m.clearPendingFocusPaths()
@@ -233,7 +231,6 @@ func (m *Model) submitComposerReview(instructions string) (tea.Model, tea.Cmd) {
 	m.selection.callTurnID = ""
 	m.selection.callID = ""
 	m.clearExpandedToolCall()
-	m.selection.handoffID = ""
 	m.inspector.tab = 1
 	m.clearComposerDraft()
 	m.chrome.focus = focusTranscript

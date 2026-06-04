@@ -129,9 +129,7 @@ func workflowPhaseAllowedTools(base []string, phase workflowpkg.Phase) []string 
 }
 
 type workflowRuntimeToolScope struct {
-	Phase         *workflowpkg.Phase
-	ChildAgentID  string
-	DelegatedTask string
+	Phase *workflowpkg.Phase
 }
 
 // Workflow runtime-owned tools are saved workflow result channels, not
@@ -154,9 +152,6 @@ func workflowRuntimeOwnedTools(scope workflowRuntimeToolScope) []string {
 		if workflowPhaseIsReview(*scope.Phase) {
 			out = appendToolIfMissing(out, tool.WorkflowReviewResultToolName)
 		}
-	}
-	if workflowReviewPassIDFromTask(scope.DelegatedTask) != "" {
-		out = appendToolIfMissing(out, tool.WorkflowReviewResultToolName)
 	}
 	return out
 }
@@ -218,7 +213,6 @@ func workflowMutationToolName(name string) bool {
 	case tool.ApplyPatchToolName,
 		tool.BashToolName,
 		tool.CodeActionToolName,
-		tool.DelegateToolName,
 		"mkdir",
 		tool.RenameSymbolToolName,
 		tool.TaskWorkflowToolName,
@@ -259,7 +253,7 @@ func workflowPhasePromptFragment(ctx workflowPhaseTurnContext, allowedTools []st
 		lines = append(lines, "- You MUST record the required phase outputs before any final prose. Call `"+tool.WorkflowPhaseOutputToolName+"` with every required output key.")
 		lines = append(lines, "- If a required output has no findings, still record that key with a short value such as `None identified`.")
 		lines = append(lines, "- If you skip `"+tool.WorkflowPhaseOutputToolName+"`, the workflow phase will block instead of advancing.")
-		lines = append(lines, "- The final response may be human-readable after that tool call. If the tool is unavailable, return exactly one JSON object containing every required output key and no markdown fences.")
+		lines = append(lines, "- The final response may be human-readable after that tool call. Prose, markdown, or JSON in the assistant response does not satisfy required phase outputs.")
 	}
 	if required := workflowPhaseCompletionRequirementLabels(ctx.Phase); len(required) > 0 {
 		lines = append(lines, "- Phase completion requirements: "+strings.Join(required, ", "))

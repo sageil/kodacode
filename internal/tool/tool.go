@@ -14,7 +14,6 @@ import (
 var ErrWorkspaceRequired = errors.New("workspace scope is required")
 var ErrQuestionAskerRequired = errors.New("question asker is required")
 var ErrCodeIntelRequired = errors.New("code intel is required")
-var ErrDelegateManagerRequired = errors.New("delegate manager is required")
 var ErrWorkflowPhaseOutputManagerRequired = errors.New("workflow phase output manager is required")
 var ErrWorkflowReviewResultManagerRequired = errors.New("workflow review result manager is required")
 
@@ -145,20 +144,19 @@ type QuestionResponse struct {
 type QuestionAsker func(QuestionRequest) (QuestionResponse, error)
 
 type ExecutionContext struct {
-	SessionID       string
-	Workspace       *workspace.Scope
-	Search          *searchsvc.Service
-	WebSearch       *websearchsvc.Service
-	OutputEmitter   OutputEmitter
-	BeforeMutation  BeforeFileMutation
-	QuestionAsker   QuestionAsker
-	TaskManager     TaskManager
-	DelegateManager DelegateManager
-	CodeIntelAPI    CodeIntel
-	MemoryManager   MemoryManager
-	SkillCatalog    SkillCatalog
-	WorkflowOutput  WorkflowPhaseOutputManager
-	WorkflowReview  WorkflowReviewResultManager
+	SessionID      string
+	Workspace      *workspace.Scope
+	Search         *searchsvc.Service
+	WebSearch      *websearchsvc.Service
+	OutputEmitter  OutputEmitter
+	BeforeMutation BeforeFileMutation
+	QuestionAsker  QuestionAsker
+	TaskManager    TaskManager
+	CodeIntelAPI   CodeIntel
+	MemoryManager  MemoryManager
+	SkillCatalog   SkillCatalog
+	WorkflowOutput WorkflowPhaseOutputManager
+	WorkflowReview WorkflowReviewResultManager
 }
 
 func (e ExecutionContext) ResolvePath(access workspace.Access, path string) (workspace.Decision, error) {

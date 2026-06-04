@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/sageil/kodacode/internal/agent"
-	"github.com/sageil/kodacode/internal/events"
 	"github.com/sageil/kodacode/internal/provider"
 )
 
@@ -56,49 +55,6 @@ func (r *Runtime) resolveConfiguredTurnModelRoute(route provider.ModelRoute) (pr
 		return provider.ModelRoute{}, err
 	}
 	return route, nil
-}
-
-func (r *Runtime) resolveDelegatedChildModelRoute(parentState events.SessionState, parentTurnID string, childDefinition agent.Definition) (provider.ModelRoute, error) {
-	if strings.TrimSpace(childDefinition.ID) == reviewerAgentID {
-		current, err := delegatedCurrentModelRoute(parentState, parentTurnID)
-		if err != nil {
-			return provider.ModelRoute{}, err
-		}
-		return r.resolveReviewerModelRoute(childDefinition, current)
-	}
-	if hasConfiguredModelRoute(childDefinition.ModelRoute) {
-		return r.resolveConfiguredTurnModelRoute(childDefinition.ModelRoute)
-	}
-	if turn := parentState.Turns[parentTurnID]; turn != nil {
-		route, err := parseTurnConfigModelRoute(turn.Config)
-		if err != nil {
-			return provider.ModelRoute{}, err
-		}
-		if hasConfiguredModelRoute(route) {
-			return r.resolveConfiguredTurnModelRoute(route)
-		}
-	}
-	route, err := parseStoredModelRoute(parentState.Model)
-	if err != nil {
-		return provider.ModelRoute{}, err
-	}
-	if hasConfiguredModelRoute(route) {
-		return r.resolveConfiguredTurnModelRoute(route)
-	}
-	return r.resolveTurnModelRoute(childDefinition)
-}
-
-func delegatedCurrentModelRoute(parentState events.SessionState, parentTurnID string) (provider.ModelRoute, error) {
-	if turn := parentState.Turns[parentTurnID]; turn != nil {
-		route, err := parseTurnConfigModelRoute(turn.Config)
-		if err != nil {
-			return provider.ModelRoute{}, err
-		}
-		if hasConfiguredModelRoute(route) {
-			return route, nil
-		}
-	}
-	return parseStoredModelRoute(parentState.Model)
 }
 
 func parseStoredModelRoute(primary string) (provider.ModelRoute, error) {

@@ -59,6 +59,14 @@ func TestDefaultRuntimeToolsExcludesEdit(t *testing.T) {
 	}
 }
 
+func TestDefaultRuntimeToolsExcludesDelegate(t *testing.T) {
+	for _, tl := range DefaultRuntimeTools() {
+		if tl.Definition().Name == "delegate" {
+			t.Fatalf("DefaultRuntimeTools includes removed delegate tool")
+		}
+	}
+}
+
 func TestApplyPatchToolAppliesAddDeleteUpdateAndMove(t *testing.T) {
 	root := t.TempDir()
 	writeApplyPatchTestFile(t, root, "src/update.txt", "one\nold\nthree\n")

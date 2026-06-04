@@ -75,25 +75,20 @@ func TestNewBuiltinsCatalogIncludesBuiltinsAndSubagents(t *testing.T) {
 	for _, want := range []string{
 		"Own multi-step implementation work from start to finish",
 		"Use `task_workflow` when the work breaks into meaningful steps",
-		"Use the `delegate` tool when a child agent gives a cleaner execution boundary",
 		"Keep narrow local work inline. A one or two-file review",
-		"small local planning question",
+		"small local planning question should be handled directly",
+		"use configured workflow phases rather than a separate handoff mechanism",
 		"Treat execution, implementation, fixing bugs, applying requested changes",
-		"You MUST delegate to `reviewer` for review, audit, regression checking, repo review, performance review",
-		"You MUST delegate to `planner` for a plan, implementation sequence, architecture map, design exploration",
+		"For broad review, audit, regression checking, repo review, performance review",
+		"For broad planning, architecture mapping, refactoring strategy",
 		"cross-module tradeoff analysis",
 		"recommend improvements",
-		"delegate before doing broad repository-wide investigation yourself",
-		"For compound requests that include both review or audit findings and an implementation plan",
-		"Do not ask `reviewer` to create execution plans",
-		"After a delegated planner returns a completed plan",
-		"runtime owns the save/apply/revise/stop decision",
-		"Do not ask follow-up plan-decision questions or persist plan files",
-		"do not add implementation, checklist, or do-nothing choices",
+		"For compound requests that include review findings and an implementation plan",
+		"Do not create a separate handoff",
 		"Routing examples:",
-		"\"Review the current project and recommend performance improvements\" -> `reviewer`",
-		"\"Turn those findings into a step-by-step implementation plan\" -> `planner`",
-		"\"Perform a performance review and create an execution plan\" -> `reviewer`, then `planner`",
+		"\"Review the current project and recommend performance improvements\" -> review directly",
+		"\"Turn those findings into a step-by-step implementation plan\" -> produce the plan directly",
+		"\"Perform a performance review and create an execution plan\" -> report findings first",
 		"\"Implement the approved plan\" -> `engineer`",
 		"Continue autonomously inside the user's requested scope.",
 		"Implementation details are the agent's decision",
@@ -118,11 +113,21 @@ func TestNewBuiltinsCatalogIncludesBuiltinsAndSubagents(t *testing.T) {
 			t.Fatalf("engineer prompt missing guidance %q: %q", want, engineer.PromptFragment().Content)
 		}
 	}
+	for _, unwanted := range []string{
+		"Use the `delegate` tool",
+		"You MUST delegate",
+		"After a delegated planner returns",
+		"child-agent",
+	} {
+		if strings.Contains(engineer.PromptFragment().Content, unwanted) {
+			t.Fatalf("engineer prompt contains delegation guidance %q: %q", unwanted, engineer.PromptFragment().Content)
+		}
+	}
 	if !engineer.AllowsTool("read") || !engineer.AllowsTool("write") {
 		t.Fatal("engineer should allow the general tool surface")
 	}
-	if !engineer.AllowsTool("delegate") {
-		t.Fatal("engineer should allow delegate")
+	if engineer.AllowsTool("delegate") {
+		t.Fatal("engineer should not allow delegate")
 	}
 	if !engineer.AllowsTool("task_workflow") {
 		t.Fatal("engineer should allow task_workflow")
@@ -221,17 +226,7 @@ func TestNewBuiltinsCatalogIncludesBuiltinsAndSubagents(t *testing.T) {
 		"When you are running as a delegated child planner",
 		"return the complete plan as assistant text and stop",
 		"Do not ask questions or persist plan files.",
-		"you MUST first show the complete finished plan to the user in assistant text",
-		"Do not ask a broader strategy question after producing a plan",
-		"Use exactly these options:\n- Save plan\n- Revise plan",
-		"Use a purpose string of `planner_save_plan`",
-		"Do not ask this question in assistant prose",
-		"The question must not be the first user-visible output for a new plan",
-		"Delegation to planner does not itself imply plan persistence.",
-		"If `question` fails with a planner plan-decision contract error, do not re-explore",
-		"repair only the plan-decision workflow ordering",
-		"If the answer is `Save plan`, `Apply plan`, or `Stop`, the runtime owns the next action.",
-		"continue revising the plan in the current turn and do not delegate",
+		"Do not ask a save/apply/revise plan-decision question unless the runtime provides explicit planner approval instructions",
 		"Reference the files, modules, or subsystems you inspected",
 		"Do not perform acceptance review, correctness audit, bug-finding, or code",
 		"performance review, or regression check, you MUST say that reviewer is the appropriate agent",
@@ -240,6 +235,15 @@ func TestNewBuiltinsCatalogIncludesBuiltinsAndSubagents(t *testing.T) {
 	} {
 		if !strings.Contains(planner.PromptFragment().Content, want) {
 			t.Fatalf("planner prompt missing guidance %q: %q", want, planner.PromptFragment().Content)
+		}
+	}
+	for _, unwanted := range []string{
+		"Use exactly these options:\n- Save plan\n- Revise plan",
+		"Use a purpose string of `planner_save_plan`",
+		"If the answer is `Save plan`, `Apply plan`, or `Stop`, the runtime owns the next action.",
+	} {
+		if strings.Contains(planner.PromptFragment().Content, unwanted) {
+			t.Fatalf("planner prompt contains opt-in approval guidance %q: %q", unwanted, planner.PromptFragment().Content)
 		}
 	}
 }

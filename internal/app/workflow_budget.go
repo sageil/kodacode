@@ -44,7 +44,6 @@ func workflowBudgetSummaryFromState(ctx context.Context, sessions *SessionServic
 		startedAtSeq = state.Workflow.StartedAtSeq
 	}
 	summary := workflowBudgetSummary{}
-	visitedChildSessions := map[string]struct{}{}
 	for _, turnID := range state.TurnOrder {
 		turn := state.Turns[turnID]
 		if turn == nil || turn.Config == nil || strings.TrimSpace(turn.Config.WorkflowID) != workflowID {
@@ -60,40 +59,6 @@ func workflowBudgetSummaryFromState(ctx context.Context, sessions *SessionServic
 				summary.MissingPricingTurns++
 			}
 		}
-		childSummary, err := workflowChildHandoffBudgetSummary(ctx, sessions, turn, visitedChildSessions)
-		if err != nil {
-			return workflowBudgetSummary{}, err
-		}
-		summary.Cost += childSummary.Cost
-		summary.MissingPricingTurns += childSummary.MissingPricingTurns
-	}
-	return summary, nil
-}
-
-func workflowChildHandoffBudgetSummary(ctx context.Context, sessions *SessionService, turn *events.TurnState, visited map[string]struct{}) (workflowBudgetSummary, error) {
-	if sessions == nil || turn == nil {
-		return workflowBudgetSummary{}, nil
-	}
-	summary := workflowBudgetSummary{}
-	for _, handoffID := range turn.HandoffOrder {
-		handoff := turn.Handoffs[handoffID]
-		if handoff == nil {
-			continue
-		}
-		childSessionID := strings.TrimSpace(handoff.ChildSessionID)
-		if childSessionID == "" {
-			continue
-		}
-		if _, ok := visited[childSessionID]; ok {
-			continue
-		}
-		visited[childSessionID] = struct{}{}
-		usage, err := sessions.UsageSummary(ctx, childSessionID)
-		if err != nil {
-			return workflowBudgetSummary{}, err
-		}
-		summary.Cost += usage.EstimatedCost
-		summary.MissingPricingTurns += usage.MissingPricingTurns
 	}
 	return summary, nil
 }

@@ -98,7 +98,7 @@ If `type:` is omitted and `agent:` is set, the phase is a normal agent phase.
 | --- | --- | --- |
 | Agent phase | Normal work by `planner`, `engineer`, or `reviewer` | `agent`, `mode`, `prompt`, `tools`, `requires_output` |
 | `type: verification` | Runtime-run checks such as tests or build commands | `agent`, `commands`, `tools`, `required` |
-| `type: review` | Structured review evidence and optional parallel review passes | `agent`, `mode`, `review_passes`, `parallel_review`, `requires` |
+| `type: review` | Structured review evidence and optional review passes | `agent`, `mode`, `review_passes`, `requires` |
 | `type: user_approval` | Asking before edits or risky work proceeds | `prompt`, `skip_when` |
 | `type: final` | Runtime-generated workflow summary | `include` |
 
@@ -123,7 +123,7 @@ such as `skipped`, `verification_failed`, and `review_failed`.
 
 Workflow `budgets` can bound spend and provider loops for a selected workflow.
 `budgets.max_cost` is a hard estimated-cost limit for the active workflow,
-including delegated child sessions. `budgets.warn_threshold` is an optional
+including workflow phase turns. `budgets.warn_threshold` is an optional
 workflow-local warning fraction, and `budgets.max_provider_requests_per_turn`
 overrides the session provider-request cap for workflow phase turns.
 
@@ -136,8 +136,7 @@ being guessed.
 Review phases (`type: review`) can declare `review_passes`. The runtime
 includes those pass names and descriptions in the review phase prompt, and final
 summaries combine all recorded review outcomes instead of using only the latest
-review result. When `parallel_review: true` is set, the runtime runs one limited
-review session for each declared pass and records each result as workflow data.
+review result.
 
 ## Example workflows
 
@@ -198,7 +197,6 @@ phases: # Ordered workflow phases.
     type: review # Runtime records structured review outcomes.
     agent: reviewer # Run review with the reviewer agent.
     mode: read_only # Keep review from mutating the workspace.
-    parallel_review: true # Run one limited review session per review pass.
     review_passes: # Named review lenses included in the review prompt and final result.
       - id: correctness # Review pass id for implementation correctness.
         description: Behavior changes and whether the implementation is correct. # Prompt text for this pass.
@@ -299,7 +297,6 @@ phases: # Ordered review phases.
     type: review # Runtime records review outcomes.
     agent: reviewer # Use the reviewer agent for review work.
     mode: read_only # Keep review read-only.
-    parallel_review: true # Run each review pass in a limited review session.
     review_passes: # Named review lenses.
       - id: correctness # Review pass id for behavior correctness.
         description: Behavior changes and whether the implementation is correct. # Prompt text for this pass.

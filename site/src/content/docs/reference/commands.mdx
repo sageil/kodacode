@@ -15,7 +15,6 @@ behavior.
 | Command | Use it for | Notes |
 | --- | --- | --- |
 | `/palette` | Open the root command palette | Good starting point when you do not remember a shortcut |
-| `/sessions` | Manage workspace sessions | Resume, switch, inspect, delete, or purge existing sessions |
 | `/init` | Create workspace instruction files | Writes `AGENTS.md` only when missing, and may also create `CLAUDE.md` for Anthropic routes; see [Project Memory & Instructions](/features/project-memory/) |
 | `/compress` | Compress workspace instructions and project memory | Rewrites existing `AGENTS.md` and `.kodacode/memories/*.md` through the utility-model path |
 | `/compact` | Rebuild the saved history summary now | Uses the same history-compaction path as automatic runtime compaction |
@@ -40,7 +39,6 @@ behavior.
 ## Session and navigation
 
 - `/palette`: open the command palette
-- `/sessions`: manage workspace sessions, including delete and purge actions
 - `/init`: create workspace instruction files
 - `/compress`: compress `AGENTS.md` and project memory
 - `/compact`: rebuild older session history into the saved `History Summary` now
@@ -50,7 +48,7 @@ behavior.
 - `/review [instructions]`: run a focused runtime-owned review of the current workspace changes
 - `Ctrl+W`: list available runtime workflows or select one for later turns
 
-Use this group when you want to move between sessions, inspect prior work, or prepare the current session before another turn.
+Use this group when you want to branch from prior work, inspect turns, or prepare the current session before another turn.
 
 `/timeline` is for trying another path without losing the original session. It
 lists the current session's turns, shows parent and nested child branch sessions
@@ -115,7 +113,7 @@ If you are new, learn these first:
 
 1. `/connect`
 2. `/model`
-3. `/sessions`
+3. `/timeline`
 4. `/trace`
 5. `/cost`
 

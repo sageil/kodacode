@@ -34,9 +34,9 @@ type ToolExecutor struct {
 	search                       *searchsvc.Service
 	webSearch                    *websearchsvc.Service
 	skills                       *skill.Registry
-	delegates                    delegateRuntime
 	codeIntel                    codeIntelRuntime
 	memory                       *MemoryService
+	workflowConfig               WorkflowConfig
 	workflowPhaseCommandResolver workflowPhaseCommandResolver
 	logger                       *observability.Logger
 }
@@ -94,8 +94,11 @@ func (e *ToolExecutor) SetSkillRegistry(registry *skill.Registry) {
 	e.skills = registry
 }
 
-func (e *ToolExecutor) SetDelegateRuntime(runtime delegateRuntime) {
-	e.delegates = runtime
+func (e *ToolExecutor) SetWorkflowConfig(config WorkflowConfig) {
+	if e == nil {
+		return
+	}
+	e.workflowConfig = config
 }
 
 func (e *ToolExecutor) SetWorkflowPhaseCommandResolver(resolver workflowPhaseCommandResolver) {

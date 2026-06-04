@@ -541,9 +541,6 @@ func estimatedTurnTranscriptLineCount(m Model, ctx transcriptTurnChunkLifecycle)
 		}
 		addSection(estimatedToolRefsLineCount(m, ctx.state, filterPendingQuestionToolRefs(m, refs)))
 	}
-	if explicitSelectedHandoff(turn, strings.TrimSpace(m.selection.handoffID)) != nil {
-		addSection(estimatedTranscriptBlockLineCount(strings.TrimSpace(m.selection.handoffID), ctx.width))
-	}
 	return lines
 }
 
@@ -679,9 +676,6 @@ func transcriptTurnRequiresRender(m Model, turnID string) bool {
 		return false
 	}
 	if strings.TrimSpace(m.selection.callTurnID) == turnID && strings.TrimSpace(m.selection.callID) != "" {
-		return true
-	}
-	if strings.TrimSpace(m.selection.handoffID) != "" && strings.TrimSpace(m.turnID) == turnID {
 		return true
 	}
 	return false

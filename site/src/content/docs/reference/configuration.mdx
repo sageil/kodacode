@@ -757,8 +757,8 @@ artifacts:
 
 This policy does not prune stored session history in `session_events`.
 
-Session deletion is explicit. Use `/sessions` when you want to remove or purge
-stored sessions themselves.
+Stored session history is not removed by this policy, and the TUI does not
+expose session purge controls.
 
 Retention is applied during runtime startup. Search-cache cleanup is file-based
 and uses persisted file modification times because the search cache still lives

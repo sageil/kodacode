@@ -4,7 +4,6 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/sageil/kodacode/internal/app"
 	"github.com/sageil/kodacode/internal/provider"
 	tuitheme "github.com/sageil/kodacode/internal/tui/theme"
 )
@@ -113,19 +112,6 @@ func (m *Model) openThemeDialog() tea.Cmd {
 	}
 }
 
-func (m *Model) openSessionsDialog() tea.Cmd {
-	return func() tea.Msg {
-		sessions, err := m.backend.ListSessions(m.ctx)
-		if err != nil {
-			return dialogOpenedMsg{err: err}
-		}
-		dialog := newSessionsDialog(buildSessionItems(filterSessionSummaries(sessions, m.sessionID)), m.theme)
-		width, height := dialogRenderSize(*m, m.projector.CurrentState())
-		dialog.SetFrame(width, height)
-		return dialogOpenedMsg{dialog: dialog}
-	}
-}
-
 func (m *Model) openTimelineDialog() tea.Cmd {
 	return func() tea.Msg {
 		state := m.projector.Snapshot()
@@ -147,22 +133,6 @@ func (m *Model) openConnectDialog() tea.Cmd {
 			return dialogOpenedMsg{err: err}
 		}
 		dialog := newConnectDialog(buildConnectEntries(state), m.theme)
-		width, height := dialogRenderSize(*m, m.projector.CurrentState())
-		dialog.SetFrame(width, height)
-		return dialogOpenedMsg{dialog: dialog}
-	}
-}
-
-func (m *Model) openNewSessionDialog() tea.Cmd {
-	return func() tea.Msg {
-		sessions, err := m.backend.ListSessions(m.ctx)
-		if err != nil {
-			return dialogOpenedMsg{err: err}
-		}
-		dialog := newSessionsDialog(buildSessionItems(filterSessionSummaries(sessions, m.sessionID)), m.theme)
-		dialog.mode = sessionsDialogCreate
-		dialog.focusIndex = 0
-		dialog.syncFocus()
 		width, height := dialogRenderSize(*m, m.projector.CurrentState())
 		dialog.SetFrame(width, height)
 		return dialogOpenedMsg{dialog: dialog}
@@ -274,7 +244,7 @@ func (m *Model) handleDialogClosed(msg dialogClosedMsg) (tea.Model, tea.Cmd) {
 				setReviewerModelCmd(m.ctx, m.backend, typed.Ref),
 			)
 		case commandPaletteActionResult:
-			if m.currentTurnRunning() && (typed.ActionID == "select-model" || typed.ActionID == "select-agent" || typed.ActionID == "select-workflow" || typed.ActionID == "manage-sessions" || typed.ActionID == "timeline" || typed.ActionID == "new-session" || typed.ActionID == "select-utility-model" || typed.ActionID == "unset-utility-model" || typed.ActionID == "select-reviewer-model" || typed.ActionID == "unset-reviewer-model") {
+			if m.currentTurnRunning() && (typed.ActionID == "select-model" || typed.ActionID == "select-agent" || typed.ActionID == "select-workflow" || typed.ActionID == "timeline" || typed.ActionID == "new-session" || typed.ActionID == "select-utility-model" || typed.ActionID == "unset-utility-model" || typed.ActionID == "select-reviewer-model" || typed.ActionID == "unset-reviewer-model") {
 				m.closeAllDialogs()
 				return *m, nil
 			}
@@ -287,8 +257,6 @@ func (m *Model) handleDialogClosed(msg dialogClosedMsg) (tea.Model, tea.Cmd) {
 				return *m, m.openWorkflowDialog()
 			case "select-theme":
 				return *m, m.openThemeDialog()
-			case "manage-sessions":
-				return *m, m.openSessionsDialog()
 			case "timeline":
 				if strings.TrimSpace(m.sessionID) == "" {
 					m.closeAllDialogs()
@@ -297,7 +265,7 @@ func (m *Model) handleDialogClosed(msg dialogClosedMsg) (tea.Model, tea.Cmd) {
 				}
 				return *m, m.openTimelineDialog()
 			case "new-session":
-				return *m, m.openNewSessionDialog()
+				return m.startNewWorkspaceSession(false, true)
 			case "manage-trust":
 				return *m, m.openTrustDialog()
 			case "connect-provider":
@@ -340,51 +308,6 @@ func (m *Model) handleDialogClosed(msg dialogClosedMsg) (tea.Model, tea.Cmd) {
 		}
 		m.closeAllDialogs()
 		return *m, tea.Batch(m.focusComposerAfterDialogSelection(), applyThemeCmd(m.ctx, m.backend, item.Name))
-	case dialogIDSessions:
-		result, ok := msg.result.(sessionsDialogResult)
-		if !ok {
-			m.closeCurrentDialogPreservingStack()
-			return *m, nil
-		}
-		switch {
-		case strings.TrimSpace(result.OpenSessionID) != "":
-			m.closeAllDialogs()
-			m.busy = true
-			return *m, switchSessionCmd(m.ctx, m.backend, sessionSwitchRequest{
-				SessionID:        result.OpenSessionID,
-				WorkspaceRoot:    m.workspace,
-				AgentID:          m.agentID,
-				ThinkingEnabled:  m.thinkingEnabled,
-				ReasoningVariant: m.reasoningVariant,
-				SkillIDs:         append([]string(nil), m.skillIDs...),
-				InspectorOpen:    m.chrome.inspectorOpen,
-				WideSidebarOpen:  m.chrome.wideSidebarOpen,
-				WatchID:          m.nextWatch,
-			})
-		case result.Create:
-			m.closeAllDialogs()
-			m.busy = true
-			return *m, openWorkspaceSessionCmd(m.ctx, m.backend, workspaceSessionOpenRequest{
-				WorkspaceRoot:    m.workspace,
-				UserText:         result.NewPrompt,
-				TurnID:           app.NewTurnID(),
-				AgentID:          m.agentID,
-				StartTurnAgentID: m.agentID,
-				WorkflowID:       m.workflowID,
-				ThinkingEnabled:  m.thinkingEnabled,
-				ReasoningVariant: m.reasoningVariant,
-				SkillIDs:         append([]string(nil), m.skillIDs...),
-				InspectorOpen:    m.chrome.inspectorOpen,
-				WideSidebarOpen:  m.chrome.wideSidebarOpen,
-				WatchID:          m.nextWatch,
-			})
-		case strings.TrimSpace(result.DeleteID) != "":
-			m.closeCurrentDialogPreservingStack()
-			return *m, deleteSessionAndReopenDialogCmd(m.ctx, m.backend, m.sessionID, result.DeleteID, m.theme, m.width, m.height)
-		case len(result.PurgeIDs) > 0:
-			m.closeCurrentDialogPreservingStack()
-			return *m, purgeSessionsAndReopenDialogCmd(m.ctx, m.backend, m.sessionID, result.PurgeIDs, m.theme, m.width, m.height)
-		}
 	case dialogIDTimeline:
 		result, ok := msg.result.(timelineDialogResult)
 		if !ok {

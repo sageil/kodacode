@@ -190,7 +190,6 @@ func TestRenderOverviewInspectorUsesCurrentSessionAgentWhenCurrentTurnCompleted(
 		WorkspaceRoot: "/repo",
 		AgentID:       "engineer",
 	})
-	model.selection.handoffID = "handoff-1"
 	state := events.SessionState{
 		SessionID: "session-1",
 		TurnOrder: []string{"turn-1"},
@@ -213,60 +212,6 @@ func TestRenderOverviewInspectorUsesCurrentSessionAgentWhenCurrentTurnCompleted(
 	}
 	if strings.Contains(rendered, "builder") {
 		t.Fatalf("overview should not show stale completed-turn agent\nrendered:\n%s", rendered)
-	}
-}
-
-func TestRenderOverviewInspectorDoesNotRenderDelegatedWorkDetails(t *testing.T) {
-	defaultTheme := theme.StaticDefault()
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	model := NewModel(&fakeController{}, ModelConfig{
-		Context:       ctx,
-		Theme:         &defaultTheme,
-		SessionID:     "session-1",
-		TurnID:        "turn-1",
-		WorkspaceRoot: "/repo",
-		AgentID:       "engineer",
-	})
-	model.selection.handoffID = "handoff-1"
-	state := events.SessionState{
-		SessionID: "session-1",
-		TurnOrder: []string{"turn-1"},
-		Turns: map[string]*events.TurnState{
-			"turn-1": {
-				TurnID: "turn-1",
-				Config: &events.TurnConfigState{
-					AgentID: "engineer",
-				},
-				HandoffOrder: []string{"handoff-1"},
-				Handoffs: map[string]*events.AgentHandoffState{
-					"handoff-1": {
-						HandoffID:      "handoff-1",
-						ChildAgentID:   "reviewer",
-						Task:           "review the full backend architecture",
-						ContextSummary: "delegated context should stay out of details",
-						ChildSessionID: "session-reviewer",
-					},
-				},
-			},
-		},
-	}
-
-	rendered := ansi.Strip(renderOverviewInspector(model, state, "turn-1", state.Turns["turn-1"], 80))
-	if !strings.Contains(rendered, "Environment") {
-		t.Fatalf("overview missing environment card\n%s", rendered)
-	}
-	for _, unwanted := range []string{
-		"Delegated Work",
-		"reviewer",
-		"review the full backend architecture",
-		"delegated context should stay out of details",
-		"enter opens the child session view",
-	} {
-		if strings.Contains(rendered, unwanted) {
-			t.Fatalf("overview should not render delegated detail %q\n%s", unwanted, rendered)
-		}
 	}
 }
 

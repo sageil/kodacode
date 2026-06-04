@@ -165,12 +165,6 @@ func (r *Runtime) runExistingSessionTurn(ctx context.Context, input runExistingT
 		}
 		return r.completeWorkflowFinalPhaseTurn(ctx, input, workflowPhase)
 	}
-	if workflowPhase.Active && workflowPhaseIsReview(workflowPhase.Phase) && workflowPhase.Phase.ParallelReviewEnabled() {
-		if err := r.appendWorkflowPhaseTurnConfigured(ctx, input, view, workflowPhase, effectiveAgentID, effectiveWorkflowID, effectiveSkillIDs, effectiveThinkingEnabled, effectiveThinkingMode, responseStyle); err != nil {
-			return r.recordTurnFailure(ctx, input.SessionID, input.TurnID, input.UserText, nil, err)
-		}
-		return r.startWorkflowReviewFanoutPhaseTurn(ctx, input, workflowPhase)
-	}
 	if workflowPhase.Active && workflowPhaseIsVerification(workflowPhase.Phase) && workflowPhaseSupportsDeterministicVerification(workflowPhase.Phase) {
 		if err := r.appendWorkflowPhaseTurnConfigured(ctx, input, view, workflowPhase, effectiveAgentID, effectiveWorkflowID, effectiveSkillIDs, effectiveThinkingEnabled, effectiveThinkingMode, responseStyle); err != nil {
 			return r.recordTurnFailure(ctx, input.SessionID, input.TurnID, input.UserText, nil, err)
@@ -200,11 +194,16 @@ func (r *Runtime) runExistingSessionTurn(ctx context.Context, input runExistingT
 		}
 	}
 	fragments := input.Fragments
+	generatedDefaultFragments := false
 	if len(fragments) == 0 {
 		fragments, err = defaultTurnFragments(capabilities.definition, view.workspaceRoot, view.additionalWorkspaceRoots, availableSkills, capabilities.selectedSkills, capabilities.AllowedTools, mcpState, r.Memory, responseStyle, r.Config.Execution, view.inspectionProgress)
 		if err != nil {
 			return r.recordTurnFailure(ctx, input.SessionID, input.TurnID, input.UserText, resolvedAttachments, err)
 		}
+		generatedDefaultFragments = true
+	}
+	if generatedDefaultFragments && !workflowPhase.Active && strings.TrimSpace(capabilities.AgentID) == "planner" && r.Config.Workflow.PlannerApproval {
+		fragments = append(fragments, plannerApprovalPromptFragment())
 	}
 	if len(input.AdditionalFragments) > 0 {
 		fragments = append(fragments, input.AdditionalFragments...)

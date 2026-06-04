@@ -14,7 +14,8 @@ func TestLoadRuntimeConfigWithSourcesAppliesStoredWorkflowReviewSettings(t *test
 				Primary: "openai/gpt-5",
 			},
 			Workflow: StoredWorkflowConfig{
-				ReviewMode: "auto",
+				ReviewMode:      "auto",
+				PlannerApproval: boolPtr(true),
 				ReviewModel: StoredModelConfig{
 					Primary: "openai/gpt-5-mini",
 				},
@@ -33,5 +34,8 @@ func TestLoadRuntimeConfigWithSourcesAppliesStoredWorkflowReviewSettings(t *test
 	}
 	if got := config.Workflow.ReviewModelRoute.Primary.String(); got != "openai/gpt-5-mini" {
 		t.Fatalf("review model = %q", got)
+	}
+	if !config.Workflow.PlannerApproval {
+		t.Fatal("planner approval = false, want true")
 	}
 }

@@ -411,8 +411,8 @@ func TestRuntimeRunSessionTurnRemovesTaskWorkflowForReviewPlanHarnessParent(t *t
 	if containsString(gotTools, "task_workflow") {
 		t.Fatalf("review-plan harness parent tools = %#v, want task_workflow excluded", gotTools)
 	}
-	if !containsString(gotTools, "delegate") {
-		t.Fatalf("review-plan harness parent tools = %#v, want delegate preserved", gotTools)
+	if containsString(gotTools, "delegate") {
+		t.Fatalf("review-plan harness parent tools = %#v, want delegate removed", gotTools)
 	}
 }
 

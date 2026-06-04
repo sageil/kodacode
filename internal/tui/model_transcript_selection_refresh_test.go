@@ -240,6 +240,5 @@ func selectionRefreshTestTurn(turnID, callID, assistantText, output string) *eve
 				Succeeded: true,
 			},
 		},
-		Handoffs: map[string]*events.AgentHandoffState{},
 	}
 }

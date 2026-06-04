@@ -167,17 +167,6 @@ func (b *LocalBackend) AnswerQuestion(
 	})
 }
 
-func (b *LocalBackend) AnswerDelegatedQuestion(
-	ctx context.Context,
-	sessionID, handoffID, answer string,
-) (app.AnswerDelegatedSessionQuestionResult, error) {
-	return b.runtime.AnswerDelegatedSessionQuestion(ctx, app.AnswerDelegatedSessionQuestionInput{
-		ParentSessionID: sessionID,
-		HandoffID:       handoffID,
-		Answer:          answer,
-	})
-}
-
 func (b *LocalBackend) ResolvePermission(
 	ctx context.Context,
 	sessionID, turnID, requestID, userText string,
@@ -207,31 +196,6 @@ func (b *LocalBackend) ResolvePermission(
 	return err
 }
 
-func (b *LocalBackend) ResolveDelegatedPermission(
-	ctx context.Context,
-	sessionID, handoffID string,
-	decision events.PermissionDecision,
-	scope events.PermissionScope,
-	grantPath string,
-	recursive bool,
-	executionDecision events.ExecutionApprovalDecision,
-	executionExecPolicy *events.ExecutionPolicyAmendment,
-	executionNetworkPolicy *events.ExecutionNetworkPolicyAmendment,
-) error {
-	_, err := b.runtime.ResolveDelegatedSessionTurn(ctx, app.ResolveDelegatedSessionTurnInput{
-		ParentSessionID:        sessionID,
-		HandoffID:              handoffID,
-		Decision:               decision,
-		Scope:                  scope,
-		GrantPath:              grantPath,
-		Recursive:              recursive,
-		ExecutionDecision:      executionDecision,
-		ExecutionExecPolicy:    executionExecPolicy,
-		ExecutionNetworkPolicy: executionNetworkPolicy,
-	})
-	return err
-}
-
 func (b *LocalBackend) DialogState(_ context.Context) (app.DialogState, error) {
 	return b.runtime.DialogState()
 }
@@ -242,8 +206,4 @@ func (b *LocalBackend) ListSessions(ctx context.Context) ([]app.SessionSummary, 
 
 func (b *LocalBackend) GenerateBranchSummary(ctx context.Context, sessionID string) (app.GenerateBranchSummaryResult, error) {
 	return b.runtime.GenerateBranchSummary(ctx, app.GenerateBranchSummaryInput{SessionID: sessionID})
-}
-
-func (b *LocalBackend) DeleteSession(ctx context.Context, sessionID string) error {
-	return b.runtime.DeleteSession(ctx, sessionID)
 }

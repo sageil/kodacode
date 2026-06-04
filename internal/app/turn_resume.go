@@ -159,19 +159,6 @@ func (r *TurnRunner) resumePendingTool(ctx context.Context, sessionID, turnID st
 	}
 
 	switch {
-	case history.DelegatedHandoff != nil:
-		executeInput := ExecuteToolInput{
-			SessionID:               sessionID,
-			TurnID:                  turnID,
-			ToolCallID:              history.PendingTool.CallID,
-			ToolName:                history.PendingTool.ToolName,
-			ToolKind:                history.PendingTool.ToolKind,
-			Arguments:               json.RawMessage(history.PendingTool.Arguments),
-			AllowedTools:            slices.Clone(allowedTools),
-			TemporaryGrants:         append([]workspace.Grant(nil), history.TemporaryGrants...),
-			TemporaryNetworkTargets: append([]string(nil), history.TemporaryNetworkTargets...),
-		}
-		return r.tools.Execute(ctx, executeInput)
 	case history.QuestionRequest != nil:
 		executeInput := ExecuteToolInput{
 			SessionID:               sessionID,

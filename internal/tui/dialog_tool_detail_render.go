@@ -19,8 +19,6 @@ func toolDetailDialogMarkdownBodyForSession(m Model, sessionID string, state eve
 		return renderCommandToolDetailMarkdownForSession(m, sessionID, ref, call)
 	case isTaskToolCall(call):
 		return renderTaskToolDetailMarkdownForSession(m, sessionID, ref, call)
-	case isDelegateToolCall(call):
-		return renderDelegateToolDetailMarkdownForSession(m, sessionID, ref, call)
 	case strings.TrimSpace(call.ToolName) == "search_skills":
 		output := toolResultOutputForSession(m, sessionID, &ref, call)
 		if body, ok := renderSearchSkillsToolDetailMarkdown(call, output); ok {

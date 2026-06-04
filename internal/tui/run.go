@@ -263,15 +263,6 @@ func initialTurnID(state events.SessionState, startTurn bool) string {
 		}
 	}
 	for idx := len(state.TurnOrder) - 1; idx >= 0; idx-- {
-		turnID := strings.TrimSpace(state.TurnOrder[idx])
-		if turnID == "" {
-			continue
-		}
-		if pendingDelegatedInteractionFromState(state, turnID) != nil {
-			return turnID
-		}
-	}
-	for idx := len(state.TurnOrder) - 1; idx >= 0; idx-- {
 		if turnID := strings.TrimSpace(state.TurnOrder[idx]); turnID != "" {
 			return turnID
 		}

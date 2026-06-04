@@ -126,12 +126,6 @@ func buildSessionConversationStateWithBudgetAndResolverAndBlobs(
 			})
 		case events.OpenAIReasoningCommittedPayload:
 			turn.Inputs = append(turn.Inputs, providerOpenAIReasoningInput(payload.Item))
-		case events.AgentResultReusedPayload:
-			turn.ReusedResults = append(turn.ReusedResults, payload.Content)
-			turn.Inputs = append(turn.Inputs, provider.Input{
-				Kind:    provider.InputKindAssistantMessage,
-				Content: payload.Content,
-			})
 		case events.TurnContinuationStartedPayload:
 			turn.RuntimeNotes = append(turn.RuntimeNotes, replayedSessionRuntimeNote{
 				Sequence: event.Sequence,

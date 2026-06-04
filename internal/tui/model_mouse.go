@@ -372,11 +372,11 @@ func (m Model) handleWideDrawerClick(msg tea.MouseClickMsg) (tea.Model, tea.Cmd,
 				}
 			}
 		}
-		return m, tea.Batch(m.syncComposerFocus(), m.ensureRelevantDelegatedSessionSnapshotsLoadedCmd(m.projector.Snapshot())), true
+		return m, m.syncComposerFocus(), true
 	}
 
 	if m.hasPendingApproval() {
-		return m, tea.Batch(m.syncComposerFocus(), m.ensureRelevantDelegatedSessionSnapshotsLoadedCmd(m.projector.Snapshot())), true
+		return m, m.syncComposerFocus(), true
 	}
 
 	bodyY := localY - tabsHeight
@@ -389,17 +389,15 @@ func (m Model) handleWideDrawerClick(msg tea.MouseClickMsg) (tea.Model, tea.Cmd,
 	if activeTab == inspectorTabTools && len(m.inspector.toolLines) > 0 {
 		action, ok := m.inspector.toolLines[index]
 		if !ok {
-			return m, tea.Batch(m.syncComposerFocus(), m.ensureRelevantDelegatedSessionSnapshotsLoadedCmd(m.projector.Snapshot())), true
+			return m, m.syncComposerFocus(), true
 		}
 		switch action.Kind {
 		case inspectorToolLineToggleGroup:
 			m.toggleInspectorToolGroup(action.GroupID)
 			m.syncInspectorBody(false)
-			return m, tea.Batch(m.syncComposerFocus(), m.ensureRelevantDelegatedSessionSnapshotsLoadedCmd(m.projector.Snapshot())), true
+			return m, m.syncComposerFocus(), true
 		case inspectorToolLineOpenCall:
 			return m, tea.Batch(m.syncComposerFocus(), m.selectInspectorToolTarget(action.Target), m.openInspectorToolTargetDialog(action.Target)), true
-		case inspectorToolLineOpenHandoff:
-			return m, tea.Batch(m.syncComposerFocus(), m.openHandoffDetailDialog(action.Handoff)), true
 		default:
 			return m, m.syncComposerFocus(), true
 		}

@@ -154,7 +154,7 @@ func classifyTurnIssue(err error) turnIssueKind {
 		return turnIssueNoProgress
 	case errors.Is(err, ErrTurnExceededProviderRequestLimit):
 		return turnIssueProviderRequestLimit
-	case errors.Is(err, ErrPlannerSavePlanQuestionRequiresVisiblePlan), errors.Is(err, ErrPlannerSavePlanQuestionInvalid):
+	case errors.Is(err, ErrPlannerSavePlanQuestionRequiresVisiblePlan), errors.Is(err, ErrPlannerSavePlanQuestionInvalid), errors.Is(err, ErrPlannerPlanApprovalDisabled):
 		return turnIssuePlannerContract
 	}
 

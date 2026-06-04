@@ -138,7 +138,6 @@ func TestRenderComposerActivityStripShowsModelWait(t *testing.T) {
 					Steps: 3,
 				},
 				ToolCalls: map[string]*events.ToolCallState{},
-				Handoffs:  map[string]*events.AgentHandoffState{},
 			},
 		},
 	}

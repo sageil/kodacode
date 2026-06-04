@@ -211,7 +211,6 @@ func (p *Projector) ensureTurn(turnID string) *TurnState {
 		TurnID:    turnID,
 		Status:    TurnStatusRunning,
 		ToolCalls: make(map[string]*ToolCallState),
-		Handoffs:  make(map[string]*AgentHandoffState),
 	}
 	p.state.Turns[turnID] = turn
 	p.state.TurnOrder = append(p.state.TurnOrder, turnID)
@@ -263,8 +262,6 @@ func (t *TurnState) clone() *TurnState {
 		Continuation:          cloneHistoryContinuationState(t.Continuation),
 		ContextUsage:          cloneTurnContextUsageState(t.ContextUsage),
 		WorkflowRoute:         cloneWorkflowRouteRecommendationState(t.WorkflowRoute),
-		Handoffs:              make(map[string]*AgentHandoffState, len(t.Handoffs)),
-		HandoffOrder:          append([]string(nil), t.HandoffOrder...),
 		AssistantText:         t.AssistantText,
 		StreamingText:         t.StreamingText,
 		ReasoningText:         t.ReasoningText,
@@ -299,9 +296,6 @@ func (t *TurnState) clone() *TurnState {
 		copyCall.OutputBlob = cloneToolResultBlobRef(call.OutputBlob)
 		copyCall.ErrorBlob = cloneToolResultBlobRef(call.ErrorBlob)
 		out.ToolCalls[id] = &copyCall
-	}
-	for id, handoff := range t.Handoffs {
-		out.Handoffs[id] = cloneAgentHandoffState(handoff)
 	}
 	return out
 }

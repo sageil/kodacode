@@ -58,16 +58,24 @@ func (e *ToolExecutor) executeWithEventAppender(ctx context.Context, input Execu
 	} else {
 		input.Arguments = normalized
 	}
-	if err := enforcePlannerSavePlanQuestionShape(input); err != nil {
+	if err := enforcePlannerSavePlanQuestionWorkflowBoundary(state, input); err != nil {
 		return e.completeToolPreflightError(ctx, appender, input, err, retryOfCallID)
 	}
-	if err := enforcePlannerSavePlanQuestionVisible(state, input); err != nil {
-		return e.completeToolPreflightError(ctx, appender, input, err, retryOfCallID)
+	if isPlannerSavePlanQuestion(input.ToolName, input.Arguments) && !e.plannerApprovalEnabled() {
+		return e.completeToolPreflightError(ctx, appender, input, ErrPlannerPlanApprovalDisabled, retryOfCallID)
 	}
-	if normalized, err := e.preparePlannerSavePlanQuestion(ctx, state, input); err != nil {
-		return e.completeToolPreflightError(ctx, appender, input, err, retryOfCallID)
-	} else {
-		input = normalized
+	if e.plannerApprovalEnabled() {
+		if err := enforcePlannerSavePlanQuestionShape(input); err != nil {
+			return e.completeToolPreflightError(ctx, appender, input, err, retryOfCallID)
+		}
+		if err := enforcePlannerSavePlanQuestionVisible(state, input); err != nil {
+			return e.completeToolPreflightError(ctx, appender, input, err, retryOfCallID)
+		}
+		if normalized, err := e.preparePlannerSavePlanQuestion(ctx, state, input); err != nil {
+			return e.completeToolPreflightError(ctx, appender, input, err, retryOfCallID)
+		} else {
+			input = normalized
+		}
 	}
 	if result, handled, err := e.authorizeToolPaths(ctx, tl, state, &input); handled {
 		if err != nil {
@@ -121,20 +129,13 @@ func (e *ToolExecutor) executeWithEventAppender(ctx context.Context, input Execu
 	result, execErr := tl.Execute(ctx, execCtx, input.Arguments)
 	output := result.Output
 	errorText := result.Error
-	if execErr == nil && strings.TrimSpace(errorText) == "" {
-		if approvalResult, handled, err := e.requestPlannerPlanApprovalForDelegateResult(ctx, input, output); handled || err != nil {
-			return approvalResult, err
-		}
-	}
-	handoffID := delegateHandoffIDFromToolResult(input.ToolName, output)
-	pendingHandoffID := delegatePendingHandoffIDFromToolResult(input.ToolName, output)
 	if execErr != nil {
 		errorText = toolExecutionErrorText(input.ToolName, execErr)
 	}
 	errorDetail := toolExecutionErrorDetail(input, execErr, errorText)
 	if strings.TrimSpace(result.PendingQuestionID) != "" {
 		if execErr != nil || strings.TrimSpace(result.Output) != "" || strings.TrimSpace(result.Error) != "" || result.Execution != nil {
-			return e.completeToolPostflightError(ctx, appender, input, "", nil, nil, ErrToolPendingQuestionConflict, retryOfCallID, handoffID)
+			return e.completeToolPostflightError(ctx, appender, input, "", nil, nil, ErrToolPendingQuestionConflict, retryOfCallID)
 		}
 		e.logger.Op("tool execution pending question",
 			"session_id", input.SessionID,
@@ -149,25 +150,8 @@ func (e *ToolExecutor) executeWithEventAppender(ctx context.Context, input Execu
 			PendingRequestID:   result.PendingQuestionID,
 		}, nil
 	}
-	if strings.TrimSpace(pendingHandoffID) != "" {
-		if execErr != nil || strings.TrimSpace(errorText) != "" || result.Execution != nil {
-			return e.completeToolPostflightError(ctx, appender, input, output, nil, result.Execution, ErrToolPendingQuestionConflict, retryOfCallID, handoffID)
-		}
-		e.logger.Op("tool execution pending delegated handoff",
-			"session_id", input.SessionID,
-			"turn_id", input.TurnID,
-			"tool_call_id", input.ToolCallID,
-			"tool_name", input.ToolName,
-			"handoff_id", pendingHandoffID,
-		)
-		return ToolExecutionResult{
-			Status:             ToolExecutionStatusPending,
-			CanonicalArguments: string(input.Arguments),
-			PendingRequestID:   pendingHandoffID,
-		}, nil
-	}
 	if err := validateMutationResultContract(input.ToolName, input.Arguments, output, errorText, result.MutationRanges); err != nil {
-		return e.completeToolPostflightError(ctx, appender, input, output, result.ObservedResources, result.Execution, err, retryOfCallID, handoffID)
+		return e.completeToolPostflightError(ctx, appender, input, output, result.ObservedResources, result.Execution, err, retryOfCallID)
 	}
 	if execErr == nil && strings.TrimSpace(errorText) == "" {
 		output = e.syncCodeIntelMutationAndAugmentOutput(ctx, state, scope, input, output)
@@ -200,7 +184,6 @@ func (e *ToolExecutor) executeWithEventAppender(ctx context.Context, input Execu
 		ToolName:          input.ToolName,
 		ToolKind:          string(inputToolKindOrDefault(input.ToolKind)),
 		RetryOfCallID:     retryOfCallID,
-		HandoffID:         handoffID,
 		Output:            stored.Output,
 		Error:             stored.Error,
 		ErrorDetail:       errorDetail,

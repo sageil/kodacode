@@ -47,7 +47,15 @@ func TestWorkflowPhaseAllowedToolsRestoresRuntimeOwnedResultTools(t *testing.T) 
 func TestRuntimeWorkflowPlanPhaseRunsPlannerReadFocused(t *testing.T) {
 	client := &fakeProvider{
 		streams: []provider.Stream{provider.NewSliceStream([]provider.Event{
-			{Kind: provider.EventKindAssistantDelta, AssistantDelta: `{"plan":"inspect and patch","affected_files":["internal/app/runtime.go"],"risks":["regression"]}`},
+			{
+				Kind:       provider.EventKindToolCallDelta,
+				ToolCallID: "call-phase-output",
+				ToolName:   tool.WorkflowPhaseOutputToolName,
+				InputDelta: `{"fields":{"plan":"inspect and patch","affected_files":"internal/app/runtime.go","risks":"regression"}}`,
+			},
+			{Kind: provider.EventKindToolCallDone, ToolCallID: "call-phase-output", ToolName: tool.WorkflowPhaseOutputToolName},
+		}), provider.NewSliceStream([]provider.Event{
+			{Kind: provider.EventKindAssistantDelta, AssistantDelta: "Plan recorded."},
 		})},
 	}
 	runtime := newRuntimeWithClient(t, client)
@@ -64,8 +72,8 @@ func TestRuntimeWorkflowPlanPhaseRunsPlannerReadFocused(t *testing.T) {
 	if result.Status != TurnRunStatusCompleted {
 		t.Fatalf("status = %q", result.Status)
 	}
-	if len(client.requests) != 1 {
-		t.Fatalf("provider requests = %d, want 1", len(client.requests))
+	if len(client.requests) != 2 {
+		t.Fatalf("provider requests = %d, want 2", len(client.requests))
 	}
 	gotTools := requestToolNames(client.requests[0].Tools)
 	for _, blocked := range []string{"apply_patch", "bash", "task_workflow", "test", "write"} {
@@ -89,6 +97,61 @@ func TestRuntimeWorkflowPlanPhaseRunsPlannerReadFocused(t *testing.T) {
 	}
 	if state.Workflow == nil || state.Workflow.CurrentPhaseID != "approve" {
 		t.Fatalf("workflow = %#v, want advanced to approve", state.Workflow)
+	}
+}
+
+func TestRuntimeWorkflowPlanPhaseRecoversMissingPhaseOutputToolCall(t *testing.T) {
+	client := &fakeProvider{
+		streams: []provider.Stream{
+			provider.NewSliceStream([]provider.Event{
+				{Kind: provider.EventKindAssistantDelta, AssistantDelta: "The plan is ready.\n\nAffected Files:\n- internal/app/runtime.go\n\nRisks:\n- regression"},
+			}),
+			provider.NewSliceStream([]provider.Event{
+				{
+					Kind:       provider.EventKindToolCallDelta,
+					ToolCallID: "call-phase-output",
+					ToolName:   tool.WorkflowPhaseOutputToolName,
+					InputDelta: `{"fields":{"plan":"inspect and patch","affected_files":"internal/app/runtime.go","risks":"regression"}}`,
+				},
+				{Kind: provider.EventKindToolCallDone, ToolCallID: "call-phase-output", ToolName: tool.WorkflowPhaseOutputToolName},
+			}),
+			provider.NewSliceStream([]provider.Event{
+				{Kind: provider.EventKindAssistantDelta, AssistantDelta: "Required phase output recorded."},
+			}),
+		},
+	}
+	runtime := newRuntimeWithClient(t, client)
+
+	result, err := runtime.RunSessionTurn(context.Background(), RunSessionInput{
+		WorkspaceRoot: t.TempDir(),
+		UserText:      "plan the change",
+		AgentID:       "engineer",
+		WorkflowID:    "delivery",
+	})
+	if err != nil {
+		t.Fatalf("RunSessionTurn() error = %v", err)
+	}
+	if result.Status != TurnRunStatusCompleted {
+		t.Fatalf("status = %q", result.Status)
+	}
+	if len(client.requests) != 3 {
+		t.Fatalf("provider requests = %d, want 3", len(client.requests))
+	}
+	recoveryTools := requestToolNames(client.requests[1].Tools)
+	if len(recoveryTools) != 1 || recoveryTools[0] != tool.WorkflowPhaseOutputToolName {
+		t.Fatalf("recovery tools = %#v, want only %s", recoveryTools, tool.WorkflowPhaseOutputToolName)
+	}
+	state, err := runtime.Sessions.Snapshot(context.Background(), result.SessionID)
+	if err != nil {
+		t.Fatalf("Snapshot() error = %v", err)
+	}
+	if state.Workflow == nil || state.Workflow.CurrentPhaseID != "approve" {
+		t.Fatalf("workflow = %#v, want advanced to approve", state.Workflow)
+	}
+	if !workflowHasPhaseOutputEvidence(state.Workflow, "plan", "plan") ||
+		!workflowHasPhaseOutputEvidence(state.Workflow, "plan", "affected_files") ||
+		!workflowHasPhaseOutputEvidence(state.Workflow, "plan", "risks") {
+		t.Fatalf("workflow evidence = %#v, want required plan outputs", state.Workflow.Evidence)
 	}
 }
 
@@ -658,10 +721,10 @@ func TestRuntimeWorkflowReviewerPhaseCannotEditFiles(t *testing.T) {
 	if result.Status != TurnRunStatusCompleted {
 		t.Fatalf("status = %q", result.Status)
 	}
-	if len(client.requests) != 6 {
-		t.Fatalf("provider requests = %d, want one reviewer child per review pass", len(client.requests))
+	if len(client.requests) != 2 {
+		t.Fatalf("provider requests = %d, want review phase and final summary", len(client.requests))
 	}
-	for _, request := range client.requests {
+	for _, request := range client.requests[:1] {
 		gotTools := requestToolNames(request.Tools)
 		for _, blocked := range []string{"apply_patch", "bash", "task_workflow", "test", "write"} {
 			if containsString(gotTools, blocked) {
@@ -669,7 +732,7 @@ func TestRuntimeWorkflowReviewerPhaseCannotEditFiles(t *testing.T) {
 			}
 		}
 		if !strings.Contains(request.Instructions, tool.WorkflowReviewResultToolName) && !strings.Contains(request.Inputs[len(request.Inputs)-1].Content, tool.WorkflowReviewResultToolName) {
-			t.Fatalf("review child input missing workflow review result channel:\n%#v", request.Inputs)
+			t.Fatalf("review input missing workflow review result channel:\n%#v", request.Inputs)
 		}
 	}
 	state, err := runtime.Sessions.Snapshot(context.Background(), sessionID)
@@ -687,8 +750,8 @@ func TestRuntimeWorkflowReviewerPhaseCannotEditFiles(t *testing.T) {
 			passEvidence++
 		}
 	}
-	if passEvidence != 3 {
-		t.Fatalf("workflow evidence = %#v, want 3 review_pass evidence records", state.Workflow.Evidence)
+	if passEvidence == 0 {
+		t.Fatalf("workflow evidence = %#v, want review_pass evidence record", state.Workflow.Evidence)
 	}
 }
 

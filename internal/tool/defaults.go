@@ -7,7 +7,6 @@ func DefaultRuntimeTools() []Tool {
 		NewApplyPatchTool(),
 		NewBashTool(),
 		NewCodeActionTool(),
-		NewDelegateTool(),
 		NewDefinitionTool(),
 		NewDiagnosticsTool(),
 		NewGitDiffTool(),

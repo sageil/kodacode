@@ -41,10 +41,6 @@ type Backend interface {
 		sessionID, turnID, requestID, userText, answer string,
 		skillIDs []string,
 	) (app.RunSessionResult, error)
-	AnswerDelegatedQuestion(
-		ctx context.Context,
-		sessionID, handoffID, answer string,
-	) (app.AnswerDelegatedSessionQuestionResult, error)
 	ResolvePermission(
 		ctx context.Context,
 		sessionID, turnID, requestID, userText string,
@@ -57,22 +53,10 @@ type Backend interface {
 		executionExecPolicy *events.ExecutionPolicyAmendment,
 		executionNetworkPolicy *events.ExecutionNetworkPolicyAmendment,
 	) error
-	ResolveDelegatedPermission(
-		ctx context.Context,
-		sessionID, handoffID string,
-		decision events.PermissionDecision,
-		scope events.PermissionScope,
-		grantPath string,
-		recursive bool,
-		executionDecision events.ExecutionApprovalDecision,
-		executionExecPolicy *events.ExecutionPolicyAmendment,
-		executionNetworkPolicy *events.ExecutionNetworkPolicyAmendment,
-	) error
 	DialogState(ctx context.Context) (app.DialogState, error)
 	ListSessions(ctx context.Context) ([]app.SessionSummary, error)
 	GenerateBranchSummary(ctx context.Context, sessionID string) (app.GenerateBranchSummaryResult, error)
 	ListPromptHistory(ctx context.Context, limit int) ([]app.PromptHistoryEntry, error)
-	DeleteSession(ctx context.Context, sessionID string) error
 	SetSessionTitle(ctx context.Context, sessionID, title string) error
 	SetThemeName(ctx context.Context, themeName string) error
 	SetTUILayout(ctx context.Context, layout string) error

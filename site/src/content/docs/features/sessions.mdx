@@ -30,9 +30,8 @@ expires derived artifacts and cache data:
 - persisted search-cache files on disk
 - app log files
 
-Session removal is explicit. Open `/sessions` when you want to inspect, switch,
-delete, or purge stored sessions. That delete path removes the session event
-history and the related derived artifacts together.
+Stored session history is retained explicitly. The TUI no longer exposes a
+session manager for deleting or purging saved sessions.
 
 ## Timeline branching
 
@@ -155,7 +154,6 @@ The advantage of session configuration is not just persistence.
 
 ## TUI session commands
 
-- `/sessions`: open the workspace session manager to resume, switch, delete, or purge sessions
 - `/timeline`: branch a new session from a completed turn in the current session
 - `/compact`: rebuild older session history into the saved `History Summary` now
 - `/new`: start a new session

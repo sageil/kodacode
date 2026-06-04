@@ -46,7 +46,6 @@ func TestRenderOutcomeToolsListInspectorWaitsForToolCallDeclared(t *testing.T) {
 						Succeeded: true,
 					},
 				},
-				Handoffs: map[string]*events.AgentHandoffState{},
 			},
 		},
 	}
@@ -96,7 +95,6 @@ func TestRenderOutcomeToolsListInspectorShowsRunningToolCallPreview(t *testing.T
 						Input:    `{"query":"vite"`,
 					},
 				},
-				Handoffs: map[string]*events.AgentHandoffState{},
 			},
 		},
 	}
@@ -143,7 +141,6 @@ func TestRenderGroupedToolsInspectorTreatsRefsAsExploration(t *testing.T) {
 						Succeeded: true,
 					},
 				},
-				Handoffs: map[string]*events.AgentHandoffState{},
 			},
 		},
 	}
@@ -193,7 +190,6 @@ func TestRenderTranscriptMessagesSkipsRunningLocatePreview(t *testing.T) {
 						Input:    `{"query":"vite"`,
 					},
 				},
-				Handoffs: map[string]*events.AgentHandoffState{},
 			},
 		},
 	}
@@ -254,16 +250,14 @@ func TestRenderOutcomeToolsListInspectorKeepsLongRowsOnOneLine(t *testing.T) {
 				ToolCalls: map[string]*events.ToolCallState{
 					"call-1": {
 						CallID:    "call-1",
-						ToolName:  "delegate",
-						HandoffID: "handoff-1",
-						Input:     `{"agent_id":"docs","task":"Update the subagent documentation with live preview behavior and child-session navigation notes.","context_summary":"Document the finished UI behavior."}`,
-						Output:    `{"handoff_id":"handoff-1","child_session_id":"session-child-1","child_turn_id":"turn-child-1","child_agent_id":"docs","status":"completed","assistant_text":"Updated the docs."}`,
+						ToolName:  "web_search",
+						Input:     `{"query":"Update the workflow documentation with live preview behavior and session navigation notes for the current shell UI"}`,
+						Output:    `{"results":[]}`,
 						Declared:  true,
 						Completed: true,
 						Succeeded: true,
 					},
 				},
-				Handoffs: map[string]*events.AgentHandoffState{},
 			},
 		},
 	}
@@ -279,8 +273,8 @@ func TestRenderOutcomeToolsListInspectorKeepsLongRowsOnOneLine(t *testing.T) {
 	if strings.Contains(rendered, "\n ") {
 		t.Fatalf("tools inspector should not indent wrapped continuation lines:\n%s", rendered)
 	}
-	if !strings.Contains(rendered, "delegate docs") {
-		t.Fatalf("tools inspector missing delegate label:\n%s", rendered)
+	if !strings.Contains(rendered, "web_search") {
+		t.Fatalf("tools inspector missing web search label:\n%s", rendered)
 	}
 }
 
@@ -323,7 +317,6 @@ func TestRenderGroupedToolsInspectorKeepsLongItemsOnOneLine(t *testing.T) {
 						Succeeded: true,
 					},
 				},
-				Handoffs: map[string]*events.AgentHandoffState{},
 			},
 		},
 	}
@@ -373,7 +366,6 @@ func TestRenderGroupedToolsInspectorShowsQuestionPrompt(t *testing.T) {
 						Succeeded: true,
 					},
 				},
-				Handoffs: map[string]*events.AgentHandoffState{},
 			},
 		},
 	}
@@ -432,7 +424,6 @@ func TestRenderGroupedToolsInspectorFlattensSingleUsedWebSearchGroup(t *testing.
 						Error:     "blocked",
 					},
 				},
-				Handoffs: map[string]*events.AgentHandoffState{},
 			},
 		},
 	}
@@ -483,7 +474,6 @@ func TestRenderGroupedToolsInspectorFlattensSingleLoadedSkillGroup(t *testing.T)
 						Succeeded: true,
 					},
 				},
-				Handoffs: map[string]*events.AgentHandoffState{},
 			},
 		},
 	}
@@ -528,7 +518,6 @@ func TestRenderOutcomeToolsListInspectorFlattensMultilineToolDetail(t *testing.T
 						Error:     "npx tsc --noEmit\nsrc/a.ts src/b.ts 2>&1 · failed",
 					},
 				},
-				Handoffs: map[string]*events.AgentHandoffState{},
 			},
 		},
 	}
@@ -701,7 +690,6 @@ func TestRenderGroupedToolsInspectorKeepsMutationErrorsOutOfListRows(t *testing.
 						Succeeded: false,
 					},
 				},
-				Handoffs: map[string]*events.AgentHandoffState{},
 			},
 		},
 	}
@@ -757,7 +745,6 @@ func TestRenderGroupedToolsInspectorShowsApplyPatchPathsForFailedAttempts(t *tes
 						Succeeded: false,
 					},
 				},
-				Handoffs: map[string]*events.AgentHandoffState{},
 			},
 		},
 	}
@@ -818,7 +805,6 @@ func TestRenderGroupedToolsInspectorHidesFailedApplyPatchWhenSameFilesLaterSucce
 						}},
 					},
 				},
-				Handoffs: map[string]*events.AgentHandoffState{},
 			},
 		},
 	}
@@ -870,7 +856,6 @@ func TestRenderGroupedToolsInspectorHidesApplyPatchNoop(t *testing.T) {
 						Succeeded: true,
 					},
 				},
-				Handoffs: map[string]*events.AgentHandoffState{},
 			},
 		},
 	}
@@ -918,7 +903,6 @@ func TestRenderOutcomeToolsListInspectorShowsMultiFileMutationNames(t *testing.T
 						}},
 					},
 				},
-				Handoffs: map[string]*events.AgentHandoffState{},
 			},
 		},
 	}
@@ -929,603 +913,6 @@ func TestRenderOutcomeToolsListInspectorShowsMultiFileMutationNames(t *testing.T
 	}
 	if strings.Contains(rendered, "2 files changed") {
 		t.Fatalf("tools inspector used generic multi-file mutation label:\n%s", rendered)
-	}
-}
-
-func TestRenderGroupedToolsInspectorShowsInlineDelegatedChildTools(t *testing.T) {
-	defaultTheme := theme.StaticDefault()
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	model := NewModel(&fakeController{}, ModelConfig{
-		Context:       ctx,
-		Theme:         &defaultTheme,
-		SessionID:     "session-parent",
-		TurnID:        "turn-parent",
-		WorkspaceRoot: "/repo",
-	})
-	parentState := events.SessionState{
-		SessionID:     "session-parent",
-		WorkspaceRoot: "/repo",
-		TurnOrder:     []string{"turn-parent"},
-		Turns: map[string]*events.TurnState{
-			"turn-parent": {
-				TurnID:       "turn-parent",
-				HandoffOrder: []string{"handoff-1"},
-				Handoffs: map[string]*events.AgentHandoffState{
-					"handoff-1": {
-						HandoffID:      "handoff-1",
-						ChildSessionID: "session-child",
-						ChildTurnID:    "turn-child",
-						ChildAgentID:   "planner",
-						Status:         events.AgentResultStatusCompleted,
-					},
-				},
-				ToolCallOrder: []string{"call-parent"},
-				ToolCalls: map[string]*events.ToolCallState{
-					"call-parent": {
-						CallID:    "call-parent",
-						ToolName:  "delegate",
-						HandoffID: "handoff-1",
-						Input:     `{"agent_id":"planner","task":"Inspect performance hotspots.","context_summary":"Focus on delegated execution."}`,
-						Declared:  true,
-						Completed: true,
-						Succeeded: true,
-					},
-				},
-			},
-		},
-	}
-	childState := events.SessionState{
-		SessionID:     "session-child",
-		WorkspaceRoot: "/repo",
-		TurnOrder:     []string{"turn-child"},
-		Turns: map[string]*events.TurnState{
-			"turn-child": {
-				TurnID:        "turn-child",
-				ToolCallOrder: []string{"call-1", "call-2"},
-				ToolCalls: map[string]*events.ToolCallState{
-					"call-1": {
-						CallID:    "call-1",
-						ToolName:  "search",
-						Input:     `{"query":"performance hotspots","path":"internal/app"}`,
-						Declared:  true,
-						Completed: true,
-						Succeeded: true,
-					},
-					"call-2": {
-						CallID:    "call-2",
-						ToolName:  "read",
-						Input:     `{"paths":["internal/app/runtime_delegate.go"],"start_line":1,"max_lines":80}`,
-						Output:    "1: package app",
-						Declared:  true,
-						Completed: true,
-						Succeeded: true,
-					},
-				},
-			},
-		},
-	}
-
-	model.delegatedSnapshots.snapshots["session-child"] = childState
-
-	rendered := ansi.Strip(renderGroupedToolsInspector(model, parentState, 48).Content)
-	normalized := strings.Join(strings.Fields(rendered), " ")
-	if strings.Contains(normalized, "Use delegate planner") {
-		t.Fatalf("grouped tools inspector still shows parent delegate tool row\nrendered:\n%s", rendered)
-	}
-	if !strings.Contains(normalized, "Planner") {
-		t.Fatalf("grouped tools inspector missing delegated agent header\nrendered:\n%s", rendered)
-	}
-	if !strings.Contains(normalized, "Inspect performance hotspots.") {
-		t.Fatalf("grouped tools inspector missing delegated task summary\nrendered:\n%s", rendered)
-	}
-	if !strings.Contains(normalized, "Search internal/app for performance hotspots") {
-		t.Fatalf("delegated grouped tools inspector missing child search row\nrendered:\n%s", rendered)
-	}
-	if !strings.Contains(normalized, "Read runtime_delegate.go") {
-		t.Fatalf("delegated grouped tools inspector missing child read row\nrendered:\n%s", rendered)
-	}
-	if !strings.Contains(normalized, "Explored") {
-		t.Fatalf("delegated grouped tools inspector missing nested child group header\nrendered:\n%s", rendered)
-	}
-}
-
-func TestRenderGroupedToolsInspectorShowsLiveDelegatedChildToolsBeforeDelegateCompletes(t *testing.T) {
-	defaultTheme := theme.StaticDefault()
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	model := NewModel(&fakeController{}, ModelConfig{
-		Context:       ctx,
-		Theme:         &defaultTheme,
-		SessionID:     "session-parent",
-		TurnID:        "turn-parent",
-		WorkspaceRoot: "/repo",
-	})
-	parentState := events.SessionState{
-		SessionID:     "session-parent",
-		WorkspaceRoot: "/repo",
-		TurnOrder:     []string{"turn-parent"},
-		Turns: map[string]*events.TurnState{
-			"turn-parent": {
-				TurnID:       "turn-parent",
-				HandoffOrder: []string{"handoff-1"},
-				Handoffs: map[string]*events.AgentHandoffState{
-					"handoff-1": {
-						HandoffID:      "handoff-1",
-						ToolCallID:     "call-parent",
-						ChildSessionID: "session-child",
-						ChildTurnID:    "turn-child",
-						ChildAgentID:   "reviewer",
-						PreviewActive:  true,
-					},
-				},
-				ToolCallOrder: []string{"call-parent"},
-				ToolCalls: map[string]*events.ToolCallState{
-					"call-parent": {
-						CallID:    "call-parent",
-						ToolName:  "delegate",
-						Input:     `{"agent_id":"reviewer","task":"Perform a complete code review.","context_summary":"Focus on the current codebase."}`,
-						Declared:  true,
-						Executing: true,
-					},
-				},
-			},
-		},
-	}
-	childState := events.SessionState{
-		SessionID:     "session-child",
-		WorkspaceRoot: "/repo",
-		TurnOrder:     []string{"turn-child"},
-		Turns: map[string]*events.TurnState{
-			"turn-child": {
-				TurnID:        "turn-child",
-				ToolCallOrder: []string{"call-1"},
-				ToolCalls: map[string]*events.ToolCallState{
-					"call-1": {
-						CallID:    "call-1",
-						ToolName:  "read",
-						Input:     `{"paths":["src/server.ts"],"start_line":1,"max_lines":80}`,
-						Declared:  true,
-						Executing: true,
-					},
-				},
-			},
-		},
-	}
-
-	model.delegatedSnapshots.snapshots["session-child"] = childState
-
-	rendered := ansi.Strip(renderGroupedToolsInspector(model, parentState, 56).Content)
-	normalized := strings.Join(strings.Fields(rendered), " ")
-	if strings.Contains(normalized, "Use delegate reviewer") {
-		t.Fatalf("grouped tools inspector still shows parent delegate row while delegate is live\nrendered:\n%s", rendered)
-	}
-	if !strings.Contains(normalized, "Reviewer") {
-		t.Fatalf("grouped tools inspector missing delegated agent header\nrendered:\n%s", rendered)
-	}
-	if !strings.Contains(normalized, "Perform a complete code review.") {
-		t.Fatalf("grouped tools inspector missing delegated task summary\nrendered:\n%s", rendered)
-	}
-	if !strings.Contains(normalized, "Reading server.ts") {
-		t.Fatalf("grouped tools inspector missing live delegated child tool row\nrendered:\n%s", rendered)
-	}
-	if !strings.Contains(normalized, "Exploring") {
-		t.Fatalf("grouped tools inspector missing live delegated child status group\nrendered:\n%s", rendered)
-	}
-}
-
-func TestRenderGroupedToolsInspectorHidesSupersededDelegateAttempt(t *testing.T) {
-	defaultTheme := theme.StaticDefault()
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	model := NewModel(&fakeController{}, ModelConfig{
-		Context:       ctx,
-		Theme:         &defaultTheme,
-		SessionID:     "session-parent",
-		TurnID:        "turn-parent",
-		WorkspaceRoot: "/repo",
-	})
-	parentState := events.SessionState{
-		SessionID:     "session-parent",
-		WorkspaceRoot: "/repo",
-		TurnOrder:     []string{"turn-parent"},
-		Turns: map[string]*events.TurnState{
-			"turn-parent": {
-				TurnID:       "turn-parent",
-				HandoffOrder: []string{"handoff-1"},
-				Handoffs: map[string]*events.AgentHandoffState{
-					"handoff-1": {
-						HandoffID:      "handoff-1",
-						ToolCallID:     "call-success",
-						ChildSessionID: "session-child",
-						ChildTurnID:    "turn-child",
-						ChildAgentID:   "planner",
-						Status:         events.AgentResultStatusCompleted,
-					},
-				},
-				ToolCallOrder: []string{"call-fail", "call-success"},
-				ToolCalls: map[string]*events.ToolCallState{
-					"call-fail": {
-						CallID:    "call-fail",
-						ToolName:  "delegate",
-						Input:     `{"agent_id":"planner","task":"Identify the required steps to add Windows authentication.","context_summary":"Ground the plan in the repository."}`,
-						Error:     "agent not found: planner",
-						Declared:  true,
-						Completed: true,
-						Succeeded: false,
-					},
-					"call-success": {
-						CallID:    "call-success",
-						ToolName:  "delegate",
-						HandoffID: "handoff-1",
-						Input:     `{"agent_id":"planner","task":"Identify the required steps to add Windows authentication.","context_summary":"Ground the plan in the repository."}`,
-						Output:    `{"handoff_id":"handoff-1","child_session_id":"session-child","child_turn_id":"turn-child","child_agent_id":"planner","status":"completed","assistant_text":"Planned the work."}`,
-						Declared:  true,
-						Completed: true,
-						Succeeded: true,
-					},
-				},
-			},
-		},
-	}
-	childState := events.SessionState{
-		SessionID:     "session-child",
-		WorkspaceRoot: "/repo",
-		TurnOrder:     []string{"turn-child"},
-		Turns: map[string]*events.TurnState{
-			"turn-child": {
-				TurnID:        "turn-child",
-				ToolCallOrder: []string{"call-1"},
-				ToolCalls: map[string]*events.ToolCallState{
-					"call-1": {
-						CallID:    "call-1",
-						ToolName:  "read",
-						Input:     `{"paths":["src/models/User.ts"],"start_line":1,"max_lines":37}`,
-						Output:    "1: export interface User {}",
-						Declared:  true,
-						Completed: true,
-						Succeeded: true,
-					},
-				},
-			},
-		},
-	}
-
-	model.delegatedSnapshots.snapshots["session-child"] = childState
-
-	refs := orderedSessionToolCallRefs(parentState)
-	if len(refs) != 1 || refs[0].CallID != "call-success" {
-		t.Fatalf("orderedSessionToolCallRefs() = %#v, want only latest delegate call", refs)
-	}
-
-	rendered := ansi.Strip(renderGroupedToolsInspector(model, parentState, 56).Content)
-	normalized := strings.Join(strings.Fields(rendered), " ")
-	if strings.Contains(normalized, "Use delegate") {
-		t.Fatalf("grouped tools inspector still shows generic delegate row\nrendered:\n%s", rendered)
-	}
-	if strings.Contains(normalized, "Planner · failed") {
-		t.Fatalf("grouped tools inspector still shows superseded delegate failure\nrendered:\n%s", rendered)
-	}
-	if strings.Contains(normalized, "Use failed") {
-		t.Fatalf("grouped tools inspector still shows failed group for superseded delegate attempt\nrendered:\n%s", rendered)
-	}
-	if !strings.Contains(normalized, "Read User.ts") {
-		t.Fatalf("grouped tools inspector missing delegated child tool rows\nrendered:\n%s", rendered)
-	}
-}
-
-func TestRenderGroupedToolsInspectorShowsCompletedNoToolsMessageForDelegatedChild(t *testing.T) {
-	defaultTheme := theme.StaticDefault()
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	model := NewModel(&fakeController{}, ModelConfig{
-		Context:       ctx,
-		Theme:         &defaultTheme,
-		SessionID:     "session-parent",
-		TurnID:        "turn-parent",
-		WorkspaceRoot: "/repo",
-	})
-	parentState := events.SessionState{
-		SessionID:     "session-parent",
-		WorkspaceRoot: "/repo",
-		TurnOrder:     []string{"turn-parent"},
-		Turns: map[string]*events.TurnState{
-			"turn-parent": {
-				TurnID:       "turn-parent",
-				HandoffOrder: []string{"handoff-1"},
-				Handoffs: map[string]*events.AgentHandoffState{
-					"handoff-1": {
-						HandoffID:      "handoff-1",
-						ChildSessionID: "session-child",
-						ChildTurnID:    "turn-child",
-						ChildAgentID:   "planner",
-						Status:         events.AgentResultStatusCompleted,
-					},
-				},
-				ToolCallOrder: []string{"call-parent"},
-				ToolCalls: map[string]*events.ToolCallState{
-					"call-parent": {
-						CallID:    "call-parent",
-						ToolName:  "delegate",
-						HandoffID: "handoff-1",
-						Input:     `{"agent_id":"planner","task":"Plan auth.","context_summary":"Delegated planning."}`,
-						Declared:  true,
-						Completed: true,
-						Succeeded: true,
-					},
-				},
-			},
-		},
-	}
-	childState := events.SessionState{
-		SessionID:     "session-child",
-		WorkspaceRoot: "/repo",
-		TurnOrder:     []string{"turn-child"},
-		Turns: map[string]*events.TurnState{
-			"turn-child": {
-				TurnID: "turn-child",
-				Status: events.TurnStatusCompleted,
-			},
-		},
-	}
-
-	model.delegatedSnapshots.snapshots["session-child"] = childState
-
-	rendered := ansi.Strip(renderGroupedToolsInspector(model, parentState, 56).Content)
-	if !strings.Contains(rendered, "completed without using tools") {
-		t.Fatalf("grouped tools inspector missing completed-without-tools label\nrendered:\n%s", rendered)
-	}
-	if strings.Contains(rendered, "No child tool calls yet.") {
-		t.Fatalf("grouped tools inspector still shows stale loading-style empty label\nrendered:\n%s", rendered)
-	}
-}
-
-func TestRenderGroupedToolsInspectorShowsDelegatedToolsFromPreviousChildTurns(t *testing.T) {
-	defaultTheme := theme.StaticDefault()
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	model := NewModel(&fakeController{}, ModelConfig{
-		Context:       ctx,
-		Theme:         &defaultTheme,
-		SessionID:     "session-parent",
-		TurnID:        "turn-parent",
-		WorkspaceRoot: "/repo",
-	})
-	parentState := events.SessionState{
-		SessionID:     "session-parent",
-		WorkspaceRoot: "/repo",
-		TurnOrder:     []string{"turn-parent"},
-		Turns: map[string]*events.TurnState{
-			"turn-parent": {
-				TurnID:       "turn-parent",
-				HandoffOrder: []string{"handoff-1"},
-				Handoffs: map[string]*events.AgentHandoffState{
-					"handoff-1": {
-						HandoffID:      "handoff-1",
-						ChildSessionID: "session-child",
-						ChildTurnID:    "turn-repair",
-						ChildAgentID:   "reviewer",
-						Task:           "Perform a complete performance review.",
-						Status:         events.AgentResultStatusCompleted,
-					},
-				},
-				ToolCallOrder: []string{"call-parent"},
-				ToolCalls: map[string]*events.ToolCallState{
-					"call-parent": {
-						CallID:    "call-parent",
-						ToolName:  "delegate",
-						HandoffID: "handoff-1",
-						Input:     `{"agent_id":"reviewer","task":"Perform a complete performance review.","context_summary":"Inspect the app."}`,
-						Declared:  true,
-						Completed: true,
-						Succeeded: true,
-					},
-				},
-			},
-		},
-	}
-	childState := events.SessionState{
-		SessionID:     "session-child",
-		WorkspaceRoot: "/repo",
-		TurnOrder:     []string{"turn-review", "turn-repair"},
-		Turns: map[string]*events.TurnState{
-			"turn-review": {
-				TurnID:        "turn-review",
-				Status:        events.TurnStatusCompleted,
-				ToolCallOrder: []string{"call-search", "call-read"},
-				ToolCalls: map[string]*events.ToolCallState{
-					"call-search": {
-						CallID:    "call-search",
-						ToolName:  "search",
-						Input:     `{"query":"mongoose.connect","path":"src"}`,
-						Declared:  true,
-						Completed: true,
-						Succeeded: true,
-					},
-					"call-read": {
-						CallID:    "call-read",
-						ToolName:  "read",
-						Input:     `{"paths":["src/cache.ts"],"start_line":1,"max_lines":200}`,
-						Output:    "1: import Redis from 'ioredis';",
-						Declared:  true,
-						Completed: true,
-						Succeeded: true,
-					},
-				},
-			},
-			"turn-repair": {
-				TurnID: "turn-repair",
-				Status: events.TurnStatusCompleted,
-			},
-		},
-	}
-	model.delegatedSnapshots.snapshots["session-child"] = childState
-
-	rendered := ansi.Strip(renderGroupedToolsInspector(model, parentState, 60).Content)
-	normalized := strings.Join(strings.Fields(rendered), " ")
-	if !strings.Contains(normalized, "Reviewer") {
-		t.Fatalf("grouped tools inspector missing delegated reviewer header\nrendered:\n%s", rendered)
-	}
-	if !strings.Contains(normalized, "Search src for mongoose.connect") {
-		t.Fatalf("grouped tools inspector missing previous child turn search row\nrendered:\n%s", rendered)
-	}
-	if !strings.Contains(normalized, "Read cache.ts") {
-		t.Fatalf("grouped tools inspector missing previous child turn read row\nrendered:\n%s", rendered)
-	}
-	if strings.Contains(normalized, "completed without using tools") {
-		t.Fatalf("grouped tools inspector showed final repair turn as no-tools despite prior child tools\nrendered:\n%s", rendered)
-	}
-}
-
-func TestRenderGroupedToolsInspectorShowsDelegatedSnapshotNotLoadedLabel(t *testing.T) {
-	defaultTheme := theme.StaticDefault()
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	model := NewModel(&fakeController{}, ModelConfig{
-		Context:       ctx,
-		Theme:         &defaultTheme,
-		SessionID:     "session-parent",
-		TurnID:        "turn-parent",
-		WorkspaceRoot: "/repo",
-	})
-	parentState := events.SessionState{
-		SessionID:     "session-parent",
-		WorkspaceRoot: "/repo",
-		TurnOrder:     []string{"turn-parent"},
-		Turns: map[string]*events.TurnState{
-			"turn-parent": {
-				TurnID:       "turn-parent",
-				HandoffOrder: []string{"handoff-1"},
-				Handoffs: map[string]*events.AgentHandoffState{
-					"handoff-1": {
-						HandoffID:      "handoff-1",
-						ChildSessionID: "session-child",
-						ChildTurnID:    "turn-child",
-						ChildAgentID:   "docs",
-						Task:           "Create file .kodacode/plans/sso-integration-plan.md.",
-						Status:         events.AgentResultStatusCompleted,
-					},
-				},
-				ToolCallOrder: []string{"call-parent"},
-				ToolCalls: map[string]*events.ToolCallState{
-					"call-parent": {
-						CallID:    "call-parent",
-						ToolName:  "delegate",
-						HandoffID: "handoff-1",
-						Input:     `{"agent_id":"docs","task":"Create file .kodacode/plans/sso-integration-plan.md.","context_summary":"Save the approved plan."}`,
-						Declared:  true,
-						Completed: true,
-						Succeeded: true,
-					},
-				},
-			},
-		},
-	}
-
-	rendered := ansi.Strip(renderGroupedToolsInspector(model, parentState, 56).Content)
-	if !strings.Contains(rendered, "docs tool activity has not loaded yet.") {
-		t.Fatalf("grouped tools inspector missing delegated snapshot-not-loaded label\nrendered:\n%s", rendered)
-	}
-	if strings.Contains(rendered, "docs tool calls are not available yet.") {
-		t.Fatalf("grouped tools inspector still shows misleading delegated tool-calls label\nrendered:\n%s", rendered)
-	}
-}
-
-func TestRenderGroupedToolsInspectorDedupesRepeatedDelegateCallsForSameHandoff(t *testing.T) {
-	defaultTheme := theme.StaticDefault()
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	model := NewModel(&fakeController{}, ModelConfig{
-		Context:       ctx,
-		Theme:         &defaultTheme,
-		SessionID:     "session-parent",
-		TurnID:        "turn-parent",
-		WorkspaceRoot: "/repo",
-	})
-	parentState := events.SessionState{
-		SessionID:     "session-parent",
-		WorkspaceRoot: "/repo",
-		TurnOrder:     []string{"turn-parent"},
-		Turns: map[string]*events.TurnState{
-			"turn-parent": {
-				TurnID:       "turn-parent",
-				HandoffOrder: []string{"handoff-1"},
-				Handoffs: map[string]*events.AgentHandoffState{
-					"handoff-1": {
-						HandoffID:      "handoff-1",
-						ChildSessionID: "session-child",
-						ChildTurnID:    "turn-child",
-						ChildAgentID:   "reviewer",
-						Task:           "Perform a comprehensive code review.",
-						Status:         events.AgentResultStatusCompleted,
-					},
-				},
-				ToolCallOrder: []string{"call-parent-1", "call-parent-2"},
-				ToolCalls: map[string]*events.ToolCallState{
-					"call-parent-1": {
-						CallID:    "call-parent-1",
-						ToolName:  "delegate",
-						HandoffID: "handoff-1",
-						Input:     `{"agent_id":"reviewer","task":"Perform a comprehensive code review.","context_summary":"Inspect the entire project."}`,
-						Output:    `[output truncated: 9100 chars total]`,
-						Declared:  true,
-						Completed: true,
-						Succeeded: true,
-					},
-					"call-parent-2": {
-						CallID:    "call-parent-2",
-						ToolName:  "delegate",
-						HandoffID: "handoff-1",
-						Input:     `{"agent_id":"reviewer","task":"Perform a comprehensive code review.","context_summary":"Inspect the entire project."}`,
-						Output:    `[output truncated: 10432 chars total]`,
-						Declared:  true,
-						Completed: true,
-						Succeeded: true,
-					},
-				},
-			},
-		},
-	}
-	childState := events.SessionState{
-		SessionID:     "session-child",
-		WorkspaceRoot: "/repo",
-		TurnOrder:     []string{"turn-child"},
-		Turns: map[string]*events.TurnState{
-			"turn-child": {
-				TurnID:        "turn-child",
-				ToolCallOrder: []string{"call-1"},
-				ToolCalls: map[string]*events.ToolCallState{
-					"call-1": {
-						CallID:    "call-1",
-						ToolName:  "search",
-						Input:     `{"query":"auth","path":"src"}`,
-						Declared:  true,
-						Completed: true,
-						Succeeded: true,
-					},
-				},
-			},
-		},
-	}
-
-	model.delegatedSnapshots.snapshots["session-child"] = childState
-
-	rendered := ansi.Strip(renderGroupedToolsInspector(model, parentState, 56).Content)
-	if count := strings.Count(rendered, "Reviewer"); count != 1 {
-		t.Fatalf("grouped tools inspector rendered %d reviewer headers, want 1\nrendered:\n%s", count, rendered)
-	}
-	if !strings.Contains(rendered, "Perform a comprehensive code review.") {
-		t.Fatalf("grouped tools inspector missing delegated task label\nrendered:\n%s", rendered)
-	}
-	if !strings.Contains(rendered, "Search src for auth") {
-		t.Fatalf("grouped tools inspector missing delegated child tool\nrendered:\n%s", rendered)
 	}
 }
 
@@ -1570,7 +957,6 @@ func TestRenderGroupedToolsInspectorHidesSupersededRetriedTaskCall(t *testing.T)
 						Succeeded:     true,
 					},
 				},
-				Handoffs: map[string]*events.AgentHandoffState{},
 			},
 		},
 	}
@@ -1620,7 +1006,6 @@ func TestRenderGroupedToolsInspectorShowsTaskListChildren(t *testing.T) {
 						Succeeded: true,
 					},
 				},
-				Handoffs: map[string]*events.AgentHandoffState{},
 			},
 		},
 	}

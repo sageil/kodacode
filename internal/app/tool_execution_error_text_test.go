@@ -5,7 +5,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sageil/kodacode/internal/agent"
 	"github.com/sageil/kodacode/internal/events"
 	"github.com/sageil/kodacode/internal/tool"
 )
@@ -113,23 +112,6 @@ func TestToolExecutionErrorTextTaskReviewNotFoundReturnsListRecovery(t *testing.
 	}
 }
 
-func TestToolExecutionErrorTextDelegateMissingAgentSeparatesAgentFromSkill(t *testing.T) {
-	got := toolExecutionErrorText(tool.DelegateToolName, fmt.Errorf("%w: code-review", agent.ErrAgentNotFound))
-
-	for _, want := range []string{
-		`agent was not found`,
-		"`reviewer`",
-		"`planner`",
-	} {
-		if !strings.Contains(got, want) {
-			t.Fatalf("toolExecutionErrorText() text = %q, missing %q", got, want)
-		}
-	}
-	if strings.Contains(strings.ToLower(got), "skill") {
-		t.Fatalf("toolExecutionErrorText() text = %q, must not mention skills", got)
-	}
-}
-
 func TestToolExecutionErrorTextCommonRecoveriesStayConcise(t *testing.T) {
 	cases := []struct {
 		name string
@@ -139,7 +121,6 @@ func TestToolExecutionErrorTextCommonRecoveriesStayConcise(t *testing.T) {
 		{name: "task create complete", tool: tool.TaskWorkflowToolName, err: tool.InvalidArguments(tool.TaskWorkflowToolName, tool.ErrTaskCompleteActionOnly)},
 		{name: "task unsupported", tool: tool.TaskWorkflowToolName, err: tool.InvalidArguments(tool.TaskWorkflowToolName, fmt.Errorf("%w: action=create fields=summary, progress", tool.ErrTaskWorkflowFieldUnsupported))},
 		{name: "review unsupported", tool: tool.TaskReviewToolName, err: tool.InvalidArguments(tool.TaskReviewToolName, fmt.Errorf("%w: action=review fields=title, status", tool.ErrTaskReviewFieldUnsupported))},
-		{name: "delegate missing", tool: tool.DelegateToolName, err: fmt.Errorf("%w: code-review", agent.ErrAgentNotFound)},
 		{name: "planner invalid", tool: tool.QuestionToolName, err: ErrPlannerSavePlanQuestionInvalid},
 	}
 	for _, tt := range cases {

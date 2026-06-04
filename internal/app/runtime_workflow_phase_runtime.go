@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/sageil/kodacode/internal/events"
+	"github.com/sageil/kodacode/internal/prompt"
 	"github.com/sageil/kodacode/internal/tool"
 	workflowpkg "github.com/sageil/kodacode/internal/workflow"
 )
@@ -16,6 +17,8 @@ const (
 	workflowApprovalAnswerApprove = "Approve"
 	workflowApprovalAnswerStop    = "Stop"
 )
+
+const workflowRequiredOutputRecoveryObjective = "Record required workflow phase outputs."
 
 func (r *Runtime) startWorkflowApprovalPhaseTurn(ctx context.Context, input runExistingTurnInput, workflowPhase workflowPhaseTurnContext) (RunSessionResult, error) {
 	if strings.TrimSpace(input.UserText) != "" || len(input.ResolvedAttachments) > 0 {
@@ -679,6 +682,9 @@ func (r *Runtime) maybeAdvanceWorkflowAfterTurn(ctx context.Context, sessionID, 
 	if err := r.recordWorkflowTurnCompletionEvidence(ctx, state, sessionID, turnID, phase, result.AssistantText); err != nil {
 		return RunSessionResult{}, err
 	}
+	if continued, ok, err := r.continueWorkflowRequiredOutputRecoveryIfNeeded(ctx, state, sessionID, turnID, workflow.WorkflowID, phase, result); err != nil || ok {
+		return continued, err
+	}
 	if workflowPhaseIsReview(phase) {
 		revised, err := r.maybeReviseWorkflowAfterReviewFailure(ctx, sessionID, turnID)
 		if err != nil {
@@ -701,6 +707,96 @@ func (r *Runtime) maybeAdvanceWorkflowAfterTurn(ctx context.Context, sessionID, 
 		return continued, err
 	}
 	return r.completeFinalWorkflowPhaseIfReached(ctx, sessionID, turnID, definition, result)
+}
+
+func (r *Runtime) continueWorkflowRequiredOutputRecoveryIfNeeded(ctx context.Context, state events.SessionState, sessionID, previousTurnID, workflowID string, phase workflowpkg.Phase, result RunSessionResult) (RunSessionResult, bool, error) {
+	phaseID := strings.TrimSpace(phase.ID)
+	missing := missingWorkflowPhaseOutputKeys(state.Workflow, phaseID, phase.RequiresOutput)
+	if len(missing) == 0 {
+		return result, false, nil
+	}
+	if workflowRequiredOutputRecoveryAttempted(state, previousTurnID) {
+		return result, false, nil
+	}
+	nextTurnID := newRuntimeID("turn")
+	initialState := workflowRequiredOutputRecoveryInitialState(state, previousTurnID, workflowID, phaseID, missing, phase.RequiresOutput)
+	continued, err := r.runExistingSessionTurn(ctx, runExistingTurnInput{
+		SessionID:            sessionID,
+		TurnID:               nextTurnID,
+		UserText:             "",
+		AgentID:              workflowPhaseContinuationAgentID(phase),
+		WorkflowID:           workflowID,
+		SkillIDs:             workflowPhaseContinuationSkillIDs(state, previousTurnID),
+		ThinkingEnabled:      workflowPhaseContinuationThinkingEnabled(state, previousTurnID),
+		ThinkingMode:         workflowPhaseContinuationThinkingMode(state, previousTurnID),
+		AllowedToolsOverride: []string{tool.WorkflowPhaseOutputToolName},
+		PreserveSessionModel: true,
+		InitialState:         initialState,
+		AdditionalFragments: []prompt.Fragment{
+			workflowRequiredOutputRecoveryPromptFragment(workflowID, phaseID, missing, phase.RequiresOutput),
+		},
+		Continuation: &runtimeTurnContinuation{
+			PreviousTurnID: previousTurnID,
+			Reason:         events.TurnContinuationReasonWorkflowPhase,
+		},
+	})
+	if err != nil {
+		return RunSessionResult{}, false, err
+	}
+	return continued, true, nil
+}
+
+func workflowRequiredOutputRecoveryAttempted(state events.SessionState, turnID string) bool {
+	turn := state.Turns[strings.TrimSpace(turnID)]
+	if turn == nil || turn.ContinuationStart == nil {
+		return false
+	}
+	if strings.TrimSpace(turn.ContinuationStart.Reason) != events.TurnContinuationReasonWorkflowPhase {
+		return false
+	}
+	return strings.TrimSpace(turn.ContinuationStart.Summary.Objective) == workflowRequiredOutputRecoveryObjective
+}
+
+func workflowRequiredOutputRecoveryInitialState(state events.SessionState, previousTurnID, workflowID, phaseID string, missingKeys, requiredKeys []string) *turnLoopState {
+	turn := state.Turns[strings.TrimSpace(previousTurnID)]
+	workState := turnWorkState{}
+	if turn != nil && turn.WorkState != nil {
+		workState = turnWorkStateFromEventState(turn.WorkState)
+		workState.NativeContinuation = nil
+	}
+	workState.Summary.Objective = workflowRequiredOutputRecoveryObjective
+	workState.Summary.OpenItems = appendUniqueValues(workState.Summary.OpenItems, []string{
+		"Call " + tool.WorkflowPhaseOutputToolName + " for workflow `" + strings.TrimSpace(workflowID) + "` phase `" + strings.TrimSpace(phaseID) + "`.",
+		"Record required fields: " + strings.Join(trimmedWorkflowValues(requiredKeys), ", ") + ".",
+		"Missing fields: " + strings.Join(trimmedWorkflowValues(missingKeys), ", ") + ".",
+	})
+	return &turnLoopState{
+		LatestToolStepStart: -1,
+		WorkState:           workState,
+	}
+}
+
+func workflowRequiredOutputRecoveryPromptFragment(workflowID, phaseID string, missingKeys, requiredKeys []string) prompt.Fragment {
+	required := trimmedWorkflowValues(requiredKeys)
+	missing := trimmedWorkflowValues(missingKeys)
+	lines := []string{
+		"Required workflow phase output recovery.",
+		"- Workflow: " + strings.TrimSpace(workflowID),
+		"- Phase: " + strings.TrimSpace(phaseID),
+		"- Missing required phase outputs: " + strings.Join(missing, ", "),
+		"- Call `" + tool.WorkflowPhaseOutputToolName + "` now with fields for every required key: " + strings.Join(required, ", ") + ".",
+		"- Do not restate the plan, summarize, or answer in prose before calling `" + tool.WorkflowPhaseOutputToolName + "`.",
+		"- Prose, markdown, or JSON in the assistant response does not satisfy required phase outputs.",
+	}
+	return prompt.Fragment{
+		Kind:      prompt.KindRuntime,
+		Source:    prompt.SourceRuntime,
+		Stability: prompt.StabilityDynamic,
+		Layer:     "workflow",
+		Key:       "workflow-required-output-recovery",
+		Label:     "workflow-output-recovery",
+		Content:   strings.Join(lines, "\n"),
+	}
 }
 
 func (r *Runtime) maybeApplyWorkflowTurnResultTransition(ctx context.Context, sessionID, turnID string, result RunSessionResult) (bool, error) {
@@ -940,31 +1036,6 @@ func workflowTurnResultTransitionReason(transitionEvent string, result RunSessio
 func (r *Runtime) recordWorkflowTurnCompletionEvidence(ctx context.Context, state events.SessionState, sessionID, turnID string, phase workflowpkg.Phase, assistantText string) error {
 	phaseID := strings.TrimSpace(phase.ID)
 	assistantText = strings.TrimSpace(assistantText)
-	if len(phase.RequiresOutput) > 0 && assistantText != "" {
-		parsedFields := workflowPhaseOutputFields(assistantText, phase.RequiresOutput)
-		fields := make(map[string]string, len(parsedFields))
-		for _, key := range phase.RequiresOutput {
-			key = strings.TrimSpace(key)
-			if key == "" || workflowHasPhaseOutputEvidence(state.Workflow, phaseID, key) {
-				continue
-			}
-			if value := strings.TrimSpace(parsedFields[key]); value != "" {
-				fields[key] = value
-			}
-		}
-		if len(fields) > 0 {
-			if err := r.RecordWorkflowEvidence(ctx, RecordWorkflowEvidenceInput{
-				SessionID: sessionID,
-				TurnID:    turnID,
-				PhaseID:   phaseID,
-				Type:      events.WorkflowEvidenceTypePhaseOutput,
-				Summary:   truncateWorkflowEvidenceSummary(assistantText),
-				Fields:    fields,
-			}); err != nil {
-				return err
-			}
-		}
-	}
 	if workflowPhaseIsReview(phase) && assistantText != "" && !workflowHasAnyEvidenceType(state.Workflow, phaseID, events.WorkflowEvidenceTypeReviewOutcome, events.WorkflowEvidenceTypeReview, events.WorkflowEvidenceTypeTaskReview) {
 		review, err := parseStructuredManualReview(assistantText, "Workflow review")
 		if err != nil {
@@ -983,66 +1054,6 @@ func (r *Runtime) recordWorkflowTurnCompletionEvidence(ctx context.Context, stat
 		}
 	}
 	return nil
-}
-
-func workflowPhaseOutputFields(assistantText string, requiredKeys []string) map[string]string {
-	assistantText = strings.TrimSpace(assistantText)
-	if assistantText == "" || len(requiredKeys) == 0 {
-		return nil
-	}
-	body, ok := workflowStructuredJSONBody(assistantText)
-	if !ok {
-		return nil
-	}
-	var payload map[string]any
-	if err := json.Unmarshal([]byte(body), &payload); err != nil {
-		return nil
-	}
-	out := make(map[string]string, len(requiredKeys))
-	for _, key := range requiredKeys {
-		key = strings.TrimSpace(key)
-		if key == "" {
-			continue
-		}
-		value, ok := payload[key]
-		if !ok {
-			continue
-		}
-		if formatted := workflowPhaseOutputValue(value); formatted != "" {
-			out[key] = formatted
-		}
-	}
-	if len(out) == 0 {
-		return nil
-	}
-	return out
-}
-
-func workflowStructuredJSONBody(text string) (string, bool) {
-	if body, ok, err := unwrapStructuredReviewFence(text); err == nil && ok {
-		return body, true
-	}
-	if body, err := extractSingleBalancedJSONObject(text); err == nil {
-		return body, true
-	}
-	return "", false
-}
-
-func workflowPhaseOutputValue(value any) string {
-	switch typed := value.(type) {
-	case nil:
-		return ""
-	case string:
-		return strings.TrimSpace(typed)
-	case []any, map[string]any:
-		encoded, err := json.Marshal(typed)
-		if err != nil {
-			return ""
-		}
-		return strings.TrimSpace(string(encoded))
-	default:
-		return strings.TrimSpace(fmt.Sprint(typed))
-	}
 }
 
 func (r *Runtime) completeFinalWorkflowPhaseIfReached(ctx context.Context, sessionID, turnID string, definition workflowpkg.Definition, result RunSessionResult) (RunSessionResult, error) {

@@ -161,9 +161,6 @@ func costDialogTurnActivity(turn *events.TurnState) string {
 	if toolCount := len(orderedToolCallIDs(turn)); toolCount > 0 {
 		parts = append(parts, pluralize(toolCount, "tool call"))
 	}
-	if handoffCount := len(orderedHandoffIDs(turn)); handoffCount > 0 {
-		parts = append(parts, pluralize(handoffCount, "handoff"))
-	}
 	return strings.Join(parts, " • ")
 }
 
@@ -201,9 +198,6 @@ func costDialogTurnDrivers(turn *events.TurnState, pricingUnavailable bool) []st
 	}
 	if len(orderedToolCallIDs(turn)) >= 3 {
 		drivers = append(drivers, "tool-heavy")
-	}
-	if len(orderedHandoffIDs(turn)) > 0 {
-		drivers = append(drivers, "delegation")
 	}
 	if percent, ok := currentTurnContextPercent(turn); ok && percent >= 80 {
 		drivers = append(drivers, "high context pressure")

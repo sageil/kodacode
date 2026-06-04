@@ -67,8 +67,6 @@ func (m Model) handleSessionOpenedMsg(msg sessionOpenedMsg) (Model, tea.Cmd) {
 			m.ensureWorkspaceStatusLoadedCmd(),
 			m.ensureAnimTicking(),
 			m.ensureSelectedToolResultLoadedCmd(),
-			m.ensureRelevantDelegatedSessionSnapshotsLoadedCmd(m.projector.Snapshot()),
-			m.ensureSelectedDelegatedSessionSnapshotLoadedCmd(),
 		)
 	}
 	if msg.startReview {
@@ -91,8 +89,6 @@ func (m Model) handleSessionOpenedMsg(msg sessionOpenedMsg) (Model, tea.Cmd) {
 			m.ensureWorkspaceStatusLoadedCmd(),
 			m.ensureAnimTicking(),
 			m.ensureSelectedToolResultLoadedCmd(),
-			m.ensureRelevantDelegatedSessionSnapshotsLoadedCmd(m.projector.Snapshot()),
-			m.ensureSelectedDelegatedSessionSnapshotLoadedCmd(),
 		)
 	}
 	if strings.TrimSpace(msg.localShellCommand) != "" {
@@ -106,8 +102,6 @@ func (m Model) handleSessionOpenedMsg(msg sessionOpenedMsg) (Model, tea.Cmd) {
 			m.ensureWorkspaceStatusLoadedCmd(),
 			m.ensureAnimTicking(),
 			m.ensureSelectedToolResultLoadedCmd(),
-			m.ensureRelevantDelegatedSessionSnapshotsLoadedCmd(m.projector.Snapshot()),
-			m.ensureSelectedDelegatedSessionSnapshotLoadedCmd(),
 		)
 	}
 	m.busy = false
@@ -125,8 +119,6 @@ func (m Model) handleSessionOpenedMsg(msg sessionOpenedMsg) (Model, tea.Cmd) {
 		m.ensureWorkspaceStatusLoadedCmd(),
 		m.syncComposerFocus(),
 		m.ensureSelectedToolResultLoadedCmd(),
-		m.ensureRelevantDelegatedSessionSnapshotsLoadedCmd(m.projector.Snapshot()),
-		m.ensureSelectedDelegatedSessionSnapshotLoadedCmd(),
 	)
 }
 
@@ -161,7 +153,6 @@ func (m Model) handleSessionWatchOpenedMsg(msg sessionWatchOpenedMsg) (Model, te
 			m.ensureWorkspaceStatusLoadedCmd(),
 			m.ensureAnimTicking(),
 			m.ensureSelectedToolResultLoadedCmd(),
-			m.ensureSelectedDelegatedSessionSnapshotLoadedCmd(),
 		)
 	}
 	m.busy = false
@@ -173,6 +164,5 @@ func (m Model) handleSessionWatchOpenedMsg(msg sessionWatchOpenedMsg) (Model, te
 		loadSessionUsageSummaryCmd(m.ctx, m.controller, m.sessionID),
 		m.ensureWorkspaceStatusLoadedCmd(),
 		m.ensureSelectedToolResultLoadedCmd(),
-		m.ensureSelectedDelegatedSessionSnapshotLoadedCmd(),
 	)
 }

@@ -21,57 +21,6 @@ func (f *fakeController) ListPromptHistory(_ context.Context, limit int) ([]app.
 	return append([]app.PromptHistoryEntry(nil), f.promptHistory...), nil
 }
 
-func TestComposerSlashCommandOpensSessionsDialog(t *testing.T) {
-	defaultTheme := theme.StaticDefault()
-	ctx, cancel := context.WithCancel(context.TODO())
-	defer cancel()
-
-	controller := &fakeController{
-		sessions: []app.SessionSummary{{
-			ID:    "session-2",
-			Title: "Previous session",
-		}},
-	}
-	model := NewModel(controller, ModelConfig{
-		Context:       ctx,
-		Theme:         &defaultTheme,
-		SessionID:     "session-1",
-		TurnID:        "turn-1",
-		WorkspaceRoot: "/repo",
-	})
-	model.chrome.focus = focusComposer
-	model.composer.SetValue("/sessions")
-
-	next, cmd := model.submitComposer()
-	if cmd == nil {
-		t.Fatal("submitComposer cmd = nil")
-	}
-	opened, ok := cmd().(dialogOpenedMsg)
-	if !ok {
-		t.Fatalf("cmd() = %#v", cmd())
-	}
-	if opened.err != nil {
-		t.Fatalf("dialogOpenedMsg.err = %v", opened.err)
-	}
-	nextModel := next.(Model)
-	if nextModel.composer.Value() != "" {
-		t.Fatalf("composer value = %q, want empty", nextModel.composer.Value())
-	}
-	if nextModel.composerState.popupMode != composerPopupNone {
-		t.Fatalf("composer popup mode = %q, want none", nextModel.composerState.popupMode)
-	}
-	dialog, ok := opened.dialog.(*sessionsDialog)
-	if !ok {
-		t.Fatalf("dialog = %#v", opened.dialog)
-	}
-	if dialog.ID() != dialogIDSessions {
-		t.Fatalf("dialog id = %q, want %q", dialog.ID(), dialogIDSessions)
-	}
-	if len(controller.startCalls) != 0 {
-		t.Fatalf("startCalls = %#v", controller.startCalls)
-	}
-}
-
 func TestComposerSlashCommandDoesNotExposeSkillsDialog(t *testing.T) {
 	defaultTheme := theme.StaticDefault()
 	ctx, cancel := context.WithCancel(context.TODO())

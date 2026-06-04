@@ -47,7 +47,6 @@ func TestRenderTranscriptMessagesWideUsesCompactToolOutcomeRows(t *testing.T) {
 					"call-2": {CallID: "call-2", ToolName: "read", Input: `{"paths":["src/cache.ts"]}`, Completed: true},
 					"call-3": {CallID: "call-3", ToolName: "tree", Input: `{"path":"src","max_depth":2,"include_hidden":false}`, Completed: true},
 				},
-				Handoffs: map[string]*events.AgentHandoffState{},
 			},
 		},
 	}

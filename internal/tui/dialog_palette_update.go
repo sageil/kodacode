@@ -160,7 +160,7 @@ func (d *commandPaletteDialog) activateListSelection() (dialogModel, tea.Cmd) {
 		return d, closeDialog(d.id, workflowSelectionResult{WorkflowID: selected.Workflow.ID})
 	case commandPaletteActions:
 		switch selected.Action.ID {
-		case "select-model", "select-agent", "select-workflow", "select-theme", "manage-sessions", "timeline", "manage-trust", "new-session", "connect-provider", "select-utility-model", "unset-utility-model", "select-reviewer-model", "unset-reviewer-model":
+		case "select-model", "select-agent", "select-workflow", "select-theme", "timeline", "manage-trust", "new-session", "connect-provider", "select-utility-model", "unset-utility-model", "select-reviewer-model", "unset-reviewer-model":
 			return d, closeDialog(d.id, commandPaletteActionResult{ActionID: selected.Action.ID})
 		}
 	}

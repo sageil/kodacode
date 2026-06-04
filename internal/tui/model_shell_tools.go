@@ -15,7 +15,7 @@ func (m *Model) openShellToolsDialog() tea.Cmd {
 	width, height := dialogRenderSize(*m, state)
 	dialog.SetFrame(width, height)
 	m.openDialog(dialog)
-	return m.ensureRelevantDelegatedSessionSnapshotsLoadedCmd(state)
+	return nil
 }
 
 func (m *Model) syncShellToolsDialog() {

@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"slices"
 	"strings"
 
 	"github.com/sageil/kodacode/internal/events"
@@ -28,7 +27,7 @@ func (m Model) hasPendingInteraction() bool {
 }
 
 func (m Model) interactionResolutionInFlight() bool {
-	return strings.TrimSpace(m.interaction.resolveReq) != "" || strings.TrimSpace(m.interaction.resolveHandoff) != ""
+	return strings.TrimSpace(m.interaction.resolveReq) != ""
 }
 
 func (m Model) pendingInteractionSubmissionInFlight() bool {
@@ -40,14 +39,6 @@ func (m Model) pendingInteractionSubmissionInFlightForState(state events.Session
 		return false
 	}
 	return hasPendingInteractionInState(state, m.turnID) || isFinishedInState(state, m.turnID)
-}
-
-func (m Model) pendingDelegatedPermission() *events.AgentHandoffState {
-	return clonePendingDelegatedPermissionState(pendingDelegatedPermissionFromState(m.projector.CurrentState(), m.turnID))
-}
-
-func (m Model) pendingDelegatedQuestion() *events.AgentHandoffState {
-	return clonePendingDelegatedPermissionState(pendingDelegatedQuestionFromState(m.projector.CurrentState(), m.turnID))
 }
 
 func (m Model) isFinished() bool {
@@ -104,17 +95,6 @@ func clonePendingQuestionRequestState(state *events.QuestionRequestState) *event
 	}
 	copyState := *state
 	copyState.Options = append([]string(nil), state.Options...)
-	return &copyState
-}
-
-func clonePendingDelegatedPermissionState(state *events.AgentHandoffState) *events.AgentHandoffState {
-	if state == nil {
-		return nil
-	}
-	copyState := *state
-	copyState.AllowedTools = slices.Clone(state.AllowedTools)
-	copyState.QuestionOptions = append([]string(nil), state.QuestionOptions...)
-	copyState.ExecutionApproval = clonePendingExecutionApprovalState(state.ExecutionApproval)
 	return &copyState
 }
 
@@ -176,10 +156,7 @@ func pendingQuestionFromState(state events.SessionState) *events.QuestionRequest
 }
 
 func effectivePendingQuestionFromState(state events.SessionState, turnID string) *events.QuestionRequestState {
-	if pending := pendingQuestionFromState(state); pending != nil {
-		return pending
-	}
-	return delegatedQuestionFromHandoff(pendingDelegatedQuestionFromState(state, turnID), turnID)
+	return pendingQuestionFromState(state)
 }
 
 func pendingLoopQuestionFromState(state events.SessionState) *events.QuestionRequestState {
@@ -190,47 +167,12 @@ func pendingLoopQuestionFromState(state events.SessionState) *events.QuestionReq
 	return request
 }
 
-func pendingDelegatedPermissionFromState(state events.SessionState, turnID string) *events.AgentHandoffState {
-	return pendingDelegatedPermissionHandoff(currentTurn(state, turnID))
-}
-
-func pendingDelegatedQuestionFromState(state events.SessionState, turnID string) *events.AgentHandoffState {
-	return pendingDelegatedQuestionHandoff(currentTurn(state, turnID))
-}
-
-func pendingDelegatedInteractionFromState(state events.SessionState, turnID string) *events.AgentHandoffState {
-	if handoff := pendingDelegatedPermissionFromState(state, turnID); handoff != nil {
-		return handoff
-	}
-	return pendingDelegatedQuestionFromState(state, turnID)
-}
-
-func delegatedExecutionApproval(handoff *events.AgentHandoffState) *events.ExecutionApprovalState {
-	if handoff == nil || handoff.PermissionKind != events.PermissionRequestKindExecution {
-		return nil
-	}
-	return handoff.ExecutionApproval
-}
-
 func hasPendingApprovalInState(state events.SessionState, turnID string) bool {
-	return pendingExecutionFromState(state) != nil || pendingPermissionFromState(state) != nil || pendingDelegatedPermissionFromState(state, turnID) != nil
+	return pendingExecutionFromState(state) != nil || pendingPermissionFromState(state) != nil
 }
 
 func hasPendingInteractionInState(state events.SessionState, turnID string) bool {
 	return hasPendingApprovalInState(state, turnID) || effectivePendingQuestionFromState(state, turnID) != nil
-}
-
-func delegatedQuestionFromHandoff(handoff *events.AgentHandoffState, turnID string) *events.QuestionRequestState {
-	if handoff == nil {
-		return nil
-	}
-	return &events.QuestionRequestState{
-		QuestionID: strings.TrimSpace(handoff.HandoffID),
-		TurnID:     strings.TrimSpace(turnID),
-		ToolName:   strings.TrimSpace(handoff.QuestionToolName),
-		Question:   strings.TrimSpace(handoff.QuestionText),
-		Options:    append([]string(nil), handoff.QuestionOptions...),
-	}
 }
 
 func isFinishedInState(state events.SessionState, turnID string) bool {
