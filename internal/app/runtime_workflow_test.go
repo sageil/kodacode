@@ -182,6 +182,15 @@ phases:
 	if !hasWorkflowPhaseStartedEvent(replayed, continuedTurnID, "arbitrary_next_step") {
 		t.Fatalf("workflow phase start for arbitrary_next_step missing from continuation turn %s; events: %s", continuedTurnID, workflowPhaseEventSummary(replayed))
 	}
+	configuredIndex := workflowEventIndex(replayed, continuedTurnID, events.TypeTurnConfigured)
+	continuationIndex := workflowEventIndex(replayed, continuedTurnID, events.TypeTurnContinuationStarted)
+	phaseStartedIndex := workflowEventIndex(replayed, continuedTurnID, events.TypeWorkflowPhaseStarted)
+	if configuredIndex < 0 || continuationIndex < 0 || phaseStartedIndex < 0 {
+		t.Fatalf("continuation turn missing config/continuation/phase-start events; events: %s", workflowPhaseEventSummary(replayed))
+	}
+	if phaseStartedIndex < configuredIndex || phaseStartedIndex < continuationIndex {
+		t.Fatalf("workflow phase start should anchor after continuation turn metadata; events: %s", workflowPhaseEventSummary(replayed))
+	}
 }
 
 func TestRuntimeActiveWorkflowBindsTurnToYamlPhaseAgentAndCompletesFinalPhase(t *testing.T) {
@@ -1390,6 +1399,8 @@ func workflowPhaseEventSummary(replayed []events.Event) string {
 	var parts []string
 	for _, event := range replayed {
 		switch event.Type {
+		case events.TypeTurnConfigured, events.TypeTurnContinuationStarted:
+			parts = append(parts, string(event.Type)+" "+event.TurnID)
 		case events.TypeWorkflowPhaseStarted:
 			payload, _ := event.Payload.(events.WorkflowPhaseStartedPayload)
 			parts = append(parts, string(event.Type)+" "+event.TurnID+" "+payload.PhaseID)
@@ -1399,4 +1410,13 @@ func workflowPhaseEventSummary(replayed []events.Event) string {
 		}
 	}
 	return strings.Join(parts, "; ")
+}
+
+func workflowEventIndex(replayed []events.Event, turnID string, eventType events.Type) int {
+	for index, event := range replayed {
+		if event.Type == eventType && strings.TrimSpace(event.TurnID) == strings.TrimSpace(turnID) {
+			return index
+		}
+	}
+	return -1
 }

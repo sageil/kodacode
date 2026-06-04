@@ -307,9 +307,6 @@ func workflowVerificationToolResultSummary(result ToolExecutionResult) string {
 }
 
 func (r *Runtime) appendWorkflowPhaseTurnConfigured(ctx context.Context, input runExistingTurnInput, view turnStartSessionView, workflowPhase workflowPhaseTurnContext, effectiveAgentID, effectiveWorkflowID string, effectiveSkillIDs []string, effectiveThinkingEnabled bool, effectiveThinkingMode string, responseStyle ResponseStyle) error {
-	if err := r.appendWorkflowPhaseStartedForTurn(ctx, input, workflowPhase); err != nil {
-		return err
-	}
 	capabilities, err := r.resolveTurnCapabilitiesFromState(view.capabilitiesState(), resolveTurnCapabilitiesOptions{
 		AgentID:              effectiveAgentID,
 		SkillIDs:             append([]string(nil), effectiveSkillIDs...),
@@ -345,6 +342,9 @@ func (r *Runtime) appendWorkflowPhaseTurnConfigured(ctx context.Context, input r
 		if err := r.Runner.appendTurnContinuationStarted(ctx, input.SessionID, input.TurnID, input.Continuation.PreviousTurnID, input.Continuation.Reason, summary); err != nil {
 			return err
 		}
+	}
+	if err := r.appendWorkflowPhaseStartedForTurn(ctx, input, workflowPhase); err != nil {
+		return err
 	}
 	return nil
 }

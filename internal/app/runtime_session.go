@@ -265,9 +265,6 @@ func (r *Runtime) runExistingSessionTurn(ctx context.Context, input runExistingT
 	if workflowPhase.Active {
 		turnConfig.WorkflowPhaseID = strings.TrimSpace(workflowPhase.Phase.ID)
 	}
-	if err := r.appendWorkflowPhaseStartedForTurn(ctx, input, workflowPhase); err != nil {
-		return RunSessionResult{}, err
-	}
 	if err := r.Runner.appendTurnConfigured(ctx, input.SessionID, input.TurnID, turnConfig); err != nil {
 		return RunSessionResult{}, err
 	}
@@ -280,6 +277,9 @@ func (r *Runtime) runExistingSessionTurn(ctx context.Context, input runExistingT
 		if err := r.Runner.appendTurnContinuationStarted(ctx, input.SessionID, input.TurnID, input.Continuation.PreviousTurnID, input.Continuation.Reason, input.InitialState.WorkState.Summary); err != nil {
 			return RunSessionResult{}, err
 		}
+	}
+	if err := r.appendWorkflowPhaseStartedForTurn(ctx, input, workflowPhase); err != nil {
+		return RunSessionResult{}, err
 	}
 	turnStartAfterSequence, err := r.latestSessionSequence(ctx, input.SessionID)
 	if err != nil {
