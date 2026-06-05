@@ -884,7 +884,7 @@ func TestToolExecutorExecuteRunsDuplicateReadAfterFailedPatch(t *testing.T) {
 		t.Fatalf("Execute(apply_patch) error = %v", err)
 	}
 	if failedPatch.Status != ToolExecutionStatusExecuted ||
-		!strings.Contains(failedPatch.Error, "patch failed") {
+		!strings.Contains(failedPatch.Error, "app.go: hunk did not match") {
 		t.Fatalf("failed patch = %#v", failedPatch)
 	}
 

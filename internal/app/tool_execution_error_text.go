@@ -39,55 +39,55 @@ func toolExecutionErrorText(toolName string, cause error) string {
 func taskWorkflowActionText(err error) (string, bool) {
 	switch {
 	case errors.Is(err, tool.ErrTaskCompleteActionOnly):
-		text := `task_workflow failed: create cannot use status "complete". Create as pending/in_progress, then complete with task_id and summary.`
+		text := `task_workflow: create cannot use status "complete". Create it first, then complete with task_id and summary.`
 		return text, true
 	case errors.Is(err, tool.ErrTaskStatusInvalid):
-		text := `task_workflow failed: status must be pending or in_progress. Use complete to finish, or block to block.`
+		text := `task_workflow: status must be pending or in_progress. Use complete to finish or block to block.`
 		return text, true
 	case errors.Is(err, tool.ErrTaskInputTitleRequired):
-		text := `task_workflow failed: create requires a non-empty title.`
+		text := `task_workflow: create needs title.`
 		return text, true
 	case errors.Is(err, tool.ErrTaskInputIDRequired):
-		text := `task_workflow failed: this action requires task_id.`
+		text := `task_workflow: this action needs task_id.`
 		return text, true
 	case errors.Is(err, tool.ErrTaskInputUpdateRequired):
-		text := `task_workflow failed: update requires status, progress, or notes.`
+		text := `task_workflow: update needs status, progress, or notes.`
 		return text, true
 	case errors.Is(err, tool.ErrTaskBlockReasonRequired):
-		text := `task_workflow failed: block requires block_reason.`
+		text := `task_workflow: block needs block_reason.`
 		return text, true
 	case errors.Is(err, tool.ErrTaskSummaryRequired):
-		text := `task_workflow failed: complete requires task_id and summary.`
+		text := `task_workflow: complete needs task_id and summary.`
 		return text, true
 	case errors.Is(err, tool.ErrTaskWorkflowActionInvalid):
-		text := `task_workflow failed: action must be list, create, update, block, or complete. Use task_review for reviews.`
+		text := `task_workflow: action must be list, create, update, block, or complete. Use task_review for reviews.`
 		return text, true
 	case errors.Is(err, tool.ErrTaskWorkflowFieldUnsupported):
 		if fields := taskErrorSuffix(err, tool.ErrTaskWorkflowFieldUnsupported); fields != "" {
 			return taskWorkflowUnsupportedFieldsText(fields), true
 		}
-		return "task_workflow failed: remove fields not supported by this action.", true
+		return "task_workflow: remove fields this action does not use.", true
 	case errors.Is(err, events.ErrTaskNotFound):
 		if taskID := taskErrorSuffix(err, events.ErrTaskNotFound); taskID != "" {
-			return "task_workflow failed: task_id " + taskID + " was not found. List tasks and retry with an existing task_id.", true
+			return "task_workflow: task " + taskID + " not found. Use list, then retry with an existing task_id.", true
 		}
-		return "task_workflow failed: task was not found. List tasks and retry with an existing task_id.", true
+		return "task_workflow: task not found. Use list, then retry with an existing task_id.", true
 	case errors.Is(err, ErrTaskChildTasksIncomplete):
-		return "task_workflow failed: complete child tasks before completing the parent.", true
+		return "task_workflow: complete child tasks before completing the parent.", true
 	case errors.Is(err, ErrTaskCompletionSummaryRequired):
-		return "task_workflow failed: complete requires a summary.", true
+		return "task_workflow: complete needs summary.", true
 	case errors.Is(err, ErrTaskParentCompleted):
-		return "task_workflow failed: parent_task_id is already complete. Use a pending parent or omit parent_task_id.", true
+		return "task_workflow: parent task is complete. Use a pending parent_task_id or omit parent_task_id.", true
 	case errors.Is(err, ErrTaskParentNotFound):
-		return "task_workflow failed: parent_task_id was not found. Use an existing parent or omit parent_task_id.", true
+		return "task_workflow: parent task not found. Use list, then create with an existing parent_task_id or omit parent_task_id.", true
 	case errors.Is(err, ErrTaskParentSelfReference):
-		return "task_workflow failed: parent_task_id cannot equal task_id.", true
+		return "task_workflow: parent_task_id cannot equal task_id.", true
 	case errors.Is(err, ErrTaskAnotherInProgress):
 		if activeTaskID := taskWorkflowReferencedTaskID(err, ErrTaskAnotherInProgress); activeTaskID != "" {
-			text := "task_workflow failed: " + activeTaskID + " is already in progress. Update, block, or complete it first."
+			text := "task_workflow: " + activeTaskID + " is already in progress. Update, block, or complete it first."
 			return text, true
 		}
-		return "task_workflow failed: another task is in progress. Update, block, or complete it first.", true
+		return "task_workflow: another task is in progress. Update, block, or complete it first.", true
 	default:
 		return "", false
 	}
@@ -132,17 +132,17 @@ func taskWorkflowUnsupportedFieldsText(detail string) string {
 	}
 	switch action {
 	case "list":
-		return `task_workflow failed: list accepts only action. Remove ` + fieldsText + `.`
+		return `task_workflow: list only uses action. Remove ` + fieldsText + `.`
 	case "create":
-		return `task_workflow failed: create does not accept ` + fieldsText + `. Remove unsupported fields.`
+		return `task_workflow: create cannot use ` + fieldsText + `. Use create for title/parent/kind/status/notes.`
 	case "update":
-		return `task_workflow failed: update does not accept ` + fieldsText + `. Remove unsupported fields.`
+		return `task_workflow: update cannot use ` + fieldsText + `. Use update for task_id/status/progress/notes.`
 	case "block":
-		return `task_workflow failed: block does not accept ` + fieldsText + `. Remove unsupported fields.`
+		return `task_workflow: block cannot use ` + fieldsText + `. Use block with task_id and block_reason.`
 	case "complete":
-		return `task_workflow failed: complete accepts only action, task_id, and summary. Remove ` + fieldsText + `.`
+		return `task_workflow: complete cannot use ` + fieldsText + `. Use complete with task_id and summary.`
 	default:
-		return "task_workflow failed: remove unsupported field(s): " + fieldsText + "."
+		return "task_workflow: remove fields this action does not use: " + fieldsText + "."
 	}
 }
 

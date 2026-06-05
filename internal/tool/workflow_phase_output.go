@@ -39,7 +39,7 @@ func (WorkflowPhaseOutputTool) Definition() Definition {
 		InputSchema:         json.RawMessage(`{"type":"object","properties":{"fields":{"type":"object","description":"Required workflow phase output fields keyed by the names requested in the workflow phase prompt.","additionalProperties":{"type":"string"}}},"required":["fields"],"additionalProperties":false}`),
 		ProviderInputSchema: json.RawMessage(`{"type":"object","properties":{"fields":{"type":"object","additionalProperties":{"type":"string"}}},"required":["fields"],"additionalProperties":false}`),
 		ArgumentExamples: []string{
-			`{"fields":{"plan":"Implement OAuth callback routes, session integration, and login/register buttons.","affected_files":"src/routes/auth.ts, src/lib/oauth.ts, client/src/views/Login.vue","risks":"OAuth redirect validation and account-linking edge cases."}}`,
+			`{"fields":{"plan":"Implement OAuth callback routes, session integration, and login/register buttons.","affected_files":"src/routes/auth.ts, src/lib/oauth.ts, client/src/views/Login.vue","risks":"OAuth redirect validation and account-linking edge cases.","implementation_tasks":"[\"Add OAuth provider config\",\"Add callback route\",\"Add login UI button\"]","acceptance_criteria":"[\"Users can start OAuth login\",\"Callback validates state and creates a session\"]","verification_plan":"Run backend auth route tests and client typecheck."}}`,
 		},
 		ProviderRichGuidance: true,
 	}

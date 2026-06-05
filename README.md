@@ -14,7 +14,7 @@ Turns AI coding from *suggestion generator* into *work executor*.
 
 KodaCode is an open-source, terminal-native coding agent built for trustworthy
 software delivery. It keeps orchestration, permissions, tool execution, prompt
-assembly, and replayable session state in runtime code and durable events
+assembly, and replayable session state in runtime code and stored events
 instead of hidden prompt behavior.
 
 ## Install
@@ -94,6 +94,7 @@ and wait for approval before making code changes.
 - [Providers](https://kodacode.dev/features/providers/)
 - [Model Routing](https://kodacode.dev/features/model-routing/)
 - [Context Management](https://kodacode.dev/features/context/)
+- [Common Workflows](https://kodacode.dev/getting-started/workflows/)
 - [Budgets](https://kodacode.dev/features/budgets/)
 - [Cost Tracking & Optimization](https://kodacode.dev/features/cost-tracking/)
 - [MCP Servers](https://kodacode.dev/features/mcp/)
@@ -103,7 +104,7 @@ and wait for approval before making code changes.
 
 - `builder`: default project-sandboxed coding agent
 - `engineer`: structured planning, task tracking, and delegation
-- `reviewer`: read-focused review and acceptance checks
+- `reviewer`: read-only review of current changes
 - `planner`: read-only repository analysis and implementation planning
 
 See [Agents](https://kodacode.dev/features/agents/) for custom agent definitions

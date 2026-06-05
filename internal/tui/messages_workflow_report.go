@@ -197,6 +197,8 @@ func workflowEvidenceDisplayType(evidenceType string) string {
 		return "approval"
 	case events.WorkflowEvidenceTypeDiagnostics:
 		return "diagnostics"
+	case events.WorkflowEvidenceTypeFileMutation:
+		return "file mutation"
 	case events.WorkflowEvidenceTypeGitDiff:
 		return "git diff"
 	case events.WorkflowEvidenceTypePhaseFailure:

@@ -14,6 +14,23 @@ import (
 	workflowpkg "github.com/sageil/kodacode/internal/workflow"
 )
 
+func providerRequestContent(request provider.Request) string {
+	var parts []string
+	if strings.TrimSpace(request.Instructions) != "" {
+		parts = append(parts, request.Instructions)
+	}
+	for _, input := range request.Inputs {
+		for _, value := range []string{input.Content, input.Output, input.Error} {
+			if strings.TrimSpace(value) != "" {
+				parts = append(parts, value)
+			}
+		}
+	}
+	return strings.Join(parts, "\n")
+}
+
+const deliveryPlanOutputDelta = `{"fields":{"plan":"inspect and patch","affected_files":"internal/app/runtime.go","risks":"regression","implementation_tasks":"Complete implementation","acceptance_criteria":"Implementation complete","verification_plan":"Run project verification"}}`
+
 func TestWorkflowPhaseAllowedToolsRestoresRuntimeOwnedResultTools(t *testing.T) {
 	got := workflowPhaseAllowedTools([]string{
 		tool.ReadToolName,
@@ -41,6 +58,99 @@ func TestWorkflowPhaseAllowedToolsRestoresRuntimeOwnedResultTools(t *testing.T) 
 	}
 	if containsString(got, tool.SearchToolName) {
 		t.Fatalf("tools = %#v, want ordinary search removed by phase allow filtering", got)
+	}
+}
+
+func TestWorkflowPhaseAllowedToolsKeepsTaskWorkflowForVerification(t *testing.T) {
+	got := workflowPhaseAllowedTools([]string{
+		tool.ReadToolName,
+		tool.SearchToolName,
+		tool.ApplyPatchToolName,
+		tool.BashToolName,
+		tool.TestToolName,
+		tool.TaskWorkflowToolName,
+	}, workflowpkg.Phase{
+		ID:             "verify",
+		Type:           workflowpkg.PhaseTypeVerification,
+		Agent:          "engineer",
+		RequiresOutput: []string{"result"},
+		Tools: workflowpkg.ToolPolicy{
+			Allow: []string{
+				tool.ReadToolName,
+				tool.SearchToolName,
+				tool.TestToolName,
+				tool.BashToolName,
+			},
+		},
+	})
+
+	for _, want := range []string{
+		tool.ReadToolName,
+		tool.SearchToolName,
+		tool.TestToolName,
+		tool.BashToolName,
+		tool.TaskWorkflowToolName,
+		tool.WorkflowPhaseOutputToolName,
+	} {
+		if !containsString(got, want) {
+			t.Fatalf("verification tools = %#v, want %s", got, want)
+		}
+	}
+	for _, blocked := range []string{tool.ApplyPatchToolName, "write", "git_diff"} {
+		if containsString(got, blocked) {
+			t.Fatalf("verification tools = %#v, want %s removed", got, blocked)
+		}
+	}
+}
+
+func TestWorkflowPhaseAllowedToolsTaskWorkflowDenyWins(t *testing.T) {
+	got := workflowPhaseAllowedTools([]string{
+		tool.ReadToolName,
+		tool.TaskWorkflowToolName,
+	}, workflowpkg.Phase{
+		ID:    "verify",
+		Type:  workflowpkg.PhaseTypeVerification,
+		Agent: "engineer",
+		Tools: workflowpkg.ToolPolicy{
+			Allow: []string{tool.ReadToolName},
+			Deny:  []string{tool.TaskWorkflowToolName},
+		},
+	})
+
+	if containsString(got, tool.TaskWorkflowToolName) {
+		t.Fatalf("verification tools = %#v, want explicit task_workflow deny honored", got)
+	}
+	if !containsString(got, tool.ReadToolName) {
+		t.Fatalf("verification tools = %#v, want read preserved", got)
+	}
+}
+
+func TestWorkflowPhasePromptFragmentForVerificationForbidsImplementation(t *testing.T) {
+	fragment := workflowPhasePromptFragment(workflowPhaseTurnContext{
+		Active:     true,
+		WorkflowID: "delivery",
+		Phase: workflowpkg.Phase{
+			ID:             "verify",
+			Type:           workflowpkg.PhaseTypeVerification,
+			Agent:          "engineer",
+			RequiresOutput: []string{"commands_run", "result", "failures", "confidence"},
+			Tools: workflowpkg.ToolPolicy{
+				Allow: []string{tool.ReadToolName, tool.SearchToolName, tool.TestToolName, tool.BashToolName},
+			},
+		},
+	}, []string{tool.ReadToolName, tool.SearchToolName, tool.TestToolName, tool.BashToolName, tool.WorkflowPhaseOutputToolName})
+
+	for _, want := range []string{
+		"This verification phase is evidence-only.",
+		"Do not implement fixes, edit files, or patch code in this phase.",
+		"record it in `unverified_criteria`, `deferred_items`, or `failures` and stop",
+		"The workflow revision transition will return to an implementation phase.",
+		"Verification does not own implementation.",
+		"Do not call mutation tools or attempt repairs during this phase.",
+	} {
+		if !strings.Contains(fragment.Content, want) {
+			t.Fatalf("verification prompt missing %q:\n%s", want, fragment.Content)
+		}
 	}
 }
 
@@ -91,7 +201,7 @@ func TestRuntimeWorkflowPlanPhaseRunsPlannerReadFocused(t *testing.T) {
 				Kind:       provider.EventKindToolCallDelta,
 				ToolCallID: "call-phase-output",
 				ToolName:   tool.WorkflowPhaseOutputToolName,
-				InputDelta: `{"fields":{"plan":"inspect and patch","affected_files":"internal/app/runtime.go","risks":"regression"}}`,
+				InputDelta: deliveryPlanOutputDelta,
 			},
 			{Kind: provider.EventKindToolCallDone, ToolCallID: "call-phase-output", ToolName: tool.WorkflowPhaseOutputToolName},
 		}), provider.NewSliceStream([]provider.Event{
@@ -151,7 +261,7 @@ func TestRuntimeWorkflowPlanPhaseRecoversMissingPhaseOutputToolCall(t *testing.T
 					Kind:       provider.EventKindToolCallDelta,
 					ToolCallID: "call-phase-output",
 					ToolName:   tool.WorkflowPhaseOutputToolName,
-					InputDelta: `{"fields":{"plan":"inspect and patch","affected_files":"internal/app/runtime.go","risks":"regression"}}`,
+					InputDelta: deliveryPlanOutputDelta,
 				},
 				{Kind: provider.EventKindToolCallDone, ToolCallID: "call-phase-output", ToolName: tool.WorkflowPhaseOutputToolName},
 			}),
@@ -190,7 +300,10 @@ func TestRuntimeWorkflowPlanPhaseRecoversMissingPhaseOutputToolCall(t *testing.T
 	}
 	if !workflowHasPhaseOutputEvidence(state.Workflow, "plan", "plan") ||
 		!workflowHasPhaseOutputEvidence(state.Workflow, "plan", "affected_files") ||
-		!workflowHasPhaseOutputEvidence(state.Workflow, "plan", "risks") {
+		!workflowHasPhaseOutputEvidence(state.Workflow, "plan", "risks") ||
+		!workflowHasPhaseOutputEvidence(state.Workflow, "plan", "implementation_tasks") ||
+		!workflowHasPhaseOutputEvidence(state.Workflow, "plan", "acceptance_criteria") ||
+		!workflowHasPhaseOutputEvidence(state.Workflow, "plan", "verification_plan") {
 		t.Fatalf("workflow evidence = %#v, want required plan outputs", state.Workflow.Evidence)
 	}
 }
@@ -203,7 +316,7 @@ func TestRuntimeWorkflowPlanPhaseOutputToolRecordsEvidenceAndAllowsMarkdownFinal
 					Kind:       provider.EventKindToolCallDelta,
 					ToolCallID: "call-phase-output",
 					ToolName:   tool.WorkflowPhaseOutputToolName,
-					InputDelta: `{"fields":{"plan":"inspect and patch","affected_files":"internal/app/runtime.go","risks":"regression"}}`,
+					InputDelta: deliveryPlanOutputDelta,
 				},
 				{Kind: provider.EventKindToolCallDone, ToolCallID: "call-phase-output", ToolName: tool.WorkflowPhaseOutputToolName},
 			}),
@@ -235,7 +348,10 @@ func TestRuntimeWorkflowPlanPhaseOutputToolRecordsEvidenceAndAllowsMarkdownFinal
 	}
 	if !workflowHasPhaseOutputEvidence(state.Workflow, "plan", "plan") ||
 		!workflowHasPhaseOutputEvidence(state.Workflow, "plan", "affected_files") ||
-		!workflowHasPhaseOutputEvidence(state.Workflow, "plan", "risks") {
+		!workflowHasPhaseOutputEvidence(state.Workflow, "plan", "risks") ||
+		!workflowHasPhaseOutputEvidence(state.Workflow, "plan", "implementation_tasks") ||
+		!workflowHasPhaseOutputEvidence(state.Workflow, "plan", "acceptance_criteria") ||
+		!workflowHasPhaseOutputEvidence(state.Workflow, "plan", "verification_plan") {
 		t.Fatalf("workflow evidence = %#v, want required plan outputs", state.Workflow.Evidence)
 	}
 }
@@ -248,7 +364,7 @@ func TestRuntimeWorkflowPlanPhaseOpensApprovalQuestionWhenApprovalRequired(t *te
 					Kind:       provider.EventKindToolCallDelta,
 					ToolCallID: "call-phase-output",
 					ToolName:   tool.WorkflowPhaseOutputToolName,
-					InputDelta: `{"fields":{"plan":"inspect and patch","affected_files":["internal/app/runtime.go","internal/app/runtime_workflow.go","internal/tui/view.go"],"risks":"regression"}}`,
+					InputDelta: `{"fields":{"plan":"inspect and patch","affected_files":["internal/app/runtime.go","internal/app/runtime_workflow.go","internal/tui/view.go"],"risks":"regression","implementation_tasks":"Complete implementation","acceptance_criteria":"Implementation complete","verification_plan":"Run project verification"}}`,
 				},
 				{Kind: provider.EventKindToolCallDone, ToolCallID: "call-phase-output", ToolName: tool.WorkflowPhaseOutputToolName},
 			}),
@@ -275,7 +391,7 @@ func TestRuntimeWorkflowPlanPhaseOpensApprovalQuestionWhenApprovalRequired(t *te
 		t.Fatalf("question purpose = %q", result.PendingQuestion.Purpose)
 	}
 	if result.PendingQuestion.Question != "Approve this plan before edits?" {
-		t.Fatalf("question = %q", result.PendingQuestion.Question)
+		t.Fatalf("question = %q, want concise approval prompt", result.PendingQuestion.Question)
 	}
 	if len(client.requests) != 2 {
 		t.Fatalf("provider requests = %d, want only plan phase requests", len(client.requests))
@@ -286,6 +402,22 @@ func TestRuntimeWorkflowPlanPhaseOpensApprovalQuestionWhenApprovalRequired(t *te
 	}
 	if state.Workflow == nil || state.Workflow.CurrentPhaseID != "approve" {
 		t.Fatalf("workflow = %#v, want approve phase", state.Workflow)
+	}
+	approvalTurn := state.Turns[result.TurnID]
+	for _, want := range []string{
+		"Workflow plan pending approval:",
+		"Plan:",
+		"inspect and patch",
+		"Affected files:",
+		"internal/app/runtime.go",
+		"internal/app/runtime_workflow.go",
+		"internal/tui/view.go",
+		"Risks:",
+		"regression",
+	} {
+		if approvalTurn == nil || !strings.Contains(approvalTurn.AssistantText, want) {
+			t.Fatalf("approval turn text missing %q:\n%s", want, approvalTurn.AssistantText)
+		}
 	}
 	if len(state.PendingQuestions) != 1 {
 		t.Fatalf("pending questions = %#v, want one approval question", state.PendingQuestions)
@@ -334,6 +466,9 @@ func TestRuntimeWorkflowApprovalPhaseAsksDurableQuestionAndAnswerAdvances(t *tes
 	if pending.PendingQuestion.Purpose != events.QuestionPurposeWorkflowApproval {
 		t.Fatalf("question purpose = %q", pending.PendingQuestion.Purpose)
 	}
+	if pending.PendingQuestion.Question != "Approve this plan before edits?" {
+		t.Fatalf("question = %q, want concise approval prompt", pending.PendingQuestion.Question)
+	}
 	if len(client.requests) != 0 {
 		t.Fatalf("provider requests = %d, want none for approval phase", len(client.requests))
 	}
@@ -360,6 +495,17 @@ func TestRuntimeWorkflowApprovalPhaseAsksDurableQuestionAndAnswerAdvances(t *tes
 	if client.requests[0].AgentID != "engineer" {
 		t.Fatalf("implement request agent = %q, want engineer", client.requests[0].AgentID)
 	}
+	implementInputs := providerRequestContent(client.requests[0])
+	for _, want := range []string{
+		"Approved plan: recorded",
+		"Plan approved before implementation: recorded",
+		"Run workflow phase `implement`.",
+		"Account for approved plan risks: recorded",
+	} {
+		if !strings.Contains(implementInputs, want) {
+			t.Fatalf("implement request missing approved plan context %q:\n%s", want, implementInputs)
+		}
+	}
 	state, err := runtime.Sessions.Snapshot(context.Background(), sessionID)
 	if err != nil {
 		t.Fatalf("Snapshot() error = %v", err)
@@ -367,6 +513,17 @@ func TestRuntimeWorkflowApprovalPhaseAsksDurableQuestionAndAnswerAdvances(t *tes
 	approvalTurn := state.Turns["turn-approve"]
 	if approvalTurn == nil || approvalTurn.Config == nil || approvalTurn.Config.WorkflowID != "delivery" || approvalTurn.Config.WorkflowPhaseID != "approve" {
 		t.Fatalf("approval turn config = %#v, want workflow approval binding", approvalTurn)
+	}
+	for _, want := range []string{
+		"Workflow plan pending approval:",
+		"Plan:",
+		"recorded",
+		"Affected files:",
+		"Risks:",
+	} {
+		if !strings.Contains(approvalTurn.AssistantText, want) {
+			t.Fatalf("approval turn text missing %q:\n%s", want, approvalTurn.AssistantText)
+		}
 	}
 	implementTurn := state.Turns[completed.TurnID]
 	if implementTurn == nil || implementTurn.Config == nil || implementTurn.Config.WorkflowPhaseID != "implement" {
@@ -541,6 +698,7 @@ func TestRuntimeWorkflowImplementPhaseUsesPhaseToolIntersection(t *testing.T) {
 	}
 	runtime := newRuntimeWithClient(t, client)
 	root := t.TempDir()
+	writeProjectWorkflow(t, root, "delivery.yaml", agentVerificationNoAutoWorkflowYAML())
 	sessionID := createWorkflowTestSession(t, runtime, root)
 	startDeliveryAtImplement(t, runtime, sessionID, root)
 
@@ -560,12 +718,12 @@ func TestRuntimeWorkflowImplementPhaseUsesPhaseToolIntersection(t *testing.T) {
 		t.Fatalf("provider requests = %d, want 1", len(client.requests))
 	}
 	gotTools := requestToolNames(client.requests[0].Tools)
-	for _, want := range []string{"read", "search", "apply_patch", "bash", "git_diff", "task_workflow"} {
+	for _, want := range []string{"read", "search", "apply_patch", "write", "bash", "git_diff", "task_workflow"} {
 		if !containsString(gotTools, want) {
 			t.Fatalf("implement phase tools = %#v, want %s", gotTools, want)
 		}
 	}
-	for _, blocked := range []string{"write", "test", "task_review", "question"} {
+	for _, blocked := range []string{"test", "task_review", "question"} {
 		if containsString(gotTools, blocked) {
 			t.Fatalf("implement phase tools = %#v, want %s removed", gotTools, blocked)
 		}
@@ -684,6 +842,7 @@ func TestRuntimeWorkflowFailedVerificationLoopsBackToImplementationWithinCap(t *
 	client := &fakeProvider{}
 	runtime := newRuntimeWithClient(t, client)
 	root := t.TempDir()
+	writeProjectWorkflow(t, root, "delivery.yaml", goVerificationRevisionWorkflowYAML())
 	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module example.com/workflowverifyfail\n\ngo 1.22\n"), 0o644); err != nil {
 		t.Fatalf("WriteFile(go.mod) error = %v", err)
 	}
@@ -859,6 +1018,7 @@ func TestRuntimeWorkflowBlockedPhaseCanRecoverFromUserTurn(t *testing.T) {
 	root := t.TempDir()
 	sessionID := createWorkflowTestSession(t, runtime, root)
 	startDeliveryAtImplement(t, runtime, sessionID, root)
+	recordDeliveryFileMutationEvidence(t, runtime, sessionID, "turn-implement")
 
 	if _, err := runtime.Sessions.CreateTask(context.Background(), CreateTaskInput{
 		SessionID: sessionID,
@@ -1056,6 +1216,7 @@ phases:
         - read
         - search
         - apply_patch
+        - write
         - bash
         - git_diff
         - task_workflow
@@ -1071,6 +1232,116 @@ phases:
     commands:
       - tool: test
         command: go test ./...
+    required: true
+
+  - id: review
+    type: review
+    agent: reviewer
+    mode: read_only
+    auto_continue: false
+    requires:
+      - verification_result
+`
+}
+
+func goVerificationRevisionWorkflowYAML() string {
+	return `
+id: delivery
+description: Test workflow with provider-free Go verification revision.
+phases:
+  - id: plan
+    agent: planner
+    mode: read_only
+    requires_output:
+      - plan
+      - affected_files
+      - risks
+
+  - id: approve
+    type: user_approval
+    skip_when:
+      max_affected_files: 2
+
+  - id: implement
+    agent: engineer
+    tools:
+      allow:
+        - read
+        - search
+        - apply_patch
+        - write
+        - bash
+        - git_diff
+        - task_workflow
+    requires:
+      approved_phase: plan
+
+  - id: verify
+    type: verification
+    agent: engineer
+    tools:
+      allow:
+        - test
+    commands:
+      - tool: test
+        command: go test ./...
+    required: true
+
+transitions:
+  - from: verify
+    on: verification_failed
+    to: implement
+    max_loops: 2
+`
+}
+
+func agentVerificationNoAutoWorkflowYAML() string {
+	return `
+id: delivery
+description: Test workflow with agent-owned verification.
+phases:
+  - id: plan
+    agent: planner
+    mode: read_only
+    requires_output:
+      - plan
+      - affected_files
+      - risks
+
+  - id: approve
+    type: user_approval
+    skip_when:
+      max_affected_files: 2
+
+  - id: implement
+    agent: engineer
+    tools:
+      allow:
+        - read
+        - search
+        - apply_patch
+        - write
+        - bash
+        - git_diff
+        - task_workflow
+    requires:
+      approved_phase: plan
+
+  - id: verify
+    type: verification
+    agent: engineer
+    auto_continue: false
+    tools:
+      allow:
+        - read
+        - search
+        - test
+        - bash
+    requires_output:
+      - commands_run
+      - result
+      - failures
+      - confidence
     required: true
 
   - id: review
@@ -1108,6 +1379,7 @@ phases:
         - read
         - search
         - apply_patch
+        - write
         - bash
         - git_diff
         - task_workflow

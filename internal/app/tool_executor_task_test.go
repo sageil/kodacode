@@ -201,7 +201,7 @@ func TestToolExecutorTaskWorkflowRejectsChildUnderCompletedParent(t *testing.T) 
 	if result.Status != ToolExecutionStatusExecuted {
 		t.Fatalf("result = %#v, want executed", result)
 	}
-	if result.Error != "task_workflow failed: parent_task_id is already complete. Use a pending parent or omit parent_task_id." {
+	if result.Error != "task_workflow: parent task is complete. Use a pending parent_task_id or omit parent_task_id." {
 		t.Fatalf("result error = %q", result.Error)
 	}
 }
@@ -280,9 +280,9 @@ func TestToolExecutorTaskWorkflowUnsupportedFieldsReturnActionPayload(t *testing
 		t.Fatalf("result = %#v, want executed result with tool error", result)
 	}
 	for _, want := range []string{
-		`task_workflow failed`,
-		`create does not accept summary`,
-		`Remove unsupported fields`,
+		`task_workflow:`,
+		`create cannot use summary`,
+		`Use create for title/parent/kind/status/notes`,
 	} {
 		if !strings.Contains(result.Error, want) {
 			t.Fatalf("result error = %q, missing %q", result.Error, want)
@@ -459,7 +459,7 @@ func TestToolExecutorTaskWorkflowRejectsSecondInProgressTask(t *testing.T) {
 	if result.Status != ToolExecutionStatusExecuted {
 		t.Fatalf("result = %#v, want executed result with tool error", result)
 	}
-	if result.Error != "task_workflow failed: task-a is already in progress. Update, block, or complete it first." {
+	if result.Error != "task_workflow: task-a is already in progress. Update, block, or complete it first." {
 		t.Fatalf("result error = %q", result.Error)
 	}
 }

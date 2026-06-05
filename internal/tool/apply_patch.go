@@ -57,7 +57,7 @@ func NewApplyPatchTool() ApplyPatchTool {
 }
 
 func (ApplyPatchTool) Definition() Definition {
-	description := "Edit files by sending raw structured patch text directly to this custom/freeform tool, not a JSON object. First line must be \"*** Begin Patch\" and final line must be \"*** End Patch\". Use \"*** Add File:\", \"*** Update File:\", or \"*** Delete File:\" file headers. In Add File operations, every file-content line must start with \"+\", including blank lines as \"+\". In Update File operations, hunk lines must start with a space, \"+\", or \"-\". Patch lines MUST NOT include read output line number prefixes like \"40:\" either directly or after patch prefixes like \"-40:\" or \"+40:\". The required patch grammar is provided by this tool."
+	description := "apply_patch applies raw structured patch text directly to this custom/freeform tool, not a JSON object and not Markdown. The required patch grammar format is: first line \"*** Begin Patch\", one or more file operations, final line \"*** End Patch\". Supported file headers are \"*** Add File:\", \"*** Update File:\", and \"*** Delete File:\" followed by a path. Patch control lines must start at column 1; do not prefix them with \"+\", \"-\", or a space. For Add File, every file-content line must start with \"+\", including blank lines as \"+\". For Update File, hunk lines start with a space, \"+\", or \"-\", and should include enough context to locate the edit. Patch lines MUST NOT include read output line number prefixes like \"40:\" either directly or after patch prefixes like \"-40:\" or \"+40:\". Do not wrap the patch in code fences or include prose outside the patch. If apply_patch returns a format error, retry apply_patch with the corrected complete patch."
 	return Definition{
 		Name:                ApplyPatchToolName,
 		Description:         description,
@@ -134,9 +134,9 @@ type applyPatchExecutionError struct {
 
 func (e applyPatchExecutionError) Error() string {
 	if e.cause == nil {
-		return "apply_patch failed"
+		return "apply_patch: edit failed."
 	}
-	return "apply_patch failed: " + strings.TrimSuffix(e.cause.Error(), ".") + "."
+	return "apply_patch: " + strings.TrimSuffix(e.cause.Error(), ".") + "."
 }
 
 func (e applyPatchExecutionError) Unwrap() error {
@@ -461,9 +461,9 @@ func computeApplyPatchReplacements(lines []string, path string, hunks []ApplyPat
 
 func applyPatchHunkNoMatchError(path string, oldLines []string) error {
 	if prefix, ok := detectAnyReadLinePrefix(oldLines); ok {
-		return fmt.Errorf("%w in %s; the hunk includes read output line number prefixes like %q. Remove line numbers copied from read output, then retry with current file content", ErrApplyPatchHunkNoMatch, path, prefix)
+		return fmt.Errorf("%s: %w. Remove line numbers copied from read output like %q", path, ErrApplyPatchHunkNoMatch, prefix)
 	}
-	return fmt.Errorf("%w in %s; re-read the relevant section and retry with current file context", ErrApplyPatchHunkNoMatch, path)
+	return fmt.Errorf("%s: %w. Re-read this file section and retry", path, ErrApplyPatchHunkNoMatch)
 }
 
 func applyPatchReplacements(lines []string, replacements []applyPatchReplacement) []string {

@@ -18,19 +18,19 @@ KodaCode already has the primitives needed for workflow-driven coding:
 - Budgets, cost tracking, model routing, MCP tools, and skills
 
 The strongest opportunity is not to add more prompt-only agent personas. It is
-to make repeatable software delivery workflows explicit, durable, inspectable,
+to make repeatable software delivery workflows explicit, saved, inspectable,
 and resumable.
 
 ## Current status
 
 KodaCode's workflow feature is currently an MVP-plus runtime feature. The core
-contract is implemented and durable:
+runtime behavior is implemented and saved:
 
 - Built-in, global, and project-local workflow catalogs.
 - Workflow YAML validation with known-field checking.
 - Durable workflow start, phase advance, block, resume, evidence, and complete
   events.
-- Phase-bound agents, narrowed tool surfaces, and read-only phase enforcement.
+- Phase-bound agents, narrowed tool access, and read-only phase enforcement.
 - Structured `requires_output` gates.
 - User approval phases and small-plan approval skip through
   `skip_when.max_affected_files`.
@@ -40,13 +40,17 @@ contract is implemented and durable:
   `provider_request_limit`, `no_progress`, and `canceled`.
 - Bounded verification revision loops through transition `max_loops` or
   workflow-level `max_revision_loops`.
-- Final phases synthesize a deterministic summary from recorded workflow
-  evidence and call out requested fields that were not recorded.
+- Phase start and resume events are anchored to the turn that executes the
+  phase before the phase prompt is assembled.
+- Final phases build a deterministic summary from recorded workflow evidence and
+  call out requested fields that were not recorded.
 - Advisory workflow route recommendations are recorded per turn when no
   workflow is explicitly selected.
-- Review phases can declare review pass metadata, fan out reviewer child
-  sessions in parallel with `review_fanout`, and final summaries aggregate
-  multiple recorded review outcomes.
+- Review phases can declare review pass metadata
+  through named `review_passes`; each pass can include an `instructions` list
+  that is expanded into the generated review directive.
+- Review phases require one `workflow_review_result` result for each declared
+  review pass. Final summaries combine multiple recorded review outcomes.
 - Per-workflow `review_mode`.
 - Workflow and phase `model` routing with phase-level precedence.
 - Per-workflow budgets through `budgets.max_cost` and
@@ -55,13 +59,15 @@ contract is implemented and durable:
   verification check or review finding that caused the retry.
 - Verification commands declare an execution tool, such as `test` or `bash`,
   so workflows can run typed checks beyond the test tool.
-- Blocked workflows can be resumed from the TUI with `/workflow resume` or
-  `/workflow retry`.
+- Blocked workflows can be resumed from the TUI with `/workflow resume`.
 - TUI workflow selection, footer status, and trace visibility.
 
-Remaining work:
+Current constraints:
 
-- No workflow roadmap items are currently open.
+- Active workflow turns suppress automatic task review; workflow review phases
+  own review while a runtime workflow is in progress.
+- Workflow budget warnings are definition-scoped through
+  `budgets.warn_threshold`.
 
 ## Research baseline
 
@@ -73,7 +79,7 @@ agents:
   between steps.
 - Routing: classify the input and send it to a specialized path.
 - Parallelization: run independent subtasks or multiple attempts concurrently,
-  then aggregate the results.
+  then combine the results.
 - Orchestrator-workers: let a central agent dynamically decompose a task and
   delegate work to specialized workers.
 - Evaluator-optimizer: generate a candidate, evaluate it, revise it, and repeat
@@ -106,14 +112,14 @@ Sources:
 
 Classify the user's request before execution and recommend the right runtime
 path. Routing should be advisory unless the user explicitly selected a workflow
-or a deterministic runtime contract applies.
+or a deterministic runtime rule applies.
 
 Possible routes:
 
 - Quick local code change: `builder`
 - Broad, risky, or architectural change: `engineer`
 - Read-only repository analysis: `planner`
-- Acceptance check or regression review: `reviewer`
+- Check current changes for possible bugs: `reviewer`
 - Docs or research-heavy task: read-heavy route with web tools when configured
 - Sensitive action: preflight approval before writes, network, or destructive
   commands
@@ -144,7 +150,7 @@ Phases:
 1. Route: classify the task and select the workflow.
 2. Plan: use `planner` or inline `engineer` planning based on scope.
 3. Approve: pause before edits when the plan is broad or risky.
-4. Implement: use `engineer` with durable `task_workflow` state.
+4. Implement: use `engineer` with saved `task_workflow` state.
 5. Verify: run focused tests, diagnostics, and diff checks.
 6. Review: use `reviewer` to record pass, concern, fail, or accepted outcomes.
 7. Summarize: return changes, verification, risks, and next steps.
@@ -159,7 +165,7 @@ Runtime requirements:
 
 - Workflow phase events.
 - Phase status in the TUI.
-- A durable link between tasks, verification commands, and review outcomes.
+- A saved link between tasks, verification commands, and review outcomes.
 - Configurable review mode and review model.
 
 ### 3. Orchestrator-workers workflow
@@ -169,17 +175,17 @@ Use `engineer` as the parent orchestrator for broad or uncertain tasks.
 Pattern:
 
 - `engineer` identifies unknowns and delegates bounded read-only work.
-- `planner` maps architecture, ownership, and likely affected files.
+- `planner` maps structure, responsible code, and likely affected files.
 - Optional specialist child agents inspect isolated subsystems.
-- Parent `engineer` synthesizes one plan and owns implementation.
+- Parent `engineer` builds one plan and owns implementation.
 - `reviewer` evaluates the parent work session after implementation.
 
 User benefit:
 
 - Handles large repositories without forcing one model turn to carry all
   context.
-- Preserves clear ownership: children investigate; parent implements.
-- Keeps child context isolated while returning durable handoff summaries.
+- Preserves clear responsibility: children investigate; parent implements.
+- Keeps child context isolated while returning saved handoff summaries.
 
 Runtime requirements:
 
@@ -191,14 +197,14 @@ Runtime requirements:
 
 ### 4. Parallel review workflow
 
-Run several focused review passes and aggregate the results.
+Run several focused review passes and combine the results.
 
 Suggested passes:
 
 - Correctness and behavioral regressions
 - Test coverage and edge cases
 - Security, sandbox, and permission boundaries
-- API, config, and compatibility contracts
+- API shape, config, permissions, and compatibility
 - Documentation and user-facing command accuracy
 - Cost, context, and model-routing impact for agent-runtime changes
 
@@ -211,10 +217,10 @@ User benefit:
 
 Runtime requirements:
 
-- Parallel or sequential reviewer child sessions.
+- Review pass metadata on the active review phase.
 - Review category metadata.
 - Aggregated review summary with deduped findings and severity.
-- Budget-aware caps so review fan-out cannot run uncontrolled.
+- Budget-aware caps so parallel review cannot run uncontrolled.
 
 ### 5. Evaluator-optimizer workflow
 
@@ -276,23 +282,23 @@ Phases:
 
 1. Reproduce the failure.
 2. Capture the concrete signal.
-3. Localize likely ownership.
+3. Identify the likely code area.
 4. Patch the root cause.
-5. Add or update a regression test.
+5. Add or update a test that catches the bug.
 6. Verify the fix.
-7. Review for collateral damage.
+7. Review for side effects.
 
 User benefit:
 
 - Turns vague "fix this" prompts into a disciplined troubleshooting path.
 - Prioritizes root cause over symptoms.
-- Produces stronger regression protection.
+- Makes the bug less likely to come back.
 
 Runtime requirements:
 
 - Reproduction command capture.
 - Failure artifact summary.
-- Explicit root-cause note.
+- Clear note about the cause.
 - Regression-test association in the final summary.
 
 ## Recommended first workflow
@@ -372,10 +378,9 @@ Resolution order should mirror agent resolution:
 That lets a project add new workflows or override a built-in workflow when the
 team has stricter local requirements.
 
-Workflow YAML should be a runtime contract. It should declare phases, agents,
-tool boundaries, required evidence, approval gates, limits, and stop
-conditions. It should not be arbitrary scripting and should not be treated as a
-long prompt.
+Workflow YAML should define runtime rules. It should declare phases, agents,
+tool access, required evidence, approval gates, limits, and stop conditions. It
+should not be arbitrary scripting and should not be treated as a long prompt.
 
 Example project-local workflow:
 
@@ -403,6 +408,7 @@ phases:
         - read
         - search
         - apply_patch
+        - write
         - bash
         - git_diff
         - task_workflow
@@ -411,6 +417,7 @@ phases:
 
   - id: verify
     type: verification
+    agent: engineer
     commands:
       - tool: test
         command: go test ./...
@@ -419,18 +426,29 @@ phases:
     required: true
 
   - id: review
+    type: review
     agent: reviewer
     mode: read_only
-    review_fanout: true
     review_passes:
       - id: correctness
-        description: Behavioral regressions and implementation correctness.
+        description: Correctness against the request and approved plan.
+        instructions:
+          - Compare behavior with the approved plan and request.
+          - Check the main path and important edge cases.
+          - Find incorrect, incomplete, or out-of-scope behavior.
       - id: tests
-        description: Verification coverage, edge cases, and missing checks.
-      - id: contracts
-        description: API, config, permission, and compatibility contracts.
+        description: Tests, edge cases, and missing checks.
+        instructions:
+          - Inspect tests changed or affected.
+          - Check coverage for behavior, edge cases, and declared verification.
+          - Find missing, brittle, unrelated, or non-exercising tests.
+      - id: architecture
+        description: APIs, data, config, permissions, and compatibility.
+        instructions:
+          - Inspect APIs, request/response shapes, persisted data, config, permissions, and integrations.
+          - Check callers, stored data, config, and related modules.
+          - Find broken callers, incompatible data changes, permission/config risk, or maintainability issues.
     requires:
-      - git_diff
       - verification_result
 
   - id: summarize
@@ -461,8 +479,8 @@ The workflow executor should split responsibility into three layers:
   phase needs.
 - Runtime executor: KodaCode validates the YAML, advances phases, enforces
   approvals, records events, and blocks invalid transitions.
-- Agent execution: agents perform bounded work inside the current phase with a
-  narrowed tool surface and explicit objective.
+- Agent execution: agents perform bounded work inside the current phase with
+  narrowed tool access and an explicit objective.
 
 Project-local workflow definitions are especially useful for:
 
@@ -480,7 +498,7 @@ Important safety constraints:
   forbids.
 - Shell commands declared in YAML must still use normal execution and approval
   policy.
-- Phase completion must require durable evidence when the phase declares it.
+- Phase completion must require saved evidence when the phase declares it.
 - "Agent said done" should not satisfy verification or review requirements by
   itself.
 - Invalid workflow definitions should fail at load time with clear errors.
@@ -518,13 +536,13 @@ through sessions, and bounded by explicit stop conditions.
 ## Avoiding heuristic dependence
 
 KodaCode should not depend on hidden heuristics to decide what is allowed to
-happen next. Heuristics are useful for recommendations, but runtime contracts
+happen next. Heuristics are useful for recommendations, but runtime rules
 should define workflow authority.
 
 Authority order:
 
 1. Explicit user-selected workflow.
-2. Deterministic runtime contract.
+2. Deterministic runtime rule.
 3. Workflow phase state.
 4. Agent recommendation or classifier output.
 
@@ -535,7 +553,7 @@ Examples of explicit workflow selection:
 - `/workflow review`
 - `kodacode --workflow delivery "..."`
 
-Examples of deterministic runtime contracts:
+Examples of deterministic runtime rules:
 
 - External path write requires approval.
 - Destructive command requires approval.
@@ -583,7 +601,7 @@ recommendation:
 
 Low-confidence classification should ask the user or default to the least risky
 path, usually planning or read-only exploration. The key rule is that
-classification may recommend a workflow, but durable runtime state decides what
+classification may recommend a workflow, but saved runtime state decides what
 can happen next.
 
 ## Feature progress tracker
@@ -693,7 +711,7 @@ Acceptance criteria:
   completes.
 - Invalid phase transitions are blocked.
 - Resume reconstructs active workflow and phase state without hidden UI state.
-- Stop reasons are durable and visible.
+- Stop reasons are saved and visible.
 
 Tests:
 
@@ -704,13 +722,13 @@ Tests:
 
 Status: done
 
-### 5. Phase contracts and evidence
+### 5. Phase requirements and evidence
 
 Scope:
 
 - Enforce required evidence before phase transitions.
 - Record approval, verification, diff, diagnostics, and review evidence as
-  durable runtime artifacts.
+  saved runtime data.
 
 Acceptance criteria:
 
@@ -733,14 +751,14 @@ Status: done
 
 Scope:
 
-- Run agents inside the active phase with narrowed context and tool surface.
+- Run agents inside the active phase with narrowed context and tool access.
 - Bind `task_workflow` tasks to workflow phases.
 - Ensure YAML cannot grant capabilities outside runtime or agent policy.
 
 Acceptance criteria:
 
 - Planner phases run read-only.
-- Reviewer phases run read-focused and record review outcomes.
+- Review phases (`type: review`) run read-focused and record review outcomes.
 - Engineer implementation phases can mutate only through permitted tools.
 - Task updates include the active workflow phase.
 
@@ -748,7 +766,7 @@ Tests:
 
 - Read-only phase cannot call mutation tools.
 - Reviewer phase cannot edit files.
-- Tool surface is the intersection of runtime policy, agent policy, and phase
+- Tool access is the intersection of runtime policy, agent policy, and phase
   policy.
 - Task state records phase association.
 
@@ -809,7 +827,7 @@ A KodaCode workflow feature is successful when:
 - Users can see what phase the system is in.
 - Users can inspect why an agent or model route was selected.
 - Human approval gates happen before risky side effects.
-- Reviewer outcomes are durable and tied to tasks.
+- Reviewer outcomes are saved and tied to tasks.
 - Verification evidence is visible, not just summarized.
 - Resume continues the same workflow state instead of inventing a new one.
 - Costs and iteration limits are enforced by runtime.

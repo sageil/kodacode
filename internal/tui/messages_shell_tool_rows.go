@@ -294,6 +294,8 @@ func renderShellApplyPatchFailureTranscriptSection(m Model, state events.Session
 func applyPatchFailureDisplayError(errorText string) string {
 	errorText = strings.TrimSpace(errorText)
 	for _, prefix := range []string{
+		"apply_patch:",
+		"`apply_patch`:",
 		"`apply_patch` failed",
 		"apply_patch failed",
 		"`apply_patch` error",

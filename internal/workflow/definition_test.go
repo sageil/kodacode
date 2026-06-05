@@ -48,15 +48,18 @@ func TestLoadBytesParsesValidDeliveryWorkflow(t *testing.T) {
 	if implement.Requires.Fields["approved_phase"] != "plan" {
 		t.Fatalf("implement requires = %#v, want approved_phase plan", implement.Requires.Fields)
 	}
-	if strings.Join(implement.Completion.Requires.Items, ",") != CompletionRequirementActivePhaseTasksComplete {
+	if strings.Join(implement.Completion.Requires.Items, ",") != CompletionRequirementActivePhaseTasksComplete+",planned_tasks_complete,file_mutation" {
 		t.Fatalf("implement completion requires = %#v", implement.Completion.Requires.Items)
 	}
 	verify := definition.Phases[3]
-	if len(verify.Commands) != 1 || verify.Commands[0].Tool != "test" || verify.Commands[0].Command != "go test ./..." {
-		t.Fatalf("verify commands = %#v", verify.Commands)
+	if len(verify.Commands) != 0 {
+		t.Fatalf("verify commands = %#v, want none", verify.Commands)
+	}
+	if strings.Join(verify.RequiresOutput, ",") != "commands_run,result,criteria_checked,unverified_criteria,deferred_items,failures,confidence" {
+		t.Fatalf("verify requires_output = %#v", verify.RequiresOutput)
 	}
 	review := definition.Phases[4]
-	if strings.Join(review.Requires.Items, ",") != "git_diff,verification_result" {
+	if strings.Join(review.Requires.Items, ",") != "verification_result" {
 		t.Fatalf("review requires = %#v", review.Requires.Items)
 	}
 	if review.AutoContinue != nil {
@@ -692,6 +695,9 @@ phases:
       - plan
       - affected_files
       - risks
+      - implementation_tasks
+      - acceptance_criteria
+      - verification_plan
 
   - id: approve
     type: user_approval
@@ -707,6 +713,7 @@ phases:
         - read
         - search
         - apply_patch
+        - write
         - bash
         - git_diff
         - task_workflow
@@ -715,13 +722,26 @@ phases:
     completion:
       requires:
         - active_phase_tasks_complete
+        - planned_tasks_complete
+        - file_mutation
 
   - id: verify
     type: verification
     agent: engineer
-    commands:
-      - tool: test
-        command: go test ./...
+    tools:
+      allow:
+        - read
+        - search
+        - test
+        - bash
+    requires_output:
+      - commands_run
+      - result
+      - criteria_checked
+      - unverified_criteria
+      - deferred_items
+      - failures
+      - confidence
     required: true
 
   - id: review
@@ -734,7 +754,6 @@ phases:
       - id: tests
         description: Test coverage, edge cases, and missing checks.
     requires:
-      - git_diff
       - verification_result
 transitions:
   - from: approve

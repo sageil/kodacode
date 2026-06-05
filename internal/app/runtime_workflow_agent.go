@@ -130,6 +130,8 @@ func workflowPhaseAllowedTools(base []string, phase workflowpkg.Phase) []string 
 	}
 	if workflowPhaseIsReadFocused(phase) {
 		allowed = removeWorkflowMutationTools(allowed)
+	} else if containsTrimmed(base, tool.TaskWorkflowToolName) && !containsTrimmed(phase.Tools.Deny, tool.TaskWorkflowToolName) {
+		allowed = appendToolIfMissing(allowed, tool.TaskWorkflowToolName)
 	}
 	return allowWorkflowRuntimeOwnedTools(allowed, workflowRuntimeToolScope{Phase: &phase})
 }
@@ -260,12 +262,33 @@ func workflowPhasePromptFragment(ctx workflowPhaseTurnContext, allowedTools []st
 		lines = append(lines, "- If a required output has no findings, still record that key with a short value such as `None identified`.")
 		lines = append(lines, "- If you skip `"+tool.WorkflowPhaseOutputToolName+"`, the workflow phase will block instead of advancing.")
 		lines = append(lines, "- The final response may be human-readable after that tool call. Prose, markdown, or JSON in the assistant response does not satisfy required phase outputs.")
+		if containsTrimmed(required, "implementation_tasks") {
+			lines = append(lines, "- `implementation_tasks` must list concrete implementation tasks that can each be represented by workflow tasks during implementation.")
+		}
+		if containsTrimmed(required, "acceptance_criteria") {
+			lines = append(lines, "- `acceptance_criteria` must list the behavior or quality checks that define done for the approved plan.")
+		}
+		if containsTrimmed(required, "verification_plan") {
+			lines = append(lines, "- `verification_plan` must say how acceptance criteria should be verified, including tests or manual checks.")
+		}
 	}
 	if required := workflowPhaseCompletionRequirementLabels(ctx.Phase); len(required) > 0 {
 		lines = append(lines, "- Phase completion requirements: "+strings.Join(required, ", "))
 	}
 	if len(ctx.Phase.Commands) > 0 {
 		lines = append(lines, "- Declared verification commands: "+strings.Join(workflowVerificationCommandDisplays(ctx.Phase.Commands), " | "))
+	}
+	if workflowPhaseIsVerification(ctx.Phase) && len(ctx.Phase.Commands) == 0 {
+		lines = append(lines,
+			"- This verification phase is evidence-only. Do not implement fixes, edit files, or patch code in this phase.",
+			"- Determine and run appropriate verification for this project. Prefer existing project scripts, tasks, or documented commands over framework guesses.",
+			"- Verify against the approved `acceptance_criteria` and `verification_plan`, not only whether one command passed.",
+			"- If any criterion is unverified, deferred, or failed, record it in `unverified_criteria`, `deferred_items`, or `failures` and stop. The workflow revision transition will return to an implementation phase.",
+			"- Record commands run, result, criteria checked, unverified criteria, deferred items, failures, and confidence with `"+tool.WorkflowPhaseOutputToolName+"` before final prose.",
+		)
+	}
+	if strings.TrimSpace(ctx.Phase.ID) == "implement" {
+		lines = append(lines, "- Create workflow tasks for every approved `implementation_tasks` item before implementation work. The phase cannot advance until those planned tasks are complete.")
 	}
 	if len(ctx.Phase.Include) > 0 {
 		lines = append(lines, "- Final summary should include: "+strings.Join(trimmedWorkflowValues(ctx.Phase.Include), ", "))
@@ -278,6 +301,9 @@ func workflowPhasePromptFragment(ctx workflowPhaseTurnContext, allowedTools []st
 	}
 	if workflowPhaseIsVerification(ctx.Phase) && len(ctx.Phase.Commands) > 0 {
 		lines = append(lines, "- Run only declared verification commands for workflow verification evidence.")
+	}
+	if workflowPhaseIsVerification(ctx.Phase) {
+		lines = append(lines, "- Verification does not own implementation. Do not call mutation tools or attempt repairs during this phase.")
 	}
 	if len(allowedTools) > 0 {
 		lines = append(lines, "- Allowed tools for this phase: "+strings.Join(allowedTools, ", "))

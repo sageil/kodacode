@@ -640,6 +640,79 @@ phases:
 	}
 }
 
+func TestRuntimeFinalizeCompletedWorkflowBoundTurnAdvancesWorkflow(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	writeProjectWorkflow(t, root, "finalize-advance.yaml", `
+id: finalize-advance
+description: finalize workflow-bound turn advancement
+phases:
+  - id: implement
+    agent: engineer
+    completion:
+      requires:
+        - active_phase_tasks_complete
+  - id: summarize
+    type: final
+`)
+	runtime := newRuntimeWithClient(t, &fakeProvider{})
+	sessionID, err := runtime.CreateSession(ctx, root)
+	if err != nil {
+		t.Fatalf("CreateSession() error = %v", err)
+	}
+	if err := runtime.StartWorkflow(ctx, StartWorkflowInput{
+		SessionID:     sessionID,
+		TurnID:        "turn-setup",
+		WorkspaceRoot: root,
+		WorkflowID:    "finalize-advance",
+	}); err != nil {
+		t.Fatalf("StartWorkflow() error = %v", err)
+	}
+	if err := runtime.Runner.appendTurnConfigured(ctx, sessionID, "turn-1", events.TurnConfiguredPayload{
+		AgentID:         "engineer",
+		WorkflowID:      "finalize-advance",
+		WorkflowPhaseID: "implement",
+		Model:           "test/model",
+	}); err != nil {
+		t.Fatalf("appendTurnConfigured() error = %v", err)
+	}
+	if _, err := runtime.Sessions.CreateTask(ctx, CreateTaskInput{
+		SessionID: sessionID,
+		TurnID:    "turn-1",
+		TaskID:    "task-1",
+		Title:     "Implement feature",
+		Status:    events.TaskStatusInProgress,
+	}); err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+	if _, err := runtime.Sessions.CompleteTask(ctx, CompleteTaskInput{
+		SessionID: sessionID,
+		TurnID:    "turn-1",
+		TaskID:    "task-1",
+		Summary:   "implemented",
+	}); err != nil {
+		t.Fatalf("CompleteTask() error = %v", err)
+	}
+	if err := runtime.Runner.appendTurnDone(ctx, sessionID, "turn-1"); err != nil {
+		t.Fatalf("appendTurnDone() error = %v", err)
+	}
+
+	result, err := runtime.finalizeTurnRunResult(ctx, ctx, nil, sessionID, "turn-1", RunTurnResult{Status: TurnRunStatusCompleted})
+	if err != nil {
+		t.Fatalf("finalizeTurnRunResult() error = %v", err)
+	}
+	if result.Status != TurnRunStatusCompleted {
+		t.Fatalf("result status = %q, want completed", result.Status)
+	}
+	state, err := runtime.Sessions.Snapshot(ctx, sessionID)
+	if err != nil {
+		t.Fatalf("Snapshot() error = %v", err)
+	}
+	if state.Workflow == nil || state.Workflow.Status != events.WorkflowStatusCompleted {
+		t.Fatalf("workflow = %#v, want completed", state.Workflow)
+	}
+}
+
 func TestRuntimeRunSessionTurnIncludesWorkflowBudgetContextInPrompt(t *testing.T) {
 	root := t.TempDir()
 	writeProjectWorkflow(t, root, "budget-context.yaml", `
@@ -1297,7 +1370,7 @@ func TestRuntimeRunSessionTurnDoesNotRecommendWhenWorkflowSelected(t *testing.T)
 				Kind:       provider.EventKindToolCallDelta,
 				ToolCallID: "call-phase-output",
 				ToolName:   tool.WorkflowPhaseOutputToolName,
-				InputDelta: `{"fields":{"plan":"debug","affected_files":"internal/app/runtime.go","risks":"regression"}}`,
+				InputDelta: `{"fields":{"plan":"debug","affected_files":"internal/app/runtime.go","risks":"regression","implementation_tasks":"Complete implementation","acceptance_criteria":"Implementation complete","verification_plan":"Run project verification"}}`,
 			},
 			{Kind: provider.EventKindToolCallDone, ToolCallID: "call-phase-output", ToolName: tool.WorkflowPhaseOutputToolName},
 		}), provider.NewSliceStream([]provider.Event{

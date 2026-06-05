@@ -65,6 +65,11 @@ func (r *Runtime) startWorkflowApprovalPhaseTurn(ctx context.Context, input runE
 	if question == "" {
 		question = "Approve this workflow phase?"
 	}
+	if details := workflowApprovalPreviousPhaseOutputText(state.Workflow, workflowPhase.Phase); details != "" {
+		if err := appendTextToParentTurn(ctx, r.Sessions, input.SessionID, input.TurnID, details); err != nil {
+			return RunSessionResult{}, err
+		}
+	}
 	requestID, err := r.Sessions.RequestQuestion(ctx, QuestionRequestInput{
 		SessionID: input.SessionID,
 		TurnID:    input.TurnID,
@@ -595,13 +600,25 @@ func workflowApprovalContinuationInitialState(state events.SessionState, workflo
 		},
 	}
 	if workflow := state.Workflow; workflow != nil {
+		approvedContentPhaseID := workflowPreviousPhaseID(workflow, approvedPhaseID)
+		fields := workflowLatestPhaseOutputFields(workflow, approvedContentPhaseID)
+		if plan := strings.TrimSpace(fields["plan"]); plan != "" {
+			summary.Decisions = appendUniqueValues(summary.Decisions, []string{"Approved plan: " + plan})
+			summary.CompletedWork = appendUniqueValues(summary.CompletedWork, []string{"Plan approved before implementation: " + plan})
+		}
+		if affectedFiles := strings.TrimSpace(fields["affected_files"]); affectedFiles != "" {
+			summary.TouchedPaths = appendUniqueValues(summary.TouchedPaths, []string{affectedFiles})
+		}
+		if risks := strings.TrimSpace(fields["risks"]); risks != "" {
+			summary.OpenItems = appendUniqueValues(summary.OpenItems, []string{"Account for approved plan risks: " + risks})
+		}
 		for _, evidenceID := range workflow.EvidenceOrder {
 			evidence := workflow.Evidence[evidenceID]
-			if evidence == nil || strings.TrimSpace(evidence.PhaseID) != approvedPhaseID {
+			if evidence == nil || strings.TrimSpace(evidence.PhaseID) != approvedContentPhaseID {
 				continue
 			}
 			if summaryText := strings.TrimSpace(evidence.Summary); summaryText != "" {
-				summary.CompletedWork = append(summary.CompletedWork, summaryText)
+				summary.CompletedWork = appendUniqueValues(summary.CompletedWork, []string{summaryText})
 			}
 		}
 	}
@@ -611,6 +628,68 @@ func workflowApprovalContinuationInitialState(state events.SessionState, workflo
 			Summary: summary,
 		},
 	}
+}
+
+func workflowApprovalPreviousPhaseOutputText(workflow *events.WorkflowState, phase workflowpkg.Phase) string {
+	if workflow == nil {
+		return ""
+	}
+	previousPhaseID := workflowPreviousPhaseID(workflow, phase.ID)
+	fields := workflowLatestPhaseOutputFields(workflow, previousPhaseID)
+	if len(fields) == 0 {
+		return ""
+	}
+	lines := []string{"Workflow plan pending approval:"}
+	appendField := func(label, key string) {
+		value := strings.TrimSpace(fields[key])
+		if value == "" {
+			return
+		}
+		lines = append(lines, "", label+":", value)
+	}
+	appendField("Plan", "plan")
+	appendField("Affected files", "affected_files")
+	appendField("Risks", "risks")
+	if len(lines) == 1 {
+		return ""
+	}
+	return strings.Join(lines, "\n")
+}
+
+func workflowPreviousPhaseID(workflow *events.WorkflowState, phaseID string) string {
+	if workflow == nil {
+		return ""
+	}
+	phaseID = strings.TrimSpace(phaseID)
+	for index, id := range workflow.PhaseOrder {
+		if strings.TrimSpace(id) != phaseID || index == 0 {
+			continue
+		}
+		return strings.TrimSpace(workflow.PhaseOrder[index-1])
+	}
+	return ""
+}
+
+func workflowLatestPhaseOutputFields(workflow *events.WorkflowState, phaseID string) map[string]string {
+	phaseID = strings.TrimSpace(phaseID)
+	if workflow == nil || phaseID == "" {
+		return nil
+	}
+	for index := len(workflow.EvidenceOrder) - 1; index >= 0; index-- {
+		evidence := workflow.Evidence[workflow.EvidenceOrder[index]]
+		if evidence == nil || strings.TrimSpace(evidence.PhaseID) != phaseID {
+			continue
+		}
+		if evidence.Type != events.WorkflowEvidenceTypePhaseOutput {
+			continue
+		}
+		fields := cloneEvidenceFields(evidence.Fields)
+		if len(fields) == 0 {
+			return nil
+		}
+		return fields
+	}
+	return nil
 }
 
 func workflowApprovalEvidenceFields(state events.SessionState, phaseID string) map[string]string {
@@ -672,8 +751,14 @@ func (r *Runtime) maybeAdvanceWorkflowAfterTurn(ctx context.Context, sessionID, 
 	}
 	if workflow.Status != events.WorkflowStatusActive {
 		if workflow.Status == events.WorkflowStatusBlocked {
-			if _, reviseErr := r.maybeReviseWorkflowAfterVerificationFailure(ctx, sessionID, turnID); reviseErr != nil {
+			revised, reviseErr := r.maybeReviseWorkflowAfterVerificationFailure(ctx, sessionID, turnID)
+			if reviseErr != nil {
 				return RunSessionResult{}, reviseErr
+			}
+			if revised {
+				if continued, ok, err := r.continueWorkflowIfRunnable(ctx, sessionID, turnID, result); err != nil || ok {
+					return continued, err
+				}
 			}
 		}
 		return result, nil
@@ -701,6 +786,18 @@ func (r *Runtime) maybeAdvanceWorkflowAfterTurn(ctx context.Context, sessionID, 
 			return RunSessionResult{}, err
 		}
 		if revised {
+			return result, nil
+		}
+	}
+	if workflowPhaseIsVerification(phase) {
+		revised, err := r.maybeReviseWorkflowAfterVerificationFailure(ctx, sessionID, turnID)
+		if err != nil {
+			return RunSessionResult{}, err
+		}
+		if revised {
+			if continued, ok, err := r.continueWorkflowIfRunnable(ctx, sessionID, turnID, result); err != nil || ok {
+				return continued, err
+			}
 			return result, nil
 		}
 	}
@@ -1173,7 +1270,7 @@ func workflowFinalIncludedValue(workflow *events.WorkflowState, key string) stri
 	}
 	switch key {
 	case "changed_files":
-		return workflowFinalLatestEvidenceSummary(workflow, events.WorkflowEvidenceTypeGitDiff)
+		return workflowFinalLatestEvidenceSummary(workflow, events.WorkflowEvidenceTypeGitDiff, events.WorkflowEvidenceTypeFileMutation)
 	case "verification_result":
 		return workflowFinalLatestVerificationSummary(workflow)
 	case "review_outcome", "findings":

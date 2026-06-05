@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -133,7 +134,7 @@ func missingWorkflowPhaseCompletionEvidence(state events.SessionState, phase wor
 	if missing := missingWorkflowPhaseOutputKeys(state.Workflow, phaseID, phase.RequiresOutput); len(missing) > 0 {
 		return workflowMissingPhaseOutputReason(missing, phase.RequiresOutput)
 	}
-	if reason := missingWorkflowPhaseCompletionRequirement(state, phaseID, phase.Completion.Requires); reason != "" {
+	if reason := missingWorkflowPhaseCompletionRequirement(state, phase, phase.Completion.Requires); reason != "" {
 		return reason
 	}
 	switch {
@@ -180,7 +181,8 @@ func workflowMissingPhaseOutputReason(missingKeys, requiredKeys []string) string
 	return "missing required phase output: " + missing[0] + ". The phase cannot advance from prose. Call " + tool.WorkflowPhaseOutputToolName + " with all required fields: " + strings.Join(required, ", ") + "."
 }
 
-func missingWorkflowPhaseCompletionRequirement(state events.SessionState, phaseID string, requirements workflowpkg.EvidenceRequirements) string {
+func missingWorkflowPhaseCompletionRequirement(state events.SessionState, phase workflowpkg.Phase, requirements workflowpkg.EvidenceRequirements) string {
+	phaseID := strings.TrimSpace(phase.ID)
 	for _, item := range requirements.Items {
 		item = strings.TrimSpace(item)
 		if item == "" {
@@ -189,6 +191,10 @@ func missingWorkflowPhaseCompletionRequirement(state events.SessionState, phaseI
 		switch item {
 		case workflowpkg.CompletionRequirementActivePhaseTasksComplete:
 			if reason := missingActiveWorkflowPhaseTaskCompletion(state, phaseID); reason != "" {
+				return reason
+			}
+		case workflowpkg.CompletionRequirementPlannedTasksComplete:
+			if reason := missingPlannedWorkflowPhaseTaskCompletion(state, phase); reason != "" {
 				return reason
 			}
 		default:
@@ -210,12 +216,37 @@ func missingWorkflowPhaseCompletionRequirement(state events.SessionState, phaseI
 	return ""
 }
 
-func missingActiveWorkflowPhaseTaskCompletion(state events.SessionState, phaseID string) string {
+func missingPlannedWorkflowPhaseTaskCompletion(state events.SessionState, phase workflowpkg.Phase) string {
 	if state.Workflow == nil {
 		return ""
 	}
+	planPhaseID := strings.TrimSpace(phase.Requires.Fields["approved_phase"])
+	if planPhaseID == "" {
+		planPhaseID = "plan"
+	}
+	fields := workflowLatestPhaseOutputFields(state.Workflow, planPhaseID)
+	plannedTasks := workflowStructuredListField(fields, "implementation_tasks")
+	if len(plannedTasks) == 0 {
+		return "approved plan has no implementation_tasks"
+	}
+	phaseID := strings.TrimSpace(phase.ID)
 	workflowID := strings.TrimSpace(state.Workflow.WorkflowID)
-	phaseID = strings.TrimSpace(phaseID)
+	for _, planned := range plannedTasks {
+		if planned == "" {
+			continue
+		}
+		if !workflowHasCompletedMatchingTask(state, workflowID, phaseID, planned) {
+			return "planned implementation task is not complete: " + planned
+		}
+	}
+	return ""
+}
+
+func workflowHasCompletedMatchingTask(state events.SessionState, workflowID, phaseID, planned string) bool {
+	needle := workflowTaskMatchText(planned)
+	if needle == "" {
+		return true
+	}
 	for _, taskID := range state.TaskOrder {
 		task := state.Tasks[strings.TrimSpace(taskID)]
 		if task == nil {
@@ -224,10 +255,89 @@ func missingActiveWorkflowPhaseTaskCompletion(state events.SessionState, phaseID
 		if strings.TrimSpace(task.WorkflowID) != workflowID || strings.TrimSpace(task.WorkflowPhaseID) != phaseID {
 			continue
 		}
+		if strings.TrimSpace(task.Status) != events.TaskStatusCompleted {
+			continue
+		}
+		haystack := workflowTaskMatchText(strings.Join([]string{task.Title, task.Notes, task.Progress}, " "))
+		if strings.Contains(haystack, needle) || strings.Contains(needle, haystack) || workflowAllTokensContained(haystack, needle) {
+			return true
+		}
+	}
+	return false
+}
+
+func workflowTaskMatchText(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	value = strings.Trim(value, "-*[]()0123456789. ")
+	value = strings.Join(strings.Fields(value), " ")
+	return value
+}
+
+func workflowAllTokensContained(haystack, needle string) bool {
+	tokens := strings.Fields(needle)
+	if len(tokens) == 0 {
+		return true
+	}
+	for _, token := range tokens {
+		if !strings.Contains(haystack, token) {
+			return false
+		}
+	}
+	return true
+}
+
+func workflowStructuredListField(fields map[string]string, key string) []string {
+	value := strings.TrimSpace(fields[key])
+	if value == "" {
+		return nil
+	}
+	var rawItems []any
+	if strings.HasPrefix(value, "[") && json.Unmarshal([]byte(value), &rawItems) == nil {
+		items := make([]string, 0, len(rawItems))
+		for _, raw := range rawItems {
+			item := strings.TrimSpace(fmt.Sprint(raw))
+			if item != "" {
+				items = append(items, item)
+			}
+		}
+		return items
+	}
+	var items []string
+	for _, line := range strings.FieldsFunc(value, func(r rune) bool {
+		return r == '\n' || r == ';' || r == ','
+	}) {
+		item := strings.TrimSpace(line)
+		item = strings.Trim(item, "-* ")
+		if item != "" {
+			items = append(items, item)
+		}
+	}
+	return items
+}
+
+func missingActiveWorkflowPhaseTaskCompletion(state events.SessionState, phaseID string) string {
+	if state.Workflow == nil {
+		return ""
+	}
+	workflowID := strings.TrimSpace(state.Workflow.WorkflowID)
+	phaseID = strings.TrimSpace(phaseID)
+	seenPhaseTask := false
+	for _, taskID := range state.TaskOrder {
+		task := state.Tasks[strings.TrimSpace(taskID)]
+		if task == nil {
+			continue
+		}
+		if strings.TrimSpace(task.WorkflowID) != workflowID || strings.TrimSpace(task.WorkflowPhaseID) != phaseID {
+			continue
+		}
+		seenPhaseTask = true
 		if strings.TrimSpace(task.Status) == events.TaskStatusCompleted {
 			continue
 		}
 		return "workflow phase has unfinished task: " + strings.TrimSpace(task.TaskID)
+	}
+	if !seenPhaseTask {
+		return "workflow phase has no tasks"
 	}
 	return ""
 }

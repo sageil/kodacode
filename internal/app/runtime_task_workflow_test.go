@@ -607,7 +607,7 @@ func TestRuntimeRunSessionTurnKeepsParentInProgressUntilChildrenComplete(t *test
 		}
 	}
 	call := state.Turns["turn-1"].ToolCalls["call-3"]
-	if call == nil || call.Succeeded || call.Error != "task_workflow failed: complete child tasks before completing the parent." {
+	if call == nil || call.Succeeded || call.Error != "task_workflow: complete child tasks before completing the parent." {
 		t.Fatalf("tool call call-3 = %#v", call)
 	}
 	if got := state.Turns["turn-1"].AssistantText; got != "started backend work" {

@@ -14,7 +14,7 @@ func TestToolExecutionErrorTextTaskWorkflowCreateCompletedReturnsCorrection(t *t
 	got := toolExecutionErrorText(tool.TaskWorkflowToolName, err)
 
 	for _, want := range []string{
-		`task_workflow failed`,
+		`task_workflow:`,
 		`create cannot use status "complete"`,
 		`complete with task_id and summary`,
 	} {
@@ -29,8 +29,8 @@ func TestToolExecutionErrorTextTaskWorkflowMissingSummaryReturnsCorrection(t *te
 	got := toolExecutionErrorText(tool.TaskWorkflowToolName, err)
 
 	for _, want := range []string{
-		`task_workflow failed`,
-		`complete requires task_id and summary`,
+		`task_workflow:`,
+		`complete needs task_id and summary`,
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("toolExecutionErrorText() text = %q, missing %q", got, want)
@@ -43,7 +43,7 @@ func TestToolExecutionErrorTextTaskWorkflowInvalidActionRoutesReviewIntent(t *te
 	got := toolExecutionErrorText(tool.TaskWorkflowToolName, err)
 
 	for _, want := range []string{
-		`task_workflow failed`,
+		`task_workflow:`,
 		`action must be list, create, update, block, or complete`,
 		`Use task_review for reviews`,
 	} {
@@ -58,9 +58,9 @@ func TestToolExecutionErrorTextTaskWorkflowUnsupportedFieldsShowsActionPayload(t
 	got := toolExecutionErrorText(tool.TaskWorkflowToolName, err)
 
 	for _, want := range []string{
-		`task_workflow failed`,
-		`create does not accept summary, progress`,
-		`Remove unsupported fields`,
+		`task_workflow:`,
+		`create cannot use summary, progress`,
+		`Use create for title/parent/kind/status/notes`,
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("toolExecutionErrorText() text = %q, missing %q", got, want)
@@ -133,5 +133,34 @@ func TestToolExecutionErrorTextCommonRecoveriesStayConcise(t *testing.T) {
 				t.Fatalf("toolExecutionErrorText() embeds JSON example: %q", got)
 			}
 		})
+	}
+}
+
+func TestToolExecutionErrorTextTaskWorkflowParentNotFoundReturnsCleanRecovery(t *testing.T) {
+	got := toolExecutionErrorText(tool.TaskWorkflowToolName, ErrTaskParentNotFound)
+
+	for _, want := range []string{
+		`task_workflow: parent task not found`,
+		`Use list`,
+		`existing parent_task_id`,
+		`omit parent_task_id`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("toolExecutionErrorText() text = %q, missing %q", got, want)
+		}
+	}
+}
+
+func TestToolExecutionErrorTextTaskWorkflowUpdateUnsupportedFieldsReturnsCleanRecovery(t *testing.T) {
+	err := tool.InvalidArguments(tool.TaskWorkflowToolName, fmt.Errorf("%w: action=update fields=parent_task_id, title", tool.ErrTaskWorkflowFieldUnsupported))
+	got := toolExecutionErrorText(tool.TaskWorkflowToolName, err)
+
+	for _, want := range []string{
+		`task_workflow: update cannot use parent_task_id, title`,
+		`Use update for task_id/status/progress/notes`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("toolExecutionErrorText() text = %q, missing %q", got, want)
+		}
 	}
 }

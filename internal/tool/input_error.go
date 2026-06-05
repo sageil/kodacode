@@ -328,6 +328,9 @@ func quotedToolName(toolName string) string {
 var malformedJSONBareValuePattern = regexp.MustCompile(`"([^"]+)"\s*:\s*([^"\[{0-9-][^,}\]]*)`)
 
 func toolArgumentErrorMessage(toolName string, malformed bool, cause error) string {
+	if strings.TrimSpace(toolName) == ApplyPatchToolName {
+		return applyPatchArgumentErrorMessage(cause)
+	}
 	detail := strings.TrimSpace(errorDetailText(cause))
 	if detail == "" {
 		detail = "unknown error"
@@ -454,8 +457,6 @@ func toolArgumentContractText(toolName string, cause error) string {
 		return `Use action "list" or "review"; review requires task_id, review_status, and review_summary.`
 	case TaskWorkflowToolName:
 		return `Use action "list", "create", "update", "block", or "complete"; include the fields required by that action.`
-	case ApplyPatchToolName:
-		return applyPatchArgumentContractText(cause)
 	default:
 		examples := toolArgumentExamples(toolName)
 		if len(examples) == 0 {
@@ -465,34 +466,66 @@ func toolArgumentContractText(toolName string, cause error) string {
 	}
 }
 
-func applyPatchArgumentContractText(cause error) string {
+func applyPatchArgumentErrorMessage(cause error) string {
+	reason := applyPatchArgumentReason(cause)
+	if reason == "" {
+		reason = strings.TrimSpace(errorDetailText(cause))
+	}
+	if reason == "" {
+		reason = "invalid patch"
+	}
+	message := "apply_patch: patch input: " + strings.TrimSuffix(reason, ".") + "."
+	if hint := applyPatchArgumentHint(cause); hint != "" {
+		message += " " + hint
+	}
+	return message
+}
+
+func applyPatchArgumentReason(cause error) string {
 	switch {
 	case errors.Is(cause, ErrApplyPatchMissingEnd):
-		return `Retry apply_patch with the complete patch ending in exactly "*** End Patch". Do not print the corrected patch as assistant text.`
+		return "missing *** End Patch"
 	case errors.Is(cause, ErrApplyPatchMissingBegin):
-		return `Retry apply_patch with raw patch text whose first line is exactly "*** Begin Patch". Do not print the corrected patch as assistant text.`
-	case errors.Is(cause, ErrApplyPatchEmpty), errors.Is(cause, ErrApplyPatchNoOperations):
-		return `Retry apply_patch with a complete patch containing at least one file operation and ending in exactly "*** End Patch".`
+		return "missing *** Begin Patch"
+	case errors.Is(cause, ErrApplyPatchEmpty):
+		return "empty patch"
+	case errors.Is(cause, ErrApplyPatchNoOperations):
+		return "no file operation"
 	case errors.Is(cause, ErrApplyPatchEmptyAdd):
-		return `For Add File, include at least one file-content line prefixed with "+", and use "+" for blank lines.`
+		return "Add File has no added lines"
 	case errors.Is(cause, ErrApplyPatchEmptyUpdate):
-		return `For Update File, include hunk lines starting with a space, "+", or "-", or include a "*** Move to:" line for a move-only update.`
+		return "Update File has no hunk or move"
 	case errors.Is(cause, ErrApplyPatchReadLinePrefixes):
-		return `Remove read output line number prefixes like "40:" after patch prefixes, then retry apply_patch.`
+		return "read output line numbers in patch lines"
 	case errors.Is(cause, ErrApplyPatchUnknownHeader):
-		return `Use one file operation header: "*** Add File:", "*** Update File:", or "*** Delete File:".`
+		return "unknown file operation"
 	case errors.Is(cause, ErrApplyPatchMalformedLine):
-		detail := strings.TrimSpace(errorDetailText(cause))
-		switch {
-		case strings.Contains(detail, "Add File") || strings.Contains(detail, "add file"):
-			return `For Add File, every file-content line must start with "+", including blank lines as "+".`
-		case strings.Contains(detail, "raw unified diff metadata"):
-			return `Do not include raw unified diff metadata such as "---", "+++", or "\ No newline at end of file".`
-		default:
-			return `Use Add File content lines starting with "+", and Update File hunk lines starting with a space, "+", or "-". Retry by calling apply_patch again, not by printing the patch as assistant text.`
-		}
+		return strings.TrimSpace(errorDetailText(cause))
 	default:
-		return `Use the apply_patch format with "*** Begin Patch", one or more file operation headers, and final line "*** End Patch".`
+		return strings.TrimSpace(errorDetailText(cause))
+	}
+}
+
+func applyPatchArgumentHint(cause error) string {
+	switch {
+	case errors.Is(cause, ErrApplyPatchMissingEnd):
+		return `End the patch with "*** End Patch".`
+	case errors.Is(cause, ErrApplyPatchMissingBegin):
+		return `Start the patch with "*** Begin Patch".`
+	case errors.Is(cause, ErrApplyPatchEmpty), errors.Is(cause, ErrApplyPatchNoOperations):
+		return "Send one complete patch with one file operation."
+	case errors.Is(cause, ErrApplyPatchEmptyAdd):
+		return `Prefix each added line with "+".`
+	case errors.Is(cause, ErrApplyPatchEmptyUpdate):
+		return `Add hunk lines or "*** Move to: ...".`
+	case errors.Is(cause, ErrApplyPatchReadLinePrefixes):
+		return "Remove line numbers copied from read output."
+	case errors.Is(cause, ErrApplyPatchUnknownHeader):
+		return `Use "*** Add File:", "*** Update File:", or "*** Delete File:".`
+	case errors.Is(cause, ErrApplyPatchMalformedLine):
+		return "Fix the patch syntax and retry."
+	default:
+		return ""
 	}
 }
 

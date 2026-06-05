@@ -379,13 +379,6 @@ func (r *Runtime) runExistingSessionTurn(ctx context.Context, input runExistingT
 		"status", loaded.Status,
 		"pending_request_id", loaded.PendingRequestID,
 	)
-	if workflowPhase.Active {
-		advanced, advanceErr := r.maybeAdvanceWorkflowAfterTurn(ctx, input.SessionID, input.TurnID, loaded)
-		if advanceErr != nil {
-			return RunSessionResult{}, advanceErr
-		}
-		loaded = advanced
-	}
 	if input.DisableAutoReview {
 		return loaded, nil
 	}

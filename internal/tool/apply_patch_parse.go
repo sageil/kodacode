@@ -75,7 +75,7 @@ func ParseApplyPatch(patch string) (ApplyPatch, error) {
 		return ApplyPatch{}, err
 	}
 	parser := applyPatchParser{
-		lines: normalizeApplyPatchLines(patch),
+		lines: canonicalizeApplyPatchBoundaryLines(normalizeApplyPatchLines(patch)),
 	}
 	if len(parser.lines) == 0 {
 		return ApplyPatch{}, InvalidArguments(ApplyPatchToolName, ErrApplyPatchEmpty)
@@ -191,6 +191,27 @@ func normalizeApplyPatchLines(patch string) []string {
 	normalized := strings.ReplaceAll(patch, "\r\n", "\n")
 	normalized = strings.ReplaceAll(normalized, "\r", "\n")
 	return strings.Split(normalized, "\n")
+}
+
+func canonicalizeApplyPatchBoundaryLines(lines []string) []string {
+	if len(lines) == 0 {
+		return lines
+	}
+	canonical := append([]string(nil), lines...)
+	if canonical[0] == "+"+applyPatchBeginMarker {
+		canonical[0] = applyPatchBeginMarker
+	}
+	end := len(canonical) - 1
+	for end > 0 && canonical[end] == "" {
+		end--
+	}
+	if canonical[end] == "+"+applyPatchEndMarker {
+		canonical[end] = applyPatchEndMarker
+		if end > 0 && canonical[end-1] == "+***" {
+			canonical = append(canonical[:end-1], canonical[end:]...)
+		}
+	}
+	return canonical
 }
 
 type applyPatchParser struct {

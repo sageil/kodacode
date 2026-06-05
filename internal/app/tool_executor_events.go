@@ -229,6 +229,9 @@ func (e *ToolExecutor) appendToolExecEnd(ctx context.Context, input ExecuteToolI
 	if err := e.appendWorkflowVerificationEvidenceFromToolExecEnd(ctx, input, payload); err != nil {
 		return err
 	}
+	if err := e.appendWorkflowFileMutationEvidenceFromToolExecEnd(ctx, input, payload); err != nil {
+		return err
+	}
 	if err := e.appendWorkflowGitDiffEvidenceFromToolExecEnd(ctx, input, payload); err != nil {
 		return err
 	}
@@ -350,6 +353,74 @@ func (e *ToolExecutor) appendWorkflowGitDiffEvidenceFromToolExecEnd(ctx context.
 		},
 	})
 	return err
+}
+
+func (e *ToolExecutor) appendWorkflowFileMutationEvidenceFromToolExecEnd(ctx context.Context, input ExecuteToolInput, payload events.ToolExecEndPayload) error {
+	if e == nil || e.sessions == nil || !payload.Successful() {
+		return nil
+	}
+	paths := workflowFileMutationPaths(payload)
+	if len(paths) == 0 {
+		return nil
+	}
+	state, err := e.sessions.Snapshot(ctx, input.SessionID)
+	if err != nil {
+		return err
+	}
+	workflow := state.Workflow
+	if workflow == nil || workflow.Status != events.WorkflowStatusActive {
+		return nil
+	}
+	phaseID := strings.TrimSpace(workflow.CurrentPhaseID)
+	phase := workflow.Phases[phaseID]
+	if phase != nil {
+		for _, evidenceID := range phase.EvidenceIDs {
+			evidence := workflow.Evidence[evidenceID]
+			if evidence != nil && strings.TrimSpace(evidence.ToolCallID) == strings.TrimSpace(payload.CallID) && evidence.Type == events.WorkflowEvidenceTypeFileMutation {
+				return nil
+			}
+		}
+	}
+	summary := "modified " + strings.Join(paths, ", ")
+	_, err = e.sessions.append(ctx, events.Draft{
+		SessionID: input.SessionID,
+		TurnID:    workflowEventTurnID(input.TurnID),
+		Type:      events.TypeWorkflowEvidenceRecorded,
+		Payload: events.WorkflowEvidenceRecordedPayload{
+			EvidenceID:  newRuntimeID("workflow-evidence"),
+			WorkflowID:  workflow.WorkflowID,
+			PhaseID:     phaseID,
+			Type:        events.WorkflowEvidenceTypeFileMutation,
+			ToolCallID:  strings.TrimSpace(payload.CallID),
+			ExecutionID: strings.TrimSpace(payload.ExecutionID),
+			Summary:     truncateWorkflowEvidenceSummary(summary),
+			Fields: map[string]string{
+				"paths": strings.Join(paths, ","),
+				"tool":  strings.TrimSpace(payload.ToolName),
+			},
+		},
+	})
+	return err
+}
+
+func workflowFileMutationPaths(payload events.ToolExecEndPayload) []string {
+	var paths []string
+	if payload.WriteMutation != nil && workflowWriteMutationHasChanges(*payload.WriteMutation) {
+		paths = appendUniqueValues(paths, []string{strings.TrimSpace(payload.WriteMutation.Path)})
+	}
+	for _, mutation := range payload.WriteMutations {
+		if workflowWriteMutationHasChanges(mutation) {
+			paths = appendUniqueValues(paths, []string{strings.TrimSpace(mutation.Path)})
+		}
+	}
+	return paths
+}
+
+func workflowWriteMutationHasChanges(mutation events.WriteMutation) bool {
+	if strings.TrimSpace(mutation.Path) == "" || mutation.DiffPreview == nil {
+		return false
+	}
+	return textdiff.HasChanges(*mutation.DiffPreview)
 }
 
 func (e *ToolExecutor) workflowPhaseCommands(ctx context.Context, state events.SessionState, workflowID, phaseID string) ([]workflowVerificationCommandSpec, error) {

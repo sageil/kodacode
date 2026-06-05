@@ -240,10 +240,9 @@ func TestApplyPatchMissingEndErrorStaysFocused(t *testing.T) {
 	err := InvalidArguments(ApplyPatchToolName, ErrApplyPatchMissingEnd)
 	got := err.Error()
 	for _, want := range []string{
-		"`apply_patch` failed.",
-		"patch is missing final line: *** End Patch",
-		`Retry apply_patch with the complete patch ending in exactly "*** End Patch"`,
-		"Do not print the corrected patch as assistant text",
+		"apply_patch: patch input:",
+		"missing *** End Patch",
+		`End the patch with "*** End Patch"`,
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("err.Error() = %q, missing %q", got, want)
@@ -266,9 +265,9 @@ func TestApplyPatchAddFileErrorUsesAddFileGuidance(t *testing.T) {
 	err := InvalidArguments(ApplyPatchToolName, cause)
 	got := err.Error()
 	for _, want := range []string{
-		"`apply_patch` failed.",
+		"apply_patch: patch input:",
 		"add file lines must start with +",
-		`For Add File, every file-content line must start with "+", including blank lines as "+"`,
+		"Fix the patch syntax and retry",
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("err.Error() = %q, missing %q", got, want)
@@ -284,8 +283,8 @@ func TestApplyPatchUnknownHeaderErrorUsesHeaderGuidance(t *testing.T) {
 	err := InvalidArguments(ApplyPatchToolName, cause)
 	got := err.Error()
 	for _, want := range []string{
-		"unknown patch header",
-		`Use one file operation header: "*** Add File:", "*** Update File:", or "*** Delete File:"`,
+		"unknown file operation",
+		`Use "*** Add File:", "*** Update File:", or "*** Delete File:"`,
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("err.Error() = %q, missing %q", got, want)

@@ -30,6 +30,7 @@ phases:
         - read
         - search
         - apply_patch
+        - write
         - bash
         - test
         - diagnostics
@@ -44,6 +45,7 @@ phases:
         - read
         - search
         - apply_patch
+        - write
         - bash
         - test
         - diagnostics
@@ -53,14 +55,17 @@ phases:
   - id: verify
     type: verification
     agent: engineer
-    prompt: Run the declared verification commands and report the result.
     tools:
       allow:
+        - read
+        - search
         - test
         - bash
-    commands:
-      - tool: test
-        command: go test ./...
+    requires_output:
+      - commands_run
+      - result
+      - failures
+      - confidence
     required: true
 
   - id: review

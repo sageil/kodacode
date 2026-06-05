@@ -19,6 +19,7 @@ const (
 const (
 	WorkflowEvidenceTypeApproval           = "approval"
 	WorkflowEvidenceTypeDiagnostics        = "diagnostics"
+	WorkflowEvidenceTypeFileMutation       = "file_mutation"
 	WorkflowEvidenceTypeGitDiff            = "git_diff"
 	WorkflowEvidenceTypePhaseFailure       = "phase_failure"
 	WorkflowEvidenceTypePhaseOutput        = "phase_output"

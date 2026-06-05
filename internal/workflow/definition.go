@@ -138,7 +138,10 @@ const (
 	TransitionOnCanceled             = "canceled"
 )
 
-const CompletionRequirementActivePhaseTasksComplete = "active_phase_tasks_complete"
+const (
+	CompletionRequirementActivePhaseTasksComplete = "active_phase_tasks_complete"
+	CompletionRequirementPlannedTasksComplete     = "planned_tasks_complete"
+)
 
 type ValidationContext struct {
 	Agents map[string]agent.Definition
