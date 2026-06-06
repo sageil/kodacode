@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/sageil/kodacode/internal/events"
+	"github.com/sageil/kodacode/internal/provider"
 	"github.com/sageil/kodacode/internal/tool"
 )
 
@@ -949,6 +950,140 @@ func TestRuntimeWorkflowFailedReviewLoopsBackToImplementationWithinCap(t *testin
 	}
 	if trigger.Fields["revision_to_phase"] != "implement" || trigger.Fields["source_evidence_type"] != events.WorkflowEvidenceTypeTaskReview {
 		t.Fatalf("revision trigger fields = %#v", trigger.Fields)
+	}
+}
+
+func TestRuntimeWorkflowFailedReviewAutoContinuesImplementationRetry(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	writeProjectWorkflow(t, root, "review-retry.yaml", `
+id: review-retry
+description: Review retry auto-continuation.
+phases:
+  - id: implement
+    agent: engineer
+    tools:
+      allow:
+        - write
+        - task_workflow
+    completion:
+      requires:
+        - active_phase_tasks_complete
+        - file_mutation
+  - id: review
+    type: review
+    agent: reviewer
+    auto_continue: false
+  - id: summarize
+    type: final
+transitions:
+  - from: review
+    on: review_failed
+    to: implement
+    max_loops: 2
+`)
+	client := &fakeProvider{
+		streams: []provider.Stream{
+			provider.NewSliceStream([]provider.Event{
+				{Kind: provider.EventKindToolCallDelta, ToolCallID: "call-task-create", ToolName: tool.TaskWorkflowToolName, InputDelta: `{"action":"create","task_id":"task-review-fix","title":"Fix failed review finding","kind":"implementation","status":"in_progress"}`},
+				{Kind: provider.EventKindToolCallDone, ToolCallID: "call-task-create", ToolName: tool.TaskWorkflowToolName},
+				{Kind: provider.EventKindToolCallDelta, ToolCallID: "call-write", ToolName: tool.WriteToolName, InputDelta: `{"path":"review-fix.txt","content":"fixed\n"}`},
+				{Kind: provider.EventKindToolCallDone, ToolCallID: "call-write", ToolName: tool.WriteToolName},
+			}),
+			provider.NewSliceStream([]provider.Event{
+				{Kind: provider.EventKindAssistantDelta, AssistantDelta: "Started fixing the failed review finding."},
+			}),
+		},
+	}
+	runtime := newRuntimeWithClient(t, client)
+	sessionID := createWorkflowTestSession(t, runtime, root)
+
+	if err := runtime.StartWorkflow(ctx, StartWorkflowInput{
+		SessionID:     sessionID,
+		TurnID:        "turn-1",
+		WorkspaceRoot: root,
+		WorkflowID:    "review-retry",
+	}); err != nil {
+		t.Fatalf("StartWorkflow() error = %v", err)
+	}
+	if _, err := runtime.Sessions.CreateTask(ctx, CreateTaskInput{
+		SessionID: sessionID,
+		TurnID:    "turn-1",
+		TaskID:    "task-initial",
+		Title:     "Initial implementation",
+		Status:    events.TaskStatusInProgress,
+	}); err != nil {
+		t.Fatalf("CreateTask(initial) error = %v", err)
+	}
+	if _, err := runtime.Sessions.CompleteTask(ctx, CompleteTaskInput{
+		SessionID: sessionID,
+		TurnID:    "turn-1",
+		TaskID:    "task-initial",
+		Summary:   "Initial implementation complete.",
+	}); err != nil {
+		t.Fatalf("CompleteTask(initial) error = %v", err)
+	}
+	if err := runtime.RecordWorkflowEvidence(ctx, RecordWorkflowEvidenceInput{
+		SessionID: sessionID,
+		TurnID:    "turn-1",
+		PhaseID:   "implement",
+		Type:      events.WorkflowEvidenceTypeFileMutation,
+		Summary:   "initial implementation changed files",
+	}); err != nil {
+		t.Fatalf("RecordWorkflowEvidence(file mutation) error = %v", err)
+	}
+	if err := runtime.AdvanceWorkflow(ctx, AdvanceWorkflowInput{
+		SessionID: sessionID,
+		TurnID:    "turn-1",
+		ToPhaseID: "review",
+	}); err != nil {
+		t.Fatalf("AdvanceWorkflow(review) error = %v", err)
+	}
+	if err := runtime.RecordWorkflowEvidence(ctx, RecordWorkflowEvidenceInput{
+		SessionID:  sessionID,
+		TurnID:     "turn-review",
+		PhaseID:    "review",
+		Type:       events.WorkflowEvidenceTypeReviewOutcome,
+		Successful: testBoolPointer(false),
+		Summary:    "review failed",
+		Fields: map[string]string{
+			"review_pass":   "correctness",
+			"review_status": events.TaskReviewStatusFail,
+		},
+	}); err != nil {
+		t.Fatalf("RecordWorkflowEvidence(review) error = %v", err)
+	}
+
+	result, err := runtime.maybeAdvanceWorkflowAfterTurn(ctx, sessionID, "turn-review", RunSessionResult{Status: TurnRunStatusCompleted})
+	if err != nil {
+		t.Fatalf("maybeAdvanceWorkflowAfterTurn() error = %v", err)
+	}
+	if result.Status != TurnRunStatusCompleted {
+		t.Fatalf("result status = %q, want completed implementation retry", result.Status)
+	}
+	implementRequestFound := false
+	for _, request := range client.requests {
+		if strings.Contains(request.Instructions, "- Phase: implement") {
+			implementRequestFound = true
+			break
+		}
+	}
+	if !implementRequestFound {
+		t.Fatalf("provider requests missing implementation retry: %#v", client.requests)
+	}
+	state, err := runtime.Sessions.Snapshot(ctx, sessionID)
+	if err != nil {
+		t.Fatalf("Snapshot() error = %v", err)
+	}
+	if state.Workflow == nil || state.Workflow.Status != events.WorkflowStatusBlocked || state.Workflow.CurrentPhaseID != "implement" {
+		t.Fatalf("workflow = %#v, want blocked implement after unfinished implementation retry", state.Workflow)
+	}
+	if state.Workflow.StopReason != "workflow phase has unfinished task: task-review-fix" {
+		t.Fatalf("workflow stop reason = %q", state.Workflow.StopReason)
+	}
+	task := state.Tasks["task-review-fix"]
+	if task == nil || task.Status != events.TaskStatusInProgress || task.WorkflowID != "review-retry" || task.WorkflowPhaseID != "implement" {
+		t.Fatalf("review fix task = %#v, want active task bound to implementation retry", task)
 	}
 }
 

@@ -786,6 +786,9 @@ func (r *Runtime) maybeAdvanceWorkflowAfterTurn(ctx context.Context, sessionID, 
 			return RunSessionResult{}, err
 		}
 		if revised {
+			if continued, ok, err := r.continueWorkflowIfRunnable(ctx, sessionID, turnID, result); err != nil || ok {
+				return continued, err
+			}
 			return result, nil
 		}
 	}

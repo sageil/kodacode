@@ -289,6 +289,7 @@ func workflowPhasePromptFragment(ctx workflowPhaseTurnContext, allowedTools []st
 	}
 	if strings.TrimSpace(ctx.Phase.ID) == "implement" {
 		lines = append(lines, "- Create workflow tasks for every approved `implementation_tasks` item before implementation work. The phase cannot advance until those planned tasks are complete.")
+		lines = append(lines, "- On a verification or review revision loop, create or update workflow tasks for the concrete failed check or review finding before applying fixes.")
 	}
 	if len(ctx.Phase.Include) > 0 {
 		lines = append(lines, "- Final summary should include: "+strings.Join(trimmedWorkflowValues(ctx.Phase.Include), ", "))
