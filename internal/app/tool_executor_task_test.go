@@ -271,7 +271,7 @@ func TestToolExecutorTaskWorkflowUnsupportedFieldsReturnActionPayload(t *testing
 		TurnID:     "turn-1",
 		ToolCallID: "call-workflow",
 		ToolName:   tool.TaskWorkflowToolName,
-		Arguments:  json.RawMessage(`{"action":"create","title":"Implement fix","summary":"done"}`),
+		Arguments:  json.RawMessage(`{"action":"create","title":"Implement fix","block_reason":"waiting on API schema"}`),
 	})
 	if err != nil {
 		t.Fatalf("Execute(workflow) transport error = %v", err)
@@ -281,7 +281,7 @@ func TestToolExecutorTaskWorkflowUnsupportedFieldsReturnActionPayload(t *testing
 	}
 	for _, want := range []string{
 		`task_workflow:`,
-		`create cannot use summary`,
+		`create cannot use block_reason`,
 		`Use create for title/parent/kind/status/notes`,
 	} {
 		if !strings.Contains(result.Error, want) {

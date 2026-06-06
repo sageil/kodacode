@@ -83,16 +83,22 @@ func parseTaskWorkflowInput(args json.RawMessage) (taskWorkflowInput, error) {
 		if !isMutableTaskStatus(input.Status) {
 			return taskWorkflowInput{}, InvalidArguments(TaskWorkflowToolName, ErrTaskStatusInvalid)
 		}
-		if fields := input.nonEmptyFields("progress", "block_reason", "summary", "review_status", "review_summary"); len(fields) > 0 {
+		input.Notes = taskWorkflowJoinText(input.Notes, input.Progress, input.Summary)
+		input.Progress = ""
+		input.Summary = ""
+		if fields := input.nonEmptyFields("block_reason", "review_status", "review_summary"); len(fields) > 0 {
 			return taskWorkflowInput{}, invalidTaskWorkflowFields(input.Action, fields...)
 		}
 		return input, nil
 	case taskActionUpdate:
-		if input.TaskID == "" {
-			return taskWorkflowInput{}, InvalidArguments(TaskWorkflowToolName, ErrTaskInputIDRequired)
-		}
 		if fields := input.nonEmptyFields("parent_task_id", "title", "kind", "review_status", "review_summary"); len(fields) > 0 {
 			return taskWorkflowInput{}, invalidTaskWorkflowFields(input.Action, fields...)
+		}
+		if input.Summary != "" && !isCompleteTaskStatus(input.Status) {
+			if input.Progress == "" {
+				input.Progress = input.Summary
+			}
+			input.Summary = ""
 		}
 		if input.Status == "" && input.Progress == "" && input.Notes == "" {
 			if fields := input.nonEmptyFields("block_reason", "summary"); len(fields) > 0 {
@@ -121,14 +127,7 @@ func parseTaskWorkflowInput(args json.RawMessage) (taskWorkflowInput, error) {
 		if isCompleteTaskStatus(input.Status) {
 			input.Action = taskActionComplete
 			input.Status = ""
-			if input.Summary == "" {
-				switch {
-				case input.Progress != "":
-					input.Summary = input.Progress
-				case input.Notes != "":
-					input.Summary = input.Notes
-				}
-			}
+			input.Summary = taskWorkflowFirstText(input.Summary, input.Progress, input.Notes)
 			input.Progress = ""
 			input.Notes = ""
 			if input.Summary == "" {
@@ -144,10 +143,12 @@ func parseTaskWorkflowInput(args json.RawMessage) (taskWorkflowInput, error) {
 		}
 		return input, nil
 	case taskActionBlock:
-		if input.TaskID == "" {
-			return taskWorkflowInput{}, InvalidArguments(TaskWorkflowToolName, ErrTaskInputIDRequired)
+		if isBlockedTaskStatus(input.Status) {
+			input.Status = ""
 		}
-		if fields := input.nonEmptyFields("parent_task_id", "title", "kind", "status", "progress", "summary", "review_status", "review_summary"); len(fields) > 0 {
+		input.BlockReason = taskWorkflowFirstText(input.BlockReason, input.Progress, input.Notes)
+		input.Progress = ""
+		if fields := input.nonEmptyFields("parent_task_id", "title", "kind", "status", "summary", "review_status", "review_summary"); len(fields) > 0 {
 			return taskWorkflowInput{}, invalidTaskWorkflowFields(input.Action, fields...)
 		}
 		if input.BlockReason == "" {
@@ -155,10 +156,13 @@ func parseTaskWorkflowInput(args json.RawMessage) (taskWorkflowInput, error) {
 		}
 		return input, nil
 	case taskActionComplete:
-		if input.TaskID == "" {
-			return taskWorkflowInput{}, InvalidArguments(TaskWorkflowToolName, ErrTaskInputIDRequired)
+		if isCompleteTaskStatus(input.Status) {
+			input.Status = ""
 		}
-		if fields := input.nonEmptyFields("parent_task_id", "title", "kind", "status", "notes", "progress", "block_reason", "review_status", "review_summary"); len(fields) > 0 {
+		input.Summary = taskWorkflowFirstText(input.Summary, input.Progress, input.Notes)
+		input.Progress = ""
+		input.Notes = ""
+		if fields := input.nonEmptyFields("parent_task_id", "title", "kind", "status", "block_reason", "review_status", "review_summary"); len(fields) > 0 {
 			return taskWorkflowInput{}, invalidTaskWorkflowFields(input.Action, fields...)
 		}
 		if input.Summary == "" {
@@ -168,6 +172,32 @@ func parseTaskWorkflowInput(args json.RawMessage) (taskWorkflowInput, error) {
 	default:
 		return taskWorkflowInput{}, InvalidArguments(TaskWorkflowToolName, ErrTaskWorkflowActionInvalid)
 	}
+}
+
+func taskWorkflowFirstText(values ...string) string {
+	for _, value := range values {
+		if value = strings.TrimSpace(value); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func taskWorkflowJoinText(values ...string) string {
+	parts := make([]string, 0, len(values))
+	seen := map[string]struct{}{}
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		parts = append(parts, value)
+	}
+	return strings.Join(parts, "; ")
 }
 
 func (input taskWorkflowInput) nonEmptyFields(fields ...string) []string {
