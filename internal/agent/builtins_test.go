@@ -24,9 +24,6 @@ func TestNewBuiltinsCatalogIncludesBuiltinsAndSubagents(t *testing.T) {
 	if builder.AllowsTool("task_review") {
 		t.Fatal("builder should not allow task_review")
 	}
-	if builder.AllowsTool("delegate") {
-		t.Fatal("builder should not allow delegate")
-	}
 	if !builder.HasPrompt() {
 		t.Fatal("builder prompt = empty, want built-in prompt")
 	}
@@ -42,7 +39,8 @@ func TestNewBuiltinsCatalogIncludesBuiltinsAndSubagents(t *testing.T) {
 		"Do not ask the user to send \"continue\" or another follow-up solely to resume\nwork",
 		"Do not ask generic \"Proceed?\", \"which area next?\", or optional next-step questions.",
 		"Do not end by announcing readiness for the next task, file, method, or area.",
-		"If the requested scope is complete, give the final answer.",
+		"Treat only external\nrequirements as blockers",
+		"ordinary repair loops, keep working inside scope instead of asking what to do",
 	} {
 		if !strings.Contains(builder.PromptFragment().Content, want) {
 			t.Fatalf("builder prompt missing guidance %q: %q", want, builder.PromptFragment().Content)
@@ -97,17 +95,18 @@ func TestNewBuiltinsCatalogIncludesBuiltinsAndSubagents(t *testing.T) {
 		"Do not ask the user to send \"continue\" or another follow-up solely to resume\nwork",
 		"Do not ask generic \"Proceed?\", \"which area next?\", or optional next-step questions.",
 		"Do not end by announcing readiness for the next task, file, method, or area.",
-		"If the requested scope is complete, give the final answer.",
+		"Treat only external\nrequirements as blockers",
+		"ordinary repair loops, keep working inside scope instead of asking what to do",
 		"keep one active\ntask path",
 		"Use `parent_task_id` when creating follow-up tasks",
 		"Parent tasks organize child tasks. A parent can stay in_progress while one child task is the current step.",
 		"immediately set\nthe first active task to in_progress before starting implementation",
 		"call `task_workflow` to record progress before moving to another task or\ngiving a final answer",
-		"complete finished tasks with a short summary, block\nblocked tasks with the blocker",
+		"complete finished tasks with a short summary",
+		"Block\ntasks only for external blockers",
 		"Do not leave unrelated task branches in_progress",
 		"Run verification after the implementation pass is complete, not after every file edit.",
 		"Run intermediate tests only when the result is needed to choose the next edit",
-		"If repeated tool attempts are failing or not changing the plan, you MUST stop\nand explain the blocker.",
 	} {
 		if !strings.Contains(engineer.PromptFragment().Content, want) {
 			t.Fatalf("engineer prompt missing guidance %q: %q", want, engineer.PromptFragment().Content)
@@ -125,9 +124,6 @@ func TestNewBuiltinsCatalogIncludesBuiltinsAndSubagents(t *testing.T) {
 	}
 	if !engineer.AllowsTool("read") || !engineer.AllowsTool("write") {
 		t.Fatal("engineer should allow the general tool surface")
-	}
-	if engineer.AllowsTool("delegate") {
-		t.Fatal("engineer should not allow delegate")
 	}
 	if !engineer.AllowsTool("task_workflow") {
 		t.Fatal("engineer should allow task_workflow")
@@ -170,7 +166,7 @@ func TestNewBuiltinsCatalogIncludesBuiltinsAndSubagents(t *testing.T) {
 		"Read the repository to gather review evidence, not to produce architecture",
 		"Use tools only when they resolve concrete review uncertainty.",
 		"You MUST not drift into implementation planning when the task is",
-		"If a delegated review task asks for an implementation plan",
+		"If an assigned review task asks for an implementation plan",
 		"do not ask the user whether to create or\nsave a file",
 		"Treat `question` and `task_review` as logical jobs",
 		"Format reports as readable GitHub-flavored Markdown",
@@ -201,8 +197,7 @@ func TestNewBuiltinsCatalogIncludesBuiltinsAndSubagents(t *testing.T) {
 		planner.AllowsTool("code_action") ||
 		planner.AllowsTool("save_plan") ||
 		planner.AllowsTool("write") ||
-		planner.AllowsTool("edit") ||
-		planner.AllowsTool("delegate") {
+		planner.AllowsTool("edit") {
 		t.Fatalf("planner allowed tools = %#v", planner.AllowedTools)
 	}
 	if !planner.AllowsTool("question") {
@@ -223,13 +218,13 @@ func TestNewBuiltinsCatalogIncludesBuiltinsAndSubagents(t *testing.T) {
 		"Repository-scoped issue discovery, performance review, repo review, audit, bug-finding, or recommendation gathering are NOT planner work.",
 		"minimum relevant files before",
 		"generic framework recipe",
-		"When you are running as a delegated child planner",
-		"return the complete plan as assistant text and stop",
+		"When a workflow or parent turn assigns planning work",
+		"Return the complete plan as assistant text and stop",
 		"Do not ask questions or persist plan files.",
 		"Do not ask a save/apply/revise plan-decision question unless the runtime provides explicit planner approval instructions",
 		"Reference the files, modules, or subsystems you inspected",
 		"Do not perform acceptance review, correctness audit, bug-finding, or code",
-		"performance review, or regression check, you MUST say that reviewer is the appropriate agent",
+		"performance review, or regression check, state that reviewer is the appropriate agent",
 		"Treat `question` as a logical job",
 		"Use tools only when they resolve concrete planning uncertainty.",
 	} {

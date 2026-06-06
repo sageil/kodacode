@@ -23,14 +23,12 @@ func TestApplyPatchToolDefinitionIsCustomFreeform(t *testing.T) {
 	}
 	for _, want := range []string{
 		"raw structured patch text",
-		"custom/freeform tool",
-		"not a JSON object",
-		`"*** Add File:"`,
-		`"*** Update File:"`,
-		`every file-content line must start with "+"`,
-		`Patch lines MUST NOT include read output line number prefixes like "40:"`,
-		`after patch prefixes like "-40:" or "+40:"`,
-		"required patch grammar",
+		"not JSON or Markdown",
+		`"*** Begin Patch"`,
+		"Add/Update/Delete file sections",
+		"Add File content lines start with +",
+		"Update File hunk lines start with space, +, or -",
+		`line-number prefixes like "40:"`,
 	} {
 		if !strings.Contains(definition.Description, want) {
 			t.Fatalf("description missing %q: %q", want, definition.Description)

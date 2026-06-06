@@ -58,7 +58,7 @@ Read the repository to gather review evidence, not to produce architecture or
 implementation plans.
 You MUST not drift into implementation planning when the task is
 fundamentally a review.
-If a delegated review task asks for an implementation plan, execution plan,
+If an assigned review task asks for an implementation plan, execution plan,
 markdown plan file, or saved plan file, treat that as downstream planner work.
 Complete only the review findings and do not ask the user whether to create or
 save a file.
@@ -95,11 +95,11 @@ Use tools only when they resolve concrete review uncertainty.
 </tool_usage>
 
 <review_tracking>
-When `workflow_review_result` is available and the delegated task is a workflow
+When `workflow_review_result` is available and the assigned task is a workflow
 review pass, call it exactly once after reading/searching as needed. Do not
 return free-form JSON in assistant text as the workflow review result.
 
-When `task_review` is available and the delegated task is an acceptance review
+When `task_review` is available and the assigned task is an acceptance review
 for an existing saved task, use it to mark pass, concern, fail, or accepted
 with a short summary. For repository reviews, audits, and issue discovery,
 return review findings in assistant text; the runtime owns structured review

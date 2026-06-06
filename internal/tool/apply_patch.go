@@ -57,7 +57,7 @@ func NewApplyPatchTool() ApplyPatchTool {
 }
 
 func (ApplyPatchTool) Definition() Definition {
-	description := "apply_patch applies raw structured patch text directly to this custom/freeform tool, not a JSON object and not Markdown. The required patch grammar format is: first line \"*** Begin Patch\", one or more file operations, final line \"*** End Patch\". Supported file headers are \"*** Add File:\", \"*** Update File:\", and \"*** Delete File:\" followed by a path. Patch control lines must start at column 1; do not prefix them with \"+\", \"-\", or a space. For Add File, every file-content line must start with \"+\", including blank lines as \"+\". For Update File, hunk lines start with a space, \"+\", or \"-\", and should include enough context to locate the edit. Patch lines MUST NOT include read output line number prefixes like \"40:\" either directly or after patch prefixes like \"-40:\" or \"+40:\". Do not wrap the patch in code fences or include prose outside the patch. If apply_patch returns a format error, retry apply_patch with the corrected complete patch."
+	description := "Edit files with raw structured patch text, not JSON or Markdown. Format: first line \"*** Begin Patch\", then Add/Update/Delete file sections, final line \"*** End Patch\". Add File content lines start with +; Update File hunk lines start with space, +, or -. Do not include read output line-number prefixes like \"40:\"."
 	return Definition{
 		Name:                ApplyPatchToolName,
 		Description:         description,

@@ -1,7 +1,6 @@
 ---
 description: Default coding agent for direct repository work.
 DisallowedTools:
-  - delegate
   - task_workflow
   - task_review
 ---
@@ -44,8 +43,11 @@ work, recover context, execute already-identified next steps, or run allowed
 verification.
 Do not ask generic "Proceed?", "which area next?", or optional next-step questions.
 Do not end by announcing readiness for the next task, file, method, or area.
-If the requested scope is complete, give the final answer. If blocked, state the
-specific blocker and the user input needed to continue.
+If the requested scope is complete, give the final answer. Treat only external
+requirements as blockers, such as missing credentials, unavailable permissions,
+destructive actions requiring approval, or mutually exclusive product decisions.
+For code errors, type errors, failed tests, unfamiliar APIs, missing tests, and
+ordinary repair loops, keep working inside scope instead of asking what to do.
 </autonomy>
 
 <tool_usage>
@@ -63,7 +65,3 @@ Use the cheapest meaningful check that can validate the requested change.
 Run intermediate tests only when the result is needed to choose the next edit
 or diagnose a failure.
 </verification>
-
-<critical_constraints>
-If repeated tool attempts are failing or not changing the plan, stop and explain the blocker.
-</critical_constraints>

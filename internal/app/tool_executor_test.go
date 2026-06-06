@@ -613,11 +613,12 @@ func TestToolExecutorProviderToolsExposeApplyPatchAsFunctionWhenCustomUnsupporte
 	if got.InputFormat != nil {
 		t.Fatalf("input format = %#v, want nil for function adapter", got.InputFormat)
 	}
-	if !strings.Contains(got.InputSchema, `"patch"`) || !strings.Contains(got.Description, "JSON") ||
-		!strings.Contains(got.Description, `every file-content line must start with "+"`) ||
-		!strings.Contains(got.Description, `Patch lines MUST NOT include read output line number prefixes like "40:"`) ||
-		!strings.Contains(got.InputSchema, `Add File content lines must all start with +`) ||
-		!strings.Contains(got.InputSchema, `Patch lines MUST NOT include read output line number prefixes like \"40:\"`) {
+	if !strings.Contains(got.InputSchema, `"patch"`) ||
+		!strings.Contains(got.Description, "JSON") ||
+		!strings.Contains(got.Description, `Add/Update/Delete file sections`) ||
+		!strings.Contains(got.Description, `line-number prefixes like "40:"`) ||
+		!strings.Contains(got.InputSchema, `*** Begin Patch`) ||
+		!strings.Contains(got.InputSchema, `line-number prefixes like \"40:\"`) {
 		t.Fatalf("tool = %#v, want JSON patch function adapter", got)
 	}
 }
