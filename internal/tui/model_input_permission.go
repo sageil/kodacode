@@ -50,43 +50,6 @@ func (m Model) handleInlinePermissionInput(msg tea.KeyPressMsg) (tea.Model, tea.
 	}
 }
 
-func (m Model) handlePermissionInput(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	if m.interactionResolutionInFlight() || m.chrome.focus != focusInspector {
-		return m, nil
-	}
-	if m.pendingExecution() != nil || m.pendingPermission() != nil {
-		return m, nil
-	}
-	maxChoice := m.permissionChoiceCount() - 1
-
-	switch msg.String() {
-	case "up", "k":
-		if m.interaction.cursor > 0 {
-			m.interaction.cursor--
-		}
-		return m, nil
-	case "down", "j":
-		if m.interaction.cursor < maxChoice {
-			m.interaction.cursor++
-		}
-		return m, nil
-	case "1":
-		return m.startPermissionResolution(0)
-	case "2":
-		return m.startPermissionResolution(1)
-	case "3":
-		return m.startPermissionResolution(2)
-	case "4":
-		return m.startPermissionResolution(3)
-	case "5":
-		return m.startPermissionResolution(4)
-	case "enter":
-		return m.startPermissionResolution(m.interaction.cursor)
-	default:
-		return m, nil
-	}
-}
-
 func (m Model) startPermissionResolution(choice int) (tea.Model, tea.Cmd) {
 	if pending := m.pendingExecution(); pending != nil {
 		decision, execPolicy, networkPolicy := executionApprovalChoice(choice, pending)

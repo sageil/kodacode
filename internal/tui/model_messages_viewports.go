@@ -161,10 +161,10 @@ func inspectorAutoFollowBottom(m Model) bool {
 func inspectorViewportKey(m Model, state events.SessionState) string {
 	activeTab := effectiveInspectorTab(m)
 	if m.pendingInteractionSubmissionInFlight() {
-		switch {
-		case activeTab == inspectorTabTools:
+		switch activeTab {
+		case inspectorTabTools:
 			return "tools:" + m.sessionID
-		case activeTab == inspectorTabTasks:
+		case inspectorTabTasks:
 			return "history:" + m.sessionID
 		default:
 			return "overview:" + effectiveDetailTurnID(m, state)

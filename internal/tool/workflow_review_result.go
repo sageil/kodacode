@@ -81,12 +81,7 @@ func (WorkflowReviewResultTool) Execute(_ context.Context, ectx ExecutionContext
 	if err != nil {
 		return Result{}, err
 	}
-	record, err := manager.RecordWorkflowReviewResult(WorkflowReviewResultRequest{
-		ReviewPass:         input.ReviewPass,
-		Findings:           input.Findings,
-		OverallCorrectness: input.OverallCorrectness,
-		OverallSummary:     input.OverallSummary,
-	})
+	record, err := manager.RecordWorkflowReviewResult(WorkflowReviewResultRequest(input))
 	if err != nil {
 		return Result{}, err
 	}

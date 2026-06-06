@@ -20,6 +20,7 @@ type workflowPhaseTurnContext struct {
 	PhaseStartRecordedThisTurn bool
 	ResumedFromBlock           bool
 	BlockedStopReason          string
+	RevisionTrigger            *events.WorkflowEvidenceState
 }
 
 func (r *Runtime) prepareWorkflowPhaseTurn(ctx context.Context, input runExistingTurnInput, view turnStartSessionView) (turnStartSessionView, workflowPhaseTurnContext, string, error) {
@@ -88,6 +89,7 @@ func (r *Runtime) prepareWorkflowPhaseTurn(ctx context.Context, input runExistin
 			PhaseStartRecordedThisTurn: false,
 			ResumedFromBlock:           true,
 			BlockedStopReason:          blockedStopReason,
+			RevisionTrigger:            workflowLatestRevisionTriggerForPhase(workflow, phase.ID),
 		}, workflow.WorkflowID, nil
 	}
 	definition, err := r.resolveWorkflow(ctx, view.workspaceRoot, workflow.WorkflowID)
@@ -104,6 +106,7 @@ func (r *Runtime) prepareWorkflowPhaseTurn(ctx context.Context, input runExistin
 		Definition:                 definition,
 		Phase:                      phase,
 		PhaseStartRecordedThisTurn: phaseStartRecordedThisTurn,
+		RevisionTrigger:            workflowLatestRevisionTriggerForPhase(workflow, phase.ID),
 	}, workflow.WorkflowID, nil
 }
 
@@ -245,6 +248,9 @@ func workflowPhasePromptFragment(ctx workflowPhaseTurnContext, allowedTools []st
 	if ctx.Phase.EffectiveType() != "" {
 		lines = append(lines, "- Phase type: "+string(ctx.Phase.EffectiveType()))
 	}
+	if ctx.RevisionTrigger != nil {
+		lines = append(lines, workflowRevisionPromptLines(ctx.RevisionTrigger)...)
+	}
 	if ctx.ResumedFromBlock {
 		lines = append(lines, "- Workflow recovery: this phase was blocked and has been resumed for this turn.")
 		if reason := strings.TrimSpace(ctx.BlockedStopReason); reason != "" {
@@ -288,8 +294,12 @@ func workflowPhasePromptFragment(ctx workflowPhaseTurnContext, allowedTools []st
 		)
 	}
 	if strings.TrimSpace(ctx.Phase.ID) == "implement" {
-		lines = append(lines, "- Create workflow tasks for every approved `implementation_tasks` item before implementation work. The phase cannot advance until those planned tasks are complete.")
-		lines = append(lines, "- On a verification or review revision loop, create or update workflow tasks for the concrete failed check or review finding before applying fixes.")
+		if ctx.RevisionTrigger != nil {
+			lines = append(lines, "- This is a revision loop. Use the revision target above as the runnable work item; an active task is not required before revising.")
+			lines = append(lines, "- Use `"+tool.TaskWorkflowToolName+"` only when useful for tracking substantial multi-step revision work. If you create a revision task, complete it before finishing the phase.")
+		} else {
+			lines = append(lines, "- Create workflow tasks for every approved `implementation_tasks` item before implementation work. The phase cannot advance until those planned tasks are complete.")
+		}
 	}
 	if len(ctx.Phase.Include) > 0 {
 		lines = append(lines, "- Final summary should include: "+strings.Join(trimmedWorkflowValues(ctx.Phase.Include), ", "))
@@ -320,6 +330,62 @@ func workflowPhasePromptFragment(ctx workflowPhaseTurnContext, allowedTools []st
 		Label:     "workflow-phase",
 		Content:   strings.Join(lines, "\n"),
 	}
+}
+
+func workflowRevisionPromptLines(trigger *events.WorkflowEvidenceState) []string {
+	if trigger == nil {
+		return nil
+	}
+	fields := trigger.Fields
+	lines := []string{"Workflow revision target is active."}
+	if event := strings.TrimSpace(fields["revision_event"]); event != "" {
+		lines = append(lines, "- Revision event: "+event)
+	}
+	if summary := strings.TrimSpace(trigger.Summary); summary != "" {
+		lines = append(lines, "- Revision summary: "+summary)
+	} else if summary := strings.TrimSpace(fields["source_summary"]); summary != "" {
+		lines = append(lines, "- Revision summary: "+summary)
+	}
+	if sourceType := strings.TrimSpace(fields["source_evidence_type"]); sourceType != "" {
+		lines = append(lines, "- Source evidence type: "+sourceType)
+	}
+	if sourcePhase := strings.TrimSpace(fields["source_phase_id"]); sourcePhase != "" {
+		lines = append(lines, "- Source phase: "+sourcePhase)
+	}
+	if failedCheck := strings.TrimSpace(fields["failed_check"]); failedCheck != "" {
+		lines = append(lines, "- Failed check: "+failedCheck)
+	}
+	if reviewPass := strings.TrimSpace(fields["review_pass"]); reviewPass != "" {
+		lines = append(lines, "- Review pass: "+reviewPass)
+	}
+	if reviewStatus := strings.TrimSpace(fields["review_status"]); reviewStatus != "" {
+		lines = append(lines, "- Review status: "+reviewStatus)
+	}
+	for i := 1; ; i++ {
+		prefix := "finding_" + strconv.Itoa(i) + "_"
+		title := strings.TrimSpace(fields[prefix+"title"])
+		path := strings.TrimSpace(fields[prefix+"path"])
+		explanation := strings.TrimSpace(fields[prefix+"explanation"])
+		if title == "" && path == "" && explanation == "" {
+			break
+		}
+		line := "- Review finding " + strconv.Itoa(i) + ":"
+		if title != "" {
+			line += " " + title
+		}
+		if path != "" {
+			line += " (" + path
+			if lineNumber := strings.TrimSpace(fields[prefix+"line"]); lineNumber != "" {
+				line += ":" + lineNumber
+			}
+			line += ")"
+		}
+		if explanation != "" {
+			line += " - " + explanation
+		}
+		lines = append(lines, line)
+	}
+	return lines
 }
 
 func workflowReviewPassInstructionLines(passes []workflowpkg.ReviewPass) []string {

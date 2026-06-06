@@ -23,11 +23,6 @@ func scopedToolKey(sessionID string, ref sessionToolCallRef) scopedToolCallKey {
 	}
 }
 
-func toolRefForSession(sessionID string, ref sessionToolCallRef) sessionToolCallRef {
-	ref.SessionID = strings.TrimSpace(sessionID)
-	return ref
-}
-
 func normalizeToolTargetSessionID(currentSessionID, sessionID string) string {
 	sessionID = strings.TrimSpace(sessionID)
 	if sessionID != "" {

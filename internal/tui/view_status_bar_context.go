@@ -124,16 +124,6 @@ func currentTurnUsesSelectedModel(m Model, state events.SessionState, turn *even
 	return true
 }
 
-func contextDisplayGreater(candidate, current sessionContextDisplay) bool {
-	if candidate.percent != current.percent {
-		return candidate.percent > current.percent
-	}
-	if candidate.tokens != current.tokens {
-		return candidate.tokens > current.tokens
-	}
-	return candidate.limit > current.limit
-}
-
 func contextDisplayForTurn(turn *events.TurnState) (sessionContextDisplay, bool) {
 	tokens, limit, percent, source, ok := currentTurnDisplayContextUsage(turn)
 	if !ok {

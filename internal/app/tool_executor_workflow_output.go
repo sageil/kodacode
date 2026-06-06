@@ -15,18 +15,20 @@ func (e *ToolExecutor) toolWorkflowPhaseOutputManager(ctx context.Context, state
 		return nil
 	}
 	return sessionWorkflowPhaseOutputManager{
-		ctx:      ctx,
-		sessions: e.sessions,
-		input:    input,
-		state:    state,
+		ctx:                  ctx,
+		sessions:             e.sessions,
+		input:                input,
+		state:                state,
+		phaseCommandResolver: e.workflowPhaseCommandResolver,
 	}
 }
 
 type sessionWorkflowPhaseOutputManager struct {
-	ctx      context.Context
-	sessions *SessionService
-	input    ExecuteToolInput
-	state    events.SessionState
+	ctx                  context.Context
+	sessions             *SessionService
+	input                ExecuteToolInput
+	state                events.SessionState
+	phaseCommandResolver workflowPhaseCommandResolver
 }
 
 func (m sessionWorkflowPhaseOutputManager) RecordWorkflowPhaseOutput(request tool.WorkflowPhaseOutputRequest) (tool.WorkflowPhaseOutputRecord, error) {
@@ -48,6 +50,9 @@ func (m sessionWorkflowPhaseOutputManager) RecordWorkflowPhaseOutput(request too
 	}
 	if len(fields) == 0 {
 		return tool.WorkflowPhaseOutputRecord{}, tool.ErrWorkflowPhaseOutputFieldsRequired
+	}
+	if err := m.validateWorkflowPhaseVerificationOutput(fields); err != nil {
+		return tool.WorkflowPhaseOutputRecord{}, err
 	}
 	slices.Sort(keys)
 	if _, err := m.sessions.append(m.ctx, events.Draft{
@@ -109,6 +114,127 @@ func (m sessionWorkflowPhaseOutputManager) recordVerificationEvidenceFromPhaseOu
 		return err
 	}
 	return nil
+}
+
+func (m sessionWorkflowPhaseOutputManager) validateWorkflowPhaseVerificationOutput(fields map[string]string) error {
+	command := strings.TrimSpace(fields["commands_run"])
+	result := strings.TrimSpace(fields["result"])
+	if command == "" || result == "" {
+		return nil
+	}
+	successful, ok := workflowPhaseOutputVerificationSuccessful(result)
+	if blockers := workflowPhaseOutputVerificationBlockers(fields); len(blockers) > 0 {
+		successful = false
+		ok = true
+	}
+	if ok && !successful {
+		return nil
+	}
+	if !ok {
+		return fmt.Errorf("verification output result must explicitly be passed, failed, blocked, deferred, or unverified")
+	}
+	if !m.hasMatchingSuccessfulVerificationToolExecution(command) {
+		return fmt.Errorf("successful verification output requires a matching successful test or bash execution in the current turn")
+	}
+	return nil
+}
+
+func (m sessionWorkflowPhaseOutputManager) hasMatchingSuccessfulVerificationToolExecution(commandsRun string) bool {
+	claimed := workflowPhaseOutputCommandMatchText(commandsRun)
+	if claimed == "" {
+		return false
+	}
+	turn := m.state.Turns[strings.TrimSpace(m.input.TurnID)]
+	if turn == nil {
+		return false
+	}
+	for _, callID := range turn.ToolCallOrder {
+		call := turn.ToolCalls[strings.TrimSpace(callID)]
+		if !m.workflowPhaseOutputSuccessfulVerificationToolCall(call) {
+			continue
+		}
+		for _, observed := range workflowPhaseOutputToolCommandTexts(call) {
+			observed = workflowPhaseOutputCommandMatchText(observed)
+			if observed == "" {
+				continue
+			}
+			if strings.Contains(claimed, observed) || strings.Contains(observed, claimed) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (m sessionWorkflowPhaseOutputManager) workflowPhaseOutputSuccessfulVerificationToolCall(call *events.ToolCallState) bool {
+	if call == nil {
+		return false
+	}
+	switch strings.TrimSpace(call.ToolName) {
+	case tool.TestToolName:
+	case tool.BashToolName:
+		if !m.workflowPhaseOutputBashCallMatchesDeclaredCommand(call) {
+			return false
+		}
+	default:
+		return false
+	}
+	if !call.Completed || !call.Succeeded {
+		return false
+	}
+	if call.Execution == nil {
+		return true
+	}
+	if call.Execution.Status != "" && call.Execution.Status != events.ExecutionStatusCompleted {
+		return false
+	}
+	if call.Execution.ExitCode != nil && *call.Execution.ExitCode != 0 {
+		return false
+	}
+	return true
+}
+
+func (m sessionWorkflowPhaseOutputManager) workflowPhaseOutputBashCallMatchesDeclaredCommand(call *events.ToolCallState) bool {
+	if call == nil || m.phaseCommandResolver == nil {
+		return false
+	}
+	workflow := m.state.Workflow
+	if workflow == nil {
+		return false
+	}
+	commands, err := m.phaseCommandResolver(m.ctx, m.state.WorkspaceRoot, workflow.WorkflowID, workflow.CurrentPhaseID)
+	if err != nil || len(commands) == 0 {
+		return false
+	}
+	for _, command := range workflowPhaseOutputToolCommandTexts(call) {
+		if workflowVerificationCommandMatches(commands, tool.BashToolName, strings.TrimSpace(command)) {
+			return true
+		}
+	}
+	return false
+}
+
+func workflowPhaseOutputToolCommandTexts(call *events.ToolCallState) []string {
+	if call == nil {
+		return nil
+	}
+	var out []string
+	if call.Execution != nil {
+		out = append(out, call.Execution.CommandPreview)
+		if len(call.Execution.Command) > 0 {
+			out = append(out, strings.Join(call.Execution.Command, " "))
+		}
+		out = append(out, call.Execution.Input)
+	}
+	out = append(out, call.Input)
+	return out
+}
+
+func workflowPhaseOutputCommandMatchText(value string) string {
+	normalized := strings.ToLower(strings.TrimSpace(value))
+	normalized = strings.Trim(normalized, " .")
+	normalized = strings.ReplaceAll(normalized, "\n", " ")
+	return strings.Join(strings.Fields(normalized), " ")
 }
 
 func workflowPhaseOutputVerificationSuccessful(result string) (bool, bool) {
@@ -180,7 +306,7 @@ func workflowPhaseOutputFieldHasBlockingValue(value string) bool {
 	}
 	normalized = strings.Trim(normalized, " .")
 	switch normalized {
-	case "none", "none identified", "none found", "n/a", "na", "not applicable", "[]":
+	case "none", "none identified", "none found", "none in this turn", "n/a", "na", "not applicable", "[]":
 		return false
 	default:
 		return true

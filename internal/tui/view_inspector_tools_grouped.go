@@ -271,25 +271,6 @@ func (m *Model) toggleInspectorToolGroup(groupID string) {
 	m.inspector.collapsedToolGroups[groupID] = true
 }
 
-func renderInspectorInfoLines(m Model, label string, width int, depth int) []string {
-	label = strings.TrimSpace(label)
-	if label == "" {
-		return nil
-	}
-	indent := inspectorTreeIndent(depth)
-	style := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(colorFor(m.theme, "subtext", "#9da8ca")))
-	wrapped := wrapStructuredText(label, max(width-len(indent), 1))
-	if len(wrapped) == 0 {
-		wrapped = []string{label}
-	}
-	lines := make([]string, 0, len(wrapped))
-	for _, line := range wrapped {
-		lines = append(lines, indent+style.Render(line))
-	}
-	return lines
-}
-
 func inspectorTreeIndent(depth int) string {
 	if depth <= 0 {
 		return ""

@@ -5,15 +5,9 @@ import (
 	"strings"
 )
 
-const derivedTurnSourceMaxChars = 12000
-
 func (r *Runtime) runDerivedSessionTurn(ctx context.Context, input runExistingTurnInput) (RunSessionResult, error) {
 	input.HistoryMode = turnHistoryModeCurrentTurnOnly
 	return r.runExistingSessionTurn(ctx, input)
-}
-
-func boundedDerivedTurnSource(sourceText string) string {
-	return boundedDerivedTurnText(sourceText, derivedTurnSourceMaxChars)
 }
 
 func boundedDerivedTurnText(text string, maxChars int) string {

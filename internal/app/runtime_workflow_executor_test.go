@@ -771,18 +771,41 @@ func TestRuntimeWorkflowReviewRequiresVerificationEvidence(t *testing.T) {
 }
 
 func TestRuntimeWorkflowPhaseOutputRecordsVerificationEvidence(t *testing.T) {
+	useExecutionRunnerHooks(t, func(_ context.Context, contract executionContract, _ executionRunOptions) (executionRunResult, error) {
+		command := strings.Join(contract.Command, " ")
+		if !strings.Contains(command, "go test ./...") {
+			t.Fatalf("command = %#v, want go test ./...", contract.Command)
+		}
+		return executionRunResult{Output: []byte("ok\t./...\n")}, nil
+	})
+
 	ctx := context.Background()
 	runtime := newRuntimeWithClient(t, &fakeProvider{})
 	root := t.TempDir()
 	sessionID := createWorkflowTestSession(t, runtime, root)
 	startDeliveryAtVerify(t, runtime, sessionID, root)
 
+	testResult, err := runtime.Tools.Execute(ctx, ExecuteToolInput{
+		SessionID:    sessionID,
+		TurnID:       "turn-verify",
+		ToolCallID:   "call-verification-test",
+		ToolName:     tool.TestToolName,
+		Arguments:    json.RawMessage(`{"command":"go test ./..."}`),
+		AllowedTools: []string{tool.TestToolName},
+	})
+	if err != nil {
+		t.Fatalf("Execute(test) error = %v", err)
+	}
+	if testResult.Error != "" {
+		t.Fatalf("test error = %q", testResult.Error)
+	}
+
 	result, err := runtime.Tools.Execute(ctx, ExecuteToolInput{
 		SessionID:    sessionID,
 		TurnID:       "turn-verify",
 		ToolCallID:   "call-verification-output",
 		ToolName:     tool.WorkflowPhaseOutputToolName,
-		Arguments:    json.RawMessage(`{"fields":{"commands_run":"npm test","result":"passed","criteria_checked":"Implementation complete","unverified_criteria":"none","deferred_items":"none","failures":"none","confidence":"high"}}`),
+		Arguments:    json.RawMessage(`{"fields":{"commands_run":"go test ./...","result":"passed","criteria_checked":"Implementation complete","unverified_criteria":"none","deferred_items":"none","failures":"none","confidence":"high"}}`),
 		AllowedTools: []string{tool.WorkflowPhaseOutputToolName},
 	})
 	if err != nil {
@@ -804,6 +827,185 @@ func TestRuntimeWorkflowPhaseOutputRecordsVerificationEvidence(t *testing.T) {
 		ToPhaseID: "review",
 	}); err != nil {
 		t.Fatalf("AdvanceWorkflow(review) error = %v", err)
+	}
+}
+
+func TestRuntimeWorkflowPhaseOutputRejectsTextOnlySuccessfulVerification(t *testing.T) {
+	ctx := context.Background()
+	runtime := newRuntimeWithClient(t, &fakeProvider{})
+	root := t.TempDir()
+	sessionID := createWorkflowTestSession(t, runtime, root)
+	startDeliveryAtVerify(t, runtime, sessionID, root)
+
+	result, err := runtime.Tools.Execute(ctx, ExecuteToolInput{
+		SessionID:    sessionID,
+		TurnID:       "turn-verify",
+		ToolCallID:   "call-verification-output",
+		ToolName:     tool.WorkflowPhaseOutputToolName,
+		Arguments:    json.RawMessage(`{"fields":{"commands_run":"npm test","result":"passed","criteria_checked":"Implementation complete","unverified_criteria":"none","deferred_items":"none","failures":"none","confidence":"high"}}`),
+		AllowedTools: []string{tool.WorkflowPhaseOutputToolName},
+	})
+	if err != nil {
+		t.Fatalf("Execute(workflow_phase_output) error = %v", err)
+	}
+	if !strings.Contains(result.Error, "successful verification output requires a matching successful test or bash execution") {
+		t.Fatalf("workflow_phase_output error = %q", result.Error)
+	}
+	state, err := runtime.Sessions.Snapshot(ctx, sessionID)
+	if err != nil {
+		t.Fatalf("Snapshot() error = %v", err)
+	}
+	if workflowHasPhaseOutputEvidence(state.Workflow, "verify", "commands_run") {
+		t.Fatalf("workflow evidence = %#v, want rejected text-only success not recorded", state.Workflow.Evidence)
+	}
+}
+
+func TestRuntimeWorkflowPhaseOutputRecordsDeclaredBashVerificationEvidence(t *testing.T) {
+	useExecutionRunnerHooks(t, func(_ context.Context, contract executionContract, _ executionRunOptions) (executionRunResult, error) {
+		command := strings.Join(contract.Command, " ")
+		if !strings.Contains(command, "printf workflow-verification") {
+			t.Fatalf("command = %#v, want printf workflow-verification", contract.Command)
+		}
+		return executionRunResult{Output: []byte("workflow-verification\n")}, nil
+	})
+
+	ctx := context.Background()
+	runtime := newRuntimeWithClient(t, &fakeProvider{})
+	root := t.TempDir()
+	writeProjectWorkflow(t, root, "delivery.yaml", phaseOutputDeclaredBashVerificationWorkflowYAML())
+	sessionID := createWorkflowTestSession(t, runtime, root)
+	startDeliveryAtVerify(t, runtime, sessionID, root)
+
+	bashResult, err := runtime.Tools.Execute(ctx, ExecuteToolInput{
+		SessionID:    sessionID,
+		TurnID:       "turn-verify",
+		ToolCallID:   "call-verification-bash",
+		ToolName:     tool.BashToolName,
+		Arguments:    json.RawMessage(`{"cmd":"printf workflow-verification"}`),
+		AllowedTools: []string{tool.BashToolName},
+	})
+	if err != nil {
+		t.Fatalf("Execute(bash) error = %v", err)
+	}
+	if bashResult.Error != "" {
+		t.Fatalf("bash error = %q", bashResult.Error)
+	}
+
+	result, err := runtime.Tools.Execute(ctx, ExecuteToolInput{
+		SessionID:    sessionID,
+		TurnID:       "turn-verify",
+		ToolCallID:   "call-verification-output",
+		ToolName:     tool.WorkflowPhaseOutputToolName,
+		Arguments:    json.RawMessage(`{"fields":{"commands_run":"printf workflow-verification","result":"passed","failures":"none","confidence":"high"}}`),
+		AllowedTools: []string{tool.WorkflowPhaseOutputToolName},
+	})
+	if err != nil {
+		t.Fatalf("Execute(workflow_phase_output) error = %v", err)
+	}
+	if result.Error != "" {
+		t.Fatalf("workflow_phase_output error = %q", result.Error)
+	}
+	state, err := runtime.Sessions.Snapshot(ctx, sessionID)
+	if err != nil {
+		t.Fatalf("Snapshot() error = %v", err)
+	}
+	if !workflowHasSuccessfulEvidence(state.Workflow, "verify", events.WorkflowEvidenceTypeVerificationResult) {
+		t.Fatalf("workflow evidence = %#v, want successful declared bash verification", state.Workflow.Evidence)
+	}
+}
+
+func TestRuntimeWorkflowPhaseOutputRejectsAdHocBashVerificationEvidence(t *testing.T) {
+	useExecutionRunnerHooks(t, func(_ context.Context, contract executionContract, _ executionRunOptions) (executionRunResult, error) {
+		command := strings.Join(contract.Command, " ")
+		if !strings.Contains(command, "printf workflow-verification") {
+			t.Fatalf("command = %#v, want printf workflow-verification", contract.Command)
+		}
+		return executionRunResult{Output: []byte("workflow-verification\n")}, nil
+	})
+
+	ctx := context.Background()
+	runtime := newRuntimeWithClient(t, &fakeProvider{})
+	root := t.TempDir()
+	sessionID := createWorkflowTestSession(t, runtime, root)
+	startDeliveryAtVerify(t, runtime, sessionID, root)
+
+	bashResult, err := runtime.Tools.Execute(ctx, ExecuteToolInput{
+		SessionID:    sessionID,
+		TurnID:       "turn-verify",
+		ToolCallID:   "call-verification-bash",
+		ToolName:     tool.BashToolName,
+		Arguments:    json.RawMessage(`{"cmd":"printf workflow-verification"}`),
+		AllowedTools: []string{tool.BashToolName},
+	})
+	if err != nil {
+		t.Fatalf("Execute(bash) error = %v", err)
+	}
+	if bashResult.Error != "" {
+		t.Fatalf("bash error = %q", bashResult.Error)
+	}
+
+	result, err := runtime.Tools.Execute(ctx, ExecuteToolInput{
+		SessionID:    sessionID,
+		TurnID:       "turn-verify",
+		ToolCallID:   "call-verification-output",
+		ToolName:     tool.WorkflowPhaseOutputToolName,
+		Arguments:    json.RawMessage(`{"fields":{"commands_run":"printf workflow-verification","result":"passed","failures":"none","confidence":"high"}}`),
+		AllowedTools: []string{tool.WorkflowPhaseOutputToolName},
+	})
+	if err != nil {
+		t.Fatalf("Execute(workflow_phase_output) error = %v", err)
+	}
+	if !strings.Contains(result.Error, "successful verification output requires a matching successful test or bash execution") {
+		t.Fatalf("workflow_phase_output error = %q", result.Error)
+	}
+}
+
+func TestRuntimeWorkflowPhaseOutputRejectsNoOpVerificationResult(t *testing.T) {
+	ctx := context.Background()
+	runtime := newRuntimeWithClient(t, &fakeProvider{})
+	root := t.TempDir()
+	sessionID := createWorkflowTestSession(t, runtime, root)
+	startDeliveryAtVerify(t, runtime, sessionID, root)
+
+	result, err := runtime.Tools.Execute(ctx, ExecuteToolInput{
+		SessionID:    sessionID,
+		TurnID:       "turn-verify",
+		ToolCallID:   "call-verification-output",
+		ToolName:     tool.WorkflowPhaseOutputToolName,
+		Arguments:    json.RawMessage(`{"fields":{"commands_run":"None in this turn","result":"Active turn summary received; no new verification or implementation was performed.","failures":"None in this turn.","confidence":"Low"}}`),
+		AllowedTools: []string{tool.WorkflowPhaseOutputToolName},
+	})
+	if err != nil {
+		t.Fatalf("Execute(workflow_phase_output) error = %v", err)
+	}
+	if !strings.Contains(result.Error, "verification output result must explicitly be passed, failed, blocked, deferred, or unverified") {
+		t.Fatalf("workflow_phase_output error = %q", result.Error)
+	}
+	state, err := runtime.Sessions.Snapshot(ctx, sessionID)
+	if err != nil {
+		t.Fatalf("Snapshot() error = %v", err)
+	}
+	if workflowHasPhaseOutputEvidence(state.Workflow, "verify", "commands_run") {
+		t.Fatalf("workflow evidence = %#v, want rejected no-op output not recorded", state.Workflow.Evidence)
+	}
+
+	err = runtime.AdvanceWorkflow(ctx, AdvanceWorkflowInput{
+		SessionID: sessionID,
+		TurnID:    "turn-verify",
+		ToPhaseID: "review",
+	})
+	if !errors.Is(err, ErrWorkflowEvidenceMissing) {
+		t.Fatalf("AdvanceWorkflow(review) error = %v, want ErrWorkflowEvidenceMissing", err)
+	}
+	state, err = runtime.Sessions.Snapshot(ctx, sessionID)
+	if err != nil {
+		t.Fatalf("Snapshot() after advance error = %v", err)
+	}
+	if state.Workflow == nil || state.Workflow.Status != events.WorkflowStatusBlocked || state.Workflow.CurrentPhaseID != "verify" {
+		t.Fatalf("workflow = %#v, want blocked verify", state.Workflow)
+	}
+	if !strings.Contains(state.Workflow.StopReason, "missing required phase output: commands_run") {
+		t.Fatalf("stop reason = %q", state.Workflow.StopReason)
 	}
 }
 
@@ -953,7 +1155,7 @@ func TestRuntimeWorkflowFailedReviewLoopsBackToImplementationWithinCap(t *testin
 	}
 }
 
-func TestRuntimeWorkflowFailedReviewAutoContinuesImplementationRetry(t *testing.T) {
+func TestRuntimeWorkflowFailedReviewAutoContinuesRevisionWithoutTask(t *testing.T) {
 	ctx := context.Background()
 	root := t.TempDir()
 	writeProjectWorkflow(t, root, "review-retry.yaml", `
@@ -985,8 +1187,6 @@ transitions:
 	client := &fakeProvider{
 		streams: []provider.Stream{
 			provider.NewSliceStream([]provider.Event{
-				{Kind: provider.EventKindToolCallDelta, ToolCallID: "call-task-create", ToolName: tool.TaskWorkflowToolName, InputDelta: `{"action":"create","task_id":"task-review-fix","title":"Fix failed review finding","kind":"implementation","status":"in_progress"}`},
-				{Kind: provider.EventKindToolCallDone, ToolCallID: "call-task-create", ToolName: tool.TaskWorkflowToolName},
 				{Kind: provider.EventKindToolCallDelta, ToolCallID: "call-write", ToolName: tool.WriteToolName, InputDelta: `{"path":"review-fix.txt","content":"fixed\n"}`},
 				{Kind: provider.EventKindToolCallDone, ToolCallID: "call-write", ToolName: tool.WriteToolName},
 			}),
@@ -1075,15 +1275,14 @@ transitions:
 	if err != nil {
 		t.Fatalf("Snapshot() error = %v", err)
 	}
-	if state.Workflow == nil || state.Workflow.Status != events.WorkflowStatusBlocked || state.Workflow.CurrentPhaseID != "implement" {
-		t.Fatalf("workflow = %#v, want blocked implement after unfinished implementation retry", state.Workflow)
+	if state.Workflow == nil || state.Workflow.Status != events.WorkflowStatusActive || state.Workflow.CurrentPhaseID != "review" {
+		t.Fatalf("workflow = %#v, want active review after taskless implementation retry", state.Workflow)
 	}
-	if state.Workflow.StopReason != "workflow phase has unfinished task: task-review-fix" {
-		t.Fatalf("workflow stop reason = %q", state.Workflow.StopReason)
+	if task := state.Tasks["task-review-fix"]; task != nil {
+		t.Fatalf("review fix task = %#v, want no required revision task", task)
 	}
-	task := state.Tasks["task-review-fix"]
-	if task == nil || task.Status != events.TaskStatusInProgress || task.WorkflowID != "review-retry" || task.WorkflowPhaseID != "implement" {
-		t.Fatalf("review fix task = %#v, want active task bound to implementation retry", task)
+	if !workflowHasAnyEvidenceType(state.Workflow, "implement", events.WorkflowEvidenceTypeFileMutation) {
+		t.Fatalf("workflow evidence = %#v, want revision implementation file mutation", state.Workflow.Evidence)
 	}
 }
 
@@ -1527,6 +1726,69 @@ transitions:
     on: verification_failed
     to: implement
     max_loops: 2
+`
+}
+
+func phaseOutputDeclaredBashVerificationWorkflowYAML() string {
+	return `
+id: delivery
+description: Test workflow with declared bash verification phase output.
+phases:
+  - id: plan
+    agent: planner
+    mode: read_only
+    requires_output:
+      - plan
+      - affected_files
+      - risks
+
+  - id: approve
+    type: user_approval
+    skip_when:
+      max_affected_files: 2
+
+  - id: implement
+    agent: engineer
+    tools:
+      allow:
+        - read
+        - search
+        - apply_patch
+        - write
+        - bash
+        - git_diff
+        - task_workflow
+    requires:
+      approved_phase: plan
+    completion:
+      requires:
+        - active_phase_tasks_complete
+        - planned_tasks_complete
+        - file_mutation
+
+  - id: verify
+    type: verification
+    agent: engineer
+    tools:
+      allow:
+        - bash
+    commands:
+      - tool: bash
+        command: printf workflow-verification
+    requires_output:
+      - commands_run
+      - result
+      - failures
+      - confidence
+    required: true
+
+  - id: review
+    type: review
+    agent: reviewer
+    mode: read_only
+    auto_continue: false
+    requires:
+      - verification_result
 `
 }
 

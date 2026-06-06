@@ -194,6 +194,9 @@ func missingWorkflowPhaseCompletionRequirement(state events.SessionState, phase 
 				return reason
 			}
 		case workflowpkg.CompletionRequirementPlannedTasksComplete:
+			if workflowLatestRevisionTriggerForPhase(state.Workflow, phaseID) != nil {
+				continue
+			}
 			if reason := missingPlannedWorkflowPhaseTaskCompletion(state, phase); reason != "" {
 				return reason
 			}
@@ -337,6 +340,9 @@ func missingActiveWorkflowPhaseTaskCompletion(state events.SessionState, phaseID
 		return "workflow phase has unfinished task: " + strings.TrimSpace(task.TaskID)
 	}
 	if !seenPhaseTask {
+		if workflowLatestRevisionTriggerForPhase(state.Workflow, phaseID) != nil {
+			return ""
+		}
 		return "workflow phase has no tasks"
 	}
 	return ""

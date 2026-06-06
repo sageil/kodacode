@@ -834,17 +834,6 @@ func providerRequestHasWorkflowReviewToolResult(req provider.Request) bool {
 	return false
 }
 
-type blockingFanoutProvider struct {
-	want int
-
-	mu              sync.Mutex
-	requests        []provider.Request
-	active          int
-	maxActive       int
-	release         chan struct{}
-	releaseSignaled bool
-}
-
 type workflowReviewResultProvider struct {
 	mu        sync.Mutex
 	requests  []provider.Request
@@ -905,63 +894,6 @@ func workflowReviewPassFromProviderRequest(req provider.Request) string {
 		}
 	}
 	return ""
-}
-
-func newBlockingFanoutProvider(want int) *blockingFanoutProvider {
-	return &blockingFanoutProvider{
-		want:    want,
-		release: make(chan struct{}),
-	}
-}
-
-func (p *blockingFanoutProvider) Stream(ctx context.Context, req provider.Request) (provider.Stream, error) {
-	p.mu.Lock()
-	p.requests = append(p.requests, req)
-	p.active++
-	if p.active > p.maxActive {
-		p.maxActive = p.active
-	}
-	if len(p.requests) >= p.want && !p.releaseSignaled {
-		p.releaseSignaled = true
-		close(p.release)
-	}
-	release := p.release
-	p.mu.Unlock()
-
-	select {
-	case <-release:
-	case <-ctx.Done():
-		p.mu.Lock()
-		p.active--
-		p.mu.Unlock()
-		return nil, ctx.Err()
-	}
-
-	p.mu.Lock()
-	p.active--
-	p.mu.Unlock()
-	if providerRequestHasWorkflowReviewToolResult(req) {
-		return provider.NewSliceStream([]provider.Event{
-			{Kind: provider.EventKindAssistantDelta, AssistantDelta: "Review result recorded."},
-		}), nil
-	}
-	passID := workflowReviewPassFromProviderRequest(req)
-	if passID == "" {
-		passID = "correctness"
-	}
-	return provider.NewSliceStream(workflowReviewResultToolEvents("call-review-"+passID, passID, "Correct.")), nil
-}
-
-func (p *blockingFanoutProvider) requestCount() int {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return len(p.requests)
-}
-
-func (p *blockingFanoutProvider) maxConcurrent() int {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return p.maxActive
 }
 
 func TestRuntimeRunSessionTurnUsesPhaseModelBeforeWorkflowModel(t *testing.T) {

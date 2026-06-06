@@ -324,17 +324,6 @@ func (w *watcher) run(ctx context.Context) {
 	}
 }
 
-func (w *watcher) close() {
-	w.mu.Lock()
-	w.closed = true
-	w.mu.Unlock()
-
-	select {
-	case w.notify <- struct{}{}:
-	default:
-	}
-}
-
 func (w *watcher) pop() (Event, bool) {
 	w.mu.Lock()
 	defer w.mu.Unlock()

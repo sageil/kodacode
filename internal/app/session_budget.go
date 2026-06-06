@@ -338,28 +338,6 @@ func (s *SessionService) updateBudgetSummaryLocked(runtime *sessionRuntime) {
 	}
 }
 
-func (s *SessionService) clearBudgetSummaryLocked(runtime *sessionRuntime) {
-	if runtime == nil || !runtime.budgetWarm {
-		return
-	}
-	summary := runtime.budget
-
-	s.budgetMu.Lock()
-	defer s.budgetMu.Unlock()
-	if !s.budgetTotalsWarm {
-		return
-	}
-	cost, missing := summary.totals()
-	s.budgetTotalsCost -= cost
-	s.budgetTotalsMiss -= missing
-	if s.budgetTotalsMiss < 0 {
-		s.budgetTotalsMiss = 0
-	}
-	if s.budgetTotalsCost < 0 {
-		s.budgetTotalsCost = 0
-	}
-}
-
 func budgetSessionSummaryFromState(state events.SessionState) budgetSessionSummary {
 	summary := budgetSessionSummary{Turns: make(map[string]budgetTurnSummary, len(state.Turns))}
 	for turnID, turn := range state.Turns {

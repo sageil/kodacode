@@ -60,41 +60,6 @@ func (m Model) liveTurnSpinnerState(state events.SessionState) (bool, string) {
 	return true, "Waiting for model"
 }
 
-func latestRunningTurnID(state events.SessionState) string {
-	for idx := len(state.TurnOrder) - 1; idx >= 0; idx-- {
-		turnID := strings.TrimSpace(state.TurnOrder[idx])
-		if turn := currentTurn(state, turnID); turn != nil && turn.Status == events.TurnStatusRunning {
-			return turnID
-		}
-	}
-	return ""
-}
-
-func liveTurnActivityLabel(turn *events.TurnState) string {
-	if turn == nil {
-		return ""
-	}
-	if eventsHistoryCompactionUIActive(turn) {
-		return historySummarizingStatusLabel
-	}
-	if retryLabel := liveTurnRetryLabel(turn); retryLabel != "" {
-		return retryLabel
-	}
-	if liveTurnHasExecutingTool(turn) {
-		return "Running tools"
-	}
-	if strings.TrimSpace(turn.StreamingText) != "" {
-		return "Streaming"
-	}
-	if strings.TrimSpace(turn.ReasoningText) != "" {
-		return "Thinking"
-	}
-	if turn.Status == events.TurnStatusRunning {
-		return "Waiting for model"
-	}
-	return ""
-}
-
 func (m Model) shouldAnimateTranscriptActivity() bool {
 	state := m.projector.CurrentState()
 	return m.shouldAnimateTranscriptActivityForState(state)

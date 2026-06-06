@@ -86,18 +86,6 @@ func costDialogSummarySection(th *theme.Theme, state events.SessionState, stats 
 	return strings.Join(lines, "\n")
 }
 
-func costDialogAggregateTokenLine(requestTokens, completionTokens, cacheReadTokens, cacheWriteTokens, reasoningTokens int) string {
-	parts := []string{
-		fmt.Sprintf("%d input", requestTokens),
-		fmt.Sprintf("%d output", completionTokens),
-	}
-	parts = append(parts, costDialogCacheTokenParts(cacheReadTokens, cacheWriteTokens, "")...)
-	if reasoningTokens > 0 {
-		parts = append(parts, fmt.Sprintf("%d thinking", reasoningTokens))
-	}
-	return "Estimated tokens: " + strings.Join(parts, " • ")
-}
-
 func costDialogHistoryCompactionActivityLine(stats costDialogStats) string {
 	summaryUpdates := max(stats.HistoryCompactionSummaryUpdates, 0)
 	pruningPasses := max(stats.HistoryCompactionPruningPasses, 0)
@@ -112,23 +100,6 @@ func costDialogHistoryCompactionActivityLine(stats costDialogStats) string {
 		parts = append(parts, pluralize(pruningPasses, "pruning/reuse pass"))
 	}
 	return "History compaction activity: " + strings.Join(parts, " • ")
-}
-
-func costDialogScopedUsageLine(label string, requestTokens, completionTokens int, estimatedCost float64, missingPricingTurns int) string {
-	parts := make([]string, 0, 3)
-	switch {
-	case estimatedCost > 0:
-		parts = append(parts, formatEstimatedCost(estimatedCost))
-	case missingPricingTurns > 0:
-		parts = append(parts, fmt.Sprintf("pricing missing for %s", pluralize(missingPricingTurns, "turn")))
-	}
-	if requestTokens > 0 || completionTokens > 0 {
-		parts = append(parts, fmt.Sprintf("%d input • %d output", requestTokens, completionTokens))
-	}
-	if len(parts) == 0 {
-		parts = append(parts, "no usage recorded")
-	}
-	return label + ": " + strings.Join(parts, " • ")
 }
 
 func unpricedRequestTokenTotal(stats costDialogStats, usageSummary app.SessionUsageSummary, aggregateUsage bool) int {

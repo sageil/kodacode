@@ -66,9 +66,7 @@ func completedWorkflowReportBody(workflow *events.WorkflowState, width int) stri
 			continue
 		}
 		lines = append(lines, "- "+line)
-		for _, field := range completedWorkflowEvidenceFieldLines(evidence, width) {
-			lines = append(lines, field)
-		}
+		lines = append(lines, completedWorkflowEvidenceFieldLines(evidence, width)...)
 	}
 	return strings.Join(lines, "\n")
 }

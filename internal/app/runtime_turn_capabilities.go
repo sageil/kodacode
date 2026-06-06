@@ -162,7 +162,7 @@ func (r *Runtime) resolveCapabilitiesModelRoute(state events.SessionState, defin
 		if hasConfiguredModelRoute(override) {
 			return r.resolveConfiguredCapabilitiesModelRoute(override)
 		}
-		current := override
+		var current provider.ModelRoute
 		if sessionRoute, ok := configuredSessionModelRoute(state); ok {
 			current = sessionRoute
 		} else {

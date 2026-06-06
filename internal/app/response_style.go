@@ -3,7 +3,6 @@ package app
 import (
 	"strings"
 
-	"github.com/sageil/kodacode/internal/events"
 	"github.com/sageil/kodacode/internal/prompt"
 )
 
@@ -27,22 +26,6 @@ func normalizeResponseStyle(style ResponseStyle) ResponseStyle {
 
 func validResponseStyle(style ResponseStyle) bool {
 	return normalizeResponseStyle(style) != ""
-}
-
-func responseStyleForTurn(turn *events.TurnState, fallback ResponseStyle) ResponseStyle {
-	if turn != nil && turn.Config != nil {
-		if raw := strings.TrimSpace(turn.Config.ResponseStyle); raw != "" {
-			if style := normalizeResponseStyle(ResponseStyle(raw)); style != "" {
-				return style
-			}
-		}
-	}
-	if raw := strings.TrimSpace(string(fallback)); raw != "" {
-		if style := normalizeResponseStyle(ResponseStyle(raw)); style != "" {
-			return style
-		}
-	}
-	return ResponseStyleTerse
 }
 
 func responseStylePromptFragment(style ResponseStyle) (prompt.Fragment, bool) {

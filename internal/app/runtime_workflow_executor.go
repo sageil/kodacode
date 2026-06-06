@@ -480,11 +480,6 @@ func workflowFailedVerificationEvidence(workflow *events.WorkflowState, phaseID 
 	return count, latest
 }
 
-func workflowFailedReviewEvidenceCount(workflow *events.WorkflowState, phaseID string) int {
-	count, _ := workflowFailedReviewEvidence(workflow, phaseID)
-	return count
-}
-
 func workflowFailedReviewEvidence(workflow *events.WorkflowState, phaseID string) (int, *events.WorkflowEvidenceState) {
 	if workflow == nil {
 		return 0, nil
@@ -536,6 +531,25 @@ func workflowRevisionPhaseID(definition workflowpkg.Definition, verificationPhas
 		}
 	}
 	return ""
+}
+
+func workflowLatestRevisionTriggerForPhase(workflow *events.WorkflowState, phaseID string) *events.WorkflowEvidenceState {
+	if workflow == nil {
+		return nil
+	}
+	phaseID = strings.TrimSpace(phaseID)
+	var latest *events.WorkflowEvidenceState
+	for _, evidenceID := range workflow.EvidenceOrder {
+		evidence := workflow.Evidence[evidenceID]
+		if evidence == nil || evidence.Type != events.WorkflowEvidenceTypeRevisionTrigger {
+			continue
+		}
+		if strings.TrimSpace(evidence.Fields["revision_to_phase"]) != phaseID {
+			continue
+		}
+		latest = evidence
+	}
+	return latest
 }
 
 func workflowPhaseIndex(definition workflowpkg.Definition, phaseID string) int {

@@ -71,27 +71,6 @@ func renderTranscriptRailBlock(kind string, m Model, width int, body, accent, te
 	}, body, accent, textColor)
 }
 
-func renderSystemSection(m Model, title, body string, width int) string {
-	if isWideShell(m) {
-		lines := make([]string, 0, 2)
-		if strings.TrimSpace(title) != "" {
-			lines = append(lines, lipgloss.NewStyle().
-				Foreground(lipgloss.Color(colorFor(m.theme, "subtext", "#9da8ca"))).
-				Bold(true).
-				Render(title))
-		}
-		if strings.TrimSpace(body) != "" {
-			lines = append(lines, lipgloss.NewStyle().
-				Foreground(lipgloss.Color(colorFor(m.theme, "subtext", "#9da8ca"))).
-				Render(strings.Join(wrapTranscriptText(body, width), "\n")))
-		}
-		return strings.Join(lines, "\n")
-	}
-	return renderTranscriptBlock(m, title, body, width, transcriptBlockStyle{
-		accent: colorFor(m.theme, "warning", "#ffd28f"),
-	})
-}
-
 type transcriptBlockStyle struct {
 	alignRight    bool
 	accent        string

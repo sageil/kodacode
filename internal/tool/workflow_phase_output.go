@@ -54,9 +54,7 @@ func (WorkflowPhaseOutputTool) Execute(_ context.Context, ectx ExecutionContext,
 	if err != nil {
 		return Result{}, err
 	}
-	record, err := manager.RecordWorkflowPhaseOutput(WorkflowPhaseOutputRequest{
-		Fields: input.Fields,
-	})
+	record, err := manager.RecordWorkflowPhaseOutput(WorkflowPhaseOutputRequest(input))
 	if err != nil {
 		return Result{}, err
 	}
