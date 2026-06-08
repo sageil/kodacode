@@ -173,23 +173,6 @@ func (s *MemoryStore) ListSessions(_ context.Context) ([]SessionIndexEntry, erro
 	return sessions, nil
 }
 
-func (s *MemoryStore) DeleteSession(_ context.Context, sessionID string) error {
-	if sessionID == "" {
-		return nil
-	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	delete(s.sessions, sessionID)
-	delete(s.branchSummaries, sessionID)
-	for w := range s.watchers[sessionID] {
-		w.close()
-	}
-	delete(s.watchers, sessionID)
-	return nil
-}
-
 func (s *MemoryStore) SaveBranchSummary(_ context.Context, artifact BranchSummaryArtifact) error {
 	sessionID := strings.TrimSpace(artifact.SessionID)
 	artifact.Summary = strings.TrimSpace(artifact.Summary)
@@ -338,17 +321,6 @@ func (w *watcher) run(ctx context.Context) {
 			return
 		case <-w.notify:
 		}
-	}
-}
-
-func (w *watcher) close() {
-	w.mu.Lock()
-	w.closed = true
-	w.mu.Unlock()
-
-	select {
-	case w.notify <- struct{}{}:
-	default:
 	}
 }
 

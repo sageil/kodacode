@@ -14,7 +14,7 @@ Turns AI coding from *suggestion generator* into *work executor*.
 
 KodaCode is an open-source, terminal-native coding agent built for trustworthy
 software delivery. It keeps orchestration, permissions, tool execution, prompt
-assembly, and replayable session state in runtime code and durable events
+assembly, and replayable session state in runtime code and stored events
 instead of hidden prompt behavior.
 
 ## Install
@@ -94,6 +94,7 @@ and wait for approval before making code changes.
 - [Providers](https://kodacode.dev/features/providers/)
 - [Model Routing](https://kodacode.dev/features/model-routing/)
 - [Context Management](https://kodacode.dev/features/context/)
+- [Common Workflows](https://kodacode.dev/getting-started/workflows/)
 - [Budgets](https://kodacode.dev/features/budgets/)
 - [Cost Tracking & Optimization](https://kodacode.dev/features/cost-tracking/)
 - [MCP Servers](https://kodacode.dev/features/mcp/)
@@ -102,12 +103,12 @@ and wait for approval before making code changes.
 ## Agents
 
 - `builder`: default project-sandboxed coding agent
-- `engineer`: structured planning, task tracking, and delegation
-- `reviewer`: read-focused review and acceptance checks
+- `engineer`: structured planning and workflow task tracking
+- `reviewer`: read-only review of current changes
 - `planner`: read-only repository analysis and implementation planning
 
 See [Agents](https://kodacode.dev/features/agents/) for custom agent definitions
-and delegation behavior.
+and tool policy behavior.
 
 ## Layouts
 
@@ -139,6 +140,8 @@ See [TUI Layouts](https://kodacode.dev/reference/layouts/) for details.
 - `/timeline`: branch from an earlier completed turn or navigate related branches
 - `/trace`: inspect what happened in a turn
 - `/cost`: inspect spend and token savings
+- `Ctrl+W`: list or select a runtime workflow such as `delivery`, `debug`,
+  `review`, or `explore`
 
 See [Slash Commands](https://kodacode.dev/reference/commands/) for the full
 command surface.
@@ -150,6 +153,7 @@ kodacode "summarize this repository"
 kodacode --resume "continue the previous refactor"
 kodacode --add-dir ../shared "inspect both repos before editing"
 kodacode --skill migration "add the schema change and focused tests"
+kodacode --workflow delivery "implement this change and verify it"
 ```
 
 ## Documentation

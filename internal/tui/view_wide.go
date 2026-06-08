@@ -244,25 +244,25 @@ func orderedWideAgentRows(m Model, state events.SessionState) []wideAgentRow {
 		label:  rootLabel,
 		status: turnTaskStatus(turn),
 		depth:  0,
-		active: strings.TrimSpace(m.selection.handoffID) == "",
+		active: true,
 	}}
-	for _, selection := range orderedAgentContextSelections(turn) {
-		handoff := turn.Handoffs[selection.HandoffID]
-		if handoff == nil {
-			continue
-		}
-		label := strings.TrimSpace(selection.AgentID)
-		if label == "" {
-			label = "delegated"
-		}
-		rows = append(rows, wideAgentRow{
-			label:  label,
-			status: handoffTaskStatus(handoff),
-			depth:  1,
-			active: selection.HandoffID == strings.TrimSpace(m.selection.handoffID),
-		})
-	}
 	return rows
+}
+
+func turnTaskStatus(turn *events.TurnState) string {
+	if turn == nil {
+		return ""
+	}
+	switch turn.Status {
+	case events.TurnStatusRunning:
+		return "running"
+	case events.TurnStatusCompleted:
+		return "done"
+	case events.TurnStatusFailed:
+		return "error"
+	default:
+		return string(turn.Status)
+	}
 }
 
 func renderWideAgentsList(m Model, state events.SessionState, width int) string {

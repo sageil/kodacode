@@ -16,6 +16,7 @@ type sessionOpenedMsg struct {
 	watchID               int
 	startTurn             bool
 	startTurnAgentID      string
+	startTurnWorkflowID   string
 	startReview           bool
 	reviewInstructions    string
 	reviewThinkingEnabled bool
@@ -94,9 +95,12 @@ type composerWorkspacePathsLoadedMsg struct {
 }
 
 type operationDoneMsg struct {
-	err                     error
-	sessionResult           *app.RunSessionResult
-	delegatedQuestionResult *app.AnswerDelegatedSessionQuestionResult
+	err           error
+	sessionResult *app.RunSessionResult
+}
+
+type workflowResumedMsg struct {
+	err error
 }
 
 type turnWritesRestoredMsg struct {

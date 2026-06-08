@@ -18,6 +18,7 @@ const (
 type WorkflowConfig struct {
 	ReviewMode       WorkflowReviewMode
 	ReviewModelRoute provider.ModelRoute
+	PlannerApproval  bool
 }
 
 func defaultWorkflowConfig() WorkflowConfig {

@@ -20,19 +20,21 @@ const (
 )
 
 type TaskState struct {
-	TaskID         string
-	ParentTaskID   string
-	Title          string
-	Kind           string
-	Status         string
-	Notes          string
-	Progress       string
-	BlockReason    string
-	ReviewStatus   string
-	ReviewSummary  string
-	CreatedAtSeq   int64
-	UpdatedAtSeq   int64
-	CompletedAtSeq int64
+	TaskID          string
+	ParentTaskID    string
+	WorkflowID      string
+	WorkflowPhaseID string
+	Title           string
+	Kind            string
+	Status          string
+	Notes           string
+	Progress        string
+	BlockReason     string
+	ReviewStatus    string
+	ReviewSummary   string
+	CreatedAtSeq    int64
+	UpdatedAtSeq    int64
+	CompletedAtSeq  int64
 }
 
 func cloneTaskState(state *TaskState) *TaskState {

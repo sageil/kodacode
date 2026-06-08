@@ -57,25 +57,6 @@ func TestShouldSyncCostDialogForEvent(t *testing.T) {
 			want: true,
 		},
 		{
-			name: "agent handoff",
-			event: events.Event{
-				Type: events.TypeAgentHandoff,
-				Payload: events.AgentHandoffPayload{
-					HandoffID:       "handoff-1",
-					ParentSessionID: "session-1",
-					ParentTurnID:    "turn-1",
-					ParentAgentID:   "planner",
-					ChildSessionID:  "session-2",
-					ChildTurnID:     "turn-2",
-					ChildAgentID:    "worker",
-					Task:            "inspect",
-					ContextSummary:  "summary",
-					Model:           "openai/gpt-5-mini",
-				},
-			},
-			want: true,
-		},
-		{
 			name: "task progress update",
 			event: events.Event{
 				Type: events.TypeTaskProgressUpdated,
@@ -148,16 +129,16 @@ func TestShouldSyncTraceDialogForEvent(t *testing.T) {
 			want: false,
 		},
 		{
-			name:   "agent result on traced turn",
+			name:   "workflow evidence on traced turn",
 			turnID: "turn-1",
 			event: events.Event{
 				TurnID: "turn-1",
-				Type:   events.TypeAgentResult,
-				Payload: events.AgentResultPayload{
-					HandoffID:      "handoff-1",
-					ChildSessionID: "session-2",
-					ChildTurnID:    "turn-2",
-					Status:         events.AgentResultStatusCompleted,
+				Type:   events.TypeWorkflowEvidenceRecorded,
+				Payload: events.WorkflowEvidenceRecordedPayload{
+					EvidenceID: "evidence-1",
+					WorkflowID: "delivery",
+					PhaseID:    "verify",
+					Type:       events.WorkflowEvidenceTypeVerificationResult,
 				},
 			},
 			want: true,
@@ -322,111 +303,6 @@ func TestShouldSyncToolDetailDialogForEvent(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := shouldSyncToolDetailDialogForEvent(tt.event, ref); got != tt.want {
 				t.Fatalf("shouldSyncToolDetailDialogForEvent(%q) = %v, want %v", tt.event.Type, got, tt.want)
-			}
-		})
-	}
-}
-
-func TestShouldSyncHandoffDetailDialogForEvent(t *testing.T) {
-	target := inspectorHandoffTarget{
-		SessionID: "session-1",
-		TurnID:    "turn-1",
-		HandoffID: "handoff-1",
-	}
-	tests := []struct {
-		name  string
-		event events.Event
-		want  bool
-	}{
-		{
-			name: "agent handoff for selected handoff",
-			event: events.Event{
-				SessionID: "session-1",
-				TurnID:    "turn-1",
-				Type:      events.TypeAgentHandoff,
-				Payload: events.AgentHandoffPayload{
-					HandoffID:       "handoff-1",
-					ParentSessionID: "session-1",
-					ParentTurnID:    "turn-1",
-					ParentAgentID:   "planner",
-					ChildSessionID:  "session-2",
-					ChildTurnID:     "turn-2",
-					ChildAgentID:    "worker",
-					Task:            "inspect",
-					ContextSummary:  "summary",
-					Model:           "openai/gpt-5-mini",
-				},
-			},
-			want: true,
-		},
-		{
-			name: "agent preview for selected handoff",
-			event: events.Event{
-				SessionID: "session-1",
-				TurnID:    "turn-1",
-				Type:      events.TypeAgentHandoffPreview,
-				Payload: events.AgentHandoffPreviewPayload{
-					HandoffID:      "handoff-1",
-					ChildSessionID: "session-2",
-					ChildTurnID:    "turn-2",
-					Active:         true,
-					ToolName:       "read",
-					Action:         "reading files",
-				},
-			},
-			want: true,
-		},
-		{
-			name: "agent result for different handoff",
-			event: events.Event{
-				SessionID: "session-1",
-				TurnID:    "turn-1",
-				Type:      events.TypeAgentResult,
-				Payload: events.AgentResultPayload{
-					HandoffID:      "handoff-2",
-					ChildSessionID: "session-2",
-					ChildTurnID:    "turn-2",
-					Status:         events.AgentResultStatusCompleted,
-				},
-			},
-			want: false,
-		},
-		{
-			name: "agent result reused on different turn",
-			event: events.Event{
-				SessionID: "session-1",
-				TurnID:    "turn-2",
-				Type:      events.TypeAgentResultReused,
-				Payload: events.AgentResultReusedPayload{
-					HandoffID:      "handoff-1",
-					ChildSessionID: "session-2",
-					ChildTurnID:    "turn-2",
-					Content:        "cached",
-				},
-			},
-			want: false,
-		},
-		{
-			name: "tool event does not refresh handoff detail",
-			event: events.Event{
-				SessionID: "session-1",
-				TurnID:    "turn-1",
-				Type:      events.TypeToolExecEnd,
-				Payload: events.ToolExecEndPayload{
-					CallID:    "call-1",
-					ToolName:  "read",
-					Succeeded: true,
-					Output:    "done",
-				},
-			},
-			want: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := shouldSyncHandoffDetailDialogForEvent(tt.event, target); got != tt.want {
-				t.Fatalf("shouldSyncHandoffDetailDialogForEvent(%q) = %v, want %v", tt.event.Type, got, tt.want)
 			}
 		})
 	}

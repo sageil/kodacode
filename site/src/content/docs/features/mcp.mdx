@@ -3,8 +3,8 @@ title: MCP Servers
 description: Extend KodaCode with Model Context Protocol tools under the same runtime permission model
 ---
 
-KodaCode can load tools from stdio MCP servers and expose them beside the
-built-in tools. MCP is not a separate trust path: server startup, tool
+KodaCode can load tools from MCP servers and expose them beside the built-in
+tools. MCP is not a separate trust path: server startup, tool
 discovery, tool calls, and output still flow through KodaCode's runtime-owned
 session and approval model.
 
@@ -54,9 +54,11 @@ prompt; only the keys are included in the fingerprint display.
 
 Use `/trust` to inspect or revoke workspace and MCP trust later.
 
-## Supported transport
+## Supported transports
 
-Current releases support stdio MCP servers:
+Current releases support `stdio`, `http`, and `sse` MCP servers.
+
+Stdio server:
 
 ```yaml
 mcp:
@@ -76,26 +78,48 @@ config without starting it.
 `env` values are passed to the MCP process as configured. They are not shell
 expanded, so put the value KodaCode should pass to the server in the YAML file.
 
+Remote HTTP or SSE server:
+
+```yaml
+mcp:
+  servers:
+    - name: remote-docs
+      type: http
+      url: https://mcp.example.com/mcp
+      headers:
+        Authorization: "Bearer replace-with-your-token"
+      enabled: true
+```
+
+For `http` and `sse`, `url` is required. `headers` are sent as configured.
+
 ## Tool names and permissions
 
 Discovered MCP tools are named with the server name as a prefix. If a server
 named `docs` exposes a tool named `search`, the runtime tool name is
-`mcp_docs_search`.
+`mcp_docs__search`. Server and remote tool names are normalized to lowercase
+letters, numbers, and underscores, then joined with a double underscore.
 
 That matters for custom agents. You can allow or deny MCP tools by exact name
 or with MCP-specific wildcard policy in the agent definition:
 
 ```md
 ---
-name: planner
-tools: readonly
+description: Planner with access to internal docs
+mode: primary
+AllowTools:
+  - read
+  - search
+  - mcp_docs__search
 ---
 
 <mcp>
-allow mcp_docs_search when external product docs are needed.
-deny all other MCP tools.
+Use `mcp_docs__search` when external product docs are needed.
 </mcp>
 ```
+
+To allow normal built-in tools but deny all MCP tools, add `mcp:*` under
+`DisallowedTools`.
 
 See [Agents](/features/agents/) for the full custom-agent permission semantics.
 

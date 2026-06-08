@@ -164,7 +164,7 @@ func TestLocalBackendStartTurnForwardsAttachments(t *testing.T) {
 		t.Fatalf("CreateSession() error = %v", err)
 	}
 
-	if err := backend.StartTurn(context.Background(), sessionID, "turn-1", "", []app.AttachmentInput{{Path: attachmentPath}}, "engineer", false, "", nil); err != nil {
+	if err := backend.StartTurn(context.Background(), sessionID, "turn-1", "", []app.AttachmentInput{{Path: attachmentPath}}, "engineer", "", false, "", nil); err != nil {
 		t.Fatalf("StartTurn() error = %v", err)
 	}
 
@@ -749,7 +749,7 @@ func TestLocalBackendSetPrimaryModelPersistsActiveSessionModelAcrossRestart(t *t
 	if err != nil {
 		t.Fatalf("CreateSession() error = %v", err)
 	}
-	if err := backend.StartTurn(context.Background(), sessionID, "turn-1", "hello", nil, "builder", false, "", nil); err != nil {
+	if err := backend.StartTurn(context.Background(), sessionID, "turn-1", "hello", nil, "builder", "", false, "", nil); err != nil {
 		t.Fatalf("StartTurn() error = %v", err)
 	}
 	if len(client.requests) != 1 {
@@ -891,7 +891,7 @@ func TestLocalBackendStartTurnUsesPendingPrimaryModelSelection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateSession() error = %v", err)
 	}
-	if err := backend.StartTurn(context.Background(), sessionID, "turn-1", "hello", nil, "builder", false, "", nil); err != nil {
+	if err := backend.StartTurn(context.Background(), sessionID, "turn-1", "hello", nil, "builder", "", false, "", nil); err != nil {
 		t.Fatalf("StartTurn(first) error = %v", err)
 	}
 	if err := backend.SetPrimaryModel(context.Background(), sessionID, provider.ModelRef{
@@ -907,7 +907,7 @@ func TestLocalBackendStartTurnUsesPendingPrimaryModelSelection(t *testing.T) {
 	runner.SetModelCatalog(backend.runtime.ModelCatalog)
 	backend.runtime.Provider = client
 	backend.runtime.Runner = runner
-	if err := backend.StartTurn(context.Background(), sessionID, "turn-2", "again", nil, "builder", false, "", nil); err != nil {
+	if err := backend.StartTurn(context.Background(), sessionID, "turn-2", "again", nil, "builder", "", false, "", nil); err != nil {
 		t.Fatalf("StartTurn(second) error = %v", err)
 	}
 
@@ -961,7 +961,7 @@ func TestLocalBackendStartTurnForwardsAgentIDToRuntime(t *testing.T) {
 		t.Fatalf("CreateSession() error = %v", err)
 	}
 
-	if err := backend.StartTurn(context.Background(), sessionID, "turn-1", "Improve middleware layer", nil, "engineer", false, "", nil); err != nil {
+	if err := backend.StartTurn(context.Background(), sessionID, "turn-1", "Improve middleware layer", nil, "engineer", "", false, "", nil); err != nil {
 		t.Fatalf("StartTurn() error = %v", err)
 	}
 

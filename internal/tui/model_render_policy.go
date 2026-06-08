@@ -160,30 +160,6 @@ func shouldSyncTaskDetailDialogForEvent(event events.Event, taskID string) bool 
 	}
 }
 
-func shouldSyncHandoffDetailDialogForEvent(event events.Event, target inspectorHandoffTarget) bool {
-	sessionID := normalizeToolTargetSessionID("", target.SessionID)
-	turnID := strings.TrimSpace(target.TurnID)
-	handoffID := strings.TrimSpace(target.HandoffID)
-	if sessionID == "" || turnID == "" || handoffID == "" {
-		return false
-	}
-	if strings.TrimSpace(event.SessionID) != sessionID || strings.TrimSpace(event.TurnID) != turnID {
-		return false
-	}
-	switch payload := event.Payload.(type) {
-	case events.AgentHandoffPayload:
-		return strings.TrimSpace(payload.HandoffID) == handoffID
-	case events.AgentHandoffPreviewPayload:
-		return strings.TrimSpace(payload.HandoffID) == handoffID
-	case events.AgentResultPayload:
-		return strings.TrimSpace(payload.HandoffID) == handoffID
-	case events.AgentResultReusedPayload:
-		return strings.TrimSpace(payload.HandoffID) == handoffID
-	default:
-		return false
-	}
-}
-
 func eventAffectsToolCall(event events.Event, callID string) bool {
 	callID = strings.TrimSpace(callID)
 	if callID == "" {

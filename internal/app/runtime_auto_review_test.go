@@ -72,7 +72,7 @@ You are the reviewer agent.
 	runtime.Config.ModelRoute = provider.ModelRoute{
 		Primary: provider.ModelRef{ProviderID: "openai", ModelID: "gpt-5-mini"},
 	}
-	completeTaskForAutoReviewTest(t, runtime, sessionID, "turn-setup", "Improve middleware layer", "middleware refactor landed")
+	completedTask := completeTaskForAutoReviewTest(t, runtime, sessionID, "turn-setup", "Improve middleware layer", "middleware refactor landed")
 
 	result, err := runtime.runExistingSessionTurn(context.Background(), runExistingTurnInput{
 		SessionID: sessionID,
@@ -97,6 +97,20 @@ You are the reviewer agent.
 	}
 	if got := client.requests[1].Model.String(); got != "openai/gpt-5-mini" {
 		t.Fatalf("auto review request model = %q, want reviewer agent model", got)
+	}
+	reviewRequest := client.requests[1]
+	if len(reviewRequest.Inputs) != 1 {
+		t.Fatalf("auto review inputs = %#v, want current derived turn only", reviewRequest.Inputs)
+	}
+	if strings.Contains(reviewRequest.Inputs[0].Content, "Engineer done.") || strings.Contains(reviewRequest.Inputs[0].Content, "middleware refactor landed") {
+		t.Fatalf("auto review input replayed context instead of using compact fragment: %q", reviewRequest.Inputs[0].Content)
+	}
+	if !strings.Contains(reviewRequest.Instructions, "Auto-review compact context.") ||
+		!strings.Contains(reviewRequest.Instructions, "Session history is intentionally omitted for this derived review turn.") ||
+		!strings.Contains(reviewRequest.Instructions, "id="+completedTask.TaskID) ||
+		!strings.Contains(reviewRequest.Instructions, "summary=middleware refactor landed") ||
+		!strings.Contains(reviewRequest.Instructions, "Completed engineer turn assistant output:\nEngineer done.") {
+		t.Fatalf("auto review instructions missing compact context:\n%s", reviewRequest.Instructions)
 	}
 
 	state, err := runtime.Sessions.Snapshot(context.Background(), sessionID)
@@ -209,6 +223,114 @@ func TestRuntimeRunSessionTurnAutoReviewUsesConfiguredReviewModel(t *testing.T) 
 	}
 	if got := reviewTurn.Config.Model; got != "openai/gpt-5-mini" {
 		t.Fatalf("review turn model = %q, want review model", got)
+	}
+}
+
+func TestRuntimeRunSessionTurnUsesWorkflowReviewModeOverride(t *testing.T) {
+	root := t.TempDir()
+	writeProjectWorkflow(t, root, "review-auto.yaml", `
+id: review-auto
+description: workflow review mode override
+review_mode: auto
+phases:
+  - id: implement
+    agent: engineer
+  - id: summarize
+    type: final
+`)
+	client := &fakeProvider{
+		streams: []provider.Stream{
+			provider.NewSliceStream([]provider.Event{{Kind: provider.EventKindAssistantDelta, AssistantDelta: "Engineer done."}}),
+			provider.NewSliceStream([]provider.Event{{Kind: provider.EventKindAssistantDelta, AssistantDelta: "Review passed."}}),
+		},
+	}
+	runtime := newRuntimeWithClient(t, client)
+	runtime.Config.Workflow.ReviewMode = WorkflowReviewManual
+
+	sessionID, err := runtime.CreateSession(context.Background(), root)
+	if err != nil {
+		t.Fatalf("CreateSession() error = %v", err)
+	}
+	completeTaskForAutoReviewTest(t, runtime, sessionID, "turn-setup", "Finished task", "done")
+
+	result, err := runtime.runExistingSessionTurn(context.Background(), runExistingTurnInput{
+		SessionID:  sessionID,
+		TurnID:     "turn-1",
+		UserText:   "Implement with workflow review mode",
+		AgentID:    "engineer",
+		WorkflowID: "review-auto",
+	})
+	if err != nil {
+		t.Fatalf("runExistingSessionTurn() error = %v", err)
+	}
+	if result.Status != TurnRunStatusCompleted {
+		t.Fatalf("result = %#v", result)
+	}
+	if len(client.requests) != 2 {
+		t.Fatalf("provider requests = %d, want engineer plus auto review", len(client.requests))
+	}
+	if client.requests[1].AgentID != "reviewer" {
+		t.Fatalf("review request agent = %q, want reviewer", client.requests[1].AgentID)
+	}
+}
+
+func TestRuntimeRunSessionTurnSkipsAutoReviewWhileWorkflowActive(t *testing.T) {
+	root := t.TempDir()
+	writeProjectWorkflow(t, root, "review-auto-active.yaml", `
+id: review-auto-active
+description: workflow review mode while active
+review_mode: auto
+phases:
+  - id: implement
+    agent: engineer
+  - id: verify
+    type: verification
+    agent: engineer
+    auto_continue: false
+    commands:
+      - tool: test
+        command: go test ./...
+    required: true
+  - id: summarize
+    type: final
+`)
+	client := &fakeProvider{
+		streams: []provider.Stream{
+			provider.NewSliceStream([]provider.Event{{Kind: provider.EventKindAssistantDelta, AssistantDelta: "Engineer done."}}),
+			provider.NewSliceStream([]provider.Event{{Kind: provider.EventKindAssistantDelta, AssistantDelta: "Review passed."}}),
+		},
+	}
+	runtime := newRuntimeWithClient(t, client)
+	runtime.Config.Workflow.ReviewMode = WorkflowReviewManual
+
+	sessionID, err := runtime.CreateSession(context.Background(), root)
+	if err != nil {
+		t.Fatalf("CreateSession() error = %v", err)
+	}
+	completeTaskForAutoReviewTest(t, runtime, sessionID, "turn-setup", "Finished task", "done")
+
+	result, err := runtime.runExistingSessionTurn(context.Background(), runExistingTurnInput{
+		SessionID:  sessionID,
+		TurnID:     "turn-1",
+		UserText:   "Implement with workflow review mode",
+		AgentID:    "engineer",
+		WorkflowID: "review-auto-active",
+	})
+	if err != nil {
+		t.Fatalf("runExistingSessionTurn() error = %v", err)
+	}
+	if result.Status != TurnRunStatusCompleted {
+		t.Fatalf("result = %#v", result)
+	}
+	if len(client.requests) != 1 {
+		t.Fatalf("provider requests = %d, want only active workflow phase", len(client.requests))
+	}
+	state, err := runtime.Sessions.Snapshot(context.Background(), sessionID)
+	if err != nil {
+		t.Fatalf("Snapshot() error = %v", err)
+	}
+	if state.Workflow == nil || state.Workflow.Status != events.WorkflowStatusActive || state.Workflow.CurrentPhaseID != "verify" {
+		t.Fatalf("workflow = %#v, want active verify phase", state.Workflow)
 	}
 }
 

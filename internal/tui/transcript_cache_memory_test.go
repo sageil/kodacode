@@ -33,11 +33,9 @@ func TestStreamingTranscriptRenderingKeepsCacheBytesBounded(t *testing.T) {
 		TurnOrder: []string{"turn-1"},
 		Turns: map[string]*events.TurnState{
 			"turn-1": {
-				TurnID:       "turn-1",
-				Status:       events.TurnStatusRunning,
-				ToolCalls:    map[string]*events.ToolCallState{},
-				Handoffs:     map[string]*events.AgentHandoffState{},
-				HandoffOrder: []string{},
+				TurnID:    "turn-1",
+				Status:    events.TurnStatusRunning,
+				ToolCalls: map[string]*events.ToolCallState{},
 			},
 		},
 	}

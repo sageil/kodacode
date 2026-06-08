@@ -28,9 +28,9 @@ type transcriptSelectionLine struct {
 type transcriptLayoutChunkKind string
 
 const (
-	transcriptLayoutChunkTurn                transcriptLayoutChunkKind = "turn"
-	transcriptLayoutChunkDraft               transcriptLayoutChunkKind = "draft"
-	transcriptLayoutChunkDelegatedPermission transcriptLayoutChunkKind = "delegated_permission"
+	transcriptLayoutChunkTurn           transcriptLayoutChunkKind = "turn"
+	transcriptLayoutChunkDraft          transcriptLayoutChunkKind = "draft"
+	transcriptLayoutChunkWorkflowReport transcriptLayoutChunkKind = "workflow_report"
 )
 
 type transcriptLayoutChunk struct {
@@ -92,6 +92,7 @@ func buildTranscriptLayout(m Model, state events.SessionState, width int) transc
 		if i+1 < len(turnIDs) && shouldSuppressHistoryCompactionBeforeContinuation(state, turnID, turnIDs[i+1]) {
 			options.suppressHistoryCompaction = true
 		}
+		options.suppressCompletedWorkflowReviewEntries = shouldRenderCompletedWorkflowReport(state)
 		rendered, cacheKey := cachedTurnTranscriptRenderWithKey(m, state, turnID, turn, width, options)
 		layout.turnIndices[turnID] = len(layout.chunks)
 		layout.chunks = append(layout.chunks, transcriptLayoutChunk{
@@ -103,6 +104,20 @@ func buildTranscriptLayout(m Model, state events.SessionState, width int) transc
 		})
 	}
 
+	return appendTranscriptTrailingChunks(m, state, width, layout)
+}
+
+func appendTranscriptTrailingChunks(m Model, state events.SessionState, width int, layout transcriptLayout) transcriptLayout {
+	if reportSections := renderCompletedWorkflowReportSections(m, state, width); len(reportSections) > 0 {
+		rendered := buildTranscriptChunk(reportSections)
+		report := transcriptLayoutChunk{
+			kind:      transcriptLayoutChunkWorkflowReport,
+			rendered:  rendered,
+			lineCount: transcriptRenderLineCount(rendered),
+		}
+		layout = insertTranscriptWorkflowReportChunk(state, layout, report)
+	}
+
 	if draftSections := renderDraftTurnSections(m, state, width); len(draftSections) > 0 {
 		rendered := buildTranscriptChunk(draftSections)
 		layout.chunks = append(layout.chunks, transcriptLayoutChunk{
@@ -112,14 +127,78 @@ func buildTranscriptLayout(m Model, state events.SessionState, width int) transc
 		})
 	}
 
-	if handoff := m.pendingDelegatedPermission(); handoff != nil {
-		row := newDelegatedPermissionSystemRow(handoff, width)
-		rendered := row.render(m)
-		layout.chunks = append(layout.chunks, transcriptLayoutChunk{
-			kind:      transcriptLayoutChunkDelegatedPermission,
-			rendered:  rendered,
-			lineCount: transcriptRenderLineCount(rendered),
-		})
+	return layout
+}
+
+func insertTranscriptWorkflowReportChunk(state events.SessionState, layout transcriptLayout, report transcriptLayoutChunk) transcriptLayout {
+	insertAt := completedWorkflowReportInsertIndex(state, layout)
+	if insertAt < 0 || insertAt > len(layout.chunks) {
+		insertAt = len(layout.chunks)
+	}
+	layout.chunks = append(layout.chunks, transcriptLayoutChunk{})
+	copy(layout.chunks[insertAt+1:], layout.chunks[insertAt:])
+	layout.chunks[insertAt] = report
+	return rebuildTranscriptTurnIndices(layout)
+}
+
+func completedWorkflowReportInsertIndex(state events.SessionState, layout transcriptLayout) int {
+	workflow := state.Workflow
+	completedAtSeq := int64(0)
+	if workflow != nil {
+		completedAtSeq = workflow.CompletedAtSeq
+	}
+	if completedAtSeq <= 0 {
+		return len(layout.chunks)
+	}
+	for idx, chunk := range layout.chunks {
+		if chunk.kind != transcriptLayoutChunkTurn {
+			continue
+		}
+		turn := state.Turns[strings.TrimSpace(chunk.turnID)]
+		if transcriptTurnEarliestSequence(turn) > completedAtSeq {
+			return idx
+		}
+	}
+	return len(layout.chunks)
+}
+
+func transcriptTurnEarliestSequence(turn *events.TurnState) int64 {
+	if turn == nil {
+		return 0
+	}
+	earliest := int64(0)
+	observe := func(sequence int64) {
+		if sequence <= 0 {
+			return
+		}
+		if earliest == 0 || sequence < earliest {
+			earliest = sequence
+		}
+	}
+	observe(turn.CompletedAtSeq)
+	observe(turn.LastUpdatedAtSeq)
+	for _, entry := range turn.Transcript {
+		observe(entry.Sequence)
+	}
+	for _, callID := range turn.ToolCallOrder {
+		call := turn.ToolCalls[callID]
+		if call == nil {
+			continue
+		}
+		observe(call.LastUpdatedSeq)
+	}
+	return earliest
+}
+
+func rebuildTranscriptTurnIndices(layout transcriptLayout) transcriptLayout {
+	layout.turnIndices = make(map[string]int)
+	for idx, chunk := range layout.chunks {
+		if chunk.kind != transcriptLayoutChunkTurn {
+			continue
+		}
+		if turnID := strings.TrimSpace(chunk.turnID); turnID != "" {
+			layout.turnIndices[turnID] = idx
+		}
 	}
 	return layout
 }

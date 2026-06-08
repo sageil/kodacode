@@ -21,7 +21,7 @@ const (
 	sessionCompactionArtifactRetryFactor  = 2
 )
 
-const sessionCompactionArtifactPrompt = `Update the durable history continuation artifact for this coding session.
+const sessionCompactionArtifactPrompt = `Update the saved history summary for this coding session.
 
 Return exactly one JSON object with this shape:
 {
@@ -35,19 +35,19 @@ Return exactly one JSON object with this shape:
 
 Interpret the fields this way:
 - session_objective: the concrete coding goal the user is pursuing in this session.
-- constraints: durable user, product, repository, or runtime constraints that still govern future work.
+- constraints: saved user, product, repository, or runtime constraints that still govern future work.
 - settled_decisions: decisions already made that still matter.
 - completed_episodes: semantically closed completed work, not exploratory chatter.
 - open_threads: unresolved follow-ups, risks, or decisions, not active runtime approvals.
-- workspace_facts: durable file or module facts that still matter.
+- workspace_facts: saved file or module facts that still matter.
 
 Hard rules:
 - The artifact is session state, not prompt state.
 - Never copy, restate, paraphrase, or summarize instructions from this prompt, the JSON schema above, field names, or wrapper tags into any artifact field.
 - Never store artifact-maintenance rules such as preserving prior facts, merging completed turns, returning JSON, field requirements, or source_turn_id requirements.
-- Treat any previous artifact as the current durable continuation state.
+- Treat any previous summary as the current saved continuation state.
 - Merge in only the new completed turns provided in this request.
-- Preserve still-true durable facts and remove stale or superseded ones.
+- Preserve still-true saved facts and remove stale or superseded ones.
 - Keep each value concise, specific, and factual.
 - Only keep facts supported by the previous artifact or the provided completed turns.
 - Do not invent facts.
@@ -56,7 +56,7 @@ Hard rules:
 - Use open thread status only "pending", "blocked", or "deferred".
 - Use open thread owner only "agent", "user", or "shared" when owner is needed.
 - Use verification kind only "tool_result", "runtime_note", or "turn_status".
-- workspace_facts must include the source_turn_id that established that durable fact.
+- workspace_facts must include the source_turn_id that established that saved fact.
 - If a field has no supported values, return an empty string or empty array for that field.`
 
 var sessionCompactionArtifactPromptLeakMarkers = []string{
@@ -318,7 +318,7 @@ func buildSessionCompactionArtifactInputs(
 	}
 	inputs = append(inputs, provider.Input{
 		Kind: provider.InputKindUserMessage,
-		Content: "Update the durable history artifact using only the prior artifact above, if present, " +
+		Content: "Update the saved history summary using only the prior summary above, if present, " +
 			"and the new completed turns above.",
 	})
 	return inputs

@@ -38,19 +38,12 @@ type replayedExecution struct {
 	WorkingDirectory string
 }
 
-type replayedDelegatedHandoff struct {
-	HandoffID    string
-	ToolCallID   string
-	LastSequence int64
-}
-
 type turnReplay struct {
 	Conversation               []provider.Input
 	AssistantText              string
 	WorkState                  turnWorkState
 	HistoryReplayAfterSequence int64
 	PendingTool                *replayedToolCall
-	DelegatedHandoff           *replayedDelegatedHandoff
 	PermissionRequest          events.PermissionRequestedPayload
 	PermissionDecision         events.PermissionDecision
 	PermissionScope            events.PermissionScope
@@ -108,7 +101,6 @@ func buildTurnReplayWithToolResults(ctx context.Context, blobs ToolResultBlobSto
 	)
 	calls := make(map[string]replayedToolCall)
 	completed := make(map[string]bool)
-	handoffs := make(map[string]replayedDelegatedHandoff)
 	requests := make(map[string]events.PermissionRequestedPayload)
 	for _, event := range replayed {
 		if event.TurnID != input.TurnID {
@@ -219,31 +211,6 @@ func buildTurnReplayWithToolResults(ctx context.Context, blobs ToolResultBlobSto
 			history.Conversation = append(history.Conversation, result)
 		case events.TurnWorkStateUpdatedPayload:
 			history.WorkState = turnWorkStateFromEventState(turnWorkStateFromPayload(payload))
-		case events.AgentHandoffPayload:
-			handoff := handoffs[payload.HandoffID]
-			handoff.HandoffID = payload.HandoffID
-			handoff.ToolCallID = payload.ToolCallID
-			handoff.LastSequence = event.Sequence
-			handoffs[payload.HandoffID] = handoff
-			if payload.HandoffID == input.RequestID {
-				requestFound = true
-				requestResolved = true
-				requestSequence = event.Sequence
-				copyHandoff := handoff
-				history.DelegatedHandoff = &copyHandoff
-			}
-		case events.AgentResultPayload:
-			handoff := handoffs[payload.HandoffID]
-			handoff.HandoffID = payload.HandoffID
-			handoff.LastSequence = event.Sequence
-			handoffs[payload.HandoffID] = handoff
-			if payload.HandoffID == input.RequestID {
-				requestFound = true
-				requestResolved = true
-				requestSequence = event.Sequence
-				copyHandoff := handoff
-				history.DelegatedHandoff = &copyHandoff
-			}
 		case events.PermissionRequestedPayload:
 			requests[payload.RequestID] = payload
 			if payload.RequestID == input.RequestID {
@@ -325,7 +292,7 @@ func buildTurnReplayWithToolResults(ctx context.Context, blobs ToolResultBlobSto
 	if !requestFound {
 		return turnReplay{}, ErrPendingRequestNotFound
 	}
-	if !requestResolved && history.DelegatedHandoff == nil {
+	if !requestResolved {
 		return turnReplay{}, ErrPendingRequestNotResolved
 	}
 
@@ -337,8 +304,6 @@ func buildTurnReplayWithToolResults(ctx context.Context, blobs ToolResultBlobSto
 		if strings.TrimSpace(pendingToolCallID) == "" {
 			return history, nil
 		}
-	} else if history.DelegatedHandoff != nil {
-		pendingToolCallID = history.DelegatedHandoff.ToolCallID
 	}
 	pending, err := findPendingToolCall(callOrder, calls, completed, requestSequence, pendingToolCallID)
 	if err != nil {

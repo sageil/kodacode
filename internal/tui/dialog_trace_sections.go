@@ -258,6 +258,189 @@ func traceDialogToolSection(th *theme.Theme, state events.SessionState, turn *ev
 	return strings.Join(lines, "\n")
 }
 
+func traceDialogWorkflowSection(th *theme.Theme, state events.SessionState, tracedTurn ...*events.TurnState) string {
+	workflow := state.Workflow
+	var turn *events.TurnState
+	if len(tracedTurn) > 0 {
+		turn = tracedTurn[0]
+	}
+	if turn != nil && turn.WorkflowRoute != nil {
+		lines := []string{dialogSectionStyle(th).Render("Workflow")}
+		route := turn.WorkflowRoute
+		summary := []string{"Recommended workflow: " + strings.TrimSpace(route.WorkflowID)}
+		if agentID := strings.TrimSpace(route.AgentID); agentID != "" {
+			summary = append(summary, "agent "+agentID)
+		}
+		if confidence := strings.TrimSpace(route.Confidence); confidence != "" {
+			summary = append(summary, "confidence "+confidence)
+		}
+		if route.RecordedAtSeq > 0 {
+			summary = append(summary, fmt.Sprintf("seq %d", route.RecordedAtSeq))
+		}
+		lines = append(lines, strings.Join(summary, " | "))
+		for _, reason := range route.Reasons {
+			if reason = strings.TrimSpace(reason); reason != "" {
+				lines = append(lines, "Reason: "+traceDialogPreview(reason, 180))
+			}
+		}
+		if len(route.Alternatives) > 0 {
+			lines = append(lines, "Alternatives: "+strings.Join(route.Alternatives, ", "))
+		}
+		return strings.Join(lines, "\n")
+	}
+	if turn != nil && turn.Config != nil && strings.TrimSpace(turn.Config.WorkflowID) != "" {
+		lines := []string{dialogSectionStyle(th).Render("Workflow")}
+		summary := []string{"Workflow: " + strings.TrimSpace(turn.Config.WorkflowID)}
+		if phaseID := strings.TrimSpace(turn.Config.WorkflowPhaseID); phaseID != "" {
+			summary = append(summary, "turn phase "+phaseID)
+		}
+		lines = append(lines, strings.Join(summary, " | "))
+		return strings.Join(lines, "\n")
+	}
+	if workflow == nil || strings.TrimSpace(workflow.WorkflowID) == "" {
+		return ""
+	}
+	lines := []string{dialogSectionStyle(th).Render("Workflow")}
+	summary := []string{
+		"Workflow: " + strings.TrimSpace(workflow.WorkflowID),
+		"status " + traceWorkflowStatus(workflow.Status),
+	}
+	if phaseID := strings.TrimSpace(workflow.CurrentPhaseID); phaseID != "" {
+		summary = append(summary, "phase "+phaseID)
+	}
+	if workflow.StartedAtSeq > 0 {
+		summary = append(summary, fmt.Sprintf("started seq %d", workflow.StartedAtSeq))
+	}
+	if workflow.UpdatedAtSeq > 0 {
+		summary = append(summary, fmt.Sprintf("updated seq %d", workflow.UpdatedAtSeq))
+	}
+	if workflow.CompletedAtSeq > 0 {
+		summary = append(summary, fmt.Sprintf("completed seq %d", workflow.CompletedAtSeq))
+	}
+	lines = append(lines, strings.Join(summary, " | "))
+	if reason := workflowStopReason(workflow); reason != "" {
+		lines = append(lines, "Stop reason: "+traceDialogPreview(reason, 180))
+	}
+	if len(workflow.PhaseOrder) > 0 {
+		lines = append(lines, "Phase history:")
+		for index, phaseID := range workflow.PhaseOrder {
+			phase := workflow.Phases[phaseID]
+			lines = append(lines, traceDialogWorkflowPhaseLine(index, phaseID, phase))
+			if phase != nil {
+				if reason := strings.TrimSpace(phase.StopReason); reason != "" {
+					lines = append(lines, "   stop: "+traceDialogPreview(reason, 180))
+				}
+			}
+		}
+	}
+	if len(workflow.EvidenceOrder) > 0 {
+		lines = append(lines, "Evidence:")
+		for index, evidenceID := range workflow.EvidenceOrder {
+			evidence := workflow.Evidence[evidenceID]
+			if evidence == nil {
+				continue
+			}
+			lines = append(lines, traceDialogWorkflowEvidenceLine(index, evidence))
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+func traceDialogWorkflowPhaseLine(index int, phaseID string, phase *events.WorkflowPhaseState) string {
+	phaseID = strings.TrimSpace(phaseID)
+	if phaseID == "" && phase != nil {
+		phaseID = strings.TrimSpace(phase.PhaseID)
+	}
+	if phaseID == "" {
+		phaseID = "phase"
+	}
+	if phase == nil {
+		return fmt.Sprintf("%d. %s | not recorded", index+1, phaseID)
+	}
+	parts := []string{
+		fmt.Sprintf("%d. %s", index+1, phaseID),
+		traceWorkflowStatus(phase.Status),
+	}
+	if phase.StartedAtSeq > 0 {
+		parts = append(parts, fmt.Sprintf("started seq %d", phase.StartedAtSeq))
+	}
+	if phase.BlockedAtSeq > 0 {
+		parts = append(parts, fmt.Sprintf("blocked seq %d", phase.BlockedAtSeq))
+	}
+	if phase.CompletedAtSeq > 0 {
+		parts = append(parts, fmt.Sprintf("completed seq %d", phase.CompletedAtSeq))
+	}
+	if phase.UpdatedAtSeq > 0 {
+		parts = append(parts, fmt.Sprintf("updated seq %d", phase.UpdatedAtSeq))
+	}
+	if len(phase.EvidenceIDs) > 0 {
+		parts = append(parts, pluralize(len(phase.EvidenceIDs), "evidence item"))
+	}
+	return strings.Join(parts, " | ")
+}
+
+func traceDialogWorkflowEvidenceLine(index int, evidence *events.WorkflowEvidenceState) string {
+	parts := []string{
+		fmt.Sprintf("%d. %s", index+1, strings.TrimSpace(evidence.Type)),
+		"phase " + strings.TrimSpace(evidence.PhaseID),
+	}
+	if evidence.RecordedAtSeq > 0 {
+		parts = append(parts, fmt.Sprintf("seq %d", evidence.RecordedAtSeq))
+	}
+	if evidence.Successful != nil {
+		if *evidence.Successful {
+			parts = append(parts, "successful")
+		} else {
+			parts = append(parts, "failed")
+		}
+	}
+	if evidence.ExitCode != nil {
+		parts = append(parts, fmt.Sprintf("exit %d", *evidence.ExitCode))
+	}
+	if command := traceDialogPreview(evidence.Command, 80); command != "" {
+		parts = append(parts, "command "+command)
+	}
+	if summary := traceDialogPreview(evidence.Summary, 140); summary != "" {
+		parts = append(parts, summary)
+	}
+	refs := traceDialogWorkflowEvidenceRefs(evidence)
+	if len(refs) > 0 {
+		parts = append(parts, strings.Join(refs, ", "))
+	}
+	return strings.Join(parts, " | ")
+}
+
+func traceDialogWorkflowEvidenceRefs(evidence *events.WorkflowEvidenceState) []string {
+	if evidence == nil {
+		return nil
+	}
+	refs := make([]string, 0, 5)
+	if id := strings.TrimSpace(evidence.ToolCallID); id != "" {
+		refs = append(refs, "tool "+id)
+	}
+	if id := strings.TrimSpace(evidence.ExecutionID); id != "" {
+		refs = append(refs, "exec "+id)
+	}
+	if id := strings.TrimSpace(evidence.TaskID); id != "" {
+		refs = append(refs, "task "+id)
+	}
+	if id := strings.TrimSpace(evidence.ReviewID); id != "" {
+		refs = append(refs, "review "+id)
+	}
+	if id := strings.TrimSpace(evidence.ArtifactID); id != "" {
+		refs = append(refs, "artifact "+id)
+	}
+	return refs
+}
+
+func traceWorkflowStatus(status string) string {
+	status = strings.TrimSpace(status)
+	if status == "" {
+		return "unknown"
+	}
+	return status
+}
+
 func traceDialogFragmentByteStats(fragments []events.PromptFragmentState) (int, int) {
 	total := 0
 	largest := 0

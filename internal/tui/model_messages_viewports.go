@@ -51,21 +51,19 @@ func (m *Model) renderInspectorViewportContent(state events.SessionState, width 
 	activeTab := effectiveInspectorTab(*m)
 	pendingSubmission := m.pendingInteractionSubmissionInFlight()
 	if isWideShell(*m) {
-		if pendingSubmission || m.pendingDelegatedPermission() == nil {
-			if activeTab == inspectorTabTools {
-				rendered := renderGroupedToolsInspector(*m, state, width)
-				m.inspector.toolLines = rendered.LineActions
-				return rendered.Content
-			}
-			if activeTab == inspectorTabTasks {
-				rendered := renderTasksInspectorView(*m, state, width)
-				m.inspector.taskLines = rendered.LineTaskIDs
-				return rendered.Content
-			}
+		if activeTab == inspectorTabTools {
+			rendered := renderGroupedToolsInspector(*m, state, width)
+			m.inspector.toolLines = rendered.LineActions
+			return rendered.Content
+		}
+		if activeTab == inspectorTabTasks {
+			rendered := renderTasksInspectorView(*m, state, width)
+			m.inspector.taskLines = rendered.LineTaskIDs
+			return rendered.Content
 		}
 		return renderSplitSidebarContent(*m, state, width)
 	}
-	if activeTab == inspectorTabTasks && !m.hasPendingApproval() && (pendingSubmission || m.pendingDelegatedPermission() == nil) {
+	if activeTab == inspectorTabTasks && !m.hasPendingApproval() && pendingSubmission {
 		rendered := renderTasksInspectorView(*m, state, width)
 		m.inspector.taskLines = rendered.LineTaskIDs
 		return rendered.Content
@@ -154,23 +152,20 @@ func inspectorAutoFollowBottom(m Model) bool {
 	if m.pendingInteractionSubmissionInFlight() {
 		return false
 	}
-	if m.pendingExecution() != nil || m.pendingPermission() != nil || m.pendingDelegatedPermission() != nil {
+	if m.pendingExecution() != nil || m.pendingPermission() != nil {
 		return true
 	}
 	return effectiveInspectorTab(m) != inspectorTabDetails
 }
 
 func inspectorViewportKey(m Model, state events.SessionState) string {
-	turn := inspectorDetailTurn(state, m)
 	activeTab := effectiveInspectorTab(m)
 	if m.pendingInteractionSubmissionInFlight() {
-		switch {
-		case activeTab == inspectorTabTools:
+		switch activeTab {
+		case inspectorTabTools:
 			return "tools:" + m.sessionID
-		case activeTab == inspectorTabTasks:
+		case inspectorTabTasks:
 			return "history:" + m.sessionID
-		case explicitSelectedHandoff(turn, m.selection.handoffID) != nil:
-			return "handoff:" + effectiveHandoffID(turn, m.selection.handoffID)
 		default:
 			return "overview:" + effectiveDetailTurnID(m, state)
 		}
@@ -180,14 +175,10 @@ func inspectorViewportKey(m Model, state events.SessionState) string {
 		return "execution-approval:" + m.pendingExecution().RequestID
 	case m.pendingPermission() != nil:
 		return "permission:" + m.pendingPermission().RequestID
-	case m.pendingDelegatedPermission() != nil:
-		return "delegated:" + m.pendingDelegatedPermission().HandoffID
 	case activeTab == inspectorTabTools:
 		return "tools:" + m.sessionID
 	case activeTab == inspectorTabTasks:
 		return "history:" + m.sessionID
-	case explicitSelectedHandoff(turn, m.selection.handoffID) != nil:
-		return "handoff:" + effectiveHandoffID(turn, m.selection.handoffID)
 	default:
 		return "overview:" + effectiveDetailTurnID(m, state)
 	}

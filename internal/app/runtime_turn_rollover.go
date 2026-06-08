@@ -44,6 +44,11 @@ func turnContinuationPromptContent(continuation runtimeTurnContinuation) string 
 This turn continues automatically from the previous turn because the prior turn reached the model input limit.
 
 Use the carried active turn summary in the conversation as the authoritative state from the previous turn. Continue from that summary instead of restarting completed work. If the summary is insufficient to continue safely, ask the user for clarification.`)
+	case events.TurnContinuationReasonWorkflowPhase:
+		return strings.TrimSpace(`
+This turn continues automatically from the previous turn because the workflow advanced to another runnable phase.
+
+Use the carried active turn summary and current workflow phase instructions as the authoritative state. Do not treat this as a new user request.`)
 	case events.TurnContinuationReasonQuestionAnswer:
 		question := strings.TrimSpace(continuation.Question)
 		if question == "" {
@@ -150,6 +155,7 @@ func (r *Runtime) continueRolledOverTurn(
 		PreserveSessionModel: true,
 		HideAssistantPreview: input.HideAssistantPreview,
 		DisableAutoReview:    input.DisableAutoReview,
+		WorkflowBudget:       input.WorkflowBudget,
 		InitialState:         initialState,
 		Continuation: &runtimeTurnContinuation{
 			PreviousTurnID: input.TurnID,

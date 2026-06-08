@@ -121,6 +121,342 @@ func TestRenderFooterStatusBarIncludesGitAndTurnSignals(t *testing.T) {
 	}
 }
 
+func TestRenderFooterStatusBarSuppressesGitBranchInShellLayout(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context:       ctx,
+		Theme:         &defaultTheme,
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: "/repo",
+		Layout:        tuiLayoutShell,
+	})
+	model.footerStatus.workspace = app.WorkspaceStatus{
+		Git: &app.WorkspaceGitStatus{
+			Branch:       "main",
+			ChangedFiles: 2,
+		},
+	}
+	state := events.SessionState{
+		PermissionMode: "auto",
+		Turns: map[string]*events.TurnState{
+			"turn-1": {
+				TurnID: "turn-1",
+				Status: events.TurnStatusRunning,
+				Config: &events.TurnConfigState{AgentID: "builder"},
+			},
+		},
+	}
+
+	rendered := ansi.Strip(renderFooterStatusBar(model, state, 120))
+	if strings.Contains(rendered, "⎇ main") {
+		t.Fatalf("shell footer should suppress git branch already shown in header\nrendered:\n%s", rendered)
+	}
+	if !strings.Contains(rendered, "2 changed") {
+		t.Fatalf("shell footer should keep changed-file count\nrendered:\n%s", rendered)
+	}
+}
+
+func TestRenderFooterStatusBarShowsWorkflowStatusInClassicLayout(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context:       ctx,
+		Theme:         &defaultTheme,
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: "/repo",
+	})
+	state := events.SessionState{
+		Workflow: &events.WorkflowState{
+			WorkflowID:     "delivery",
+			Status:         events.WorkflowStatusActive,
+			CurrentPhaseID: "implement",
+			Phases: map[string]*events.WorkflowPhaseState{
+				"implement": {PhaseID: "implement", Status: events.WorkflowPhaseStatusInProgress},
+			},
+		},
+	}
+
+	rendered := ansi.Strip(renderFooterStatusBar(model, state, 120))
+	if !strings.Contains(rendered, "workflow:delivery phase:implement active") {
+		t.Fatalf("classic footer missing workflow status\nrendered:\n%s", rendered)
+	}
+}
+
+func TestRenderKodaShellWorkflowStatusLineShowsBlockedWorkflowReason(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context:       ctx,
+		Theme:         &defaultTheme,
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: "/repo",
+		Layout:        tuiLayoutShell,
+	})
+	state := events.SessionState{
+		Turns: map[string]*events.TurnState{
+			"turn-1": {TurnID: "turn-1", Status: events.TurnStatusRunning},
+		},
+		Workflow: &events.WorkflowState{
+			WorkflowID:     "delivery",
+			Status:         events.WorkflowStatusBlocked,
+			CurrentPhaseID: "approve",
+			StopReason:     "missing approval evidence",
+			Phases: map[string]*events.WorkflowPhaseState{
+				"approve": {PhaseID: "approve", Status: events.WorkflowPhaseStatusBlocked, StopReason: "missing approval evidence"},
+			},
+		},
+	}
+
+	workflowRendered := ansi.Strip(renderKodaShellWorkflowStatusLine(model, state, 160))
+	if !strings.Contains(workflowRendered, "Workflow delivery · phase approve · blocked: missing approval evidence") {
+		t.Fatalf("shell workflow line missing blocked workflow reason\nrendered:\n%s", workflowRendered)
+	}
+	statusRendered := ansi.Strip(renderKodaShellStatusLine(model, state, 160))
+	if strings.Contains(statusRendered, "workflow:delivery") {
+		t.Fatalf("shell bottom status line should not include workflow details\nrendered:\n%s", statusRendered)
+	}
+}
+
+func TestCompletedWorkflowStatusHiddenAfterSelectionReset(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context:       ctx,
+		Theme:         &defaultTheme,
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: "/repo",
+		Layout:        tuiLayoutShell,
+	})
+	state := events.SessionState{
+		SessionID: "session-1",
+		Turns: map[string]*events.TurnState{
+			"turn-1": {TurnID: "turn-1", Status: events.TurnStatusCompleted},
+		},
+		Workflow: &events.WorkflowState{
+			WorkflowID:     "explore",
+			Status:         events.WorkflowStatusCompleted,
+			CurrentPhaseID: "summarize",
+			StopReason:     "workflow completed",
+		},
+	}
+
+	if rendered := ansi.Strip(renderKodaShellWorkflowStatusLine(model, state, 160)); strings.TrimSpace(rendered) != "" {
+		t.Fatalf("shell workflow line should hide completed workflow after reset\nrendered:\n%s", rendered)
+	}
+	if rendered := ansi.Strip(renderFooterStatusBar(model, state, 160)); strings.Contains(rendered, "workflow:explore") {
+		t.Fatalf("classic footer should hide completed workflow after reset\nrendered:\n%s", rendered)
+	}
+}
+
+func TestCompletedWorkflowStatusFallsBackToExplicitSelection(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context:       ctx,
+		Theme:         &defaultTheme,
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: "/repo",
+		Layout:        tuiLayoutShell,
+	})
+	model.workflowID = "debug"
+	state := events.SessionState{
+		SessionID: "session-1",
+		Workflow: &events.WorkflowState{
+			WorkflowID:     "explore",
+			Status:         events.WorkflowStatusCompleted,
+			CurrentPhaseID: "summarize",
+			StopReason:     "workflow completed",
+		},
+	}
+
+	if rendered := ansi.Strip(renderKodaShellWorkflowStatusLine(model, state, 160)); !strings.Contains(rendered, "Workflow debug") {
+		t.Fatalf("shell workflow line should show explicit selected workflow\nrendered:\n%s", rendered)
+	}
+	if rendered := ansi.Strip(renderFooterStatusBar(model, state, 160)); !strings.Contains(rendered, "workflow:debug") {
+		t.Fatalf("classic footer should show explicit selected workflow\nrendered:\n%s", rendered)
+	}
+}
+
+func TestRenderKodaShellFooterPlacesActivityAndWorkflowBelowComposer(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context:       ctx,
+		Theme:         &defaultTheme,
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: "/repo",
+		Layout:        tuiLayoutShell,
+	})
+	model.composer.SetValue("z")
+	model.footerStatus.workspace = app.WorkspaceStatus{
+		Git: &app.WorkspaceGitStatus{
+			ChangedFiles: 15,
+		},
+		Search: &app.WorkspaceSearchStatus{
+			Configured:    true,
+			Tracking:      true,
+			TrackedFiles:  10,
+			IndexedFiles:  10,
+			IndexedChunks: 20,
+		},
+	}
+	state := events.SessionState{
+		PermissionMode: "full_access",
+		Turns: map[string]*events.TurnState{
+			"turn-1": {
+				TurnID: "turn-1",
+				Status: events.TurnStatusCanceled,
+				Config: &events.TurnConfigState{AgentID: "builder"},
+				ToolCalls: map[string]*events.ToolCallState{
+					"call-1": {CallID: "call-1", ToolName: "read", Declared: true},
+				},
+				ToolCallOrder: []string{"call-1"},
+				ProviderUsage: &events.TurnProviderUsageState{
+					Steps: 1,
+				},
+			},
+		},
+		Workflow: &events.WorkflowState{
+			WorkflowID:     "delivery",
+			Status:         events.WorkflowStatusActive,
+			CurrentPhaseID: "plan",
+			Phases: map[string]*events.WorkflowPhaseState{
+				"plan": {PhaseID: "plan", Status: events.WorkflowPhaseStatusInProgress},
+			},
+		},
+	}
+
+	rendered := ansi.Strip(renderKodaShellFooter(model, state, 160, ""))
+	composerIndex := strings.Index(rendered, "z")
+	cancelledIndex := strings.Index(rendered, "Cancelled")
+	workflowIndex := strings.Index(rendered, "Workflow delivery · phase plan · paused")
+	if composerIndex < 0 || cancelledIndex < 0 || workflowIndex < 0 {
+		t.Fatalf("shell footer missing composer, activity, or workflow line\nrendered:\n%s", rendered)
+	}
+	if cancelledIndex < composerIndex || workflowIndex < composerIndex {
+		t.Fatalf("shell activity and workflow should render below composer\nrendered:\n%s", rendered)
+	}
+	lines := strings.Split(strings.TrimRight(rendered, "\n"), "\n")
+	lastLine := lines[len(lines)-1]
+	for _, unwanted := range []string{"Workflow delivery", "15 changed", "1 roundtrip", "1 tool", "search:warm"} {
+		if strings.Contains(lastLine, unwanted) {
+			t.Fatalf("shell bottom footer should not include crowded detail %q\nrendered:\n%s", unwanted, rendered)
+		}
+	}
+}
+
+func TestRenderKodaShellStatusLineUsesConfiguredPermissionModeBeforeSessionExists(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context:        ctx,
+		Theme:          &defaultTheme,
+		WorkspaceRoot:  "/repo",
+		Layout:         tuiLayoutShell,
+		PermissionMode: app.PermissionModeFullAccess,
+	})
+
+	rendered := ansi.Strip(renderKodaShellStatusLine(model, model.projector.CurrentState(), 160))
+	if !strings.Contains(rendered, "mode:full access") {
+		t.Fatalf("shell status should show configured permission mode before session exists\nrendered:\n%s", rendered)
+	}
+	if strings.Contains(rendered, "mode:auto") {
+		t.Fatalf("shell status should not fall back to auto before session exists\nrendered:\n%s", rendered)
+	}
+}
+
+func TestRenderKodaShellStatusLineUsesSessionPermissionModeOverConfiguredDefault(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context:        ctx,
+		Theme:          &defaultTheme,
+		WorkspaceRoot:  "/repo",
+		Layout:         tuiLayoutShell,
+		PermissionMode: app.PermissionModeFullAccess,
+	})
+	state := events.SessionState{
+		SessionID:      "session-1",
+		WorkspaceRoot:  "/repo",
+		PermissionMode: string(app.PermissionModeReadOnly),
+	}
+
+	rendered := ansi.Strip(renderKodaShellStatusLine(model, state, 160))
+	if !strings.Contains(rendered, "mode:read-only") {
+		t.Fatalf("shell status should prefer session permission mode\nrendered:\n%s", rendered)
+	}
+	if strings.Contains(rendered, "mode:full access") {
+		t.Fatalf("shell status should not show configured default after session mode exists\nrendered:\n%s", rendered)
+	}
+}
+
+func TestWorkflowDisplayStatusShowsPausedWhenActiveWorkflowHasNoRunningTurn(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context:       ctx,
+		Theme:         &defaultTheme,
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: "/repo",
+		Layout:        tuiLayoutShell,
+	})
+	state := events.SessionState{
+		Turns: map[string]*events.TurnState{
+			"turn-1": {TurnID: "turn-1", Status: events.TurnStatusCompleted},
+		},
+		Workflow: &events.WorkflowState{
+			WorkflowID:     "explore",
+			Status:         events.WorkflowStatusActive,
+			CurrentPhaseID: "map",
+			Phases: map[string]*events.WorkflowPhaseState{
+				"map": {PhaseID: "map", Status: events.WorkflowPhaseStatusInProgress},
+			},
+		},
+	}
+
+	shellRendered := ansi.Strip(renderKodaShellWorkflowStatusLine(model, state, 160))
+	if !strings.Contains(shellRendered, "Workflow explore · phase map · paused") {
+		t.Fatalf("shell workflow line should show paused for active parked workflow\nrendered:\n%s", shellRendered)
+	}
+	if strings.Contains(shellRendered, "active") {
+		t.Fatalf("shell workflow line should not show active after turn completion\nrendered:\n%s", shellRendered)
+	}
+
+	classicRendered := ansi.Strip(renderFooterStatusBar(model, state, 160))
+	if !strings.Contains(classicRendered, "workflow:explore phase:map paused") {
+		t.Fatalf("classic footer should show paused for active parked workflow\nrendered:\n%s", classicRendered)
+	}
+	if strings.Contains(classicRendered, "active") {
+		t.Fatalf("classic footer should not show active after turn completion\nrendered:\n%s", classicRendered)
+	}
+}
+
 func TestFooterSearchLabelShowsEmbeddingOfflineForEmbeddingConnectionFailure(t *testing.T) {
 	label, tone := footerSearchLabel(app.WorkspaceStatus{
 		Search: &app.WorkspaceSearchStatus{
@@ -270,14 +606,13 @@ func TestRenderHeaderBarUsesAggregatedSessionUsageSummary(t *testing.T) {
 		WorkspaceRoot: "/repo",
 	})
 	model.footerStatus.sessionUsage = app.SessionUsageSummary{
-		RootSessionID:     "session-1",
-		SessionCount:      2,
-		ChildSessionCount: 1,
-		UsageTurns:        2,
-		RequestTokens:     1700,
-		CompletionTokens:  270,
-		EstimatedCost:     0.0055,
-		Exact:             false,
+		RootSessionID:    "session-1",
+		SessionCount:     2,
+		UsageTurns:       2,
+		RequestTokens:    1700,
+		CompletionTokens: 270,
+		EstimatedCost:    0.0055,
+		Exact:            false,
 		Local: app.SessionUsageEntry{
 			SessionID:        "session-1",
 			RequestTokens:    500,
@@ -308,7 +643,7 @@ func TestRenderHeaderBarUsesAggregatedSessionUsageSummary(t *testing.T) {
 	}
 
 	headerRendered := ansi.Strip(renderHeaderBar(model, state, 200))
-	for _, want := range []string{"ctx~", "4.2k/8.0k", "Σ↑1.7k", "↓270", "est. $0.0055"} {
+	for _, want := range []string{"ctx~", "4.2k/8.0k", "↑1.7k", "↓270", "est. $0.0055"} {
 		if !strings.Contains(headerRendered, want) {
 			t.Fatalf("header bar missing aggregated usage %q\nrendered:\n%s", want, headerRendered)
 		}
@@ -380,467 +715,6 @@ func TestRenderHeaderBarKeepsHybridLocalTokenTotalsForMixedAttempts(t *testing.T
 	}
 	if strings.Contains(headerRendered, "↑650") || strings.Contains(headerRendered, "↓90") {
 		t.Fatalf("header bar should not collapse mixed turns to reported-attempt totals only\nrendered:\n%s", headerRendered)
-	}
-}
-
-func TestRenderFooterStatusBarUsesAggregatedWorkflowCountsForDelegatedSessions(t *testing.T) {
-	defaultTheme := theme.StaticDefault()
-	ctx, cancel := context.WithCancel(context.TODO())
-	defer cancel()
-
-	model := NewModel(&fakeController{}, ModelConfig{
-		Context:       ctx,
-		Theme:         &defaultTheme,
-		SessionID:     "session-1",
-		TurnID:        "turn-1",
-		WorkspaceRoot: "/repo",
-		AgentID:       "builder",
-	})
-	model.footerStatus.sessionUsage = app.SessionUsageSummary{
-		RootSessionID:     "session-1",
-		SessionCount:      2,
-		ChildSessionCount: 1,
-		UsageTurns:        2,
-		ToolCalls:         114,
-		Steps:             107,
-		Local: app.SessionUsageEntry{
-			SessionID: "session-1",
-			ToolCalls: 18,
-			Steps:     11,
-		},
-	}
-
-	state := events.SessionState{
-		SessionID: "session-1",
-		Turns: map[string]*events.TurnState{
-			"turn-1": {
-				TurnID: "turn-1",
-				Status: events.TurnStatusCompleted,
-				Config: &events.TurnConfigState{AgentID: "builder"},
-				ToolCalls: map[string]*events.ToolCallState{
-					"call-1": {CallID: "call-1", ToolName: "delegate", Declared: true},
-				},
-				ToolCallOrder: []string{"call-1"},
-				ProviderUsage: &events.TurnProviderUsageState{
-					Steps: 11,
-				},
-			},
-		},
-	}
-
-	rendered := ansi.Strip(renderFooterStatusBar(model, state, 180))
-	for _, want := range []string{"builder", "Σ107 roundtrips", "Σ114 tools"} {
-		if !strings.Contains(rendered, want) {
-			t.Fatalf("footer status missing aggregated workflow counts %q\nrendered:\n%s", want, rendered)
-		}
-	}
-	for _, unwanted := range []string{"11 roundtrips", "1 tool"} {
-		if strings.Contains(rendered, unwanted) {
-			t.Fatalf("footer status should not fall back to local-only counts %q\nrendered:\n%s", unwanted, rendered)
-		}
-	}
-}
-
-func TestRenderFooterStatusBarUsesSelectedDelegatedSessionMetrics(t *testing.T) {
-	defaultTheme := theme.StaticDefault()
-	ctx, cancel := context.WithCancel(context.TODO())
-	defer cancel()
-
-	model := NewModel(&fakeController{}, ModelConfig{
-		Context:       ctx,
-		Theme:         &defaultTheme,
-		SessionID:     "session-parent",
-		TurnID:        "turn-parent",
-		WorkspaceRoot: "/repo",
-		AgentID:       "builder",
-	})
-	model.selection.handoffID = "handoff-1"
-	model.delegatedSnapshots.snapshots["session-child"] = events.SessionState{
-		SessionID: "session-child",
-		TurnOrder: []string{"turn-child"},
-		Turns: map[string]*events.TurnState{
-			"turn-child": {
-				TurnID: "turn-child",
-				Status: events.TurnStatusRunning,
-				ToolCalls: map[string]*events.ToolCallState{
-					"call-1": {CallID: "call-1", ToolName: "read", Declared: true},
-					"call-2": {CallID: "call-2", ToolName: "search", Declared: true},
-					"call-3": {CallID: "call-3", ToolName: "locate", Declared: true},
-					"call-4": {CallID: "call-4", ToolName: "bash", Declared: true},
-				},
-				ToolCallOrder: []string{"call-1", "call-2", "call-3", "call-4"},
-				ProviderUsage: &events.TurnProviderUsageState{
-					Steps: 6,
-				},
-			},
-		},
-	}
-
-	state := events.SessionState{
-		SessionID: "session-parent",
-		TurnOrder: []string{"turn-parent"},
-		Turns: map[string]*events.TurnState{
-			"turn-parent": {
-				TurnID: "turn-parent",
-				Status: events.TurnStatusCompleted,
-				Config: &events.TurnConfigState{
-					AgentID: "builder",
-				},
-				Handoffs: map[string]*events.AgentHandoffState{
-					"handoff-1": {
-						HandoffID:      "handoff-1",
-						ChildSessionID: "session-child",
-						ChildTurnID:    "turn-child",
-						ChildAgentID:   "reviewer",
-					},
-				},
-				HandoffOrder: []string{"handoff-1"},
-				ToolCalls: map[string]*events.ToolCallState{
-					"call-a": {CallID: "call-a", ToolName: "search", Declared: true},
-					"call-b": {CallID: "call-b", ToolName: "locate", Declared: true},
-				},
-				ToolCallOrder: []string{"call-a", "call-b"},
-				ProviderUsage: &events.TurnProviderUsageState{
-					Steps: 2,
-				},
-			},
-		},
-	}
-
-	rendered := ansi.Strip(renderFooterStatusBar(model, state, 160))
-	for _, want := range []string{"reviewer", "6 roundtrips", "4 tools"} {
-		if !strings.Contains(rendered, want) {
-			t.Fatalf("footer status missing selected delegated metrics %q\nrendered:\n%s", want, rendered)
-		}
-	}
-	for _, unwanted := range []string{"2 roundtrips", "2 tools"} {
-		if strings.Contains(rendered, unwanted) {
-			t.Fatalf("footer status should not keep parent metrics %q\nrendered:\n%s", unwanted, rendered)
-		}
-	}
-}
-
-func TestRenderHeaderBarUsesSelectedDelegatedSessionMetrics(t *testing.T) {
-	defaultTheme := theme.StaticDefault()
-	ctx, cancel := context.WithCancel(context.TODO())
-	defer cancel()
-
-	model := NewModel(&fakeController{}, ModelConfig{
-		Context:       ctx,
-		Theme:         &defaultTheme,
-		SessionID:     "session-parent",
-		TurnID:        "turn-parent",
-		WorkspaceRoot: "/repo",
-	})
-	model.selection.handoffID = "handoff-1"
-	model.delegatedSnapshots.snapshots["session-child"] = events.SessionState{
-		SessionID: "session-child",
-		TurnOrder: []string{"turn-child"},
-		Turns: map[string]*events.TurnState{
-			"turn-child": {
-				TurnID: "turn-child",
-				Status: events.TurnStatusRunning,
-				ProviderAttempts: []events.TurnProviderAttemptState{{
-					RequestTokens:      3600,
-					RequestTokenSource: "exact",
-					InputLimitTokens:   12000,
-				}},
-				ProviderUsage: &events.TurnProviderUsageState{
-					RequestTokens:       4100,
-					CompletionTokens:    600,
-					EstimatedInputCost:  0.0021,
-					EstimatedOutputCost: 0.0039,
-				},
-			},
-		},
-	}
-
-	state := events.SessionState{
-		SessionID: "session-parent",
-		TurnOrder: []string{"turn-parent"},
-		Turns: map[string]*events.TurnState{
-			"turn-parent": {
-				TurnID: "turn-parent",
-				Status: events.TurnStatusCompleted,
-				Handoffs: map[string]*events.AgentHandoffState{
-					"handoff-1": {
-						HandoffID:      "handoff-1",
-						ChildSessionID: "session-child",
-						ChildTurnID:    "turn-child",
-						ChildAgentID:   "reviewer",
-					},
-				},
-				HandoffOrder: []string{"handoff-1"},
-				ProviderAttempts: []events.TurnProviderAttemptState{{
-					RequestTokens:      1000,
-					RequestTokenSource: "exact",
-					InputLimitTokens:   8000,
-				}},
-				ProviderUsage: &events.TurnProviderUsageState{
-					RequestTokens:       1200,
-					CompletionTokens:    100,
-					EstimatedInputCost:  0.0007,
-					EstimatedOutputCost: 0.0005,
-				},
-			},
-		},
-	}
-
-	rendered := ansi.Strip(renderHeaderBar(model, state, 220))
-	for _, want := range []string{"ctx 3.6k/12.0k 30%", "↑4.1k", "↓600", "est. $0.0060"} {
-		if !strings.Contains(rendered, want) {
-			t.Fatalf("header bar missing selected delegated metrics %q\nrendered:\n%s", want, rendered)
-		}
-	}
-	for _, unwanted := range []string{"ctx 1.0k/8.0k", "↑1.2k", "est. $0.0012"} {
-		if strings.Contains(rendered, unwanted) {
-			t.Fatalf("header bar should not keep parent metrics %q\nrendered:\n%s", unwanted, rendered)
-		}
-	}
-}
-
-func TestRenderHeaderBarUsesActiveDelegatedSessionMetrics(t *testing.T) {
-	defaultTheme := theme.StaticDefault()
-	ctx, cancel := context.WithCancel(context.TODO())
-	defer cancel()
-
-	model := NewModel(&fakeController{}, ModelConfig{
-		Context:       ctx,
-		Theme:         &defaultTheme,
-		SessionID:     "session-parent",
-		TurnID:        "turn-parent",
-		WorkspaceRoot: "/repo",
-		AgentID:       "engineer",
-	})
-	model.delegatedSnapshots.snapshots["session-child"] = events.SessionState{
-		SessionID: "session-child",
-		TurnOrder: []string{"turn-child"},
-		Turns: map[string]*events.TurnState{
-			"turn-child": {
-				TurnID: "turn-child",
-				Status: events.TurnStatusRunning,
-				Config: &events.TurnConfigState{
-					AgentID: "reviewer",
-				},
-				ProviderAttempts: []events.TurnProviderAttemptState{{
-					RequestTokens:      71100,
-					RequestTokenSource: "exact",
-					InputLimitTokens:   128000,
-				}},
-				ProviderUsage: &events.TurnProviderUsageState{
-					RequestTokens:    71100,
-					CompletionTokens: 1100,
-					Steps:            6,
-				},
-			},
-		},
-	}
-
-	state := events.SessionState{
-		SessionID: "session-parent",
-		TurnOrder: []string{"turn-parent"},
-		Turns: map[string]*events.TurnState{
-			"turn-parent": {
-				TurnID: "turn-parent",
-				Status: events.TurnStatusRunning,
-				Handoffs: map[string]*events.AgentHandoffState{
-					"handoff-1": {
-						HandoffID:      "handoff-1",
-						ChildSessionID: "session-child",
-						ChildTurnID:    "turn-child",
-						ChildAgentID:   "reviewer",
-						PreviewActive:  true,
-					},
-				},
-				HandoffOrder: []string{"handoff-1"},
-				ProviderAttempts: []events.TurnProviderAttemptState{{
-					RequestTokens:      1000,
-					RequestTokenSource: "exact",
-					InputLimitTokens:   8000,
-				}},
-				ProviderUsage: &events.TurnProviderUsageState{
-					RequestTokens:    1200,
-					CompletionTokens: 100,
-					Steps:            1,
-				},
-			},
-		},
-	}
-
-	header := ansi.Strip(renderHeaderBar(model, state, 220))
-	for _, want := range []string{"ctx 71.1k/128.0k 55%", "↑71.1k", "↓1.1k"} {
-		if !strings.Contains(header, want) {
-			t.Fatalf("header bar missing active delegated metrics %q\nrendered:\n%s", want, header)
-		}
-	}
-	for _, unwanted := range []string{"ctx 1.0k/8.0k", "↑1.2k"} {
-		if strings.Contains(header, unwanted) {
-			t.Fatalf("header bar should not keep parent metrics %q\nrendered:\n%s", unwanted, header)
-		}
-	}
-
-	footer := ansi.Strip(renderFooterStatusBar(model, state, 160))
-	if !strings.Contains(footer, "reviewer") {
-		t.Fatalf("footer status missing active delegated agent\nrendered:\n%s", footer)
-	}
-}
-
-func TestRenderHeaderBarKeepsLastContextGaugeWhenActiveDelegatedSessionHasNoUsage(t *testing.T) {
-	defaultTheme := theme.StaticDefault()
-	ctx, cancel := context.WithCancel(context.TODO())
-	defer cancel()
-
-	model := NewModel(&fakeController{}, ModelConfig{
-		Context:       ctx,
-		Theme:         &defaultTheme,
-		SessionID:     "session-parent",
-		TurnID:        "turn-parent",
-		WorkspaceRoot: "/repo",
-		AgentID:       "engineer",
-	})
-	model.delegatedSnapshots.snapshots["session-reviewer"] = events.SessionState{
-		SessionID: "session-reviewer",
-		TurnOrder: []string{"turn-reviewer"},
-		Turns: map[string]*events.TurnState{
-			"turn-reviewer": {
-				TurnID: "turn-reviewer",
-				Status: events.TurnStatusCompleted,
-				ProviderAttempts: []events.TurnProviderAttemptState{{
-					RequestTokens:      649000,
-					RequestTokenSource: "exact",
-					InputLimitTokens:   1048576,
-				}},
-				ProviderUsage: &events.TurnProviderUsageState{
-					RequestTokens:    649000,
-					CompletionTokens: 28300,
-				},
-			},
-		},
-	}
-	model.delegatedSnapshots.snapshots["session-planner"] = events.SessionState{
-		SessionID: "session-planner",
-		TurnOrder: []string{"turn-planner"},
-		Turns: map[string]*events.TurnState{
-			"turn-planner": {
-				TurnID: "turn-planner",
-				Status: events.TurnStatusRunning,
-			},
-		},
-	}
-
-	state := events.SessionState{
-		SessionID: "session-parent",
-		TurnOrder: []string{"turn-parent"},
-		Turns: map[string]*events.TurnState{
-			"turn-parent": {
-				TurnID: "turn-parent",
-				Status: events.TurnStatusRunning,
-				Handoffs: map[string]*events.AgentHandoffState{
-					"handoff-reviewer": {
-						HandoffID:      "handoff-reviewer",
-						ChildSessionID: "session-reviewer",
-						ChildTurnID:    "turn-reviewer",
-						ChildAgentID:   "reviewer",
-					},
-					"handoff-planner": {
-						HandoffID:      "handoff-planner",
-						ChildSessionID: "session-planner",
-						ChildTurnID:    "turn-planner",
-						ChildAgentID:   "planner",
-						PreviewActive:  true,
-					},
-				},
-				HandoffOrder: []string{"handoff-reviewer", "handoff-planner"},
-			},
-		},
-	}
-
-	header := ansi.Strip(renderHeaderBar(model, state, 220))
-	for _, want := range []string{"ctx last", "649.0k/1.0M", "61%"} {
-		if !strings.Contains(header, want) {
-			t.Fatalf("header bar missing last context gauge %q\nrendered:\n%s", want, header)
-		}
-	}
-	if strings.Contains(header, "↑649.0k") {
-		t.Fatalf("header bar should not report previous child token totals as current planner totals\nrendered:\n%s", header)
-	}
-
-	footer := ansi.Strip(renderFooterStatusBar(model, state, 160))
-	if !strings.Contains(footer, "planner") {
-		t.Fatalf("footer status should continue to follow the active delegated agent\nrendered:\n%s", footer)
-	}
-}
-
-func TestRenderHeaderBarKeepsDelegatedContextPeakAfterReturningToParent(t *testing.T) {
-	defaultTheme := theme.StaticDefault()
-	ctx, cancel := context.WithCancel(context.TODO())
-	defer cancel()
-
-	model := NewModel(&fakeController{}, ModelConfig{
-		Context:       ctx,
-		Theme:         &defaultTheme,
-		SessionID:     "session-parent",
-		TurnID:        "turn-parent",
-		WorkspaceRoot: "/repo",
-		AgentID:       "engineer",
-	})
-	model.delegatedSnapshots.snapshots["session-reviewer"] = events.SessionState{
-		SessionID: "session-reviewer",
-		TurnOrder: []string{"turn-reviewer"},
-		Turns: map[string]*events.TurnState{
-			"turn-reviewer": {
-				TurnID: "turn-reviewer",
-				Status: events.TurnStatusCompleted,
-				ProviderAttempts: []events.TurnProviderAttemptState{{
-					RequestTokens:      71100,
-					RequestTokenSource: "exact",
-					InputLimitTokens:   128000,
-				}},
-				ProviderUsage: &events.TurnProviderUsageState{
-					RequestTokens:    71100,
-					CompletionTokens: 1100,
-				},
-			},
-		},
-	}
-
-	state := events.SessionState{
-		SessionID: "session-parent",
-		TurnOrder: []string{"turn-parent"},
-		Turns: map[string]*events.TurnState{
-			"turn-parent": {
-				TurnID: "turn-parent",
-				Status: events.TurnStatusRunning,
-				Handoffs: map[string]*events.AgentHandoffState{
-					"handoff-reviewer": {
-						HandoffID:      "handoff-reviewer",
-						ChildSessionID: "session-reviewer",
-						ChildTurnID:    "turn-reviewer",
-						ChildAgentID:   "reviewer",
-					},
-				},
-				HandoffOrder: []string{"handoff-reviewer"},
-				ProviderAttempts: []events.TurnProviderAttemptState{{
-					RequestTokens:      8500,
-					RequestTokenSource: "exact",
-					InputLimitTokens:   128000,
-				}},
-				ProviderUsage: &events.TurnProviderUsageState{
-					RequestTokens:    8500,
-					CompletionTokens: 500,
-				},
-			},
-		},
-	}
-
-	header := ansi.Strip(renderHeaderBar(model, state, 220))
-	for _, want := range []string{"ctx peak 71.1k/128.0k 55%", "↑8.5k", "↓500"} {
-		if !strings.Contains(header, want) {
-			t.Fatalf("header bar missing delegated context peak %q\nrendered:\n%s", want, header)
-		}
-	}
-	if strings.Contains(header, "ctx 8.5k/128.0k") {
-		t.Fatalf("header bar should not reset context gauge to parent request while delegated peak is higher\nrendered:\n%s", header)
 	}
 }
 
@@ -1776,7 +1650,7 @@ func TestRenderFooterHintsLineOmitsAgentCycleDuringRunningTurn(t *testing.T) {
 	model.chrome.focus = focusComposer
 	model.chrome.hintsExpanded = true
 
-	idle := ansi.Strip(renderFooterHintsLine(model, events.SessionState{}, 140))
+	idle := ansi.Strip(renderFooterHintsLine(model, events.SessionState{}, 220))
 	if !strings.Contains(idle, "tab agent") {
 		t.Fatalf("idle footer hints missing agent cycle shortcut\nrendered:\n%s", idle)
 	}
@@ -1791,7 +1665,7 @@ func TestRenderFooterHintsLineOmitsAgentCycleDuringRunningTurn(t *testing.T) {
 	}
 	model.projector = events.NewProjectorFromSnapshot(runningState)
 
-	running := ansi.Strip(renderFooterHintsLine(model, runningState, 140))
+	running := ansi.Strip(renderFooterHintsLine(model, runningState, 220))
 	if strings.Contains(running, "tab agent") {
 		t.Fatalf("running footer hints should hide agent cycle shortcut\nrendered:\n%s", running)
 	}
@@ -1972,65 +1846,6 @@ func TestHandleWatchEventsRefreshesBudgetStatusAfterReportedUsageEvent(t *testin
 	}
 	if len(controller.budgetStatusCalls) != 1 || controller.budgetStatusCalls[0] != "session-1" {
 		t.Fatalf("budget status calls = %#v, want session-1 refresh", controller.budgetStatusCalls)
-	}
-}
-
-func TestHandleWatchEventsRefreshesSessionUsageSummaryAfterDelegatedResultEvent(t *testing.T) {
-	defaultTheme := theme.StaticDefault()
-	ctx, cancel := context.WithCancel(context.TODO())
-	defer cancel()
-
-	controller := &fakeController{
-		sessionUsageSummary: app.SessionUsageSummary{
-			RootSessionID: "session-parent",
-			RequestTokens: 1550,
-		},
-	}
-	model := NewModel(controller, ModelConfig{
-		Context:       ctx,
-		Theme:         &defaultTheme,
-		SessionID:     "session-parent",
-		TurnID:        "turn-parent",
-		WorkspaceRoot: "/repo",
-	})
-	model.watchID = 6
-	stream := make(chan events.Event)
-	close(stream)
-	model.stream = stream
-
-	updated, cmd := model.handleWatchEvents(6, []events.Event{
-		draftEvent(1, events.TypeAgentResult, "session-parent", "turn-parent", events.AgentResultPayload{
-			HandoffID:      "handoff-1",
-			ChildSessionID: "session-child",
-			ChildTurnID:    "turn-child",
-			Status:         events.AgentResultStatusCompleted,
-			AssistantText:  "Delegated review complete.",
-		}),
-	}, false)
-	_ = updated.(Model)
-	if cmd == nil {
-		t.Fatal("cmd = nil, want watch continuation batch with usage-summary refresh")
-	}
-
-	msg := cmd()
-	batch, ok := msg.(tea.BatchMsg)
-	if !ok {
-		t.Fatalf("cmd() msg = %#v, want tea.BatchMsg", msg)
-	}
-	foundUsageSummaryRefresh := false
-	for _, sub := range batch {
-		if sub == nil {
-			continue
-		}
-		if _, ok := sub().(sessionUsageSummaryLoadedMsg); ok {
-			foundUsageSummaryRefresh = true
-		}
-	}
-	if !foundUsageSummaryRefresh {
-		t.Fatal("batch did not include session usage summary refresh command")
-	}
-	if len(controller.sessionUsageSummaryCalls) != 1 || controller.sessionUsageSummaryCalls[0] != "session-parent" {
-		t.Fatalf("session usage summary calls = %#v, want session-parent refresh", controller.sessionUsageSummaryCalls)
 	}
 }
 

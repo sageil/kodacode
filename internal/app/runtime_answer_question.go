@@ -51,6 +51,9 @@ func (r *Runtime) AnswerSessionQuestion(ctx context.Context, input AnswerSession
 	if result, handled, err := r.answerPlannerPlanApproval(ctx, state, input, turnID, request, answer); handled || err != nil {
 		return result, err
 	}
+	if result, handled, err := r.answerWorkflowApproval(ctx, state, input, turnID, request, answer); handled || err != nil {
+		return result, err
+	}
 
 	if _, err := r.Sessions.AnswerQuestion(ctx, AnswerQuestionInput{
 		SessionID: input.SessionID,

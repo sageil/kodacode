@@ -24,6 +24,7 @@ type RunSessionInput struct {
 	UserText      string
 	Attachments   []AttachmentInput
 	AgentID       string
+	WorkflowID    string
 	SkillIDs      []string
 	Fragments     []prompt.Fragment
 }
@@ -40,7 +41,6 @@ type RunSessionResult struct {
 	PendingExecution  *events.ExecutionApprovalState
 	PendingPermission *events.PermissionRequestState
 	PendingQuestion   *events.QuestionRequestState
-	PendingDelegated  *events.AgentHandoffState
 }
 
 func (r *Runtime) RunSessionTurn(ctx context.Context, input RunSessionInput) (RunSessionResult, error) {
@@ -61,6 +61,7 @@ func (r *Runtime) RunSessionTurn(ctx context.Context, input RunSessionInput) (Ru
 		UserText:    input.UserText,
 		Attachments: append([]AttachmentInput(nil), input.Attachments...),
 		AgentID:     input.AgentID,
+		WorkflowID:  input.WorkflowID,
 		SkillIDs:    append([]string(nil), input.SkillIDs...),
 		Fragments:   input.Fragments,
 	})
@@ -105,10 +106,6 @@ func (r *Runtime) loadSessionTurnResult(ctx context.Context, sessionID, turnID s
 	if pending := pendingQuestionRequestState(state, result.PendingRequestID); pending != nil {
 		copyPending := *pending
 		output.PendingQuestion = &copyPending
-		return output, nil
-	}
-	if _, pending := pendingDelegatedHandoffState(state, result.PendingRequestID); pending != nil {
-		output.PendingDelegated = copyAgentHandoffState(pending)
 		return output, nil
 	}
 	return RunSessionResult{}, ErrPendingInteractionStateMissing

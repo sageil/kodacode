@@ -40,3 +40,8 @@ tui:
 #   # response_style: default
 #   # max_provider_requests_per_turn defaults to 32; set -1 to disable.
 #   # max_provider_requests_per_turn: 32
+#
+# workflow:
+#   # planner_approval defaults to false. Set true to restore the legacy
+#   # Save/Apply/Revise/Stop prompt after primary planner turns.
+#   # planner_approval: true

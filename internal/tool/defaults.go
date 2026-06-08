@@ -7,7 +7,6 @@ func DefaultRuntimeTools() []Tool {
 		NewApplyPatchTool(),
 		NewBashTool(),
 		NewCodeActionTool(),
-		NewDelegateTool(),
 		NewDefinitionTool(),
 		NewDiagnosticsTool(),
 		NewGitDiffTool(),
@@ -29,6 +28,8 @@ func DefaultRuntimeTools() []Tool {
 		NewTestTool(),
 		NewTraceTool(),
 		NewWebFetchTool(),
+		NewWorkflowPhaseOutputTool(),
+		NewWorkflowReviewResultTool(),
 		NewWriteTool(),
 	}
 }

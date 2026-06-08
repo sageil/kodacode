@@ -201,12 +201,12 @@ func (r *Runtime) Reconfigure(config Config) error {
 	tools, err := newRuntimeToolExecutor(runtimeToolExecutorConfig{
 		Sessions:     r.Sessions,
 		Execution:    config.Execution,
+		Workflow:     config.Workflow,
 		Search:       search,
 		WebSearch:    webSearch,
 		CodeIntel:    r.CodeIntel,
 		Memory:       r.Memory,
 		Skills:       r.Skills,
-		Delegate:     r,
 		Logger:       logger.With("component", "tool_executor"),
 		RuntimeTools: runtimeTools,
 		MCPTools:     mcpTools,

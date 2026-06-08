@@ -58,18 +58,3 @@ func relativeTimeUnix(unixSeconds int64) string {
 		return updatedAt.Format("2006-01-02")
 	}
 }
-
-func purgeLabel(age time.Duration) string {
-	switch age {
-	case 7 * 24 * time.Hour:
-		return "Older than 7 days"
-	case 30 * 24 * time.Hour:
-		return "Older than 30 days"
-	case 180 * 24 * time.Hour:
-		return "Older than 180 days"
-	case 0:
-		return "All sessions"
-	default:
-		return age.String()
-	}
-}

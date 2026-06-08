@@ -160,8 +160,6 @@ func benchmarkRenderSessionState() events.SessionState {
 			UserText:         userText,
 			AssistantText:    assistantBody,
 			ReasoningText:    strings.Repeat("reasoning detail ", 16),
-			Handoffs:         map[string]*events.AgentHandoffState{},
-			HandoffOrder:     []string{},
 			Transcript:       make([]events.TranscriptEntryState, 0, 5),
 			ToolCallOrder:    []string{callID},
 			ToolCalls:        make(map[string]*events.ToolCallState, 1),

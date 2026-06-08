@@ -159,13 +159,14 @@ func (r *Runtime) capabilityCatalogModel(ref provider.ModelRef) provider.Catalog
 
 func (r *Runtime) resolveCapabilitiesModelRoute(state events.SessionState, definition agent.Definition, override provider.ModelRoute, strict bool) (provider.ModelRoute, error) {
 	if strings.TrimSpace(definition.ID) == reviewerAgentID {
-		current := override
-		if !hasConfiguredModelRoute(current) {
-			if sessionRoute, ok := configuredSessionModelRoute(state); ok {
-				current = sessionRoute
-			} else {
-				current = r.Config.ModelRoute
-			}
+		if hasConfiguredModelRoute(override) {
+			return r.resolveConfiguredCapabilitiesModelRoute(override)
+		}
+		var current provider.ModelRoute
+		if sessionRoute, ok := configuredSessionModelRoute(state); ok {
+			current = sessionRoute
+		} else {
+			current = r.Config.ModelRoute
 		}
 		return r.resolveConfiguredCapabilitiesModelRoute(r.reviewerModelRoute(definition, current))
 	}

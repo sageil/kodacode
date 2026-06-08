@@ -1,8 +1,6 @@
 package tui
 
 import (
-	"strings"
-
 	"charm.land/lipgloss/v2"
 	"github.com/sageil/kodacode/internal/events"
 )
@@ -388,7 +386,7 @@ func renderMainShellContent(m Model, state events.SessionState, layout shellLayo
 		columns = append(columns, divider)
 		rightContentWidth := max(layout.rightWidth, 1)
 		var rightPanel string
-		if m.hasPendingApproval() || strings.TrimSpace(m.selection.handoffID) != "" {
+		if m.hasPendingApproval() {
 			rightPanel = renderInspectorPane(m, state, rightContentWidth)
 		} else if isWideShell(m) {
 			rightPanel = renderWideRightPanel(m, state, rightContentWidth)

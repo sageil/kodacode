@@ -100,7 +100,6 @@ func benchmarkProjectorState(turnCount, toolCallsPerTurn int) SessionState {
 			UserText:         fmt.Sprintf("user prompt %d %s", turnIndex, inputText),
 			AssistantText:    fmt.Sprintf("assistant response %d %s", turnIndex, outputText),
 			ReasoningText:    reasoningText,
-			Handoffs:         map[string]*AgentHandoffState{},
 			Transcript:       make([]TranscriptEntryState, 0, 3+toolCallsPerTurn),
 			ToolCallOrder:    make([]string, 0, toolCallsPerTurn),
 			ToolCalls:        make(map[string]*ToolCallState, toolCallsPerTurn),

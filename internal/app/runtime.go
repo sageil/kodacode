@@ -17,6 +17,7 @@ import (
 	"github.com/sageil/kodacode/internal/skill"
 	"github.com/sageil/kodacode/internal/tool"
 	websearchsvc "github.com/sageil/kodacode/internal/websearch"
+	workflowpkg "github.com/sageil/kodacode/internal/workflow"
 )
 
 type Runtime struct {
@@ -26,6 +27,7 @@ type Runtime struct {
 	Trusts                      *startupTrustStore
 	Tools                       *ToolExecutor
 	Agents                      *agent.Registry
+	Workflows                   *workflowpkg.Registry
 	Skills                      *skill.Registry
 	Search                      *searchsvc.Service
 	WebSearch                   *websearchsvc.Service
@@ -114,12 +116,12 @@ func NewRuntime(config Config) (runtime *Runtime, err error) {
 	tools, err := newRuntimeToolExecutor(runtimeToolExecutorConfig{
 		Sessions:     sessions,
 		Execution:    config.Execution,
+		Workflow:     config.Workflow,
 		Search:       search,
 		WebSearch:    webSearch,
 		CodeIntel:    codeIntel,
 		Memory:       memory,
 		Skills:       nil,
-		Delegate:     nil,
 		Logger:       nil,
 		Background:   backgroundLogs,
 		RuntimeTools: runtimeTools,
@@ -140,11 +142,16 @@ func NewRuntime(config Config) (runtime *Runtime, err error) {
 	if err != nil {
 		return nil, err
 	}
+	workflows, err := workflowpkg.NewRegistry(workflowpkg.RegistryConfig{})
+	if err != nil {
+		return nil, err
+	}
 	skills, err := skill.NewRegistry(skill.RegistryConfig{})
 	if err != nil {
 		return nil, err
 	}
 	tools.SetSkillRegistry(skills)
+	tools.SetWorkflowConfig(config.Workflow)
 
 	eng, err := engine.New(engine.Dependencies{
 		Compiler: prompt.NewStaticCompiler(),
@@ -165,6 +172,7 @@ func NewRuntime(config Config) (runtime *Runtime, err error) {
 		Trusts:                      trusts,
 		Tools:                       tools,
 		Agents:                      agents,
+		Workflows:                   workflows,
 		Skills:                      skills,
 		Search:                      search,
 		WebSearch:                   webSearch,
@@ -183,7 +191,8 @@ func NewRuntime(config Config) (runtime *Runtime, err error) {
 		},
 		enableSessionTitles: true,
 	}
-	runtime.Tools.SetDelegateRuntime(runtime)
+	runtime.Tools.SetWorkflowPhaseCommandResolver(runtime.workflowPhaseCommands)
+	runtime.Sessions.SetWorkflowReviewPhaseResolver(runtime.workflowReviewPhase)
 	runtime.Runner.SetModelCatalog(runtime.ModelCatalog)
 	runtime.Runner.SetOutputBudgetConfig(config.OutputBudgets, config.ModelOverrides)
 	runtime.Runner.SetSessionConfig(config.Sessions)

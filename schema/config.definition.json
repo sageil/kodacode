@@ -321,6 +321,10 @@
         },
         "review_model": {
           "$ref": "#/$defs/modelRoute"
+        },
+        "planner_approval": {
+          "type": "boolean",
+          "description": "Enable the legacy Save/Apply/Revise/Stop prompt after primary planner turns. Disabled by default."
         }
       }
     },

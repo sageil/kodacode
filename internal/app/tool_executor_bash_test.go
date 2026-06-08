@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -946,6 +947,66 @@ func TestToolExecutorExecuteExecCommandRunsSafeLocalCommandInAutoModeWithoutAppr
 	}
 	if result.Output != "local-only" {
 		t.Fatalf("output = %q", result.Output)
+	}
+}
+
+func TestToolExecutorExecuteExecCommandFailsPipelineWhenHeadSucceeds(t *testing.T) {
+	useLocalExecRunner(t)
+
+	bashPath, err := exec.LookPath("bash")
+	if err != nil {
+		t.Skip("bash not available")
+	}
+
+	store := events.NewMemoryStore()
+	sessions, err := NewSessionService(store)
+	if err != nil {
+		t.Fatalf("NewSessionService() error = %v", err)
+	}
+	executor, err := NewToolExecutorWithConfig(sessions, ExecutionConfig{
+		PermissionMode: PermissionModeAuto,
+		Network:        ExecutionNetworkDisabled,
+		ShellProgram:   bashPath,
+	}, tool.NewBashTool())
+	if err != nil {
+		t.Fatalf("NewToolExecutorWithConfig() error = %v", err)
+	}
+
+	if _, err := sessions.CreateSession(context.Background(), CreateSessionInput{
+		SessionID:      "session-1",
+		WorkspaceRoot:  t.TempDir(),
+		PermissionMode: PermissionModeFullAccess,
+	}); err != nil {
+		t.Fatalf("CreateSession() error = %v", err)
+	}
+
+	result, err := executor.Execute(context.Background(), ExecuteToolInput{
+		SessionID:  "session-1",
+		TurnID:     "turn-1",
+		ToolCallID: "call-1",
+		ToolName:   tool.BashToolName,
+		Arguments:  json.RawMessage(`{"cmd":"false | head -1"}`),
+	})
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if result.Status != ToolExecutionStatusExecuted || result.Error == "" || result.Output != "" {
+		t.Fatalf("result = %#v, want failed execution", result)
+	}
+
+	state, err := sessions.Snapshot(context.Background(), "session-1")
+	if err != nil {
+		t.Fatalf("Snapshot() error = %v", err)
+	}
+	call := state.Turns["turn-1"].ToolCalls["call-1"]
+	if call == nil || call.Execution == nil || call.Execution.ExitCode == nil {
+		t.Fatalf("call execution = %#v", call)
+	}
+	if *call.Execution.ExitCode != 1 {
+		t.Fatalf("exit code = %d, want 1", *call.Execution.ExitCode)
+	}
+	if call.Succeeded {
+		t.Fatalf("call succeeded = true, want false")
 	}
 }
 

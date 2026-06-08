@@ -243,36 +243,11 @@ func effectiveFooterTurnID(m Model, state events.SessionState) string {
 }
 
 func effectiveStatusMetricsScope(m Model, state events.SessionState) (events.SessionState, string, bool) {
-	if childState, handoff, ok := m.activeDelegatedSessionState(state); ok {
-		if turnID := strings.TrimSpace(handoff.ChildTurnID); turnID != "" {
-			return childState, turnID, true
-		}
-		return childState, effectiveFooterTurnID(m, childState), true
-	}
-	if childState, handoff, ok := m.selectedDelegatedSessionState(state); ok {
-		if turnID := strings.TrimSpace(handoff.ChildTurnID); turnID != "" {
-			return childState, turnID, true
-		}
-		return childState, effectiveFooterTurnID(m, childState), true
-	}
 	return state, effectiveFooterTurnID(m, state), false
 }
 
 func inspectorDetailTurn(state events.SessionState, m Model) *events.TurnState {
 	return currentTurn(state, effectiveDetailTurnID(m, state))
-}
-
-func orderedHandoffIDs(turn *events.TurnState) []string {
-	if turn == nil {
-		return nil
-	}
-	handoffIDs := make([]string, 0, len(turn.HandoffOrder))
-	for _, handoffID := range turn.HandoffOrder {
-		if turn.Handoffs[handoffID] != nil {
-			handoffIDs = append(handoffIDs, handoffID)
-		}
-	}
-	return handoffIDs
 }
 
 func orderedToolCallIDs(turn *events.TurnState) []string {
@@ -341,9 +316,6 @@ func showToolCallInToolsList(turn *events.TurnState, callID string, call *events
 	if shouldHideSupersededRetriedLogicalToolCall(turn, callID, call) {
 		return false
 	}
-	if shouldHideSupersededDelegateAttempt(turn, callID, call) {
-		return false
-	}
 	switch strings.TrimSpace(call.ToolName) {
 	case "read":
 		return false
@@ -373,17 +345,7 @@ func selectedSessionToolCall(state events.SessionState, m Model) (string, sessio
 	if ref.TurnID == "" || ref.CallID == "" {
 		return "", sessionToolCallRef{}, nil, nil, false
 	}
-	if sessionID != "" && sessionID != strings.TrimSpace(state.SessionID) {
-		childState, ok := m.delegatedSnapshot(sessionID)
-		if !ok {
-			return "", sessionToolCallRef{}, nil, nil, false
-		}
-		turn, call := sessionToolCall(childState, ref)
-		if turn == nil || call == nil {
-			return "", sessionToolCallRef{}, nil, nil, false
-		}
-		return sessionID, ref, turn, call, true
-	}
+	_ = sessionID
 	turn, call := sessionToolCall(state, ref)
 	if turn == nil || call == nil {
 		return "", sessionToolCallRef{}, nil, nil, false
@@ -398,34 +360,6 @@ func sessionToolTurnOrdinal(state events.SessionState, turnID string) int {
 		}
 	}
 	return 0
-}
-
-func effectiveHandoffID(turn *events.TurnState, selectedHandoffID string) string {
-	if turn == nil {
-		return ""
-	}
-	if selectedHandoffID != "" && turn.Handoffs[selectedHandoffID] != nil {
-		return selectedHandoffID
-	}
-	if handoff := featuredHandoff(turn); handoff != nil {
-		return handoff.HandoffID
-	}
-	return ""
-}
-
-func explicitSelectedHandoff(turn *events.TurnState, selectedHandoffID string) *events.AgentHandoffState {
-	if turn == nil || selectedHandoffID == "" {
-		return nil
-	}
-	return turn.Handoffs[selectedHandoffID]
-}
-
-func selectedHandoff(turn *events.TurnState, selectedHandoffID string) *events.AgentHandoffState {
-	handoffID := effectiveHandoffID(turn, selectedHandoffID)
-	if handoffID == "" {
-		return nil
-	}
-	return turn.Handoffs[handoffID]
 }
 
 func toolStatusColor(th *theme.Theme, status string) color.Color {

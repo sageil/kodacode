@@ -60,9 +60,6 @@ func appendTurnTranscriptSourceSignature(hasher hash.Hash64, turn *events.TurnSt
 		}
 		appendToolCallTranscriptSignature(hasher, call)
 	}
-	for _, handoffID := range orderedHandoffIDs(turn) {
-		appendHandoffTranscriptSignature(hasher, turn.Handoffs[handoffID])
-	}
 }
 
 func appendTurnPruningSignature(hasher hash.Hash64, pruning *events.PruningState) {
@@ -184,29 +181,6 @@ func appendToolCallTranscriptSignature(hasher hash.Hash64, call *events.ToolCall
 		writeTranscriptSignatureInt(hasher, resource.EndLine)
 		writeTranscriptSignatureInt(hasher, resource.TotalLines)
 	}
-}
-
-func appendHandoffTranscriptSignature(hasher hash.Hash64, handoff *events.AgentHandoffState) {
-	if hasher == nil || handoff == nil {
-		return
-	}
-	writeTranscriptSignatureString(hasher, handoff.HandoffID)
-	writeTranscriptSignatureString(hasher, handoff.ChildAgentID)
-	writeTranscriptSignatureString(hasher, string(handoff.Status))
-	writeTranscriptSignatureString(hasher, handoff.Task)
-	writeTranscriptSignatureBool(hasher, handoff.PreviewActive)
-	writeTranscriptSignatureString(hasher, handoff.PreviewToolName)
-	writeTranscriptSignatureString(hasher, handoff.PreviewAction)
-	writeTranscriptSignatureString(hasher, handoff.PreviewAssistantText)
-	writeTranscriptSignatureString(hasher, handoff.AssistantText)
-	writeTranscriptSignatureString(hasher, handoff.Error)
-	writeTranscriptSignatureString(hasher, handoff.PermissionToolName)
-	writeTranscriptSignatureString(hasher, handoff.PermissionPath)
-	writeTranscriptSignatureString(hasher, handoff.PermissionDir)
-	writeTranscriptSignatureString(hasher, handoff.QuestionToolName)
-	writeTranscriptSignatureString(hasher, handoff.QuestionText)
-	writeTranscriptSignatureBool(hasher, handoff.Reused)
-	writeTranscriptSignatureString(hasher, handoff.ReusedContent)
 }
 
 func writeTranscriptSignatureString(hasher hash.Hash64, value string) {

@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -90,12 +89,6 @@ func TestSQLiteStoreSavesBranchSummaryAndDeletesWithSession(t *testing.T) {
 	}
 	if !ok || got.Summary != artifact.Summary || got.SourceSequence != artifact.SourceSequence || got.Model != artifact.Model {
 		t.Fatalf("branch summary = %#v, ok=%v", got, ok)
-	}
-	if err := store.DeleteSession(ctx, "session-branch"); err != nil {
-		t.Fatalf("DeleteSession() error = %v", err)
-	}
-	if _, ok, err := store.LoadBranchSummary(ctx, "session-branch"); err != nil || ok {
-		t.Fatalf("LoadBranchSummary() after delete ok=%v err=%v", ok, err)
 	}
 }
 
@@ -230,77 +223,6 @@ CREATE TABLE sessions (
 	}
 	if !ok || sessionID != "session-1" {
 		t.Fatalf("LatestWorkspaceSessionID() = %q, %t; want session-1, true", sessionID, ok)
-	}
-}
-
-func TestSQLiteStoreDeleteSessionRemovesArtifacts(t *testing.T) {
-	store, err := NewSQLiteStore(filepath.Join(t.TempDir(), "kodacode.db"))
-	if err != nil {
-		t.Fatalf("NewSQLiteStore() error = %v", err)
-	}
-	t.Cleanup(func() {
-		_ = store.Close()
-	})
-	ctx := context.Background()
-
-	if _, err := store.Append(ctx, Draft{
-		SessionID: "session-1",
-		TurnID:    "_session",
-		Type:      TypeSessionConfigured,
-		Payload:   SessionConfiguredPayload{WorkspaceRoot: "/repo"},
-	}); err != nil {
-		t.Fatalf("Append() error = %v", err)
-	}
-
-	blobRef, err := store.SaveToolResultBlob(
-		ctx,
-		"session-1/turn-1/call-1-output.txt",
-		"session-1",
-		"turn-1",
-		"call-1",
-		"output",
-		strings.Repeat("x", 8192),
-	)
-	if err != nil {
-		t.Fatalf("SaveToolResultBlob() error = %v", err)
-	}
-	if blobRef == nil {
-		t.Fatal("SaveToolResultBlob() ref = nil")
-	}
-
-	const logRef = "session-1/turn-1/exec-1.log"
-	if err := store.CreateBackgroundLog(ctx, logRef, "session-1", "turn-1", "exec-1"); err != nil {
-		t.Fatalf("CreateBackgroundLog() error = %v", err)
-	}
-	if err := store.AppendBackgroundLogChunk(ctx, logRef, []byte("server ready\n")); err != nil {
-		t.Fatalf("AppendBackgroundLogChunk() error = %v", err)
-	}
-
-	if err := store.DeleteSession(ctx, "session-1"); err != nil {
-		t.Fatalf("DeleteSession() error = %v", err)
-	}
-
-	replayed, err := store.Replay(ctx, Query{SessionID: "session-1", AfterSequence: -1})
-	if err != nil {
-		t.Fatalf("Replay() error = %v", err)
-	}
-	if len(replayed) != 0 {
-		t.Fatalf("Replay() len = %d, want 0", len(replayed))
-	}
-
-	if _, err := store.LoadToolResultBlob(ctx, blobRef.Ref); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("LoadToolResultBlob() error = %v, want os.ErrNotExist", err)
-	}
-	if _, _, err := store.ReadBackgroundLogFrom(ctx, logRef, 0, 1024); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("ReadBackgroundLogFrom() error = %v, want os.ErrNotExist", err)
-	}
-
-	sessionID, ok, err := store.LatestWorkspaceSessionID(ctx, "/repo")
-	if err != nil {
-		t.Fatalf("LatestWorkspaceSessionID() error = %v", err)
-	}
-	if ok || sessionID != "" {
-		t.Fatalf("LatestWorkspaceSessionID() = %q, %t; want empty, false", sessionID, ok)
 	}
 }
 

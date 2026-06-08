@@ -69,7 +69,7 @@ func renderShortcutList(m Model, state events.SessionState, turn *events.TurnSta
 		renderShortcutRow(m, "Inspector", "3", innerWidth, false),
 		renderShortcutRow(m, "Composer", "4", innerWidth, false),
 		renderShortcutRow(m, "Agent", "Tab", innerWidth, false),
-		renderShortcutRow(m, "Sessions", "^O", innerWidth, false),
+		renderShortcutRow(m, "Timeline", "/timeline", innerWidth, false),
 		renderShortcutRow(m, "Model", "^M", innerWidth, false),
 		renderShortcutRow(m, "Theme", "^T", innerWidth, false),
 		renderShortcutRow(m, "Connect", "^P", innerWidth, false),

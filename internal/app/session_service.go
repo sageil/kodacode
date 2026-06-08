@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"errors"
 	"sync"
 
@@ -37,7 +38,12 @@ type SessionService struct {
 	budgetTotalsCost float64
 	budgetTotalsMiss int
 	budgetTotalsWarm bool
+
+	workflowReviewMu            sync.RWMutex
+	workflowReviewPhaseResolver workflowReviewPhaseResolver
 }
+
+type workflowReviewPhaseResolver func(ctx context.Context, state events.SessionState, workflowID, phaseID string) (bool, error)
 
 func NewSessionService(store events.ReplayStore) (*SessionService, error) {
 	return NewSessionServiceWithBlobs(store, nil)
@@ -59,6 +65,15 @@ func (s *SessionService) SetLogger(logger *observability.Logger) {
 		return
 	}
 	s.logger = logger
+}
+
+func (s *SessionService) SetWorkflowReviewPhaseResolver(resolver workflowReviewPhaseResolver) {
+	if s == nil {
+		return
+	}
+	s.workflowReviewMu.Lock()
+	defer s.workflowReviewMu.Unlock()
+	s.workflowReviewPhaseResolver = resolver
 }
 
 func (s *SessionService) SetPermissionPolicy(policy permissionpolicy.Config) error {

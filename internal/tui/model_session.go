@@ -3,57 +3,9 @@ package tui
 import (
 	"strings"
 
-	tea "charm.land/bubbletea/v2"
 	"github.com/sageil/kodacode/internal/app"
 	"github.com/sageil/kodacode/internal/events"
 )
-
-func (m Model) startChildSessionView() (tea.Model, tea.Cmd) {
-	if m.busy {
-		return m, nil
-	}
-
-	turn := currentTurn(m.projector.Snapshot(), m.turnID)
-	handoff := selectedHandoff(turn, m.selection.handoffID)
-	if handoff == nil || handoff.ChildSessionID == "" || handoff.ChildTurnID == "" {
-		return m, nil
-	}
-
-	m.sessionNavigation.viewStack = append(m.sessionNavigation.viewStack, m.currentView())
-	m.busy = true
-	m.holdOpen = true
-	childView := sessionView{
-		SessionID:        handoff.ChildSessionID,
-		TurnID:           handoff.ChildTurnID,
-		UserText:         handoff.Task,
-		AgentID:          handoff.ChildAgentID,
-		ThinkingEnabled:  m.thinkingEnabled,
-		ReasoningVariant: m.reasoningVariant,
-		WorkspaceRoot:    m.workspace,
-		ParentSessionID:  m.sessionID,
-		ParentHandoffID:  handoff.HandoffID,
-		DetailTurnID:     handoff.ChildTurnID,
-		Focus:            focusTranscript,
-		InspectorOpen:    m.chrome.inspectorOpen,
-		WideSidebarOpen:  m.chrome.wideSidebarOpen,
-	}
-	return m, openSessionCmd(m.ctx, m.controller, childView, false, m.nextWatch)
-}
-
-func (m Model) returnToParentSessionView() (tea.Model, tea.Cmd) {
-	if m.busy || len(m.sessionNavigation.viewStack) == 0 {
-		return m, nil
-	}
-
-	parentView := m.sessionNavigation.viewStack[len(m.sessionNavigation.viewStack)-1]
-	m.sessionNavigation.viewStack = append([]sessionView(nil), m.sessionNavigation.viewStack[:len(m.sessionNavigation.viewStack)-1]...)
-	m.busy = true
-	return m, openSessionCmd(m.ctx, m.controller, parentView, false, m.nextWatch)
-}
-
-func (m Model) isDelegatedChildView() bool {
-	return m.sessionNavigation.parentSessionID != "" && m.sessionNavigation.parentHandoffID != ""
-}
 
 func (m Model) shouldAutoQuit() bool {
 	return !m.holdOpen
@@ -65,12 +17,11 @@ func (m Model) currentView() sessionView {
 		TurnID:                m.turnID,
 		UserText:              m.userText,
 		AgentID:               m.agentID,
+		WorkflowID:            m.workflowID,
 		SkillIDs:              append([]string(nil), m.skillIDs...),
 		ThinkingEnabled:       m.thinkingEnabled,
 		ReasoningVariant:      m.reasoningVariant,
 		WorkspaceRoot:         m.workspace,
-		ParentSessionID:       m.sessionNavigation.parentSessionID,
-		ParentHandoffID:       m.sessionNavigation.parentHandoffID,
 		DetailTurnID:          m.selection.detailTurnID,
 		SelectedCallSessionID: m.selection.callSessionID,
 		SelectedCallTurnID:    m.selection.callTurnID,
@@ -79,7 +30,6 @@ func (m Model) currentView() sessionView {
 		ExpandedCallTurnID:    m.selection.expandedCallTurnID,
 		ExpandedCallID:        m.selection.expandedCallID,
 		SelectedTaskID:        m.selection.taskID,
-		SelectedHandoffID:     m.selection.handoffID,
 		Focus:                 m.chrome.focus,
 		InspectorOpen:         m.chrome.inspectorOpen,
 		WideSidebarOpen:       m.chrome.wideSidebarOpen,
@@ -92,12 +42,11 @@ func (m *Model) applyView(view sessionView, state events.SessionState, stateOwne
 	m.turnID = view.TurnID
 	m.userText = resolvedUserText(state, view)
 	m.agentID = resolvedAgentID(state, view.TurnID, view.AgentID)
+	m.workflowID = resolvedWorkflowID(state, view.TurnID, view.WorkflowID)
 	m.skillIDs = resolvedSkillIDs(state, view.TurnID, view.SkillIDs)
 	m.thinkingEnabled = resolvedThinkingEnabled(state, view.TurnID, view.ThinkingEnabled)
 	m.reasoningVariant = resolvedReasoningVariant(state, view.TurnID, view.ReasoningVariant)
 	m.workspace = nextWorkspace
-	m.sessionNavigation.parentSessionID = view.ParentSessionID
-	m.sessionNavigation.parentHandoffID = view.ParentHandoffID
 	if strings.TrimSpace(view.DetailTurnID) != "" {
 		m.selection.detailTurnID = view.DetailTurnID
 	} else {
@@ -110,13 +59,11 @@ func (m *Model) applyView(view sessionView, state events.SessionState, stateOwne
 	m.selection.expandedCallTurnID = view.ExpandedCallTurnID
 	m.selection.expandedCallID = view.ExpandedCallID
 	m.selection.taskID = view.SelectedTaskID
-	m.selection.handoffID = view.SelectedHandoffID
 	m.chrome.focus = view.Focus
 	m.chrome.inspectorOpen = view.InspectorOpen
 	m.chrome.wideSidebarOpen = view.WideSidebarOpen
 	m.syncInspectorTabAvailability()
 	m.interaction.resolveReq = ""
-	m.interaction.resolveHandoff = ""
 	m.interaction.cursor = 0
 	m.resetDialogRefreshState()
 	m.transcriptRefresh.plan = transcriptRefreshPlan{}
@@ -144,9 +91,6 @@ func (m *Model) applyView(view sessionView, state events.SessionState, stateOwne
 	m.toolHydration.loadingResults = make(map[scopedToolCallKey]bool)
 	m.toolHydration.loadedMutations = make(map[scopedToolCallKey]loadedToolMutationDetail)
 	m.toolHydration.loadingMutations = make(map[scopedToolCallKey]bool)
-	m.delegatedSnapshots.snapshots = make(map[string]events.SessionState)
-	m.delegatedSnapshots.loading = make(map[string]bool)
-	m.delegatedSnapshots.pending = make(map[string]bool)
 	m.footerStatus.workspace = app.WorkspaceStatus{}
 	m.footerStatus.workspaceLoading = false
 	m.footerStatus.budget = app.BudgetStatus{}
@@ -203,6 +147,27 @@ func resolvedAgentID(state events.SessionState, turnID, fallback string) string 
 		return agentID
 	}
 	return "builder"
+}
+
+func resolvedWorkflowID(state events.SessionState, turnID, fallback string) string {
+	if workflow := state.Workflow; workflow != nil && workflow.Status == events.WorkflowStatusCompleted {
+		return strings.TrimSpace(fallback)
+	}
+	if turn := currentTurn(state, turnID); turn != nil && turn.Config != nil {
+		if workflowID := strings.TrimSpace(turn.Config.WorkflowID); workflowID != "" {
+			return workflowID
+		}
+	}
+	for idx := len(state.TurnOrder) - 1; idx >= 0; idx-- {
+		turn := state.Turns[state.TurnOrder[idx]]
+		if turn == nil || turn.Config == nil {
+			continue
+		}
+		if workflowID := strings.TrimSpace(turn.Config.WorkflowID); workflowID != "" {
+			return workflowID
+		}
+	}
+	return strings.TrimSpace(fallback)
 }
 
 func resolvedSkillIDs(state events.SessionState, turnID string, fallback []string) []string {

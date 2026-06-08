@@ -36,7 +36,7 @@ func TestRuntimeRunSessionTurnUsesPlannerToolSurface(t *testing.T) {
 	for _, tool := range client.requests[0].Tools {
 		got = append(got, tool.Name)
 	}
-	want := []string{"definition", "diagnostics", "git_diff", "git_show", "git_status", "locate", "question", "read", "refs", "search", "symbols", "trace"}
+	want := []string{"definition", "diagnostics", "git_show", "git_status", "locate", "question", "read", "refs", "search", "symbols", "trace"}
 	if len(got) != len(want) {
 		t.Fatalf("planner tool count = %#v, want %#v", got, want)
 	}
@@ -411,8 +411,8 @@ func TestRuntimeRunSessionTurnRemovesTaskWorkflowForReviewPlanHarnessParent(t *t
 	if containsString(gotTools, "task_workflow") {
 		t.Fatalf("review-plan harness parent tools = %#v, want task_workflow excluded", gotTools)
 	}
-	if !containsString(gotTools, "delegate") {
-		t.Fatalf("review-plan harness parent tools = %#v, want delegate preserved", gotTools)
+	if containsString(gotTools, "delegate") {
+		t.Fatalf("review-plan harness parent tools = %#v, want delegate removed", gotTools)
 	}
 }
 

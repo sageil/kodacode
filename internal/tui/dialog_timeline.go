@@ -676,6 +676,14 @@ func timelineBranchPreview(summary app.SessionSummary, childCount int, parentTur
 	return strings.Join(parts, " | ")
 }
 
+func shortSessionRef(id string) string {
+	id = strings.TrimSpace(id)
+	if len(id) <= 8 {
+		return id
+	}
+	return id[:8]
+}
+
 func flattenTimelinePreview(text string) string {
 	return strings.Join(strings.Fields(strings.TrimSpace(text)), " ")
 }

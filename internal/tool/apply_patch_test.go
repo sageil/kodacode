@@ -23,14 +23,19 @@ func TestApplyPatchToolDefinitionIsCustomFreeform(t *testing.T) {
 	}
 	for _, want := range []string{
 		"raw structured patch text",
-		"Do not wrap the patch in JSON",
-		`Patch lines MUST NOT include read output line number prefixes like "40:"`,
-		`after patch prefixes like "-40:" or "+40:"`,
-		"required patch grammar",
+		"not JSON or Markdown",
+		`"*** Begin Patch"`,
+		"Add/Update/Delete file sections",
+		"Add File content lines start with +",
+		"Update File hunk lines start with space, +, or -",
+		`line-number prefixes like "40:"`,
 	} {
 		if !strings.Contains(definition.Description, want) {
 			t.Fatalf("description missing %q: %q", want, definition.Description)
 		}
+	}
+	if len(definition.ArgumentExamples) < 4 {
+		t.Fatalf("ArgumentExamples = %#v, want examples for add/update/delete/move", definition.ArgumentExamples)
 	}
 }
 
@@ -48,6 +53,14 @@ func TestDefaultRuntimeToolsExcludesEdit(t *testing.T) {
 	for _, tl := range DefaultRuntimeTools() {
 		if tl.Definition().Name == "edit" {
 			t.Fatalf("DefaultRuntimeTools includes removed edit tool")
+		}
+	}
+}
+
+func TestDefaultRuntimeToolsExcludesDelegate(t *testing.T) {
+	for _, tl := range DefaultRuntimeTools() {
+		if tl.Definition().Name == "delegate" {
+			t.Fatalf("DefaultRuntimeTools includes removed delegate tool")
 		}
 	}
 }
@@ -197,7 +210,7 @@ func TestApplyPatchToolValidationFailureLeavesEveryFileUnchanged(t *testing.T) {
 	if err == nil {
 		t.Fatalf("Execute() error = nil, want failure")
 	}
-	if !strings.Contains(err.Error(), "re-read the relevant section") || !strings.Contains(err.Error(), "current file context") {
+	if !strings.Contains(err.Error(), "b.txt: hunk did not match") || !strings.Contains(err.Error(), "Re-read this file section and retry") {
 		t.Fatalf("Execute() error = %q, want re-read guidance", err.Error())
 	}
 	assertFileContent(t, root, "a.txt", "old\n")
@@ -222,8 +235,8 @@ func TestApplyPatchToolNoMatchExplainsReadLinePrefixesInHunk(t *testing.T) {
 	}
 	got := err.Error()
 	for _, want := range []string{
-		"hunk did not match in README.md",
-		`read output line number prefixes like "52:"`,
+		"README.md: hunk did not match",
+		`line numbers copied from read output like "52:"`,
 		"Remove line numbers copied from read output",
 	} {
 		if !strings.Contains(got, want) {

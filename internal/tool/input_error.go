@@ -328,6 +328,9 @@ func quotedToolName(toolName string) string {
 var malformedJSONBareValuePattern = regexp.MustCompile(`"([^"]+)"\s*:\s*([^"\[{0-9-][^,}\]]*)`)
 
 func toolArgumentErrorMessage(toolName string, malformed bool, cause error) string {
+	if strings.TrimSpace(toolName) == ApplyPatchToolName {
+		return applyPatchArgumentErrorMessage(cause)
+	}
 	detail := strings.TrimSpace(errorDetailText(cause))
 	if detail == "" {
 		detail = "unknown error"
@@ -336,7 +339,7 @@ func toolArgumentErrorMessage(toolName string, malformed bool, cause error) stri
 		detail = strings.TrimSpace(detail)
 	}
 	message := fmt.Sprintf("%s failed. %s.", quotedToolName(toolName), strings.TrimSuffix(detail, "."))
-	if contract := toolArgumentContractText(toolName); contract != "" {
+	if contract := toolArgumentContractText(toolName, cause); contract != "" {
 		message += " " + contract
 	}
 	return message
@@ -444,7 +447,7 @@ func malformedArgumentDetail(args json.RawMessage) string {
 	return fmt.Sprintf("%q has an unquoted string value; wrap it in double quotes", field)
 }
 
-func toolArgumentContractText(toolName string) string {
+func toolArgumentContractText(toolName string, cause error) string {
 	switch strings.TrimSpace(toolName) {
 	case ReadToolName:
 		return `Use either path for one file or paths for one or more files; do not send both.`
@@ -454,14 +457,75 @@ func toolArgumentContractText(toolName string) string {
 		return `Use action "list" or "review"; review requires task_id, review_status, and review_summary.`
 	case TaskWorkflowToolName:
 		return `Use action "list", "create", "update", "block", or "complete"; include the fields required by that action.`
-	case ApplyPatchToolName:
-		return `Use the apply_patch format with "*** Update File:" plus hunk lines starting with a space, "+", or "-". Do not include read output line number prefixes like "40:" after patch prefixes. Do not include raw unified diff metadata such as "---", "+++", or "\ No newline at end of file".`
 	default:
 		examples := toolArgumentExamples(toolName)
 		if len(examples) == 0 {
 			return ""
 		}
 		return "Example: " + examples[0] + "."
+	}
+}
+
+func applyPatchArgumentErrorMessage(cause error) string {
+	reason := applyPatchArgumentReason(cause)
+	if reason == "" {
+		reason = strings.TrimSpace(errorDetailText(cause))
+	}
+	if reason == "" {
+		reason = "invalid patch"
+	}
+	message := "apply_patch: patch input: " + strings.TrimSuffix(reason, ".") + "."
+	if hint := applyPatchArgumentHint(cause); hint != "" {
+		message += " " + hint
+	}
+	return message
+}
+
+func applyPatchArgumentReason(cause error) string {
+	switch {
+	case errors.Is(cause, ErrApplyPatchMissingEnd):
+		return "missing *** End Patch"
+	case errors.Is(cause, ErrApplyPatchMissingBegin):
+		return "missing *** Begin Patch"
+	case errors.Is(cause, ErrApplyPatchEmpty):
+		return "empty patch"
+	case errors.Is(cause, ErrApplyPatchNoOperations):
+		return "no file operation"
+	case errors.Is(cause, ErrApplyPatchEmptyAdd):
+		return "Add File has no added lines"
+	case errors.Is(cause, ErrApplyPatchEmptyUpdate):
+		return "Update File has no hunk or move"
+	case errors.Is(cause, ErrApplyPatchReadLinePrefixes):
+		return "read output line numbers in patch lines"
+	case errors.Is(cause, ErrApplyPatchUnknownHeader):
+		return "unknown file operation"
+	case errors.Is(cause, ErrApplyPatchMalformedLine):
+		return strings.TrimSpace(errorDetailText(cause))
+	default:
+		return strings.TrimSpace(errorDetailText(cause))
+	}
+}
+
+func applyPatchArgumentHint(cause error) string {
+	switch {
+	case errors.Is(cause, ErrApplyPatchMissingEnd):
+		return `End the patch with "*** End Patch".`
+	case errors.Is(cause, ErrApplyPatchMissingBegin):
+		return `Start the patch with "*** Begin Patch".`
+	case errors.Is(cause, ErrApplyPatchEmpty), errors.Is(cause, ErrApplyPatchNoOperations):
+		return "Send one complete patch with one file operation."
+	case errors.Is(cause, ErrApplyPatchEmptyAdd):
+		return `Prefix each added line with "+".`
+	case errors.Is(cause, ErrApplyPatchEmptyUpdate):
+		return `Add hunk lines or "*** Move to: ...".`
+	case errors.Is(cause, ErrApplyPatchReadLinePrefixes):
+		return "Remove line numbers copied from read output."
+	case errors.Is(cause, ErrApplyPatchUnknownHeader):
+		return `Use "*** Add File:", "*** Update File:", or "*** Delete File:".`
+	case errors.Is(cause, ErrApplyPatchMalformedLine):
+		return "Fix the patch syntax and retry."
+	default:
+		return ""
 	}
 }
 

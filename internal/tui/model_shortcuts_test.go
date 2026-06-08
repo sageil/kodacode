@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/sageil/kodacode/internal/app"
 	"github.com/sageil/kodacode/internal/events"
 	"github.com/sageil/kodacode/internal/tui/theme"
 )
@@ -279,48 +278,6 @@ func TestEscapeCancelsRunningTurnBeforeNormalMode(t *testing.T) {
 	_ = cmd()
 	if len(controller.cancelTurnCalls) != 1 {
 		t.Fatalf("cancel calls = %d, want 1", len(controller.cancelTurnCalls))
-	}
-}
-
-func TestCtrlSOpensSessionsDialog(t *testing.T) {
-	defaultTheme := theme.StaticDefault()
-	ctx, cancel := context.WithCancel(context.TODO())
-	defer cancel()
-
-	controller := &fakeController{
-		sessions: []app.SessionSummary{{
-			ID:    "session-2",
-			Title: "Previous session",
-		}},
-	}
-	model := NewModel(controller, ModelConfig{
-		Context:       ctx,
-		Theme:         &defaultTheme,
-		SessionID:     "session-1",
-		TurnID:        "turn-1",
-		WorkspaceRoot: "/repo",
-	})
-
-	updated, cmd := model.Update(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
-	if cmd == nil {
-		t.Fatal("open sessions cmd = nil")
-	}
-	opened, ok := cmd().(dialogOpenedMsg)
-	if !ok {
-		t.Fatalf("cmd() = %#v", cmd())
-	}
-	if opened.err != nil {
-		t.Fatalf("dialogOpenedMsg.err = %v", opened.err)
-	}
-	dialog, ok := opened.dialog.(*sessionsDialog)
-	if !ok {
-		t.Fatalf("dialog = %#v", opened.dialog)
-	}
-	if dialog.ID() != dialogIDSessions {
-		t.Fatalf("dialog id = %q, want %q", dialog.ID(), dialogIDSessions)
-	}
-	if updated.(Model).dialog != nil {
-		t.Fatal("dialog state should not be set until dialogOpenedMsg is handled")
 	}
 }
 

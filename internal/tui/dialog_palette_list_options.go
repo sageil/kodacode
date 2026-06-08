@@ -14,6 +14,8 @@ func (d *commandPaletteDialog) listOptions() []commandPaletteListOption {
 		return d.modelOptions(query)
 	case commandPaletteAgent:
 		return d.agentOptions(query)
+	case commandPaletteWorkflow:
+		return d.workflowOptions(query)
 	default:
 		if query == "" {
 			return d.actionOptionsEmpty()
@@ -163,6 +165,85 @@ func (d *commandPaletteDialog) agentOptionsFiltered(query string) []commandPalet
 	return result
 }
 
+func (d *commandPaletteDialog) workflowOptions(query string) []commandPaletteListOption {
+	if query == "" {
+		return d.workflowOptionsEmpty()
+	}
+	return d.workflowOptionsFiltered(query)
+}
+
+func (d *commandPaletteDialog) workflowOptionsEmpty() []commandPaletteListOption {
+	options := make([]commandPaletteListOption, 0, len(d.workflowItems))
+	seen := map[string]struct{}{}
+	current := strings.TrimSpace(d.currentWorkflow)
+	for _, item := range d.workflowItems {
+		if strings.TrimSpace(item.ID) != current {
+			continue
+		}
+		options = append(options, d.decorateMutableListOption(workflowListOption(item, true)))
+		seen[strings.TrimSpace(item.ID)] = struct{}{}
+		break
+	}
+	for _, item := range d.workflowItems {
+		key := strings.TrimSpace(item.ID)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		options = append(options, d.decorateMutableListOption(workflowListOption(item, false)))
+	}
+	return options
+}
+
+func (d *commandPaletteDialog) workflowOptionsFiltered(query string) []commandPaletteListOption {
+	type scored struct {
+		opt   commandPaletteListOption
+		score int
+	}
+	matches := make([]scored, 0, len(d.workflowItems))
+	for _, item := range d.workflowItems {
+		label := workflowListLabel(item)
+		if ok, score := fuzzyScore(query, label+" "+item.Description+" workflow"); ok {
+			matches = append(matches, scored{
+				opt:   d.decorateMutableListOption(workflowListOption(item, strings.TrimSpace(item.ID) == strings.TrimSpace(d.currentWorkflow))),
+				score: score,
+			})
+		}
+	}
+	sort.Slice(matches, func(i, j int) bool { return matches[i].score > matches[j].score })
+	result := make([]commandPaletteListOption, 0, len(matches))
+	seen := map[string]struct{}{}
+	for _, match := range matches {
+		key := strings.TrimSpace(match.opt.Workflow.ID)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		result = append(result, match.opt)
+	}
+	return result
+}
+
+func workflowListOption(item workflowItem, current bool) commandPaletteListOption {
+	desc := strings.TrimSpace(item.Description)
+	if current {
+		desc = pickFirstNonBlank(desc, "current workflow")
+	} else if item.None {
+		desc = pickFirstNonBlank(desc, "clear workflow")
+	}
+	return commandPaletteListOption{
+		Label:       workflowListLabel(item),
+		Description: desc,
+		Workflow:    item,
+	}
+}
+
+func workflowListLabel(item workflowItem) string {
+	if item.None {
+		return "none"
+	}
+	return strings.TrimSpace(item.ID)
+}
+
 func (d *commandPaletteDialog) currentModelListOption() (commandPaletteListOption, bool) {
 	current := strings.TrimSpace(d.currentModel)
 	if current == "" {
@@ -262,11 +343,11 @@ func (d *commandPaletteDialog) listOptionSelectionLocked(option commandPaletteLi
 		return false
 	}
 	switch d.kind {
-	case commandPaletteAgent, commandPaletteModel, commandPaletteUtilityModel, commandPaletteReviewerModel:
+	case commandPaletteAgent, commandPaletteWorkflow, commandPaletteModel, commandPaletteUtilityModel, commandPaletteReviewerModel:
 		return true
 	case commandPaletteActions:
 		switch option.Action.ID {
-		case "select-model", "select-agent", "manage-sessions", "timeline", "new-session", "select-utility-model", "unset-utility-model", "select-reviewer-model", "unset-reviewer-model":
+		case "select-model", "select-agent", "select-workflow", "timeline", "new-session", "select-utility-model", "unset-utility-model", "select-reviewer-model", "unset-reviewer-model":
 			return true
 		}
 	}

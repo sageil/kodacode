@@ -53,18 +53,20 @@ func (m Model) handleSessionOpenedMsg(msg sessionOpenedMsg) (Model, tea.Cmd) {
 		if startAgentID == "" {
 			startAgentID = m.agentID
 		}
+		startWorkflowID := strings.TrimSpace(msg.startTurnWorkflowID)
+		if startWorkflowID == "" {
+			startWorkflowID = m.workflowID
+		}
 		m.busy = true
 		m.armLiveTurn()
 		return m, tea.Batch(
 			waitForEventCmd(m.stream, m.watchID),
 			loadBudgetStatusCmd(m.ctx, m.controller, m.sessionID),
 			loadSessionUsageSummaryCmd(m.ctx, m.controller, m.sessionID),
-			startTurnCmd(m.ctx, m.controller, m.sessionID, m.turnID, m.userText, append([]app.AttachmentInput(nil), msg.attachments...), startAgentID, m.thinkingEnabled, m.reasoningVariant, m.skillIDs),
+			startTurnCmd(m.ctx, m.controller, m.sessionID, m.turnID, m.userText, append([]app.AttachmentInput(nil), msg.attachments...), startAgentID, startWorkflowID, m.thinkingEnabled, m.reasoningVariant, m.skillIDs),
 			m.ensureWorkspaceStatusLoadedCmd(),
 			m.ensureAnimTicking(),
 			m.ensureSelectedToolResultLoadedCmd(),
-			m.ensureRelevantDelegatedSessionSnapshotsLoadedCmd(m.projector.Snapshot()),
-			m.ensureSelectedDelegatedSessionSnapshotLoadedCmd(),
 		)
 	}
 	if msg.startReview {
@@ -87,8 +89,6 @@ func (m Model) handleSessionOpenedMsg(msg sessionOpenedMsg) (Model, tea.Cmd) {
 			m.ensureWorkspaceStatusLoadedCmd(),
 			m.ensureAnimTicking(),
 			m.ensureSelectedToolResultLoadedCmd(),
-			m.ensureRelevantDelegatedSessionSnapshotsLoadedCmd(m.projector.Snapshot()),
-			m.ensureSelectedDelegatedSessionSnapshotLoadedCmd(),
 		)
 	}
 	if strings.TrimSpace(msg.localShellCommand) != "" {
@@ -102,8 +102,6 @@ func (m Model) handleSessionOpenedMsg(msg sessionOpenedMsg) (Model, tea.Cmd) {
 			m.ensureWorkspaceStatusLoadedCmd(),
 			m.ensureAnimTicking(),
 			m.ensureSelectedToolResultLoadedCmd(),
-			m.ensureRelevantDelegatedSessionSnapshotsLoadedCmd(m.projector.Snapshot()),
-			m.ensureSelectedDelegatedSessionSnapshotLoadedCmd(),
 		)
 	}
 	m.busy = false
@@ -121,8 +119,6 @@ func (m Model) handleSessionOpenedMsg(msg sessionOpenedMsg) (Model, tea.Cmd) {
 		m.ensureWorkspaceStatusLoadedCmd(),
 		m.syncComposerFocus(),
 		m.ensureSelectedToolResultLoadedCmd(),
-		m.ensureRelevantDelegatedSessionSnapshotsLoadedCmd(m.projector.Snapshot()),
-		m.ensureSelectedDelegatedSessionSnapshotLoadedCmd(),
 	)
 }
 
@@ -153,11 +149,10 @@ func (m Model) handleSessionWatchOpenedMsg(msg sessionWatchOpenedMsg) (Model, te
 			waitForEventCmd(m.stream, m.watchID),
 			loadBudgetStatusCmd(m.ctx, m.controller, m.sessionID),
 			loadSessionUsageSummaryCmd(m.ctx, m.controller, m.sessionID),
-			startTurnCmd(m.ctx, m.controller, m.sessionID, m.turnID, m.userText, nil, m.agentID, m.thinkingEnabled, m.reasoningVariant, m.skillIDs),
+			startTurnCmd(m.ctx, m.controller, m.sessionID, m.turnID, m.userText, nil, m.agentID, m.workflowID, m.thinkingEnabled, m.reasoningVariant, m.skillIDs),
 			m.ensureWorkspaceStatusLoadedCmd(),
 			m.ensureAnimTicking(),
 			m.ensureSelectedToolResultLoadedCmd(),
-			m.ensureSelectedDelegatedSessionSnapshotLoadedCmd(),
 		)
 	}
 	m.busy = false
@@ -169,6 +164,5 @@ func (m Model) handleSessionWatchOpenedMsg(msg sessionWatchOpenedMsg) (Model, te
 		loadSessionUsageSummaryCmd(m.ctx, m.controller, m.sessionID),
 		m.ensureWorkspaceStatusLoadedCmd(),
 		m.ensureSelectedToolResultLoadedCmd(),
-		m.ensureSelectedDelegatedSessionSnapshotLoadedCmd(),
 	)
 }

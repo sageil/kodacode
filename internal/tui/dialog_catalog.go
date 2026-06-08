@@ -13,18 +13,15 @@ type themeItem struct {
 	DisplayName string
 }
 
-type sessionItem struct {
-	ID                    string
-	Title                 string
-	Status                string
-	UpdatedAt             int64
-	BranchParentSessionID string
-	BranchParentTurnID    string
-}
-
 type agentItem struct {
 	ID          string
 	Description string
+}
+
+type workflowItem struct {
+	ID          string
+	Description string
+	None        bool
 }
 
 type skillItem struct {
@@ -100,23 +97,6 @@ func buildThemeItems(names []string) []themeItem {
 	return items
 }
 
-func buildSessionItems(summaries []app.SessionSummary) []sessionItem {
-	items := make([]sessionItem, 0, len(summaries))
-	for _, summary := range summaries {
-		items = append(items, sessionItem{
-			ID:        summary.ID,
-			Title:     strings.TrimSpace(summary.Title),
-			Status:    string(summary.Status),
-			UpdatedAt: summary.UpdatedAt.Unix(),
-		})
-		if branch := summary.Branch; branch != nil {
-			items[len(items)-1].BranchParentSessionID = strings.TrimSpace(branch.ParentSessionID)
-			items[len(items)-1].BranchParentTurnID = strings.TrimSpace(branch.ParentTurnID)
-		}
-	}
-	return items
-}
-
 func buildAgentItems(agents []app.AvailableAgent) []agentItem {
 	items := make([]agentItem, 0, len(agents))
 	for _, agent := range agents {
@@ -130,6 +110,27 @@ func buildAgentItems(agents []app.AvailableAgent) []agentItem {
 		})
 	}
 	sort.Slice(items, func(i, j int) bool { return items[i].ID < items[j].ID })
+	return items
+}
+
+func buildWorkflowItems(workflows []app.AvailableWorkflow) []workflowItem {
+	items := make([]workflowItem, 0, len(workflows)+1)
+	items = append(items, workflowItem{
+		ID:          "",
+		Description: "Run without a workflow",
+		None:        true,
+	})
+	for _, workflow := range workflows {
+		id := strings.TrimSpace(workflow.ID)
+		if id == "" {
+			continue
+		}
+		items = append(items, workflowItem{
+			ID:          id,
+			Description: strings.TrimSpace(workflow.Description),
+		})
+	}
+	sort.Slice(items[1:], func(i, j int) bool { return items[i+1].ID < items[j+1].ID })
 	return items
 }
 

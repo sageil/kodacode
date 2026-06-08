@@ -69,9 +69,6 @@ func transcriptBatchTurnIDsForPartialRefresh(m Model, stateBefore, stateAfter ev
 	if hasDraftTranscriptSection(m, stateBefore) != hasDraftTranscriptSection(m, stateAfter) {
 		return nil
 	}
-	if pendingDelegatedInteractionHandoffID(stateBefore, m.turnID) != pendingDelegatedInteractionHandoffID(stateAfter, m.turnID) {
-		return nil
-	}
 	turnIDs := make([]string, 0, len(batch))
 	for _, event := range batch {
 		if !shouldSyncTranscriptForEvent(event) {
@@ -147,22 +144,7 @@ func sameOrderedTurnIDs(left, right []string) bool {
 }
 
 func hasDraftTranscriptSection(m Model, state events.SessionState) bool {
-	if m.busy {
-		return false
-	}
-	if strings.TrimSpace(m.userText) == "" {
-		return false
-	}
-	turn := currentTurn(state, m.turnID)
-	return turn == nil || strings.TrimSpace(turn.UserText) == ""
-}
-
-func pendingDelegatedInteractionHandoffID(state events.SessionState, turnID string) string {
-	handoff := pendingDelegatedInteractionFromState(state, turnID)
-	if handoff == nil {
-		return ""
-	}
-	return strings.TrimSpace(handoff.HandoffID)
+	return shouldRenderDraftTranscriptSection(m, state)
 }
 
 func (m Model) shouldDeferLiveTranscriptRefresh() bool {
@@ -207,10 +189,7 @@ func shouldThrottleTranscriptRefreshForEvent(event events.Event) bool {
 		events.TypeExecutionBackgroundStarted,
 		events.TypeExecutionBackgroundReady,
 		events.TypeExecutionBackgroundExited,
-		events.TypeExecutionBackgroundLost,
-		events.TypeAgentHandoff,
-		events.TypeAgentResult,
-		events.TypeAgentResultReused:
+		events.TypeExecutionBackgroundLost:
 		return true
 	default:
 		return false

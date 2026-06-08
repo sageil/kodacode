@@ -65,6 +65,21 @@ func TestSplitWideViewCacheKeyDependsOnPaneAndFooterInputs(t *testing.T) {
 		t.Fatalf("splitWideViewCacheKey() did not vary with composer value")
 	}
 
+	composerTrailingSpaceChanged := model
+	composerTrailingSpaceChanged.composer.SetValue(model.composer.Value() + " ")
+	if got := splitWideViewCacheKey(composerTrailingSpaceChanged, state, layout); got == base {
+		t.Fatalf("splitWideViewCacheKey() did not vary with trailing composer space")
+	}
+
+	composerCursorChanged := model
+	composerCursorChanged.composer.SetValue("cursor")
+	composerCursorChanged.setComposerCursorOffset(len([]rune(composerCursorChanged.composer.Value())))
+	composerCursorBase := splitWideViewCacheKey(composerCursorChanged, state, layout)
+	composerCursorChanged.setComposerCursorOffset(1)
+	if got := splitWideViewCacheKey(composerCursorChanged, state, layout); got == composerCursorBase {
+		t.Fatalf("splitWideViewCacheKey() did not vary with composer cursor position")
+	}
+
 	footerChanged := model
 	footerChanged.footerNotice.err = "problem"
 	if got := splitWideViewCacheKey(footerChanged, state, layout); got == base {

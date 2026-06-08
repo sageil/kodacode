@@ -66,7 +66,7 @@ func (s *projectMemoryStore) SaveMemory(input tool.MemorySaveRequest) (tool.Memo
 	case content == "":
 		return tool.MemoryRecord{}, fmt.Errorf("memory content is required")
 	case utf8.RuneCountInString(content) > tool.MemoryContentMaxChars:
-		return tool.MemoryRecord{}, fmt.Errorf("memory content exceeds %d characters; keep only durable facts and summarize before saving", tool.MemoryContentMaxChars)
+		return tool.MemoryRecord{}, fmt.Errorf("memory content exceeds %d characters; keep only saved facts and summarize before saving", tool.MemoryContentMaxChars)
 	}
 	if err := os.MkdirAll(s.dir, 0o755); err != nil {
 		return tool.MemoryRecord{}, fmt.Errorf("create memories dir: %w", err)

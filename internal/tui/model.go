@@ -32,7 +32,9 @@ type ModelConfig struct {
 	WorkspaceRoot      string
 	UserText           string
 	AgentID            string
+	WorkflowID         string
 	SkillIDs           []string
+	PermissionMode     app.PermissionMode
 	InitialState       *events.SessionState
 	InitialStateOwned  bool
 }
@@ -55,7 +57,9 @@ type Model struct {
 	turnID                string
 	userText              string
 	agentID               string
+	workflowID            string
 	skillIDs              []string
+	permissionMode        string
 	thinkingEnabled       bool
 	reasoningVariant      string
 	workspace             string
@@ -68,36 +72,34 @@ type Model struct {
 	nextWatch int
 	cancel    context.CancelFunc
 
-	width              int
-	height             int
-	busy               bool
-	animation          animationState
-	interaction        interactionState
-	sessionNavigation  sessionNavigationState
-	holdOpen           bool
-	startTurn          bool
-	liveTurn           liveTurnState
-	selection          selectionState
-	chrome             chromeState
-	composer           textarea.Model
-	composerState      composerState
-	renderCache        renderCacheState
-	sessionsBody       Messages
-	messages           Messages
-	mouseRegions       inputMouseRegions
-	inputTrace         *inputTraceLogger
-	dialogRefresh      dialogRefreshState
-	transcriptRefresh  transcriptRefreshState
-	transcriptView     transcriptViewState
-	toolHydration      toolHydrationState
-	delegatedSnapshots delegatedSnapshotState
-	footerStatus       footerStatusState
-	inspector          inspectorState
-	dialog             dialogModel
-	dialogStack        []dialogModel
-	footerNotice       footerNoticeState
-	shuttingDown       bool
-	err                error
+	width             int
+	height            int
+	busy              bool
+	animation         animationState
+	interaction       interactionState
+	holdOpen          bool
+	startTurn         bool
+	liveTurn          liveTurnState
+	selection         selectionState
+	chrome            chromeState
+	composer          textarea.Model
+	composerState     composerState
+	renderCache       renderCacheState
+	sessionsBody      Messages
+	messages          Messages
+	mouseRegions      inputMouseRegions
+	inputTrace        *inputTraceLogger
+	dialogRefresh     dialogRefreshState
+	transcriptRefresh transcriptRefreshState
+	transcriptView    transcriptViewState
+	toolHydration     toolHydrationState
+	footerStatus      footerStatusState
+	inspector         inspectorState
+	dialog            dialogModel
+	dialogStack       []dialogModel
+	footerNotice      footerNoticeState
+	shuttingDown      bool
+	err               error
 }
 
 type dialogRefreshState struct {
@@ -185,12 +187,6 @@ type toolHydrationState struct {
 	loadingMutations map[scopedToolCallKey]bool
 }
 
-type delegatedSnapshotState struct {
-	snapshots map[string]events.SessionState
-	loading   map[string]bool
-	pending   map[string]bool
-}
-
 type footerStatusState struct {
 	workspace        app.WorkspaceStatus
 	workspaceLoading bool
@@ -213,16 +209,9 @@ type footerNoticeState struct {
 	nextID   int
 }
 
-type sessionNavigationState struct {
-	parentSessionID string
-	parentHandoffID string
-	viewStack       []sessionView
-}
-
 type interactionState struct {
-	resolveReq     string
-	resolveHandoff string
-	cursor         int
+	resolveReq string
+	cursor     int
 }
 
 type animationState struct {
@@ -246,7 +235,6 @@ type selectionState struct {
 	expandedCallTurnID    string
 	expandedCallID        string
 	taskID                string
-	handoffID             string
 }
 
 type liveTurnState struct {
@@ -260,12 +248,11 @@ type sessionView struct {
 	TurnID                string
 	UserText              string
 	AgentID               string
+	WorkflowID            string
 	SkillIDs              []string
 	ThinkingEnabled       bool
 	ReasoningVariant      string
 	WorkspaceRoot         string
-	ParentSessionID       string
-	ParentHandoffID       string
 	DetailTurnID          string
 	SelectedCallSessionID string
 	SelectedCallTurnID    string
@@ -274,7 +261,6 @@ type sessionView struct {
 	ExpandedCallTurnID    string
 	ExpandedCallID        string
 	SelectedTaskID        string
-	SelectedHandoffID     string
 	Focus                 focusRegion
 	InspectorOpen         bool
 	WideSidebarOpen       bool
@@ -294,7 +280,9 @@ func NewModel(backend Backend, cfg ModelConfig) Model {
 	workspace := cfg.WorkspaceRoot
 	userText := cfg.UserText
 	agentID := strings.TrimSpace(cfg.AgentID)
+	workflowID := strings.TrimSpace(cfg.WorkflowID)
 	skillIDs := append([]string(nil), cfg.SkillIDs...)
+	permissionMode := strings.TrimSpace(string(cfg.PermissionMode))
 	bootstrapped := false
 	if cfg.InitialState != nil {
 		if cfg.InitialStateOwned {
@@ -305,8 +293,12 @@ func NewModel(backend Backend, cfg ModelConfig) Model {
 		workspace = resolvedWorkspaceRoot(*cfg.InitialState, cfg.WorkspaceRoot)
 		userText = resolvedUserText(*cfg.InitialState, sessionView{TurnID: cfg.TurnID, UserText: cfg.UserText})
 		agentID = resolvedAgentID(*cfg.InitialState, cfg.TurnID, agentID)
+		workflowID = resolvedWorkflowID(*cfg.InitialState, cfg.TurnID, workflowID)
 		if len(skillIDs) == 0 {
 			skillIDs = resolvedSkillIDs(*cfg.InitialState, cfg.TurnID, skillIDs)
+		}
+		if stateMode := strings.TrimSpace(cfg.InitialState.PermissionMode); stateMode != "" {
+			permissionMode = stateMode
 		}
 		bootstrapped = true
 	}
@@ -335,7 +327,9 @@ func NewModel(backend Backend, cfg ModelConfig) Model {
 		turnID:                cfg.TurnID,
 		userText:              userText,
 		agentID:               pickFirstNonBlank(agentID, "builder"),
+		workflowID:            workflowID,
 		skillIDs:              skillIDs,
+		permissionMode:        permissionMode,
 		thinkingEnabled:       thinkingEnabled,
 		reasoningVariant:      reasoningVariant,
 		workspace:             workspace,
@@ -384,11 +378,6 @@ func NewModel(backend Backend, cfg ModelConfig) Model {
 			loadedMutations:  make(map[scopedToolCallKey]loadedToolMutationDetail),
 			loadingMutations: make(map[scopedToolCallKey]bool),
 		},
-		delegatedSnapshots: delegatedSnapshotState{
-			snapshots: make(map[string]events.SessionState),
-			loading:   make(map[string]bool),
-			pending:   make(map[string]bool),
-		},
 	}
 	if cfg.InitialState != nil {
 		model.primeTranscriptTurnSourceKeys(*cfg.InitialState)
@@ -432,10 +421,6 @@ func (m Model) Init() tea.Cmd {
 	}
 	if m.bootstrapped {
 		cmds = append(cmds, watchSessionCmd(m.ctx, m.controller, m.sessionID, m.projector.Snapshot().LastSequence, m.startTurn, m.nextWatch))
-		cmds = append(cmds,
-			m.ensureRelevantDelegatedSessionSnapshotsLoadedCmd(m.projector.Snapshot()),
-			m.ensureSelectedDelegatedSessionSnapshotLoadedCmd(),
-		)
 		return tea.Batch(cmds...)
 	}
 	cmds = append(cmds, openSessionCmd(m.ctx, m.controller, m.currentView(), m.startTurn, m.nextWatch))

@@ -48,11 +48,6 @@ func testDialogFrame(dialog dialogModel) (int, int) {
 			return d.frameWidth, d.frameHeight
 		}
 		return 240, 80
-	case *sessionsDialog:
-		if d.frameWidth > 0 && d.frameHeight > 0 {
-			return d.frameWidth, d.frameHeight
-		}
-		return 160, 60
 	case *connectDialog:
 		if d.frameWidth > 0 && d.frameHeight > 0 {
 			return d.frameWidth, d.frameHeight
@@ -98,11 +93,6 @@ func testDialogFrame(dialog dialogModel) (int, int) {
 			return d.frameWidth, d.frameHeight
 		}
 		return 120, 40
-	case *handoffDetailDialog:
-		if d.frameWidth > 0 && d.frameHeight > 0 {
-			return d.frameWidth, d.frameHeight
-		}
-		return 240, 80
 	case *taskDetailDialog:
 		if d.frameWidth > 0 && d.frameHeight > 0 {
 			return d.frameWidth, d.frameHeight

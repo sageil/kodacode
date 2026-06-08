@@ -33,7 +33,7 @@ func renderComposerBar(m Model, state events.SessionState, width int) string {
 		return contentBlock
 	}
 
-	subtitle := "enter submits • shift+enter newline • @ include path • ctrl+e editor"
+	subtitle := "enter submits • shift+enter newline • ctrl+w workflow • @ include path • ctrl+e editor"
 	border := lineTone(m)
 	focused := m.chrome.focus == focusComposer
 	if m.hasPendingInteraction() {
@@ -172,19 +172,12 @@ func composerActivityStripStateFor(m Model, state events.SessionState) (composer
 
 func composerBlockedMessage(m Model) string {
 	if m.pendingInteractionSubmissionInFlight() {
-		if handoff := activeDelegatedHandoff(m.projector.CurrentState(), m); handoff != nil {
-			agentID := strings.TrimSpace(handoff.ChildAgentID)
-			if agentID == "" {
-				agentID = "delegate"
-			}
-			return "waiting for " + agentID + " to finish"
-		}
 		return "waiting for the runtime to continue"
 	}
 	if m.pendingQuestion() != nil {
 		return "answer the question above to continue"
 	}
-	if m.pendingExecution() != nil || m.pendingPermission() != nil || m.pendingDelegatedPermission() != nil {
+	if m.pendingExecution() != nil || m.pendingPermission() != nil {
 		return "resolve the request above to continue"
 	}
 	return "resolve the request in the inspector to continue"

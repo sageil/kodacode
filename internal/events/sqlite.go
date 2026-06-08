@@ -267,49 +267,6 @@ ORDER BY updated_at DESC`)
 	return sessions, nil
 }
 
-func (s *SQLiteStore) DeleteSession(ctx context.Context, sessionID string) error {
-	if strings.TrimSpace(sessionID) == "" {
-		return nil
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.writeMu.Lock()
-	defer s.writeMu.Unlock()
-
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		_ = tx.Rollback()
-	}()
-
-	if _, err := tx.ExecContext(ctx, `DELETE FROM session_events WHERE session_id = ?`, sessionID); err != nil {
-		return err
-	}
-	if _, err := tx.ExecContext(ctx, `DELETE FROM tool_result_blobs WHERE session_id = ?`, sessionID); err != nil {
-		return err
-	}
-	if _, err := tx.ExecContext(ctx, `DELETE FROM background_logs WHERE session_id = ?`, sessionID); err != nil {
-		return err
-	}
-	if _, err := tx.ExecContext(ctx, `DELETE FROM branch_summaries WHERE session_id = ?`, sessionID); err != nil {
-		return err
-	}
-	if _, err := tx.ExecContext(ctx, `DELETE FROM kodacode_session_index WHERE session_id = ?`, sessionID); err != nil {
-		return err
-	}
-	if err := tx.Commit(); err != nil {
-		return err
-	}
-
-	for w := range s.watchers[sessionID] {
-		w.close()
-	}
-	delete(s.watchers, sessionID)
-	return nil
-}
-
 func (s *SQLiteStore) replay(ctx context.Context, query Query) ([]Event, error) {
 	sqlText := `
 SELECT record

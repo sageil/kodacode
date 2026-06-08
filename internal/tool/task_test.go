@@ -9,16 +9,26 @@ import (
 )
 
 type stubTaskManager struct {
-	listTasks   []TaskRecord
-	createTask  TaskCreateResult
-	updatedTask TaskRecord
+	listTasks           []TaskRecord
+	createTask          TaskCreateResult
+	updatedTask         TaskRecord
+	createTaskRequest   func(TaskCreateRequest)
+	updateTaskRequest   func(TaskProgressUpdateRequest)
+	blockTaskRequest    func(TaskBlockRequest)
+	completeTaskRequest func(TaskCompleteRequest)
 }
 
 func (s stubTaskManager) ListTasks() ([]TaskRecord, error) { return s.listTasks, nil }
-func (s stubTaskManager) CreateTask(TaskCreateRequest) (TaskCreateResult, error) {
+func (s stubTaskManager) CreateTask(request TaskCreateRequest) (TaskCreateResult, error) {
+	if s.createTaskRequest != nil {
+		s.createTaskRequest(request)
+	}
 	return s.createTask, nil
 }
-func (s stubTaskManager) UpdateTaskProgress(TaskProgressUpdateRequest) (TaskRecord, error) {
+func (s stubTaskManager) UpdateTaskProgress(request TaskProgressUpdateRequest) (TaskRecord, error) {
+	if s.updateTaskRequest != nil {
+		s.updateTaskRequest(request)
+	}
 	return s.updatedTask, nil
 }
 
@@ -43,10 +53,16 @@ func TestTaskWorkflowToolExecuteCreateIncludesReminder(t *testing.T) {
 		t.Fatalf("output = %q", result.Output)
 	}
 }
-func (s stubTaskManager) BlockTask(TaskBlockRequest) (TaskRecord, error) {
+func (s stubTaskManager) BlockTask(request TaskBlockRequest) (TaskRecord, error) {
+	if s.blockTaskRequest != nil {
+		s.blockTaskRequest(request)
+	}
 	return s.updatedTask, nil
 }
-func (s stubTaskManager) CompleteTask(TaskCompleteRequest) (TaskRecord, error) {
+func (s stubTaskManager) CompleteTask(request TaskCompleteRequest) (TaskRecord, error) {
+	if s.completeTaskRequest != nil {
+		s.completeTaskRequest(request)
+	}
 	return s.updatedTask, nil
 }
 func (s stubTaskManager) ReviewTask(TaskReviewRequest) (TaskRecord, error) {
@@ -105,15 +121,18 @@ func TestTaskWorkflowToolExecuteRequiresTaskManager(t *testing.T) {
 	}
 }
 
-func TestTaskWorkflowToolDefinitionMentionsParentTasksAndActivePath(t *testing.T) {
+func TestTaskWorkflowToolDefinitionUsesCompactActionContract(t *testing.T) {
 	definition := NewTaskWorkflowTool().Definition()
 	combined := strings.Join([]string{
 		definition.Description,
 		definition.ProviderDescription,
 		string(definition.InputSchema),
 	}, "\n")
-	if !containsAll(combined, "parent_task_id", "active task path", "summary", "child tasks", "completed parent") {
-		t.Fatalf("task_workflow definition missing parent/path guidance: %q", combined)
+	if !containsAll(combined, "list", "create with title", "update with task_id", "block with task_id", "complete with task_id", "parent_task_id", "active task path") {
+		t.Fatalf("task_workflow definition missing compact action contract: %q", combined)
+	}
+	if strings.Contains(combined, "canonicalized") || strings.Contains(combined, "noisy payloads") {
+		t.Fatalf("task_workflow definition should not explain backend canonicalization: %q", combined)
 	}
 }
 
@@ -127,6 +146,31 @@ func TestTaskWorkflowToolExecuteUpdateReturnsTaskRecord(t *testing.T) {
 		t.Fatalf("Execute() error = %v", err)
 	}
 	if !containsAll(result.Output, `"task_id":"task-1"`) {
+		t.Fatalf("output = %q", result.Output)
+	}
+}
+
+func TestTaskWorkflowToolExecuteDefaultsMissingTaskIDToActiveTask(t *testing.T) {
+	var completeRequest TaskCompleteRequest
+	result, err := NewTaskWorkflowTool().Execute(context.Background(), ExecutionContext{
+		TaskManager: stubTaskManager{
+			listTasks: []TaskRecord{
+				{TaskID: "task-1", Title: "Parent", Status: "in_progress"},
+				{TaskID: "task-2", ParentTaskID: "task-1", Title: "Child", Status: "in_progress"},
+			},
+			updatedTask: TaskRecord{TaskID: "task-2", Title: "Child", Status: "completed", Progress: "done"},
+			completeTaskRequest: func(request TaskCompleteRequest) {
+				completeRequest = request
+			},
+		},
+	}, json.RawMessage(`{"action":"complete","summary":"done"}`))
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if completeRequest.TaskID != "task-2" {
+		t.Fatalf("completeRequest.TaskID = %q, want active task", completeRequest.TaskID)
+	}
+	if !containsAll(result.Output, `"task_id":"task-2"`, `"status":"completed"`) {
 		t.Fatalf("output = %q", result.Output)
 	}
 }
@@ -205,13 +249,55 @@ func TestParseTaskWorkflowInputRejectsInvalidAction(t *testing.T) {
 	}
 }
 
-func TestParseTaskWorkflowInputRejectsCreateFieldsThatWouldBeIgnored(t *testing.T) {
-	_, err := parseTaskWorkflowInput(json.RawMessage(`{"action":"create","title":"Add caching","summary":"done"}`))
-	if !errors.Is(err, ErrTaskWorkflowFieldUnsupported) {
-		t.Fatalf("parseTaskWorkflowInput() error = %v, want ErrTaskWorkflowFieldUnsupported", err)
+func TestParseTaskWorkflowInputFoldsCreateSummaryIntoNotes(t *testing.T) {
+	input, err := parseTaskWorkflowInput(json.RawMessage(`{"action":"create","title":"Add caching","summary":"initial context","progress":"started"}`))
+	if err != nil {
+		t.Fatalf("parseTaskWorkflowInput() error = %v", err)
 	}
-	if !strings.Contains(err.Error(), "summary") {
-		t.Fatalf("parseTaskWorkflowInput() error = %q, want unsupported field name", err.Error())
+	if input.Notes != "started; initial context" {
+		t.Fatalf("input.Notes = %q", input.Notes)
+	}
+	if input.Summary != "" || input.Progress != "" {
+		t.Fatalf("normalized input = %#v", input)
+	}
+}
+
+func TestParseTaskWorkflowInputNormalizesNoisyCompletePayload(t *testing.T) {
+	input, err := parseTaskWorkflowInput(json.RawMessage(`{"action":"complete","task_id":"task-1","status":"completed","notes":"wrapped up","progress":"done"}`))
+	if err != nil {
+		t.Fatalf("parseTaskWorkflowInput() error = %v", err)
+	}
+	if input.Action != taskActionComplete || input.Summary != "done" {
+		t.Fatalf("normalized input = %#v", input)
+	}
+	if input.Status != "" || input.Notes != "" || input.Progress != "" {
+		t.Fatalf("normalized input = %#v", input)
+	}
+}
+
+func TestParseTaskWorkflowInputNormalizesNoisyBlockPayload(t *testing.T) {
+	input, err := parseTaskWorkflowInput(json.RawMessage(`{"action":"block","task_id":"task-1","status":"blocked","progress":"waiting on API schema"}`))
+	if err != nil {
+		t.Fatalf("parseTaskWorkflowInput() error = %v", err)
+	}
+	if input.Action != taskActionBlock || input.BlockReason != "waiting on API schema" {
+		t.Fatalf("normalized input = %#v", input)
+	}
+	if input.Status != "" || input.Progress != "" {
+		t.Fatalf("normalized input = %#v", input)
+	}
+}
+
+func TestParseTaskWorkflowInputTreatsUpdateSummaryAsProgress(t *testing.T) {
+	input, err := parseTaskWorkflowInput(json.RawMessage(`{"action":"update","task_id":"task-1","status":"in_progress","summary":"checked current state"}`))
+	if err != nil {
+		t.Fatalf("parseTaskWorkflowInput() error = %v", err)
+	}
+	if input.Action != taskActionUpdate || input.Status != "in_progress" || input.Progress != "checked current state" {
+		t.Fatalf("normalized input = %#v", input)
+	}
+	if input.Summary != "" {
+		t.Fatalf("normalized input = %#v", input)
 	}
 }
 

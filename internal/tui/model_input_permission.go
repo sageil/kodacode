@@ -8,7 +8,7 @@ import (
 )
 
 func (m Model) handleInlinePermissionInput(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool) {
-	if m.pendingExecution() == nil && m.pendingPermission() == nil && m.pendingDelegatedPermission() == nil {
+	if m.pendingExecution() == nil && m.pendingPermission() == nil {
 		return m, nil, false
 	}
 	if m.interactionResolutionInFlight() {
@@ -50,67 +50,11 @@ func (m Model) handleInlinePermissionInput(msg tea.KeyPressMsg) (tea.Model, tea.
 	}
 }
 
-func (m Model) handlePermissionInput(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	if m.interactionResolutionInFlight() || m.chrome.focus != focusInspector {
-		return m, nil
-	}
-	if m.pendingExecution() != nil || m.pendingPermission() != nil {
-		return m, nil
-	}
-	maxChoice := m.permissionChoiceCount() - 1
-
-	switch msg.String() {
-	case "up", "k":
-		if m.interaction.cursor > 0 {
-			m.interaction.cursor--
-		}
-		return m, nil
-	case "down", "j":
-		if m.interaction.cursor < maxChoice {
-			m.interaction.cursor++
-		}
-		return m, nil
-	case "1":
-		return m.startPermissionResolution(0)
-	case "2":
-		return m.startPermissionResolution(1)
-	case "3":
-		return m.startPermissionResolution(2)
-	case "4":
-		return m.startPermissionResolution(3)
-	case "5":
-		return m.startPermissionResolution(4)
-	case "enter":
-		return m.startPermissionResolution(m.interaction.cursor)
-	default:
-		return m, nil
-	}
-}
-
 func (m Model) startPermissionResolution(choice int) (tea.Model, tea.Cmd) {
 	if pending := m.pendingExecution(); pending != nil {
 		decision, execPolicy, networkPolicy := executionApprovalChoice(choice, pending)
-		if m.isDelegatedChildView() {
-			m.busy = true
-			m.interaction.resolveReq = ""
-			m.interaction.resolveHandoff = m.sessionNavigation.parentHandoffID
-			return m, resolveDelegatedPermissionCmd(
-				m.ctx,
-				m.controller,
-				m.sessionNavigation.parentSessionID,
-				m.sessionNavigation.parentHandoffID,
-				"",
-				"",
-				"",
-				false,
-				decision,
-				execPolicy,
-				networkPolicy,
-			)
-		}
 		m.busy = true
 		m.interaction.resolveReq = pending.RequestID
-		m.interaction.resolveHandoff = ""
 		m.userText = ""
 		turnID := m.turnID
 		if strings.TrimSpace(pending.TurnID) != "" {
@@ -135,27 +79,8 @@ func (m Model) startPermissionResolution(choice int) (tea.Model, tea.Cmd) {
 	}
 	if pending := m.pendingPermission(); pending != nil {
 		decision, scope, grantPath, recursive := permissionChoice(choice, pending.Kind, pending.Path)
-		if m.isDelegatedChildView() {
-			m.busy = true
-			m.interaction.resolveReq = ""
-			m.interaction.resolveHandoff = m.sessionNavigation.parentHandoffID
-			return m, resolveDelegatedPermissionCmd(
-				m.ctx,
-				m.controller,
-				m.sessionNavigation.parentSessionID,
-				m.sessionNavigation.parentHandoffID,
-				decision,
-				scope,
-				grantPath,
-				recursive,
-				"",
-				nil,
-				nil,
-			)
-		}
 		m.busy = true
 		m.interaction.resolveReq = pending.RequestID
-		m.interaction.resolveHandoff = ""
 		m.userText = ""
 		turnID := m.turnID
 		if strings.TrimSpace(pending.TurnID) != "" {
@@ -181,30 +106,7 @@ func (m Model) startPermissionResolution(choice int) (tea.Model, tea.Cmd) {
 	if pending := m.pendingQuestion(); pending != nil {
 		if choice := questionChoice(choice, pending); choice != "" {
 			m.busy = true
-			if m.isDelegatedChildView() {
-				m.interaction.resolveReq = ""
-				m.interaction.resolveHandoff = m.sessionNavigation.parentHandoffID
-				return m, answerDelegatedQuestionCmd(
-					m.ctx,
-					m.controller,
-					m.sessionNavigation.parentSessionID,
-					m.sessionNavigation.parentHandoffID,
-					choice,
-				)
-			}
-			if handoff := m.pendingDelegatedQuestion(); handoff != nil {
-				m.interaction.resolveReq = ""
-				m.interaction.resolveHandoff = handoff.HandoffID
-				return m, answerDelegatedQuestionCmd(
-					m.ctx,
-					m.controller,
-					m.sessionID,
-					handoff.HandoffID,
-					choice,
-				)
-			}
 			m.interaction.resolveReq = pending.QuestionID
-			m.interaction.resolveHandoff = ""
 			m.userText = ""
 			turnID := m.turnID
 			if strings.TrimSpace(pending.TurnID) != "" {
@@ -223,43 +125,7 @@ func (m Model) startPermissionResolution(choice int) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	}
-	handoff := m.pendingDelegatedPermission()
-	if handoff == nil {
-		return m, nil
-	}
-	m.busy = true
-	m.interaction.resolveReq = ""
-	m.interaction.resolveHandoff = handoff.HandoffID
-	if pending := delegatedExecutionApproval(handoff); pending != nil {
-		decision, execPolicy, networkPolicy := executionApprovalChoice(choice, pending)
-		return m, resolveDelegatedPermissionCmd(
-			m.ctx,
-			m.controller,
-			m.sessionID,
-			handoff.HandoffID,
-			"",
-			"",
-			"",
-			false,
-			decision,
-			execPolicy,
-			networkPolicy,
-		)
-	}
-	decision, scope, grantPath, recursive := permissionChoice(choice, handoff.PermissionKind, handoff.PermissionPath)
-	return m, resolveDelegatedPermissionCmd(
-		m.ctx,
-		m.controller,
-		m.sessionID,
-		handoff.HandoffID,
-		decision,
-		scope,
-		grantPath,
-		recursive,
-		"",
-		nil,
-		nil,
-	)
+	return m, nil
 }
 
 func permissionChoice(choice int, pendingKind events.PermissionRequestKind, pendingPath string) (events.PermissionDecision, events.PermissionScope, string, bool) {
@@ -297,10 +163,7 @@ func (m Model) permissionChoiceCount() int {
 }
 
 func effectiveExecutionApprovalChoiceState(m Model) *events.ExecutionApprovalState {
-	if pending := m.pendingExecution(); pending != nil {
-		return pending
-	}
-	return delegatedExecutionApproval(m.pendingDelegatedPermission())
+	return m.pendingExecution()
 }
 
 func executionApprovalChoice(choice int, pending *events.ExecutionApprovalState) (events.ExecutionApprovalDecision, *events.ExecutionPolicyAmendment, *events.ExecutionNetworkPolicyAmendment) {

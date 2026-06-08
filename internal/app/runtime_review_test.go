@@ -75,8 +75,11 @@ func TestRuntimeStartSessionReviewUsesReviewModelAndReviewPrompt(t *testing.T) {
 	if slices.Contains(toolNames, "web_fetch") {
 		t.Fatalf("tool surface = %#v, want web_fetch excluded", toolNames)
 	}
-	if !slices.Contains(toolNames, "git_diff") || !slices.Contains(toolNames, "git_status") {
-		t.Fatalf("tool surface = %#v, want git review tools preserved", toolNames)
+	if slices.Contains(toolNames, "git_diff") {
+		t.Fatalf("tool surface = %#v, want git_diff excluded by default", toolNames)
+	}
+	if !slices.Contains(toolNames, "git_status") {
+		t.Fatalf("tool surface = %#v, want git_status preserved", toolNames)
 	}
 	state, err := runtime.Sessions.Snapshot(context.Background(), sessionID)
 	if err != nil {

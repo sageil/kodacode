@@ -126,15 +126,7 @@ func copyEventIntoBranch(typ events.Type) bool {
 }
 
 func branchCopiedPayload(payload events.Payload, sourceSessionID, newSessionID string) events.Payload {
-	switch typed := payload.(type) {
-	case events.AgentHandoffPayload:
-		if strings.TrimSpace(typed.ParentSessionID) == sourceSessionID {
-			typed.ParentSessionID = newSessionID
-		}
-		return typed
-	default:
-		return payload
-	}
+	return payload
 }
 
 func branchSessionTitle(source events.SessionState) string {

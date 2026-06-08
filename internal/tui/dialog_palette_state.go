@@ -33,14 +33,14 @@ func (d *commandPaletteDialog) applyDialogStateRefresh(state app.DialogState, qu
 
 func (d *commandPaletteDialog) refilter() {
 	switch d.kind {
-	case commandPaletteActions, commandPaletteModel, commandPaletteAgent, commandPaletteUtilityModel, commandPaletteReviewerModel:
+	case commandPaletteActions, commandPaletteModel, commandPaletteAgent, commandPaletteWorkflow, commandPaletteUtilityModel, commandPaletteReviewerModel:
 		d.resetWindow(len(d.listOptions()))
 	}
 }
 
 func (d *commandPaletteDialog) activeInputs() []*textinput.Model {
 	switch d.kind {
-	case commandPaletteActions, commandPaletteModel, commandPaletteAgent, commandPaletteUtilityModel, commandPaletteReviewerModel:
+	case commandPaletteActions, commandPaletteModel, commandPaletteAgent, commandPaletteWorkflow, commandPaletteUtilityModel, commandPaletteReviewerModel:
 		return []*textinput.Model{&d.filter}
 	}
 	return nil
@@ -48,7 +48,7 @@ func (d *commandPaletteDialog) activeInputs() []*textinput.Model {
 
 func (d *commandPaletteDialog) activeButtons() []paletteButton {
 	switch d.kind {
-	case commandPaletteActions, commandPaletteModel, commandPaletteAgent, commandPaletteUtilityModel, commandPaletteReviewerModel:
+	case commandPaletteActions, commandPaletteModel, commandPaletteAgent, commandPaletteWorkflow, commandPaletteUtilityModel, commandPaletteReviewerModel:
 		return nil
 	}
 	return nil
@@ -87,12 +87,14 @@ func (d *commandPaletteDialog) resizeInputs() {
 
 func (d *commandPaletteDialog) configureInputs() {
 	switch d.kind {
-	case commandPaletteActions, commandPaletteModel, commandPaletteAgent, commandPaletteUtilityModel, commandPaletteReviewerModel:
+	case commandPaletteActions, commandPaletteModel, commandPaletteAgent, commandPaletteWorkflow, commandPaletteUtilityModel, commandPaletteReviewerModel:
 		switch d.kind {
 		case commandPaletteModel:
 			d.filter.Placeholder = "search models"
 		case commandPaletteAgent:
 			d.filter.Placeholder = "search agents"
+		case commandPaletteWorkflow:
+			d.filter.Placeholder = "search workflows"
 		case commandPaletteUtilityModel:
 			d.filter.Placeholder = "search utility models"
 		case commandPaletteReviewerModel:

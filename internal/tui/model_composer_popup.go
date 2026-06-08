@@ -590,6 +590,9 @@ func composerSlashItems(m Model, text string, commands []composerCommand) []comp
 	}
 	matches := make([]scoredItem, 0, len(commands))
 	for _, command := range commands {
+		if command.Hidden {
+			continue
+		}
 		for _, item := range composerSlashPopupItems(m, command) {
 			name := strings.TrimPrefix(command.Name, "/")
 			if query == "" {

@@ -1,0 +1,42 @@
+id: review
+description: Read-only review for current changes, possible bugs, and shipping risks.
+review_mode: manual
+
+phases:
+  - id: inspect
+    agent: reviewer
+    mode: read_only
+    prompt: Inspect git status, the relevant files, tests, and session context before reporting findings. Use full diffs only when exact before/after evidence is necessary.
+
+  - id: review
+    type: review
+    agent: reviewer
+    mode: read_only
+    prompt: Record concrete review findings or a saved pass, concern, or fail result.
+    review_passes:
+      - id: correctness
+        description: Correctness against the intended change.
+        instructions:
+          - Inspect affected files and nearby behavior; use full diffs only when targeted reads are insufficient.
+          - Check that it satisfies the intended change without wrong paths.
+          - Find incorrect, incomplete, or mismatched behavior.
+      - id: tests
+        description: Tests, edge cases, and missing checks.
+        instructions:
+          - Inspect relevant tests and verification evidence.
+          - Check coverage for important behavior and edge cases.
+          - Find missing tests, weak assertions, brittle coverage, or unverified behavior.
+      - id: architecture
+        description: APIs, data, config, permissions, and compatibility.
+        instructions:
+          - Inspect APIs, request/response shapes, persisted data, config, permissions, and nearby integrations.
+          - Check callers, stored data, config, and related modules.
+          - Find broken callers, incompatible data changes, config/permission risk, compatibility breaks, or maintainability issues.
+
+  - id: summarize
+    type: final
+    include:
+      - review_outcome
+      - findings
+      - evidence
+      - unresolved_risks

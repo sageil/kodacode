@@ -13,12 +13,6 @@ func sessionTokensArrowLabel(m Model, state events.SessionState) string {
 	if !ok {
 		return ""
 	}
-	scopePrefix := ""
-	if summary, ok := effectiveSessionUsageSummary(m, state); ok && summary.HasDelegatedSessions() {
-		scopePrefix = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(colorFor(m.theme, "subtext", "#9da8ca"))).
-			Render("Σ")
-	}
 	upArrow := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(colorFor(m.theme, "secondary", "#39bae6"))).
 		Render("↑")
@@ -27,7 +21,7 @@ func sessionTokensArrowLabel(m Model, state events.SessionState) string {
 		Render("↓")
 	sub := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(colorFor(m.theme, "subtext", "#9da8ca")))
-	result := scopePrefix + upArrow + sub.Render(formatCompactTokenCount(inputTokens))
+	result := upArrow + sub.Render(formatCompactTokenCount(inputTokens))
 	if outputTokens > 0 {
 		result += " " + downArrow + sub.Render(formatCompactTokenCount(outputTokens))
 	}

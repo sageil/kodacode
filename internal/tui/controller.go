@@ -18,7 +18,8 @@ type controller interface {
 	RestoreTurnWrites(ctx context.Context, sessionID, sourceTurnID string) (app.RestoreSessionTurnWritesResult, error)
 	CompactSessionHistory(ctx context.Context, sessionID, turnID string) (app.CompactSessionResult, error)
 	SetPermissionMode(ctx context.Context, sessionID string, mode app.PermissionMode) error
-	StartTurn(ctx context.Context, sessionID, turnID, userText string, attachments []app.AttachmentInput, agentID string, thinkingEnabled bool, thinkingMode string, skillIDs []string) error
+	ResumeWorkflow(ctx context.Context, sessionID, turnID string) error
+	StartTurn(ctx context.Context, sessionID, turnID, userText string, attachments []app.AttachmentInput, agentID, workflowID string, thinkingEnabled bool, thinkingMode string, skillIDs []string) error
 	StartReview(ctx context.Context, sessionID, turnID, instructions string, thinkingEnabled bool, thinkingMode string, skillIDs []string) error
 	CancelTurn(ctx context.Context, sessionID, turnID string) error
 	RunLocalShellCommand(ctx context.Context, sessionID, turnID, command string) error
@@ -27,25 +28,10 @@ type controller interface {
 		sessionID, turnID, requestID, userText, answer string,
 		skillIDs []string,
 	) (app.RunSessionResult, error)
-	AnswerDelegatedQuestion(
-		ctx context.Context,
-		sessionID, handoffID, answer string,
-	) (app.AnswerDelegatedSessionQuestionResult, error)
 	ResolvePermission(
 		ctx context.Context,
 		sessionID, turnID, requestID, userText string,
 		skillIDs []string,
-		decision events.PermissionDecision,
-		scope events.PermissionScope,
-		grantPath string,
-		recursive bool,
-		executionDecision events.ExecutionApprovalDecision,
-		executionExecPolicy *events.ExecutionPolicyAmendment,
-		executionNetworkPolicy *events.ExecutionNetworkPolicyAmendment,
-	) error
-	ResolveDelegatedPermission(
-		ctx context.Context,
-		sessionID, handoffID string,
 		decision events.PermissionDecision,
 		scope events.PermissionScope,
 		grantPath string,

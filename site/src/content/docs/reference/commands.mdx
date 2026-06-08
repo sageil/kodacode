@@ -6,7 +6,7 @@ description: Slash commands and direct composer actions available from the TUI
 KodaCode exposes a small runtime-owned command surface from the composer.
 Most entries are slash commands. The `!<command>` form is a direct composer
 action for local shell execution. These commands change session state, open
-management dialogs, inspect durable runtime data, or start an explicit user
+management dialogs, inspect stored runtime data, or start an explicit user
 execution turn. They are not prompt tricks; they call explicit product
 behavior.
 
@@ -15,13 +15,13 @@ behavior.
 | Command | Use it for | Notes |
 | --- | --- | --- |
 | `/palette` | Open the root command palette | Good starting point when you do not remember a shortcut |
-| `/sessions` | Manage workspace sessions | Resume, switch, inspect, delete, or purge existing sessions |
 | `/init` | Create workspace instruction files | Writes `AGENTS.md` only when missing, and may also create `CLAUDE.md` for Anthropic routes; see [Project Memory & Instructions](/features/project-memory/) |
 | `/compress` | Compress workspace instructions and project memory | Rewrites existing `AGENTS.md` and `.kodacode/memories/*.md` through the utility-model path |
 | `/compact` | Rebuild the saved history summary now | Uses the same history-compaction path as automatic runtime compaction |
 | `/new` | Start a new session | Leaves the current session intact |
 | `/history` | Search recent prompts | Opens the same searchable history surface as `Ctrl+R`; separate from inline `Up` / `Down` recall |
 | `/review [instructions]` | Run a one-off runtime review | Uses the `reviewer` agent path, defaults to current workspace changes, and leaves your selected agent unchanged |
+| `/workflow [id\|off\|resume]` | Select, clear, or resume a runtime workflow | Without an argument, opens the workflow picker; `off` clears the selection; `resume` continues a blocked workflow |
 | `!<command>` | Run a local shell command from the composer | User-initiated execution path; uses the same runtime execution, approval, and event model |
 | `/model` | Switch model | Changes the active model route |
 | `/utility-model` | Select utility model | Sets or unsets the cheaper utility route used for runtime text work |
@@ -40,16 +40,17 @@ behavior.
 ## Session and navigation
 
 - `/palette`: open the command palette
-- `/sessions`: manage workspace sessions, including delete and purge actions
 - `/init`: create workspace instruction files
 - `/compress`: compress `AGENTS.md` and project memory
-- `/compact`: rebuild older session history into the durable `History Summary` artifact now
+- `/compact`: rebuild older session history into the saved `History Summary` now
 - `/new`: start a new session
 - `/history`: search recent prompts through the searchable history popup
 - `/timeline`: branch a new session from a completed previous turn
 - `/review [instructions]`: run a focused runtime-owned review of the current workspace changes
+- `/workflow [id|off|resume]`: select a runtime workflow, clear it, or resume a blocked workflow
+- `Ctrl+W`: list available runtime workflows or select one for later turns
 
-Use this group when you want to move between sessions, inspect prior work, or prepare the current session before another turn.
+Use this group when you want to branch from prior work, inspect turns, or prepare the current session before another turn.
 
 `/timeline` is for trying another path without losing the original session. It
 lists the current session's turns, shows parent and nested child branch sessions
@@ -62,9 +63,18 @@ branch with the configured utility model, and `e` to label a branch session.
 Opening Timeline does not generate summaries. Running turns can be selected for
 inspection, but only completed turns can be branched.
 
-`/compact` only affects durable session history. It calls the same history-compaction path used by automatic compaction instead of creating a separate manual workflow.
+`/compact` only affects stored session history. It calls the same history-compaction path used by automatic compaction instead of creating a separate manual workflow.
 
-`/review` is the exception in this group: it is a repository-work command, but it lives beside session controls because it is an explicit TUI action rather than a prompt convention. It starts a one-off runtime-owned review, defaults to the current workspace changes, uses the configured review model when available, and leaves your selected default agent unchanged for later turns. Review behavior is guided by the active `reviewer` agent definition, so you can tune it with a global or project-local `reviewer.md` override while runtime keeps the review scope and structured output contract authoritative.
+`/review` is the exception in this group: it is a repository-work command, but it lives beside session controls because it is an explicit TUI action rather than a prompt convention. It starts a one-off runtime-owned review, defaults to the current workspace changes, uses the configured review model when available, and leaves your selected default agent unchanged for later turns. Review behavior is guided by the active `reviewer` agent definition, so you can tune it with a global or project-local `reviewer.md` override while runtime keeps the review scope and structured output format authoritative.
+
+`/workflow` and `Ctrl+W` both open the workflow dialog. Use them to choose
+`delivery`, `debug`, `review`, `explore`, or a project-defined workflow for
+later turns in the current session. `/workflow delivery` selects a workflow by
+ID, `/workflow off` clears the current selection, and `/workflow resume`
+continues a blocked workflow phase when one exists. Selected workflow state,
+active phase, blocked reason, and evidence are runtime-owned and visible in
+`/trace`; the status footer shows the active workflow and phase while a
+workflow is running.
 
 `!<command>` is not a slash command, but it shares the composer command path.
 It starts a normal local shell execution turn from the user instead of asking
@@ -108,7 +118,7 @@ If you are new, learn these first:
 
 1. `/connect`
 2. `/model`
-3. `/sessions`
+3. `/timeline`
 4. `/trace`
 5. `/cost`
 

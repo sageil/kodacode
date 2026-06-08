@@ -3,7 +3,7 @@ title: Introduction
 description: What KodaCode is and how the current product is organized
 ---
 
-KodaCode is a terminal coding agent with runtime-owned workflow, replayable session state, and workspace-scoped default authority. The important design choice is that orchestration, permissions, tool execution, and prompt assembly live in code and durable events instead of hidden prompt behavior.
+KodaCode is a terminal coding agent with runtime-owned workflow, replayable session state, and workspace-scoped default authority. The important design choice is that orchestration, permissions, tool execution, and prompt assembly live in code and stored events instead of hidden prompt behavior.
 
 ## Start here
 
@@ -41,8 +41,8 @@ It is less interested in hiding runtime decisions behind a polished illusion. If
 KodaCode ships four built-in agents:
 
 - `builder`: the default direct-execution coding agent
-- `engineer`: a structured execution agent with task tracking and delegation
-- `reviewer`: a read-focused agent for acceptance checks and review passes
+- `engineer`: a structured execution agent with workflow task tracking
+- `reviewer`: a read-only agent for checking current changes
 - `planner`: a read-only agent for repository analysis, design exploration, and implementation planning
 
 ## How a turn works
@@ -68,11 +68,11 @@ KodaCode ships four built-in agents:
 - Use `response_style: default` only if you want to opt out of the default terse reply style
 - Let the runtime compact long session history automatically to keep context usable
 - Search, read, patch, test, and inspect Git state with built-in tools
-- Add stdio MCP servers for external systems while keeping startup trust explicit
+- Add MCP servers for external systems while keeping startup trust explicit
 - Mention skills with `$name` when you want reusable workflow guidance for one turn
 - Resume workspace sessions from persisted SQLite-backed history
 - Inspect per-turn cost, token savings, and cache activity from inside the TUI
-- Extend the tool surface through MCP under the same permission model
+- Add MCP tools under the same permission model
 
 ## Where to go next
 

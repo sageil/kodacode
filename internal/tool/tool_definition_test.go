@@ -90,15 +90,17 @@ var auditedParallelSafeToolReasons = map[string]string{
 }
 
 var auditedProviderRichGuidanceReasons = map[string]string{
-	CodeActionToolName:   "LSP code actions need range and action-selection guidance",
-	DefinitionToolName:   "LSP definition lookup benefits from symbol-vs-character guidance",
-	DiagnosticsToolName:  "diagnostics should be batched on existing concrete files",
-	ReadToolName:         "read batching and range guidance materially reduces tool churn",
-	RefsToolName:         "semantic reference lookup has mode-specific refactor guidance",
-	RenameSymbolToolName: "semantic rename should be preferred over manual text replacement",
-	SymbolsToolName:      "workspace symbols are the semantic declaration lookup path",
-	TraceToolName:        "call hierarchy modes need concise selection guidance",
-	WriteToolName:        "whole-file replacement semantics need strong deletion guidance",
+	CodeActionToolName:           "LSP code actions need range and action-selection guidance",
+	DefinitionToolName:           "LSP definition lookup benefits from symbol-vs-character guidance",
+	DiagnosticsToolName:          "diagnostics should be batched on existing concrete files",
+	ReadToolName:                 "read batching and range guidance materially reduces tool churn",
+	RefsToolName:                 "semantic reference lookup has mode-specific refactor guidance",
+	RenameSymbolToolName:         "semantic rename should be preferred over manual text replacement",
+	SymbolsToolName:              "workspace symbols are the semantic declaration lookup path",
+	TraceToolName:                "call hierarchy modes need concise selection guidance",
+	WorkflowPhaseOutputToolName:  "workflow phase output must strongly prefer structured evidence over final prose",
+	WorkflowReviewResultToolName: "workflow review result must strongly prefer typed evidence over assistant JSON",
+	WriteToolName:                "whole-file replacement semantics need strong deletion guidance",
 }
 
 func TestCurrentToolDefinitionsParallelSafetyMatchesAudit(t *testing.T) {
@@ -206,10 +208,6 @@ func optionalSchemaProperties(toolName string) map[string]struct{} {
 	case QuestionToolName:
 		return map[string]struct{}{
 			"purpose": {},
-		}
-	case DelegateToolName:
-		return map[string]struct{}{
-			"source_handoff_ids": {},
 		}
 	case LocateToolName:
 		return map[string]struct{}{

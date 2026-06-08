@@ -63,36 +63,12 @@ type sessionContextDisplay struct {
 }
 
 func currentSessionContextDisplay(m Model, state events.SessionState) (sessionContextDisplay, bool) {
-	metricsState, turnID, delegated := effectiveStatusMetricsScope(m, state)
+	metricsState, turnID, _ := effectiveStatusMetricsScope(m, state)
 	turn := currentTurn(metricsState, turnID)
-	if delegated {
-		if turn == nil {
-			return sessionContextDisplay{}, false
-		}
-		if tokens, limit, percent, source, ok := currentTurnDisplayContextUsage(turn); ok {
-			return sessionContextDisplay{
-				tokens:  tokens,
-				limit:   limit,
-				percent: percent,
-				source:  source,
-			}, true
-		}
-		if active := activeDelegatedHandoff(state, m); active != nil && strings.TrimSpace(active.ChildSessionID) == strings.TrimSpace(metricsState.SessionID) {
-			if display, ok := lastRecordedContextDisplayBeforeActiveHandoff(m, state, active); ok {
-				display.last = true
-				return display, true
-			}
-		}
-		return sessionContextDisplay{}, false
-	}
 	var currentDisplay sessionContextDisplay
 	currentOK := false
 	if turn != nil && currentTurnUsesSelectedModel(m, state, turn) {
 		currentDisplay, currentOK = contextDisplayForTurn(turn)
-	}
-	if peakDisplay, ok := peakDelegatedContextDisplay(m, state); ok && (!currentOK || contextDisplayGreater(peakDisplay, currentDisplay)) {
-		peakDisplay.peak = true
-		return peakDisplay, true
 	}
 	if currentOK {
 		return currentDisplay, true
@@ -146,95 +122,6 @@ func currentTurnUsesSelectedModel(m Model, state events.SessionState, turn *even
 		}
 	}
 	return true
-}
-
-func peakDelegatedContextDisplay(m Model, state events.SessionState) (sessionContextDisplay, bool) {
-	turn := currentTurn(state, m.turnID)
-	if turn == nil {
-		return sessionContextDisplay{}, false
-	}
-	var best sessionContextDisplay
-	found := false
-	for _, handoffID := range orderedHandoffIDs(turn) {
-		handoff := turn.Handoffs[handoffID]
-		display, ok := contextDisplayForHandoff(m, handoff)
-		if !ok {
-			continue
-		}
-		if !found || contextDisplayGreater(display, best) {
-			best = display
-			found = true
-		}
-	}
-	return best, found
-}
-
-func contextDisplayGreater(candidate, current sessionContextDisplay) bool {
-	if candidate.percent != current.percent {
-		return candidate.percent > current.percent
-	}
-	if candidate.tokens != current.tokens {
-		return candidate.tokens > current.tokens
-	}
-	return candidate.limit > current.limit
-}
-
-func lastRecordedContextDisplayBeforeActiveHandoff(m Model, state events.SessionState, active *events.AgentHandoffState) (sessionContextDisplay, bool) {
-	if active == nil {
-		return sessionContextDisplay{}, false
-	}
-	parentTurn := currentTurn(state, m.turnID)
-	handoffIDs := parentTurnHandoffIDs(parentTurn)
-	activeIndex := -1
-	for idx, handoffID := range handoffIDs {
-		if strings.TrimSpace(handoffID) == strings.TrimSpace(active.HandoffID) {
-			activeIndex = idx
-			break
-		}
-	}
-	if activeIndex == -1 {
-		activeIndex = len(handoffIDs)
-	}
-	if parentTurn != nil {
-		for idx := activeIndex - 1; idx >= 0; idx-- {
-			handoff := parentTurn.Handoffs[handoffIDs[idx]]
-			if display, ok := contextDisplayForHandoff(m, handoff); ok {
-				return display, true
-			}
-		}
-	}
-	if turn := currentTurn(state, effectiveFooterTurnID(m, state)); turn != nil {
-		if display, ok := contextDisplayForTurn(turn); ok {
-			return display, true
-		}
-	}
-	return sessionContextDisplay{}, false
-}
-
-func parentTurnHandoffIDs(turn *events.TurnState) []string {
-	if turn == nil {
-		return nil
-	}
-	return turn.HandoffOrder
-}
-
-func contextDisplayForHandoff(m Model, handoff *events.AgentHandoffState) (sessionContextDisplay, bool) {
-	if handoff == nil {
-		return sessionContextDisplay{}, false
-	}
-	childState, ok := m.delegatedSnapshot(handoff.ChildSessionID)
-	if !ok {
-		return sessionContextDisplay{}, false
-	}
-	if turnID := strings.TrimSpace(handoff.ChildTurnID); turnID != "" {
-		return contextDisplayForTurn(currentTurn(childState, turnID))
-	}
-	for idx := len(childState.TurnOrder) - 1; idx >= 0; idx-- {
-		if display, ok := contextDisplayForTurn(childState.Turns[childState.TurnOrder[idx]]); ok {
-			return display, true
-		}
-	}
-	return sessionContextDisplay{}, false
 }
 
 func contextDisplayForTurn(turn *events.TurnState) (sessionContextDisplay, bool) {

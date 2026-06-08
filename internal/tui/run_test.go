@@ -50,6 +50,17 @@ func isolatedRunTestGetenv(t *testing.T) func(string) string {
 	}
 }
 
+func writeRunTestConfig(t *testing.T, getenv func(string) string, body string) {
+	t.Helper()
+	configDir := filepath.Join(getenv("XDG_CONFIG_HOME"), "kodacode")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(configDir) error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(configDir, "config.yaml"), []byte(body), 0o644); err != nil {
+		t.Fatalf("WriteFile(config.yaml) error = %v", err)
+	}
+}
+
 func (b *fakeRunBackend) OpenWorkspaceSession(
 	_ context.Context,
 	workspaceRoot string,
@@ -178,6 +189,19 @@ func TestRunWithBackendAllowsEmptyPromptForInteractiveComposer(t *testing.T) {
 	}
 	if len(backend.watchCalls) != 0 {
 		t.Fatalf("watchCalls = %#v, want none for idle startup", backend.watchCalls)
+	}
+}
+
+func TestLoadStartupPermissionModeUsesRuntimeConfig(t *testing.T) {
+	getenv := isolatedRunTestGetenv(t)
+	writeRunTestConfig(t, getenv, "version: 1\nexecution:\n  permission_mode: full_access\n  network: disabled\n")
+
+	mode, err := loadStartupPermissionMode(getenv)
+	if err != nil {
+		t.Fatalf("loadStartupPermissionMode() error = %v", err)
+	}
+	if mode != app.PermissionModeFullAccess {
+		t.Fatalf("permission mode = %q, want %q", mode, app.PermissionModeFullAccess)
 	}
 }
 

@@ -36,10 +36,10 @@ func shouldRenderToolCallInTranscript(turn *events.TurnState, callID string, cal
 	if !transcriptOwnsToolCallRow(call) {
 		return false
 	}
-	if shouldHideDelegateToolCallInTranscript(turn, call) {
+	if shouldHideFailedMutationInTranscript(call) {
 		return false
 	}
-	if shouldHideFailedMutationInTranscript(call) {
+	if shouldHideWorkflowResultToolCallInTranscript(call) {
 		return false
 	}
 	if strings.TrimSpace(call.ToolName) == "skill" {
@@ -54,17 +54,19 @@ func shouldRenderToolCallInTranscript(turn *events.TurnState, callID string, cal
 	if shouldHideSupersededRetriedLogicalToolCall(turn, callID, call) {
 		return false
 	}
-	if shouldHideSupersededDelegateAttempt(turn, callID, call) {
-		return false
-	}
 	return true
 }
 
-func shouldHideDelegateToolCallInTranscript(turn *events.TurnState, call *events.ToolCallState) bool {
-	if !isDelegateToolCall(call) {
+func shouldHideWorkflowResultToolCallInTranscript(call *events.ToolCallState) bool {
+	if call == nil {
 		return false
 	}
-	return delegateHandoffForCall(turn, call) != nil
+	switch strings.TrimSpace(call.ToolName) {
+	case "workflow_review_result", "workflow_phase_output":
+		return true
+	default:
+		return false
+	}
 }
 
 func shouldHideFailedMutationInTranscript(call *events.ToolCallState) bool {
@@ -126,39 +128,6 @@ func shouldHideSupersededRetriedLogicalToolCall(turn *events.TurnState, callID s
 			continue
 		}
 		if strings.TrimSpace(next.ToolName) != strings.TrimSpace(call.ToolName) {
-			continue
-		}
-		return true
-	}
-	return false
-}
-
-func shouldHideSupersededDelegateAttempt(turn *events.TurnState, callID string, call *events.ToolCallState) bool {
-	if turn == nil || call == nil || !call.Completed || strings.TrimSpace(call.ToolName) != "delegate" {
-		return false
-	}
-	request, ok := parseDelegateLogicalRequest(call.Input)
-	if !ok {
-		return false
-	}
-	seenCurrent := false
-	for _, nextID := range orderedToolCallIDs(turn) {
-		if nextID == callID {
-			seenCurrent = true
-			continue
-		}
-		if !seenCurrent {
-			continue
-		}
-		next := turn.ToolCalls[nextID]
-		if next == nil || !next.Completed || strings.TrimSpace(next.ToolName) != "delegate" {
-			continue
-		}
-		nextRequest, ok := parseDelegateLogicalRequest(next.Input)
-		if !ok {
-			continue
-		}
-		if request != nextRequest {
 			continue
 		}
 		return true

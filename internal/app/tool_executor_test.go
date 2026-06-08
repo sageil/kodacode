@@ -18,33 +18,6 @@ import (
 	"github.com/sageil/kodacode/internal/tool"
 )
 
-type stubDelegateRuntime struct {
-	last   DelegateSessionTurnInput
-	result DelegateSessionTurnResult
-	err    error
-}
-
-func (s *stubDelegateRuntime) DelegateSessionTurn(_ context.Context, input DelegateSessionTurnInput) (DelegateSessionTurnResult, error) {
-	s.last = input
-	if s.err != nil {
-		return DelegateSessionTurnResult{}, s.err
-	}
-	return s.result, nil
-}
-
-func appendDelegatedHandoffForToolReuseTest(t *testing.T, sessions *SessionService, handoff events.AgentHandoffPayload) {
-	t.Helper()
-
-	for _, draft := range []events.Draft{
-		{SessionID: handoff.ParentSessionID, TurnID: handoff.ParentTurnID, Type: events.TypeAgentHandoff, Payload: handoff},
-		{SessionID: handoff.ChildSessionID, TurnID: handoff.ChildTurnID, Type: events.TypeAgentHandoff, Payload: handoff},
-	} {
-		if _, err := sessions.append(context.Background(), draft); err != nil {
-			t.Fatalf("append handoff(%s) error = %v", draft.SessionID, err)
-		}
-	}
-}
-
 func TestToolExecutorProviderToolsReturnsSortedMetadata(t *testing.T) {
 	store := events.NewMemoryStore()
 	sessions, err := NewSessionService(store)
@@ -640,9 +613,12 @@ func TestToolExecutorProviderToolsExposeApplyPatchAsFunctionWhenCustomUnsupporte
 	if got.InputFormat != nil {
 		t.Fatalf("input format = %#v, want nil for function adapter", got.InputFormat)
 	}
-	if !strings.Contains(got.InputSchema, `"patch"`) || !strings.Contains(got.Description, "JSON") ||
-		!strings.Contains(got.Description, `Patch lines MUST NOT include read output line number prefixes like "40:"`) ||
-		!strings.Contains(got.InputSchema, `Patch lines MUST NOT include read output line number prefixes like \"40:\"`) {
+	if !strings.Contains(got.InputSchema, `"patch"`) ||
+		!strings.Contains(got.Description, "JSON") ||
+		!strings.Contains(got.Description, `Add/Update/Delete file sections`) ||
+		!strings.Contains(got.Description, `line-number prefixes like "40:"`) ||
+		!strings.Contains(got.InputSchema, `*** Begin Patch`) ||
+		!strings.Contains(got.InputSchema, `line-number prefixes like \"40:\"`) {
 		t.Fatalf("tool = %#v, want JSON patch function adapter", got)
 	}
 }
@@ -909,7 +885,7 @@ func TestToolExecutorExecuteRunsDuplicateReadAfterFailedPatch(t *testing.T) {
 		t.Fatalf("Execute(apply_patch) error = %v", err)
 	}
 	if failedPatch.Status != ToolExecutionStatusExecuted ||
-		!strings.Contains(failedPatch.Error, "patch failed") {
+		!strings.Contains(failedPatch.Error, "app.go: hunk did not match") {
 		t.Fatalf("failed patch = %#v", failedPatch)
 	}
 
@@ -1821,316 +1797,6 @@ func TestToolExecutorExecuteRunsReadAcrossTurnsAfterRestartWithCompactedSnapshot
 	}
 }
 
-func TestToolExecutorExecuteRunsReadFromDelegatedChildTurn(t *testing.T) {
-	store := events.NewMemoryStore()
-	sessions, err := NewSessionService(store)
-	if err != nil {
-		t.Fatalf("NewSessionService() error = %v", err)
-	}
-	executor, err := NewToolExecutor(sessions, tool.NewReadTool())
-	if err != nil {
-		t.Fatalf("NewToolExecutor() error = %v", err)
-	}
-
-	root := t.TempDir()
-	if err := os.WriteFile(filepath.Join(root, "app.go"), []byte("package main\n"), 0o644); err != nil {
-		t.Fatalf("WriteFile(app.go) error = %v", err)
-	}
-	for _, input := range []CreateSessionInput{
-		{SessionID: "session-parent", WorkspaceRoot: root},
-		{SessionID: "session-child", WorkspaceRoot: root},
-	} {
-		if _, err := sessions.CreateSession(context.Background(), input); err != nil {
-			t.Fatalf("CreateSession(%s) error = %v", input.SessionID, err)
-		}
-	}
-
-	first, err := executor.Execute(context.Background(), ExecuteToolInput{
-		SessionID:  "session-parent",
-		TurnID:     "turn-parent",
-		ToolCallID: "call-parent",
-		ToolName:   tool.ReadToolName,
-		Arguments:  json.RawMessage(`{"paths":["app.go"]}`),
-	})
-	if err != nil {
-		t.Fatalf("Execute(parent read) error = %v", err)
-	}
-	if first.Status != ToolExecutionStatusExecuted {
-		t.Fatalf("parent read = %#v", first)
-	}
-
-	appendDelegatedHandoffForToolReuseTest(t, sessions, events.AgentHandoffPayload{
-		HandoffID:       "handoff-1",
-		ParentSessionID: "session-parent",
-		ParentTurnID:    "turn-parent",
-		ParentAgentID:   "planner",
-		ChildSessionID:  "session-child",
-		ChildTurnID:     "turn-child",
-		ChildAgentID:    "reviewer",
-		Task:            "inspect the implementation",
-		ContextSummary:  "Read the code and return findings.",
-		Model:           "openai/gpt-5",
-	})
-
-	second, err := executor.Execute(context.Background(), ExecuteToolInput{
-		SessionID:  "session-child",
-		TurnID:     "turn-child",
-		ToolCallID: "call-child",
-		ToolName:   tool.ReadToolName,
-		Arguments:  json.RawMessage(`{"paths":["app.go"]}`),
-	})
-	if err != nil {
-		t.Fatalf("Execute(child read) error = %v", err)
-	}
-	if second.Status != ToolExecutionStatusExecuted || second.Output != first.Output || second.ReusedFromCallID != "" || second.ReusedFromSessionID != "" || second.ReusedFromTurnID != "" {
-		t.Fatalf("child read = %#v", second)
-	}
-
-	replayed, err := store.Replay(context.Background(), events.Query{SessionID: "session-child", AfterSequence: -1})
-	if err != nil {
-		t.Fatalf("Replay(child) error = %v", err)
-	}
-	end, ok := replayed[len(replayed)-1].Payload.(events.ToolExecEndPayload)
-	if !ok {
-		t.Fatalf("child end payload = %#v", replayed[len(replayed)-1].Payload)
-	}
-	if end.ReusedFromCallID != "" || end.ReusedFromSessionID != "" || end.ReusedFromTurnID != "" {
-		t.Fatalf("child end payload = %#v", end)
-	}
-
-	childState, err := sessions.Snapshot(context.Background(), "session-child")
-	if err != nil {
-		t.Fatalf("Snapshot(child) error = %v", err)
-	}
-	call := childState.Turns["turn-child"].ToolCalls["call-child"]
-	if call == nil || call.ReusedFromCallID != "" || call.ReusedFromSessionID != "" || call.ReusedFromTurnID != "" {
-		t.Fatalf("child call state = %#v", call)
-	}
-}
-
-func TestToolExecutorExecuteRunsReadFromDelegatedChildTurnAfterRestartWithCompactedSnapshot(t *testing.T) {
-	store := events.NewMemoryStore()
-	sessions, err := NewSessionService(store)
-	if err != nil {
-		t.Fatalf("NewSessionService() error = %v", err)
-	}
-	executor, err := NewToolExecutor(sessions, tool.NewReadTool())
-	if err != nil {
-		t.Fatalf("NewToolExecutor() error = %v", err)
-	}
-
-	root := t.TempDir()
-	if err := os.WriteFile(filepath.Join(root, "app.go"), []byte("package main\n"), 0o644); err != nil {
-		t.Fatalf("WriteFile(app.go) error = %v", err)
-	}
-	for _, input := range []CreateSessionInput{
-		{SessionID: "session-parent", WorkspaceRoot: root},
-		{SessionID: "session-child", WorkspaceRoot: root},
-	} {
-		if _, err := sessions.CreateSession(context.Background(), input); err != nil {
-			t.Fatalf("CreateSession(%s) error = %v", input.SessionID, err)
-		}
-	}
-
-	first, err := executor.Execute(context.Background(), ExecuteToolInput{
-		SessionID:  "session-parent",
-		TurnID:     "turn-parent",
-		ToolCallID: "call-parent",
-		ToolName:   tool.ReadToolName,
-		Arguments:  json.RawMessage(`{"paths":["app.go"]}`),
-	})
-	if err != nil {
-		t.Fatalf("Execute(parent read) error = %v", err)
-	}
-	if first.Status != ToolExecutionStatusExecuted {
-		t.Fatalf("parent read = %#v", first)
-	}
-	appendDelegatedHandoffForToolReuseTest(t, sessions, events.AgentHandoffPayload{
-		HandoffID:       "handoff-1",
-		ParentSessionID: "session-parent",
-		ParentTurnID:    "turn-parent",
-		ParentAgentID:   "planner",
-		ChildSessionID:  "session-child",
-		ChildTurnID:     "turn-child",
-		ChildAgentID:    "reviewer",
-		Task:            "inspect the implementation",
-		ContextSummary:  "Read the code and return findings.",
-		Model:           "openai/gpt-5",
-	})
-	appendCompactedSessionSnapshotForTest(t, store, sessions, "session-parent")
-	appendCompactedSessionSnapshotForTest(t, store, sessions, "session-child")
-
-	restartedSessions, err := NewSessionService(store)
-	if err != nil {
-		t.Fatalf("NewSessionService(restart) error = %v", err)
-	}
-	restartedExecutor, err := NewToolExecutor(restartedSessions, tool.NewReadTool())
-	if err != nil {
-		t.Fatalf("NewToolExecutor(restart) error = %v", err)
-	}
-
-	second, err := restartedExecutor.Execute(context.Background(), ExecuteToolInput{
-		SessionID:  "session-child",
-		TurnID:     "turn-child",
-		ToolCallID: "call-child",
-		ToolName:   tool.ReadToolName,
-		Arguments:  json.RawMessage(`{"paths":["app.go"]}`),
-	})
-	if err != nil {
-		t.Fatalf("Execute(child read) error = %v", err)
-	}
-	if second.Status != ToolExecutionStatusExecuted || second.Output != first.Output || second.ReusedFromCallID != "" || second.ReusedFromSessionID != "" || second.ReusedFromTurnID != "" {
-		t.Fatalf("child read = %#v", second)
-	}
-}
-
-func TestToolExecutorExecuteDoesNotReuseDelegatedParentReadAfterExternalRewrite(t *testing.T) {
-	store := events.NewMemoryStore()
-	sessions, err := NewSessionService(store)
-	if err != nil {
-		t.Fatalf("NewSessionService() error = %v", err)
-	}
-	executor, err := NewToolExecutor(sessions, tool.NewReadTool())
-	if err != nil {
-		t.Fatalf("NewToolExecutor() error = %v", err)
-	}
-
-	root := t.TempDir()
-	path := filepath.Join(root, "app.go")
-	if err := os.WriteFile(path, []byte("package main\n"), 0o644); err != nil {
-		t.Fatalf("WriteFile(app.go) error = %v", err)
-	}
-	for _, input := range []CreateSessionInput{
-		{SessionID: "session-parent", WorkspaceRoot: root},
-		{SessionID: "session-child", WorkspaceRoot: root},
-	} {
-		if _, err := sessions.CreateSession(context.Background(), input); err != nil {
-			t.Fatalf("CreateSession(%s) error = %v", input.SessionID, err)
-		}
-	}
-
-	if _, err := executor.Execute(context.Background(), ExecuteToolInput{
-		SessionID:  "session-parent",
-		TurnID:     "turn-parent",
-		ToolCallID: "call-parent",
-		ToolName:   tool.ReadToolName,
-		Arguments:  json.RawMessage(`{"paths":["app.go"]}`),
-	}); err != nil {
-		t.Fatalf("Execute(parent read) error = %v", err)
-	}
-	appendDelegatedHandoffForToolReuseTest(t, sessions, events.AgentHandoffPayload{
-		HandoffID:       "handoff-1",
-		ParentSessionID: "session-parent",
-		ParentTurnID:    "turn-parent",
-		ParentAgentID:   "planner",
-		ChildSessionID:  "session-child",
-		ChildTurnID:     "turn-child",
-		ChildAgentID:    "reviewer",
-		Task:            "inspect the implementation",
-		ContextSummary:  "Read the code and return findings.",
-		Model:           "openai/gpt-5",
-	})
-	if err := os.WriteFile(path, []byte("package changed\n"), 0o644); err != nil {
-		t.Fatalf("WriteFile(rewrite) error = %v", err)
-	}
-
-	second, err := executor.Execute(context.Background(), ExecuteToolInput{
-		SessionID:  "session-child",
-		TurnID:     "turn-child",
-		ToolCallID: "call-child",
-		ToolName:   tool.ReadToolName,
-		Arguments:  json.RawMessage(`{"paths":["app.go"]}`),
-	})
-	if err != nil {
-		t.Fatalf("Execute(child read) error = %v", err)
-	}
-	if second.Status != ToolExecutionStatusExecuted || second.ReusedFromCallID != "" {
-		t.Fatalf("child read = %#v", second)
-	}
-	if second.Output != expectedReadSingleLineOutput("package changed") {
-		t.Fatalf("child read output = %q", second.Output)
-	}
-}
-
-func TestToolExecutorExecuteDoesNotReuseDelegatedParentReadWithoutObservedResources(t *testing.T) {
-	store := events.NewMemoryStore()
-	sessions, err := NewSessionService(store)
-	if err != nil {
-		t.Fatalf("NewSessionService() error = %v", err)
-	}
-	executor, err := NewToolExecutor(sessions, tool.NewReadTool())
-	if err != nil {
-		t.Fatalf("NewToolExecutor() error = %v", err)
-	}
-
-	root := t.TempDir()
-	if err := os.WriteFile(filepath.Join(root, "app.go"), []byte("package main\n"), 0o644); err != nil {
-		t.Fatalf("WriteFile(app.go) error = %v", err)
-	}
-	for _, input := range []CreateSessionInput{
-		{SessionID: "session-parent", WorkspaceRoot: root},
-		{SessionID: "session-child", WorkspaceRoot: root},
-	} {
-		if _, err := sessions.CreateSession(context.Background(), input); err != nil {
-			t.Fatalf("CreateSession(%s) error = %v", input.SessionID, err)
-		}
-	}
-
-	for _, draft := range []events.Draft{
-		{
-			SessionID: "session-parent",
-			TurnID:    "turn-parent",
-			Type:      events.TypeToolCallDeclared,
-			Payload: events.ToolCallDeclaredPayload{
-				CallID:   "call-parent",
-				ToolName: tool.ReadToolName,
-				Input:    `{"paths":["app.go"]}`,
-			},
-		},
-		{
-			SessionID: "session-parent",
-			TurnID:    "turn-parent",
-			Type:      events.TypeToolExecEnd,
-			Payload: events.ToolExecEndPayload{
-				CallID:    "call-parent",
-				ToolName:  tool.ReadToolName,
-				Succeeded: true,
-				Output:    expectedReadSingleLineOutput("package main"),
-			},
-		},
-	} {
-		if _, err := sessions.append(context.Background(), draft); err != nil {
-			t.Fatalf("append parent call(%s) error = %v", draft.Type, err)
-		}
-	}
-	appendDelegatedHandoffForToolReuseTest(t, sessions, events.AgentHandoffPayload{
-		HandoffID:       "handoff-1",
-		ParentSessionID: "session-parent",
-		ParentTurnID:    "turn-parent",
-		ParentAgentID:   "planner",
-		ChildSessionID:  "session-child",
-		ChildTurnID:     "turn-child",
-		ChildAgentID:    "reviewer",
-		Task:            "inspect the implementation",
-		ContextSummary:  "Read the code and return findings.",
-		Model:           "openai/gpt-5",
-	})
-
-	second, err := executor.Execute(context.Background(), ExecuteToolInput{
-		SessionID:  "session-child",
-		TurnID:     "turn-child",
-		ToolCallID: "call-child",
-		ToolName:   tool.ReadToolName,
-		Arguments:  json.RawMessage(`{"paths":["app.go"]}`),
-	})
-	if err != nil {
-		t.Fatalf("Execute(child read) error = %v", err)
-	}
-	if second.Status != ToolExecutionStatusExecuted || second.ReusedFromCallID != "" {
-		t.Fatalf("child read = %#v", second)
-	}
-}
-
 func TestToolExecutorExecuteRunsSearchAcrossCanonicalArgs(t *testing.T) {
 	store := events.NewMemoryStore()
 	sessions, err := NewSessionService(store)
@@ -2179,71 +1845,6 @@ func TestToolExecutorExecuteRunsSearchAcrossCanonicalArgs(t *testing.T) {
 	}
 	if second.Status != ToolExecutionStatusExecuted || second.Output != first.Output || second.ReusedFromCallID != "" {
 		t.Fatalf("second search = %#v", second)
-	}
-}
-
-func TestToolExecutorExecuteRunsSearchNoMatchFromDelegatedParentTurn(t *testing.T) {
-	store := events.NewMemoryStore()
-	sessions, err := NewSessionService(store)
-	if err != nil {
-		t.Fatalf("NewSessionService() error = %v", err)
-	}
-	executor, err := NewToolExecutor(sessions, tool.NewSearchTool())
-	if err != nil {
-		t.Fatalf("NewToolExecutor() error = %v", err)
-	}
-
-	root := t.TempDir()
-	if err := os.WriteFile(filepath.Join(root, "tasks.txt"), []byte("ship it\n"), 0o644); err != nil {
-		t.Fatalf("WriteFile(tasks.txt) error = %v", err)
-	}
-	for _, input := range []CreateSessionInput{
-		{SessionID: "session-parent", WorkspaceRoot: root},
-		{SessionID: "session-child", WorkspaceRoot: root},
-	} {
-		if _, err := sessions.CreateSession(context.Background(), input); err != nil {
-			t.Fatalf("CreateSession(%s) error = %v", input.SessionID, err)
-		}
-	}
-
-	first, err := executor.Execute(context.Background(), ExecuteToolInput{
-		SessionID:  "session-parent",
-		TurnID:     "turn-parent",
-		ToolCallID: "call-parent",
-		ToolName:   tool.SearchToolName,
-		Arguments:  json.RawMessage(`{"path":".","query":"MISSING","mode":"lexical"}`),
-	})
-	if err != nil {
-		t.Fatalf("Execute(parent search) error = %v", err)
-	}
-	if first.Status != ToolExecutionStatusExecuted {
-		t.Fatalf("parent search = %#v", first)
-	}
-	appendDelegatedHandoffForToolReuseTest(t, sessions, events.AgentHandoffPayload{
-		HandoffID:       "handoff-1",
-		ParentSessionID: "session-parent",
-		ParentTurnID:    "turn-parent",
-		ParentAgentID:   "planner",
-		ChildSessionID:  "session-child",
-		ChildTurnID:     "turn-child",
-		ChildAgentID:    "reviewer",
-		Task:            "inspect the implementation",
-		ContextSummary:  "Read the code and return findings.",
-		Model:           "openai/gpt-5",
-	})
-
-	second, err := executor.Execute(context.Background(), ExecuteToolInput{
-		SessionID:  "session-child",
-		TurnID:     "turn-child",
-		ToolCallID: "call-child",
-		ToolName:   tool.SearchToolName,
-		Arguments:  json.RawMessage(`{"path":".","query":"MISSING","mode":"lexical"}`),
-	})
-	if err != nil {
-		t.Fatalf("Execute(child search) error = %v", err)
-	}
-	if second.Status != ToolExecutionStatusExecuted || second.Output != first.Output || second.ReusedFromCallID != "" {
-		t.Fatalf("child search = %#v", second)
 	}
 }
 
@@ -2364,6 +1965,7 @@ func TestToolExecutorExecuteQuestionToolRequestsAndResumes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewToolExecutor() error = %v", err)
 	}
+	executor.SetWorkflowConfig(WorkflowConfig{PlannerApproval: true})
 	if _, err := sessions.CreateSession(context.Background(), CreateSessionInput{
 		SessionID:     "session-1",
 		WorkspaceRoot: t.TempDir(),
@@ -2436,6 +2038,7 @@ func TestToolExecutorRejectsPlannerSaveQuestionWithoutVisiblePlan(t *testing.T) 
 	if err != nil {
 		t.Fatalf("NewToolExecutor() error = %v", err)
 	}
+	executor.SetWorkflowConfig(WorkflowConfig{PlannerApproval: true})
 	if _, err := sessions.CreateSession(context.Background(), CreateSessionInput{
 		SessionID:     "session-1",
 		WorkspaceRoot: t.TempDir(),
@@ -2472,6 +2075,58 @@ func TestToolExecutorRejectsPlannerSaveQuestionWithoutVisiblePlan(t *testing.T) 
 	}
 }
 
+func TestToolExecutorRejectsPlannerSaveQuestionWhenDisabled(t *testing.T) {
+	store := events.NewMemoryStore()
+	sessions, err := NewSessionService(store)
+	if err != nil {
+		t.Fatalf("NewSessionService() error = %v", err)
+	}
+	executor, err := NewToolExecutor(sessions, tool.NewQuestionTool())
+	if err != nil {
+		t.Fatalf("NewToolExecutor() error = %v", err)
+	}
+	if _, err := sessions.CreateSession(context.Background(), CreateSessionInput{
+		SessionID:     "session-1",
+		WorkspaceRoot: t.TempDir(),
+	}); err != nil {
+		t.Fatalf("CreateSession() error = %v", err)
+	}
+	if _, err := sessions.append(context.Background(), events.Draft{
+		SessionID: "session-1",
+		TurnID:    "turn-1",
+		Type:      events.TypeAssistantCommit,
+		Payload: events.AssistantCommitPayload{
+			Content: "# Plan\n",
+		},
+	}); err != nil {
+		t.Fatalf("append(assistant) error = %v", err)
+	}
+
+	args := json.RawMessage(`{"question":"Save or revise the plan?","options":["Save plan","Revise plan"],"purpose":"planner_save_plan"}`)
+	result, err := executor.Execute(context.Background(), ExecuteToolInput{
+		SessionID:  "session-1",
+		TurnID:     "turn-1",
+		ToolCallID: "call-1",
+		ToolName:   tool.QuestionToolName,
+		Arguments:  args,
+	})
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if result.Status != ToolExecutionStatusExecuted || result.Error != plannerPlanApprovalDisabledText {
+		t.Fatalf("result = %#v", result)
+	}
+	replayed, err := store.Replay(context.Background(), events.Query{SessionID: "session-1", AfterSequence: -1})
+	if err != nil {
+		t.Fatalf("Replay() error = %v", err)
+	}
+	for _, event := range replayed {
+		if event.Type == events.TypeQuestionRequested {
+			t.Fatalf("disabled planner save question should not be requested: %#v", replayed)
+		}
+	}
+}
+
 func TestToolExecutorRejectsBroadQuestionThatIncludesSavePlanOption(t *testing.T) {
 	store := events.NewMemoryStore()
 	sessions, err := NewSessionService(store)
@@ -2482,6 +2137,7 @@ func TestToolExecutorRejectsBroadQuestionThatIncludesSavePlanOption(t *testing.T
 	if err != nil {
 		t.Fatalf("NewToolExecutor() error = %v", err)
 	}
+	executor.SetWorkflowConfig(WorkflowConfig{PlannerApproval: true})
 	if _, err := sessions.CreateSession(context.Background(), CreateSessionInput{
 		SessionID:     "session-1",
 		WorkspaceRoot: t.TempDir(),
@@ -2525,6 +2181,7 @@ func TestToolExecutorRejectsPlannerSaveQuestionWithExtraOptions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewToolExecutor() error = %v", err)
 	}
+	executor.SetWorkflowConfig(WorkflowConfig{PlannerApproval: true})
 	if _, err := sessions.CreateSession(context.Background(), CreateSessionInput{
 		SessionID:     "session-1",
 		WorkspaceRoot: t.TempDir(),
@@ -2555,6 +2212,81 @@ func TestToolExecutorRejectsPlannerSaveQuestionWithExtraOptions(t *testing.T) {
 	}
 	if result.Status != ToolExecutionStatusExecuted || result.Error != plannerSavePlanQuestionInvalidText {
 		t.Fatalf("result = %#v", result)
+	}
+}
+
+func TestToolExecutorRejectsPlannerSaveQuestionDuringWorkflow(t *testing.T) {
+	store := events.NewMemoryStore()
+	sessions, err := NewSessionService(store)
+	if err != nil {
+		t.Fatalf("NewSessionService() error = %v", err)
+	}
+	executor, err := NewToolExecutor(sessions, tool.NewQuestionTool())
+	if err != nil {
+		t.Fatalf("NewToolExecutor() error = %v", err)
+	}
+	if _, err := sessions.CreateSession(context.Background(), CreateSessionInput{
+		SessionID:     "session-1",
+		WorkspaceRoot: t.TempDir(),
+	}); err != nil {
+		t.Fatalf("CreateSession() error = %v", err)
+	}
+	for _, draft := range []events.Draft{
+		{
+			SessionID: "session-1",
+			TurnID:    "turn-1",
+			Type:      events.TypeWorkflowStarted,
+			Payload: events.WorkflowStartedPayload{
+				WorkflowID: "delivery",
+				PhaseID:    "plan",
+			},
+		},
+		{
+			SessionID: "session-1",
+			TurnID:    "turn-1",
+			Type:      events.TypeWorkflowPhaseStarted,
+			Payload: events.WorkflowPhaseStartedPayload{
+				WorkflowID: "delivery",
+				PhaseID:    "plan",
+			},
+		},
+		{
+			SessionID: "session-1",
+			TurnID:    "turn-1",
+			Type:      events.TypeAssistantCommit,
+			Payload: events.AssistantCommitPayload{
+				Content: "# Plan\n",
+			},
+		},
+	} {
+		if _, err := sessions.append(context.Background(), draft); err != nil {
+			t.Fatalf("append(%s) error = %v", draft.Type, err)
+		}
+	}
+
+	args := json.RawMessage(`{"question":"Save or revise the plan?","options":["Save plan","Revise plan"],"purpose":"planner_save_plan"}`)
+	result, err := executor.Execute(context.Background(), ExecuteToolInput{
+		SessionID:  "session-1",
+		TurnID:     "turn-1",
+		ToolCallID: "call-1",
+		ToolName:   tool.QuestionToolName,
+		Arguments:  args,
+	})
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if result.Status != ToolExecutionStatusExecuted || result.Error != plannerPlanApprovalDisabledByWorkflowText {
+		t.Fatalf("result = %#v", result)
+	}
+
+	replayed, err := store.Replay(context.Background(), events.Query{SessionID: "session-1", AfterSequence: -1})
+	if err != nil {
+		t.Fatalf("Replay() error = %v", err)
+	}
+	for _, event := range replayed {
+		if event.Type == events.TypeQuestionRequested {
+			t.Fatalf("workflow planner save question should not be requested: %#v", replayed)
+		}
 	}
 }
 
@@ -2684,179 +2416,6 @@ func TestToolExecutorExecuteQuestionToolMarksRepeatedFailureAsRetry(t *testing.T
 	}
 	if last.RetryOfCallID != "call-1" {
 		t.Fatalf("RetryOfCallID = %q, want call-1", last.RetryOfCallID)
-	}
-}
-
-func TestToolExecutorExecuteDelegateToolPersistsHandoffID(t *testing.T) {
-	store := events.NewMemoryStore()
-	sessions, err := NewSessionService(store)
-	if err != nil {
-		t.Fatalf("NewSessionService() error = %v", err)
-	}
-	executor, err := NewToolExecutor(sessions, tool.NewDelegateTool())
-	if err != nil {
-		t.Fatalf("NewToolExecutor() error = %v", err)
-	}
-	runtime := &stubDelegateRuntime{
-		result: DelegateSessionTurnResult{
-			HandoffID:      "handoff-1",
-			ChildSessionID: "session-child",
-			ChildTurn: RunSessionResult{
-				TurnID:        "turn-child",
-				Status:        TurnRunStatusCompleted,
-				AssistantText: "child complete",
-			},
-		},
-	}
-	executor.SetDelegateRuntime(runtime)
-
-	if _, err := sessions.CreateSession(context.Background(), CreateSessionInput{
-		SessionID:     "session-1",
-		WorkspaceRoot: t.TempDir(),
-	}); err != nil {
-		t.Fatalf("CreateSession() error = %v", err)
-	}
-	if _, err := sessions.append(context.Background(), events.Draft{
-		SessionID: "session-1",
-		TurnID:    "turn-1",
-		Type:      events.TypeTurnConfigured,
-		Payload: newTurnConfiguredPayload(
-			TurnCapabilities{
-				AgentID:      "engineer",
-				ModelRoute:   baseModelRoute(),
-				AllowedTools: []string{tool.DelegateToolName},
-			},
-			nil,
-			false,
-			false,
-			"",
-			ResponseStyleDefault,
-			false,
-		),
-	}); err != nil {
-		t.Fatalf("append(turn_configured) error = %v", err)
-	}
-
-	args := json.RawMessage(`{"agent_id":"reviewer","task":"Inspect the cache layer","context_summary":"Need a focused review."}`)
-	result, err := executor.Execute(context.Background(), ExecuteToolInput{
-		SessionID:  "session-1",
-		TurnID:     "turn-1",
-		ToolCallID: "call-1",
-		ToolName:   tool.DelegateToolName,
-		Arguments:  args,
-	})
-	if err != nil {
-		t.Fatalf("Execute() error = %v", err)
-	}
-	if result.Status != ToolExecutionStatusExecuted {
-		t.Fatalf("result = %#v, want executed", result)
-	}
-	if runtime.last.ParentSessionID != "session-1" || runtime.last.ParentTurnID != "turn-1" || runtime.last.ParentToolCallID != "call-1" {
-		t.Fatalf("delegate input = %#v", runtime.last)
-	}
-
-	state, err := sessions.Snapshot(context.Background(), "session-1")
-	if err != nil {
-		t.Fatalf("Snapshot() error = %v", err)
-	}
-	call := state.Turns["turn-1"].ToolCalls["call-1"]
-	if call == nil || call.HandoffID != "handoff-1" {
-		t.Fatalf("call state = %#v, want handoff-1", call)
-	}
-
-	replayed, err := store.Replay(context.Background(), events.Query{SessionID: "session-1", AfterSequence: -1})
-	if err != nil {
-		t.Fatalf("Replay() error = %v", err)
-	}
-	last, ok := replayed[len(replayed)-1].Payload.(events.ToolExecEndPayload)
-	if !ok {
-		t.Fatalf("last payload = %#v", replayed[len(replayed)-1].Payload)
-	}
-	if last.HandoffID != "handoff-1" {
-		t.Fatalf("HandoffID = %q, want handoff-1", last.HandoffID)
-	}
-}
-
-func TestToolExecutorExecuteDelegateToolReturnsPendingForChildQuestion(t *testing.T) {
-	store := events.NewMemoryStore()
-	sessions, err := NewSessionService(store)
-	if err != nil {
-		t.Fatalf("NewSessionService() error = %v", err)
-	}
-	executor, err := NewToolExecutor(sessions, tool.NewDelegateTool())
-	if err != nil {
-		t.Fatalf("NewToolExecutor() error = %v", err)
-	}
-	runtime := &stubDelegateRuntime{
-		result: DelegateSessionTurnResult{
-			HandoffID:      "handoff-1",
-			ChildSessionID: "session-child",
-			ChildTurn: RunSessionResult{
-				TurnID:           "turn-child",
-				Status:           TurnRunStatusPending,
-				PendingRequestID: "question-1",
-				PendingQuestion: &events.QuestionRequestState{
-					QuestionID: "question-1",
-					Question:   "Continue or stop this turn?",
-					Options:    []string{"Continue", "Stop turn"},
-				},
-			},
-		},
-	}
-	executor.SetDelegateRuntime(runtime)
-
-	if _, err := sessions.CreateSession(context.Background(), CreateSessionInput{
-		SessionID:     "session-1",
-		WorkspaceRoot: t.TempDir(),
-	}); err != nil {
-		t.Fatalf("CreateSession() error = %v", err)
-	}
-	if _, err := sessions.append(context.Background(), events.Draft{
-		SessionID: "session-1",
-		TurnID:    "turn-1",
-		Type:      events.TypeTurnConfigured,
-		Payload: newTurnConfiguredPayload(
-			TurnCapabilities{
-				AgentID:      "engineer",
-				ModelRoute:   baseModelRoute(),
-				AllowedTools: []string{tool.DelegateToolName},
-			},
-			nil,
-			false,
-			false,
-			"",
-			ResponseStyleDefault,
-			false,
-		),
-	}); err != nil {
-		t.Fatalf("append(turn_configured) error = %v", err)
-	}
-
-	result, err := executor.Execute(context.Background(), ExecuteToolInput{
-		SessionID:  "session-1",
-		TurnID:     "turn-1",
-		ToolCallID: "call-1",
-		ToolName:   tool.DelegateToolName,
-		Arguments:  json.RawMessage(`{"agent_id":"reviewer","task":"Review the code","context_summary":"Stay grounded in the repo."}`),
-	})
-	if err != nil {
-		t.Fatalf("Execute() error = %v", err)
-	}
-	if result.Status != ToolExecutionStatusPending || result.PendingRequestID != "handoff-1" {
-		t.Fatalf("result = %#v", result)
-	}
-
-	replayed, err := store.Replay(context.Background(), events.Query{SessionID: "session-1", AfterSequence: -1})
-	if err != nil {
-		t.Fatalf("Replay() error = %v", err)
-	}
-	if got := replayed[len(replayed)-1].Type; got != events.TypeToolExecStart {
-		t.Fatalf("last event type = %s, want tool_exec_start", got)
-	}
-	for _, event := range replayed {
-		if event.Type == events.TypeToolExecEnd {
-			t.Fatalf("replayed events unexpectedly contained tool_exec_end: %#v", replayed)
-		}
 	}
 }
 

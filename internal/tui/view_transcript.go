@@ -143,7 +143,7 @@ func dialogHidesTranscriptScrollbar(dialog dialogModel) bool {
 		return false
 	}
 	switch dialog.ID() {
-	case dialogIDToolDetail, dialogIDHandoffDetail, dialogIDTaskDetail:
+	case dialogIDToolDetail, dialogIDTaskDetail:
 		return true
 	default:
 		return false

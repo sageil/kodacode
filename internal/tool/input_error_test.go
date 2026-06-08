@@ -3,6 +3,7 @@ package tool
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"strings"
 	"testing"
@@ -231,6 +232,62 @@ func TestDefaultErrorTextReturnsActionableText(t *testing.T) {
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("DefaultErrorText() = %q, missing %q", got, want)
+		}
+	}
+}
+
+func TestApplyPatchMissingEndErrorStaysFocused(t *testing.T) {
+	err := InvalidArguments(ApplyPatchToolName, ErrApplyPatchMissingEnd)
+	got := err.Error()
+	for _, want := range []string{
+		"apply_patch: patch input:",
+		"missing *** End Patch",
+		`End the patch with "*** End Patch"`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("err.Error() = %q, missing %q", got, want)
+		}
+	}
+	for _, unwanted := range []string{
+		`"*** Add File:"`,
+		`"*** Update File:"`,
+		`"*** Delete File:"`,
+		"Add File content lines",
+	} {
+		if strings.Contains(got, unwanted) {
+			t.Fatalf("err.Error() = %q, unexpectedly contains %q", got, unwanted)
+		}
+	}
+}
+
+func TestApplyPatchAddFileErrorUsesAddFileGuidance(t *testing.T) {
+	cause := fmt.Errorf("%w: add file lines must start with +", ErrApplyPatchMalformedLine)
+	err := InvalidArguments(ApplyPatchToolName, cause)
+	got := err.Error()
+	for _, want := range []string{
+		"apply_patch: patch input:",
+		"add file lines must start with +",
+		"Fix the patch syntax and retry",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("err.Error() = %q, missing %q", got, want)
+		}
+	}
+	if strings.Contains(got, `Use one file operation header`) {
+		t.Fatalf("err.Error() = %q, unexpectedly used generic header guidance", got)
+	}
+}
+
+func TestApplyPatchUnknownHeaderErrorUsesHeaderGuidance(t *testing.T) {
+	cause := fmt.Errorf("%w: *** Rename File: a.go", ErrApplyPatchUnknownHeader)
+	err := InvalidArguments(ApplyPatchToolName, cause)
+	got := err.Error()
+	for _, want := range []string{
+		"unknown file operation",
+		`Use "*** Add File:", "*** Update File:", or "*** Delete File:"`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("err.Error() = %q, missing %q", got, want)
 		}
 	}
 }

@@ -55,6 +55,7 @@ type SessionState struct {
 	NetworkGrants                []NetworkGrantState
 	TaskOrder                    []string
 	Tasks                        map[string]*TaskState
+	Workflow                     *WorkflowState
 	ReviewOrder                  []string
 	Reviews                      map[string]*ReviewState
 	PlanOrder                    []string
@@ -92,8 +93,7 @@ type TurnState struct {
 	HistoryCompactionUI   *HistoryCompactionUIState
 	Continuation          *HistoryContinuationState
 	ContextUsage          *TurnContextUsageState
-	Handoffs              map[string]*AgentHandoffState
-	HandoffOrder          []string
+	WorkflowRoute         *WorkflowRouteRecommendationState
 	AssistantText         string
 	StreamingText         string
 	ReasoningText         string

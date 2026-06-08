@@ -51,7 +51,6 @@ func providerRequestLimitReviewPlanQuestionText() string {
 func providerRequestLimitAllowsSessionDisable(state events.SessionState, turnID string) bool {
 	return activeReviewPlanWorkflowTask(state) != nil ||
 		activeReviewPlanExecuteWorkflowTurn(state, turnID) ||
-		delegatedReviewPlanWorkflowTurn(state, turnID) ||
 		approvedPlannerPlanExecutionTurn(state, turnID)
 }
 
@@ -61,32 +60,6 @@ func activeReviewPlanExecuteWorkflowTurn(state events.SessionState, turnID strin
 		return false
 	}
 	return isReviewPlanHarnessParentTurn(turn.Config.AgentID, turn.UserText)
-}
-
-func delegatedReviewPlanWorkflowTurn(state events.SessionState, turnID string) bool {
-	turn := state.Turns[strings.TrimSpace(turnID)]
-	if turn == nil {
-		return false
-	}
-	for _, handoffID := range turn.HandoffOrder {
-		handoff := turn.Handoffs[handoffID]
-		if handoff == nil {
-			continue
-		}
-		if strings.TrimSpace(handoff.ParentSessionID) == "" ||
-			strings.TrimSpace(handoff.ParentSessionID) == strings.TrimSpace(state.SessionID) {
-			continue
-		}
-		if strings.TrimSpace(handoff.ChildTurnID) != strings.TrimSpace(turnID) ||
-			strings.TrimSpace(handoff.ParentAgentID) != "engineer" {
-			continue
-		}
-		if handoffProvidesKind(handoff, handoffKindImplementationPlan) ||
-			handoffProvidesKind(handoff, handoffKindReviewFindings) {
-			return true
-		}
-	}
-	return false
 }
 
 func approvedPlannerPlanExecutionTurn(state events.SessionState, turnID string) bool {

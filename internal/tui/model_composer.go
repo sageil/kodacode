@@ -114,7 +114,6 @@ func (m *Model) submitComposer() (tea.Model, tea.Cmd) {
 		m.selection.callTurnID = ""
 		m.selection.callID = ""
 		m.clearExpandedToolCall()
-		m.selection.handoffID = ""
 		m.inspector.tab = 1
 		m.clearComposerDraft()
 		m.chrome.focus = focusTranscript
@@ -130,6 +129,7 @@ func (m *Model) submitComposer() (tea.Model, tea.Cmd) {
 					TurnID:            m.turnID,
 					AgentID:           m.agentID,
 					StartTurnAgentID:  m.agentID,
+					WorkflowID:        m.workflowID,
 					ThinkingEnabled:   m.thinkingEnabled,
 					ReasoningVariant:  m.reasoningVariant,
 					SkillIDs:          append([]string(nil), m.skillIDs...),
@@ -182,7 +182,6 @@ func (m *Model) submitAgentTurn(userText string, attachments []app.AttachmentInp
 	m.selection.callTurnID = ""
 	m.selection.callID = ""
 	m.clearExpandedToolCall()
-	m.selection.handoffID = ""
 	m.inspector.tab = 1
 	m.clearComposerDraft()
 	m.clearPendingFocusPaths()
@@ -200,6 +199,7 @@ func (m *Model) submitAgentTurn(userText string, attachments []app.AttachmentInp
 				TurnID:           m.turnID,
 				AgentID:          m.agentID,
 				StartTurnAgentID: turnAgentID,
+				WorkflowID:       m.workflowID,
 				ThinkingEnabled:  m.thinkingEnabled,
 				ReasoningVariant: m.reasoningVariant,
 				SkillIDs:         append([]string(nil), m.skillIDs...),
@@ -211,7 +211,7 @@ func (m *Model) submitAgentTurn(userText string, attachments []app.AttachmentInp
 	}
 	return *m, tea.Batch(
 		m.syncComposerFocus(),
-		startTurnCmd(m.ctx, m.controller, m.sessionID, m.turnID, m.userText, append([]app.AttachmentInput(nil), attachments...), turnAgentID, m.thinkingEnabled, m.reasoningVariant, m.skillIDs),
+		startTurnCmd(m.ctx, m.controller, m.sessionID, m.turnID, m.userText, append([]app.AttachmentInput(nil), attachments...), turnAgentID, m.workflowID, m.thinkingEnabled, m.reasoningVariant, m.skillIDs),
 		m.ensureAnimTicking(),
 	)
 }
@@ -231,7 +231,6 @@ func (m *Model) submitComposerReview(instructions string) (tea.Model, tea.Cmd) {
 	m.selection.callTurnID = ""
 	m.selection.callID = ""
 	m.clearExpandedToolCall()
-	m.selection.handoffID = ""
 	m.inspector.tab = 1
 	m.clearComposerDraft()
 	m.chrome.focus = focusTranscript
@@ -317,6 +316,12 @@ func (m Model) handleComposerInput(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 		m.clearComposerError()
 		return m, m.openComposerExternalEditor()
+	case "ctrl+w":
+		if m.busy || m.hasPendingInteraction() {
+			return m, nil
+		}
+		m.clearComposerError()
+		return m, m.openWorkflowDialog()
 	case "pgup":
 		focusCmd := m.enterTranscriptScrollMode()
 		m.messages.PageUp()

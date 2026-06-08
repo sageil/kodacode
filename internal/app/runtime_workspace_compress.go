@@ -26,19 +26,19 @@ Return JSON only with this shape:
 {"content":"<full markdown file content>"}
 
 Requirements:
-- Preserve durable repository-specific rules, constraints, workflow commands, verification requirements, architecture boundaries, and source-of-truth notes supported by the provided content.
+- Preserve saved repository-specific rules, constraints, workflow commands, verification requirements, architecture boundaries, and source-of-truth notes supported by the provided content.
 - Remove redundancy, repeated section content, filler, and verbose phrasing.
 - Keep the result concise, directly usable, and in Markdown.
 - Do not add placeholders, TODOs, or requests for missing information.
 - Do not output markdown fences.`
 
-const workspaceMemoryCompressionUtilityPrompt = `Compress this durable project memory entry.
+const workspaceMemoryCompressionUtilityPrompt = `Compress this saved project memory entry.
 
 Return JSON only with this shape:
 {"content":"<full memory entry content>"}
 
 Requirements:
-- Preserve durable facts, decisions, constraints, identifiers, and non-obvious project context supported by the provided content.
+- Preserve saved facts, decisions, constraints, identifiers, and non-obvious project context supported by the provided content.
 - Keep the result shorter and easier to inject into future prompts.
 - Remove repetition and filler, but do not remove substantive facts.
 - Keep the entry standalone and directly usable.

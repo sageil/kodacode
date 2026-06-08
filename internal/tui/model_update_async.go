@@ -98,6 +98,9 @@ func (m Model) updateAsyncStateMsg(msg tea.Msg) (Model, tea.Cmd, bool) {
 	case operationDoneMsg:
 		next, cmd := m.handleOperationDoneMsg(typed)
 		return next, cmd, true
+	case workflowResumedMsg:
+		next, cmd := m.handleWorkflowResumedMsg(typed)
+		return next, cmd, true
 	case turnWritesRestoredMsg:
 		next, cmd := m.handleTurnWritesRestoredMsg(typed)
 		return next, cmd, true
@@ -133,7 +136,6 @@ func (m Model) handleOperationDoneMsg(msg operationDoneMsg) (Model, tea.Cmd) {
 	m.liveTurn.cancelRequested = false
 	if msg.err != nil {
 		m.interaction.resolveReq = ""
-		m.interaction.resolveHandoff = ""
 		m.disarmLiveTurn()
 		m.err = msg.err
 		m.chrome.focus = focusComposer
@@ -143,13 +145,9 @@ func (m Model) handleOperationDoneMsg(msg operationDoneMsg) (Model, tea.Cmd) {
 	if msg.sessionResult != nil {
 		m.trackSessionTurnResult(*msg.sessionResult)
 	}
-	if msg.delegatedQuestionResult != nil {
-		m.trackDelegatedQuestionResult(*msg.delegatedQuestionResult)
-	}
 	m.interaction.resolveReq = ""
-	m.interaction.resolveHandoff = ""
 	m.clearFooterError()
-	if m.isFinished() && !m.isDelegatedChildView() && !m.hasPendingApproval() {
+	if m.isFinished() && !m.hasPendingApproval() {
 		m.chrome.focus = focusComposer
 		m.syncViewportLayout()
 	} else if !m.hasPendingApproval() {
@@ -157,6 +155,25 @@ func (m Model) handleOperationDoneMsg(msg operationDoneMsg) (Model, tea.Cmd) {
 		m.syncViewportLayout()
 	}
 	return m, m.syncComposerFocus()
+}
+
+func (m Model) handleWorkflowResumedMsg(msg workflowResumedMsg) (Model, tea.Cmd) {
+	m.busy = false
+	if msg.err != nil {
+		m.clearFooterError()
+		m.setComposerError(msg.err.Error())
+		m.chrome.focus = focusComposer
+		m.syncViewportLayout()
+		return m, m.syncComposerFocus()
+	}
+	m.clearComposerError()
+	m.clearFooterError()
+	m.chrome.focus = focusComposer
+	m.syncViewportLayout()
+	return m, tea.Batch(
+		m.syncComposerFocus(),
+		m.showFooterActivity("Workflow resumed", footerActivityToneInfo, ""),
+	)
 }
 
 func (m Model) handleTurnWritesRestoredMsg(msg turnWritesRestoredMsg) (Model, tea.Cmd) {
@@ -340,27 +357,7 @@ func (m Model) handleTurnCancelRequestedMsg(msg turnCancelRequestedMsg) (Model, 
 
 func (m Model) handleSessionSnapshotRefreshedMsg(msg sessionSnapshotRefreshedMsg) (Model, tea.Cmd) {
 	if msg.sessionID != m.sessionID {
-		delete(m.delegatedSnapshots.loading, msg.sessionID)
-		pendingRefreshCmd := m.consumePendingDelegatedSessionSnapshotRefreshCmd(msg.sessionID)
-		if msg.err != nil {
-			m.setFooterError(msg.err.Error())
-			return m, pendingRefreshCmd
-		}
-		if m.delegatedSnapshots.snapshots == nil {
-			m.delegatedSnapshots.snapshots = make(map[string]events.SessionState)
-		}
-		m.delegatedSnapshots.snapshots[msg.sessionID] = msg.state
-		m.syncShellToolsDialog()
-		m.syncToolDetailDialog()
-		m.syncHandoffDetailDialog()
-		m.syncInspectorBody(false)
-		m.syncViewportLayout()
-		return m, tea.Batch(
-			pendingRefreshCmd,
-			loadSessionUsageSummaryCmd(m.ctx, m.controller, m.sessionID),
-			m.ensureSelectedToolResultLoadedCmd(),
-			m.ensureOpenToolMutationDetailLoadedCmd(msg.state),
-		)
+		return m, nil
 	}
 	if msg.err != nil {
 		m.setFooterError(msg.err.Error())
@@ -369,6 +366,7 @@ func (m Model) handleSessionSnapshotRefreshedMsg(msg sessionSnapshotRefreshedMsg
 	resolutionInFlight := m.interactionResolutionInFlight()
 	m.projector = events.NewProjectorFromSnapshot(msg.state)
 	m.primeTranscriptTurnSourceKeys(msg.state)
+	m.clearAcknowledgedUserTextFromState(msg.state)
 	trackedTurnFinished := isFinishedInState(msg.state, m.turnID)
 	holdLiveTurnState := resolutionInFlight && trackedTurnFinished
 	if trackedTurnFinished && !holdLiveTurnState {
@@ -379,11 +377,20 @@ func (m Model) handleSessionSnapshotRefreshedMsg(msg sessionSnapshotRefreshedMsg
 	}
 	m.syncToolDetailDialog()
 	m.syncShellToolsDialog()
-	m.syncHandoffDetailDialog()
 	m.syncTaskDetailDialog()
 	m.syncViewportLayout()
-	return m, tea.Batch(
-		loadSessionUsageSummaryCmd(m.ctx, m.controller, m.sessionID),
-		m.ensureRelevantDelegatedSessionSnapshotsLoadedCmd(msg.state),
-	)
+	return m, loadSessionUsageSummaryCmd(m.ctx, m.controller, m.sessionID)
+}
+
+func (m *Model) clearAcknowledgedUserTextFromState(state events.SessionState) {
+	if m == nil || strings.TrimSpace(m.userText) == "" || strings.TrimSpace(m.turnID) == "" {
+		return
+	}
+	turn := currentTurn(state, m.turnID)
+	if turn == nil {
+		return
+	}
+	if strings.TrimSpace(turn.UserText) == strings.TrimSpace(m.userText) {
+		m.userText = ""
+	}
 }

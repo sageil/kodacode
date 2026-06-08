@@ -40,6 +40,13 @@ func footerStatusSegments(m Model, state events.SessionState) []transcriptStatus
 	turn := currentTurn(metricsState, metricsTurnID)
 	segments := make([]transcriptStatusSegment, 0, 8)
 
+	if label, tone, bold := footerWorkflowLabel(m, state); label != "" {
+		segments = append(segments, transcriptStatusSegment{
+			Text:  label,
+			Color: tone,
+			Bold:  bold,
+		})
+	}
 	if agent := footerAgentLabel(m, state, turnID); agent != "" {
 		segments = append(segments, transcriptStatusSegment{
 			Text:  agent,
@@ -47,7 +54,7 @@ func footerStatusSegments(m Model, state events.SessionState) []transcriptStatus
 		})
 	}
 	if git := footerGitStatus(m.footerStatus.workspace); git != nil {
-		if branch := strings.TrimSpace(git.Branch); branch != "" {
+		if branch := strings.TrimSpace(git.Branch); branch != "" && !shellLayoutEnabled(m) {
 			segments = append(segments, transcriptStatusSegment{
 				Text:  m.terminalIcon(terminalIconGitBranch) + " " + branch,
 				Color: colorFor(m.theme, "success", "#90e5b4"),
@@ -100,7 +107,7 @@ func footerStatusSegments(m Model, state events.SessionState) []transcriptStatus
 			Color: tone,
 		})
 	}
-	if mode := strings.TrimSpace(sessionPermissionModeLabel(state.PermissionMode)); mode != "" {
+	if mode := strings.TrimSpace(sessionPermissionModeLabel(effectiveSessionPermissionMode(m, state))); mode != "" {
 		segments = append(segments, transcriptStatusSegment{
 			Text:  "mode:" + mode,
 			Color: colorFor(m.theme, "subtext", "#9da8ca"),
@@ -109,18 +116,104 @@ func footerStatusSegments(m Model, state events.SessionState) []transcriptStatus
 	return segments
 }
 
+func effectiveSessionPermissionMode(m Model, state events.SessionState) string {
+	if !sessionStateConfigured(state) {
+		if mode := strings.TrimSpace(m.permissionMode); mode != "" {
+			return mode
+		}
+	}
+	if mode := strings.TrimSpace(state.PermissionMode); mode != "" {
+		return mode
+	}
+	return strings.TrimSpace(m.permissionMode)
+}
+
+func sessionStateConfigured(state events.SessionState) bool {
+	return strings.TrimSpace(state.SessionID) != "" ||
+		strings.TrimSpace(state.WorkspaceRoot) != "" ||
+		len(state.TurnOrder) > 0 ||
+		len(state.Turns) > 0
+}
+
+func footerWorkflowLabel(m Model, state events.SessionState) (string, string, bool) {
+	workflow := visibleFooterWorkflow(state)
+	if workflow == nil || strings.TrimSpace(workflow.WorkflowID) == "" {
+		if workflowID := strings.TrimSpace(m.workflowID); workflowID != "" {
+			return "workflow:" + workflowID, colorFor(m.theme, "subtext", "#9da8ca"), false
+		}
+		return "", "", false
+	}
+	label := "workflow:" + strings.TrimSpace(workflow.WorkflowID)
+	if phaseID := strings.TrimSpace(workflow.CurrentPhaseID); phaseID != "" {
+		label += " phase:" + phaseID
+	}
+	status := workflowDisplayStatus(m, state, workflow)
+	if status != "" {
+		label += " " + status
+	}
+	if reason := workflowStopReason(workflow); reason != "" {
+		label += ": " + reason
+	}
+	switch status {
+	case events.WorkflowStatusBlocked:
+		return label, colorFor(m.theme, "warning", "#ffd28f"), true
+	case events.WorkflowStatusCompleted:
+		return label, colorFor(m.theme, "success", "#90e5b4"), false
+	default:
+		return label, colorFor(m.theme, "primary", "#7cc7ff"), false
+	}
+}
+
+func visibleFooterWorkflow(state events.SessionState) *events.WorkflowState {
+	workflow := state.Workflow
+	if workflow == nil || workflow.Status == events.WorkflowStatusCompleted {
+		return nil
+	}
+	return workflow
+}
+
+func workflowDisplayStatus(m Model, state events.SessionState, workflow *events.WorkflowState) string {
+	if workflow == nil {
+		return ""
+	}
+	status := strings.TrimSpace(workflow.Status)
+	if status != events.WorkflowStatusActive {
+		return status
+	}
+	if m.busy || m.liveTurn.spinnerArmed {
+		return status
+	}
+	if turn := currentTurn(state, effectiveFooterTurnID(m, state)); turn != nil {
+		if turn.Status == events.TurnStatusRunning {
+			return status
+		}
+		if isTurnFinished(turn) {
+			return "paused"
+		}
+	}
+	return status
+}
+
+func workflowStopReason(workflow *events.WorkflowState) string {
+	if workflow == nil {
+		return ""
+	}
+	if reason := strings.TrimSpace(workflow.StopReason); reason != "" {
+		return reason
+	}
+	phase := workflow.Phases[strings.TrimSpace(workflow.CurrentPhaseID)]
+	if phase == nil {
+		return ""
+	}
+	return strings.TrimSpace(phase.StopReason)
+}
+
 func footerStatusMeta(state events.SessionState, turnID string) string {
 	return ""
 }
 
 func footerAgentLabel(m Model, state events.SessionState, turnID string) string {
 	turn := currentTurn(state, turnID)
-	if handoff := activeDelegatedHandoff(state, m); handoff != nil && strings.TrimSpace(handoff.ChildAgentID) != "" {
-		return handoff.ChildAgentID
-	}
-	if handoff := explicitSelectedHandoff(turn, m.selection.handoffID); handoff != nil && strings.TrimSpace(handoff.ChildAgentID) != "" {
-		return handoff.ChildAgentID
-	}
 	if turn != nil && !isTurnFinished(turn) && turn.Config != nil {
 		if agentID := strings.TrimSpace(turn.Config.AgentID); agentID != "" {
 			return agentID
@@ -177,14 +270,7 @@ func effectiveFooterToolCount(m Model, state events.SessionState, turn *events.T
 }
 
 func effectiveFooterWorkflowSummary(m Model, state events.SessionState, delegated bool) (app.SessionUsageSummary, bool) {
-	if delegated || strings.TrimSpace(m.selection.handoffID) != "" {
-		return app.SessionUsageSummary{}, false
-	}
-	summary, ok := effectiveSessionUsageSummary(m, state)
-	if !ok || !summary.HasDelegatedSessions() {
-		return app.SessionUsageSummary{}, false
-	}
-	return summary, true
+	return app.SessionUsageSummary{}, false
 }
 
 func footerLSPLabel(status app.WorkspaceStatus) (string, string) {
@@ -323,6 +409,8 @@ func footerBudgetLabel(th *theme.Theme, status app.BudgetStatus) (string, string
 	switch {
 	case status.TotalExceeded:
 		return "total hit", colorFor(th, "error", "#ff9aa6")
+	case status.WorkflowExceeded:
+		return "workflow hit", colorFor(th, "error", "#ff9aa6")
 	case status.SessionExceeded:
 		return "budget hit", colorFor(th, "error", "#ff9aa6")
 	case status.TotalWarn:
@@ -330,6 +418,11 @@ func footerBudgetLabel(th *theme.Theme, status app.BudgetStatus) (string, string
 			return fmt.Sprintf("total %d%%", percent), colorFor(th, "warning", "#ffd28f")
 		}
 		return "total warn", colorFor(th, "warning", "#ffd28f")
+	case status.WorkflowWarn:
+		if percent, ok := status.WorkflowPercent(); ok {
+			return fmt.Sprintf("workflow %d%%", percent), colorFor(th, "warning", "#ffd28f")
+		}
+		return "workflow warn", colorFor(th, "warning", "#ffd28f")
 	case status.SessionWarn:
 		if percent, ok := status.SessionPercent(); ok {
 			return fmt.Sprintf("budget %d%%", percent), colorFor(th, "warning", "#ffd28f")

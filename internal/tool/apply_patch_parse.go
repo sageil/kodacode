@@ -70,12 +70,12 @@ type ApplyPatchUpdateHunk struct {
 
 func ParseApplyPatch(patch string) (ApplyPatch, error) {
 	var err error
-	patch, err = unwrapApplyPatchJSONArguments(patch)
+	patch, err = normalizeApplyPatchArgument(patch)
 	if err != nil {
 		return ApplyPatch{}, err
 	}
 	parser := applyPatchParser{
-		lines: normalizeApplyPatchLines(patch),
+		lines: canonicalizeApplyPatchBoundaryLines(normalizeApplyPatchLines(patch)),
 	}
 	if len(parser.lines) == 0 {
 		return ApplyPatch{}, InvalidArguments(ApplyPatchToolName, ErrApplyPatchEmpty)
@@ -99,6 +99,26 @@ func ParseApplyPatch(patch string) (ApplyPatch, error) {
 	return parsed, nil
 }
 
+func normalizeApplyPatchArgument(patch string) (string, error) {
+	trimmed := strings.TrimSpace(patch)
+	if trimmed == "" {
+		return patch, nil
+	}
+	if inner, ok := unwrapApplyPatchMarkdownFence(trimmed); ok {
+		return normalizeApplyPatchArgument(inner)
+	}
+	if inner, ok := unwrapApplyPatchFunctionCall(trimmed); ok {
+		return normalizeApplyPatchArgument(inner)
+	}
+	if strings.HasPrefix(trimmed, "{") {
+		return unwrapApplyPatchJSONArguments(trimmed)
+	}
+	if block, ok := extractApplyPatchBlock(trimmed); ok {
+		return block, nil
+	}
+	return trimmed, nil
+}
+
 func unwrapApplyPatchJSONArguments(patch string) (string, error) {
 	trimmed := strings.TrimSpace(patch)
 	if trimmed == "" || !strings.HasPrefix(trimmed, "{") {
@@ -113,13 +133,85 @@ func unwrapApplyPatchJSONArguments(patch string) (string, error) {
 	if strings.TrimSpace(input.Patch) == "" {
 		return "", InvalidArguments(ApplyPatchToolName, ErrApplyPatchEmpty)
 	}
-	return input.Patch, nil
+	return normalizeApplyPatchArgument(input.Patch)
+}
+
+func unwrapApplyPatchMarkdownFence(patch string) (string, bool) {
+	lines := normalizeApplyPatchLines(patch)
+	if len(lines) < 3 || !strings.HasPrefix(strings.TrimSpace(lines[0]), "```") {
+		return "", false
+	}
+	end := len(lines) - 1
+	for end > 0 && strings.TrimSpace(lines[end]) == "" {
+		end--
+	}
+	if end <= 0 || strings.TrimSpace(lines[end]) != "```" {
+		return "", false
+	}
+	return strings.Join(lines[1:end], "\n"), true
+}
+
+func unwrapApplyPatchFunctionCall(patch string) (string, bool) {
+	rest, ok := strings.CutPrefix(strings.TrimSpace(patch), ApplyPatchToolName)
+	if !ok {
+		return "", false
+	}
+	rest = strings.TrimSpace(rest)
+	if !strings.HasPrefix(rest, "(") {
+		return "", false
+	}
+	rest = strings.TrimSpace(strings.TrimSuffix(rest, ";"))
+	if !strings.HasSuffix(rest, ")") {
+		return "", false
+	}
+	return strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(rest, "("), ")")), true
+}
+
+func extractApplyPatchBlock(patch string) (string, bool) {
+	lines := normalizeApplyPatchLines(patch)
+	start := -1
+	for idx, line := range lines {
+		if line == applyPatchBeginMarker {
+			start = idx
+			break
+		}
+	}
+	if start < 0 {
+		return "", false
+	}
+	for idx := start + 1; idx < len(lines); idx++ {
+		if lines[idx] == applyPatchEndMarker {
+			return strings.Join(lines[start:idx+1], "\n"), true
+		}
+	}
+	return "", false
 }
 
 func normalizeApplyPatchLines(patch string) []string {
 	normalized := strings.ReplaceAll(patch, "\r\n", "\n")
 	normalized = strings.ReplaceAll(normalized, "\r", "\n")
 	return strings.Split(normalized, "\n")
+}
+
+func canonicalizeApplyPatchBoundaryLines(lines []string) []string {
+	if len(lines) == 0 {
+		return lines
+	}
+	canonical := append([]string(nil), lines...)
+	if canonical[0] == "+"+applyPatchBeginMarker {
+		canonical[0] = applyPatchBeginMarker
+	}
+	end := len(canonical) - 1
+	for end > 0 && canonical[end] == "" {
+		end--
+	}
+	if canonical[end] == "+"+applyPatchEndMarker {
+		canonical[end] = applyPatchEndMarker
+		if end > 0 && canonical[end-1] == "+***" {
+			canonical = append(canonical[:end-1], canonical[end:]...)
+		}
+	}
+	return canonical
 }
 
 type applyPatchParser struct {
@@ -174,6 +266,9 @@ func (p *applyPatchParser) parseAddFile(header string) (ApplyPatchOperation, err
 	for p.idx < p.end && !isApplyPatchFileHeader(p.lines[p.idx]) {
 		line := p.lines[p.idx]
 		if !strings.HasPrefix(line, "+") {
+			if strings.HasPrefix(line, "***") {
+				return ApplyPatchOperation{}, applyPatchLineError(p.idx, fmt.Errorf("%w: unexpected %q inside Add File; use %q to close the patch, or prefix it as \"+%s\" if it is intended file content", ErrApplyPatchMalformedLine, line, applyPatchEndMarker, line))
+			}
 			return ApplyPatchOperation{}, applyPatchLineError(p.idx, fmt.Errorf("%w: add file lines must start with +", ErrApplyPatchMalformedLine))
 		}
 		lines = append(lines, strings.TrimPrefix(line, "+"))

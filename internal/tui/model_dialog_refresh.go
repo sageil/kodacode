@@ -112,8 +112,6 @@ func (m *Model) syncDialogByID(dialogID string, now time.Time) bool {
 		m.syncShellToolsDialog()
 	case dialogIDToolDetail:
 		m.syncToolDetailDialog()
-	case dialogIDHandoffDetail:
-		m.syncHandoffDetailDialog()
 	case dialogIDTaskDetail:
 		m.syncTaskDetailDialog()
 	default:

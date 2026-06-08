@@ -9,6 +9,9 @@ func (p *Projector) applyPayload(event Event) error {
 	if handled, err := p.applyTaskPayload(event); handled {
 		return err
 	}
+	if handled, err := p.applyWorkflowPayload(event); handled {
+		return err
+	}
 	if handled, err := p.applyPlanPayload(event); handled {
 		return err
 	}

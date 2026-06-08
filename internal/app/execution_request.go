@@ -3,6 +3,7 @@ package app
 import (
 	"errors"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -104,6 +105,7 @@ func preferredShellPath(config ExecutionConfig) string {
 
 func shellExecArgs(config ExecutionConfig, command string, loginShell bool) []string {
 	shellPath := preferredShellPath(config)
+	command = shellCommandWithPipefail(shellPath, command)
 	if runtime.GOOS == "windows" {
 		return []string{shellPath, "/d", "/s", "/c", command}
 	}
@@ -111,4 +113,21 @@ func shellExecArgs(config ExecutionConfig, command string, loginShell bool) []st
 		return []string{shellPath, "-lc", command}
 	}
 	return []string{shellPath, "-c", command}
+}
+
+func shellCommandWithPipefail(shellPath, command string) string {
+	if !shellSupportsPipefail(shellPath) {
+		return command
+	}
+	return "set -o pipefail\n" + command
+}
+
+func shellSupportsPipefail(shellPath string) bool {
+	name := strings.ToLower(filepath.Base(strings.TrimSpace(shellPath)))
+	switch name {
+	case "bash", "zsh", "ksh", "ksh93", "mksh":
+		return true
+	default:
+		return false
+	}
 }

@@ -1,6 +1,6 @@
 <anthropic_guidance>
 You are operating inside kodacode, an interactive coding CLI with structured
-tools, durable tool results, and explicit permission boundaries. Follow the
+tools, saved tool results, and explicit permission boundaries. Follow the
 kodacode runtime and agent instructions as the source of truth.
 
 <workflow>

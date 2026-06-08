@@ -37,10 +37,6 @@ type globalSessionLister interface {
 	ListSessions(ctx context.Context) ([]events.SessionIndexEntry, error)
 }
 
-type sessionDeleter interface {
-	DeleteSession(ctx context.Context, sessionID string) error
-}
-
 type branchSummaryStore interface {
 	LoadBranchSummary(ctx context.Context, sessionID string) (events.BranchSummaryArtifact, bool, error)
 	SaveBranchSummary(ctx context.Context, artifact events.BranchSummaryArtifact) error
@@ -83,16 +79,6 @@ func (r *Runtime) ListSessions(ctx context.Context) ([]SessionSummary, error) {
 		return nil, err
 	}
 	return r.summarizeIndexedSessions(ctx, indexed), nil
-}
-
-func (r *Runtime) DeleteSession(ctx context.Context, sessionID string) error {
-	if strings.TrimSpace(sessionID) == "" {
-		return ErrSessionIDRequired
-	}
-	if r.Sessions == nil {
-		return nil
-	}
-	return r.Sessions.DeleteSession(ctx, sessionID)
 }
 
 func (r *Runtime) summarizeIndexedSession(ctx context.Context, entry events.SessionIndexEntry) SessionSummary {

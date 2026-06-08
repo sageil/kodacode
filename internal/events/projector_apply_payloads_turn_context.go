@@ -24,6 +24,8 @@ func (p *Projector) applyTurnContextPayload(event Event) (bool, error) {
 		turn.LastUpdatedAtSeq = event.Sequence
 		turn.Config = &TurnConfigState{
 			AgentID:                   payload.AgentID,
+			WorkflowID:                payload.WorkflowID,
+			WorkflowPhaseID:           payload.WorkflowPhaseID,
 			SkillIDs:                  append([]string(nil), payload.SkillIDs...),
 			SelectedSkillIDs:          slices.Clone(payload.SelectedSkillIDs),
 			Model:                     payload.Model,
@@ -141,6 +143,8 @@ func renderTurnContinuationTranscriptText(payload TurnContinuationStartedPayload
 		return "Continuing automatically after the previous turn reached the model input limit."
 	case TurnContinuationReasonQuestionAnswer:
 		return "Continuing in a new turn after the user answered a pending question."
+	case TurnContinuationReasonWorkflowPhase:
+		return "Continuing automatically with the next workflow phase."
 	default:
 		return "Continuing automatically from the previous turn."
 	}

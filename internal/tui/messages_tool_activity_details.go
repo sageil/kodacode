@@ -145,11 +145,6 @@ func toolDetailTranscriptOutput(m Model, ref *sessionToolCallRef, call *events.T
 	if call == nil {
 		return ""
 	}
-	if isDelegateToolCall(call) {
-		if rendered := strings.TrimSpace(renderDelegateToolTranscriptOutput(m, ref, call, width)); rendered != "" {
-			return rendered
-		}
-	}
 	output := strings.TrimSpace(toolResultOutput(m, ref, call))
 	errorText := strings.TrimSpace(toolResultError(m, ref, call))
 	if errorText != "" && isTaskToolCall(call) {

@@ -191,7 +191,7 @@ func TestRenderTasksInspectorNoLongerDerivesTasksFromTurns(t *testing.T) {
 		t.Fatalf("rendered = %q, want empty-task message", rendered)
 	}
 	for _, unwanted := range []string{
-		"This tab only shows durable task state recorded in the current session.",
+		"This tab only shows saved task state recorded in the current session.",
 		"Current agent:",
 		"Press Tab to switch to engineer",
 	} {
@@ -221,7 +221,7 @@ func TestRenderTasksInspectorEmptyStateExplainsEngineerBehavior(t *testing.T) {
 		t.Fatalf("rendered = %q, want empty-task message", rendered)
 	}
 	for _, unwanted := range []string{
-		"This tab only shows durable task state recorded in the current session.",
+		"This tab only shows saved task state recorded in the current session.",
 		"Current agent:",
 		"Tasks appear here after engineer creates workflow tasks",
 	} {

@@ -71,7 +71,8 @@ func splitWideViewCacheKeyForLayout(m Model, state events.SessionState, layout s
 	writeTranscriptSignatureString(hasher, effectiveSessionEstimatedCostLabel(m, metricsState))
 
 	writeTranscriptSignatureString(hasher, shellStatusHints(m, state))
-	writeTranscriptSignatureString(hasher, strings.TrimSpace(m.composer.Value()))
+	writeTranscriptSignatureString(hasher, m.composer.Value())
+	writeTranscriptSignatureInt(hasher, m.composerCursorOffset())
 	writeTranscriptSignatureString(hasher, strings.TrimSpace(m.composerState.err))
 	writeTranscriptSignatureString(hasher, strings.TrimSpace(m.composerDisabledMessage(state)))
 	writeTranscriptSignatureBool(hasher, m.hasPendingInteraction())

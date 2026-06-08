@@ -5,7 +5,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sageil/kodacode/internal/agent"
 	"github.com/sageil/kodacode/internal/events"
 	"github.com/sageil/kodacode/internal/tool"
 )
@@ -15,7 +14,7 @@ func TestToolExecutionErrorTextTaskWorkflowCreateCompletedReturnsCorrection(t *t
 	got := toolExecutionErrorText(tool.TaskWorkflowToolName, err)
 
 	for _, want := range []string{
-		`task_workflow failed`,
+		`task_workflow:`,
 		`create cannot use status "complete"`,
 		`complete with task_id and summary`,
 	} {
@@ -30,8 +29,8 @@ func TestToolExecutionErrorTextTaskWorkflowMissingSummaryReturnsCorrection(t *te
 	got := toolExecutionErrorText(tool.TaskWorkflowToolName, err)
 
 	for _, want := range []string{
-		`task_workflow failed`,
-		`complete requires task_id and summary`,
+		`task_workflow:`,
+		`complete needs task_id and summary`,
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("toolExecutionErrorText() text = %q, missing %q", got, want)
@@ -44,7 +43,7 @@ func TestToolExecutionErrorTextTaskWorkflowInvalidActionRoutesReviewIntent(t *te
 	got := toolExecutionErrorText(tool.TaskWorkflowToolName, err)
 
 	for _, want := range []string{
-		`task_workflow failed`,
+		`task_workflow:`,
 		`action must be list, create, update, block, or complete`,
 		`Use task_review for reviews`,
 	} {
@@ -59,9 +58,9 @@ func TestToolExecutionErrorTextTaskWorkflowUnsupportedFieldsShowsActionPayload(t
 	got := toolExecutionErrorText(tool.TaskWorkflowToolName, err)
 
 	for _, want := range []string{
-		`task_workflow failed`,
-		`create does not accept summary, progress`,
-		`Remove unsupported fields`,
+		`task_workflow:`,
+		`create cannot use summary, progress`,
+		`Use create for title/parent/kind/status/notes`,
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("toolExecutionErrorText() text = %q, missing %q", got, want)
@@ -113,23 +112,6 @@ func TestToolExecutionErrorTextTaskReviewNotFoundReturnsListRecovery(t *testing.
 	}
 }
 
-func TestToolExecutionErrorTextDelegateMissingAgentSeparatesAgentFromSkill(t *testing.T) {
-	got := toolExecutionErrorText(tool.DelegateToolName, fmt.Errorf("%w: code-review", agent.ErrAgentNotFound))
-
-	for _, want := range []string{
-		`agent was not found`,
-		"`reviewer`",
-		"`planner`",
-	} {
-		if !strings.Contains(got, want) {
-			t.Fatalf("toolExecutionErrorText() text = %q, missing %q", got, want)
-		}
-	}
-	if strings.Contains(strings.ToLower(got), "skill") {
-		t.Fatalf("toolExecutionErrorText() text = %q, must not mention skills", got)
-	}
-}
-
 func TestToolExecutionErrorTextCommonRecoveriesStayConcise(t *testing.T) {
 	cases := []struct {
 		name string
@@ -139,7 +121,6 @@ func TestToolExecutionErrorTextCommonRecoveriesStayConcise(t *testing.T) {
 		{name: "task create complete", tool: tool.TaskWorkflowToolName, err: tool.InvalidArguments(tool.TaskWorkflowToolName, tool.ErrTaskCompleteActionOnly)},
 		{name: "task unsupported", tool: tool.TaskWorkflowToolName, err: tool.InvalidArguments(tool.TaskWorkflowToolName, fmt.Errorf("%w: action=create fields=summary, progress", tool.ErrTaskWorkflowFieldUnsupported))},
 		{name: "review unsupported", tool: tool.TaskReviewToolName, err: tool.InvalidArguments(tool.TaskReviewToolName, fmt.Errorf("%w: action=review fields=title, status", tool.ErrTaskReviewFieldUnsupported))},
-		{name: "delegate missing", tool: tool.DelegateToolName, err: fmt.Errorf("%w: code-review", agent.ErrAgentNotFound)},
 		{name: "planner invalid", tool: tool.QuestionToolName, err: ErrPlannerSavePlanQuestionInvalid},
 	}
 	for _, tt := range cases {
@@ -152,5 +133,34 @@ func TestToolExecutionErrorTextCommonRecoveriesStayConcise(t *testing.T) {
 				t.Fatalf("toolExecutionErrorText() embeds JSON example: %q", got)
 			}
 		})
+	}
+}
+
+func TestToolExecutionErrorTextTaskWorkflowParentNotFoundReturnsCleanRecovery(t *testing.T) {
+	got := toolExecutionErrorText(tool.TaskWorkflowToolName, ErrTaskParentNotFound)
+
+	for _, want := range []string{
+		`task_workflow: parent task not found`,
+		`Use list`,
+		`existing parent_task_id`,
+		`omit parent_task_id`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("toolExecutionErrorText() text = %q, missing %q", got, want)
+		}
+	}
+}
+
+func TestToolExecutionErrorTextTaskWorkflowUpdateUnsupportedFieldsReturnsCleanRecovery(t *testing.T) {
+	err := tool.InvalidArguments(tool.TaskWorkflowToolName, fmt.Errorf("%w: action=update fields=parent_task_id, title", tool.ErrTaskWorkflowFieldUnsupported))
+	got := toolExecutionErrorText(tool.TaskWorkflowToolName, err)
+
+	for _, want := range []string{
+		`task_workflow: update cannot use parent_task_id, title`,
+		`Use update for task_id/status/progress/notes`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("toolExecutionErrorText() text = %q, missing %q", got, want)
+		}
 	}
 }

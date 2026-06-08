@@ -10,11 +10,392 @@ This page is the shortest path from "I installed KodaCode" to "I know which flow
 Use the workflow that matches your current job:
 
 - First-time setup: install, connect a provider, choose a model, and create workspace instructions
+- Delivery workflow: use `delivery` for planned implementation and review-owned verification
+- Debug workflow: use `debug` for reproduce, identify, patch, regression checks, and review
+- Review workflow: use `review` to check current changes without editing
+- Explore workflow: use `explore` for read-only repo structure, responsible code, or planning
 - Daily coding session: open a repo, ask for implementation work, and inspect what happened
 - Resume paused work: continue an existing workspace session instead of starting over
 - Try another path: branch from a completed turn without losing the original session
-- Review a change: use a read-focused agent and inspect the turn trace before trusting the result
+- Review a change: use the reviewer agent and inspect the turn trace before trusting the result
 - Explore a repo safely: inspect architecture or answer questions without editing files
+
+## Runtime workflows
+
+Runtime workflows are saved phase plans. They are different from prompt-only
+guidance: the selected workflow, active phase, blocked state, stop reason,
+check results, and review outcomes are stored in session events and shown in
+`/trace`.
+
+KodaCode ships these built-in workflows:
+
+| Workflow | Use it for | Shape |
+| --- | --- | --- |
+| `delivery` | Serious code delivery | plan, approve, implement, review, summarize |
+| `debug` | Bug reports and failing tests | reproduce, identify, patch, regression, verify, review, summarize |
+| `review` | Read-only review of current changes | inspect, review, summarize |
+| `explore` | Read-only repository exploration | inspect, map, summarize |
+
+Select a workflow in the TUI:
+
+```text
+Ctrl+W
+```
+
+Or use the slash command:
+
+```text
+/workflow delivery
+/workflow off
+/workflow resume
+```
+
+Or select one for a one-shot CLI turn:
+
+```bash
+kodacode --workflow debug "reproduce and fix the failing cache test"
+```
+
+`/workflow <id>` selects a workflow for later turns, `/workflow off` clears the
+selection, and `/workflow resume` resumes a blocked workflow phase. If a
+workflow is active, the footer shows the workflow id, current phase, and blocked
+reason when one exists. `/trace` shows phase history and recorded results.
+
+When no workflow is selected, KodaCode may record an advisory workflow route
+recommendation for clear requests such as debugging, review, implementation, or
+read-only exploration. Route recommendations are visible in `/trace`; they do
+not start a workflow or override an explicit selection.
+
+## Project-local workflow files
+
+Project-local workflow YAML files live under:
+
+```text
+.kodacode/workflows/*.yaml
+.kodacode/workflows/*.yml
+```
+
+Global user workflow files live under:
+
+```text
+~/.config/kodacode/workflows/*.yaml
+~/.config/kodacode/workflows/*.yml
+```
+
+Resolution order is built-in, then global, then project-local. That means a
+project-local file can add a workflow or override a built-in workflow with the
+same `id`.
+
+Workflow YAML is declarative. It can narrow the phase agent, phase mode, allowed
+tools, model, required outputs, check commands, and final summary includes. It
+cannot override sandbox policy, permission policy, workspace trust, network
+policy, provider credentials, or an agent's own forbidden tools.
+
+Every runtime-runnable phase must declare `agent:` in YAML. This includes
+default agent phases, `type: verification`, and `type: review`. Runtime-owned
+phases such as `type: user_approval` and `type: final` do not need an agent.
+Runtime-runnable phases auto-continue by default after the previous phase
+completes and evidence requirements are satisfied. Set `auto_continue: false`
+only when a phase should wait for additional user instructions before running.
+
+## Workflow phase types
+
+Use `type:` when a phase needs runtime behavior beyond a normal agent response.
+If `type:` is omitted and `agent:` is set, the phase is a normal agent phase.
+
+| Phase type | Use it for | Common fields |
+| --- | --- | --- |
+| Agent phase | Normal work by `planner`, `engineer`, or `reviewer` | `agent`, `mode`, `prompt`, `tools`, `requires_output` |
+| `type: verification` | Runtime-run checks such as tests or build commands | `agent`, `commands`, `tools`, `required` |
+| `type: review` | Structured review evidence and optional review passes | `agent`, `mode`, `review_passes`, `requires` |
+| `type: user_approval` | Asking before edits or risky work proceeds | `prompt`, `skip_when` |
+| `type: final` | Runtime-generated workflow summary | `include` |
+
+Set `model: provider/model` at the workflow level to route all provider-backed
+phases through a specific primary model. A phase-level `model` overrides the
+workflow model for that phase. If no workflow model is declared, normal agent,
+session, and global config routing applies; the global `workflow.review_model`
+still applies to reviewer turns unless the workflow or phase declares a model.
+
+When a phase declares `requires_output`, the phase response must call
+`workflow_phase_output` with those keys. Missing or invalid fields block moving
+to the next phase instead of being inferred from plain text. Verification phases
+with declared `commands` run those commands through the declared execution tool,
+such as `test` or `bash`, so normal execution permissions and check results
+apply.
+
+`max_revision_loops` caps automatic revision loops after failed verification or
+review evidence. A transition-specific `max_loops` overrides that workflow
+default for the matching transition. Approval phases can use
+`skip_when.max_affected_files` to skip human approval for small structured
+plans; the signal comes from the previous phase's `affected_files` output.
+Workflow `transitions` make jumps between phases explicit for supported events
+such as `skipped`, `verification_failed`, and `review_failed`.
+
+Workflow `budgets` can bound spend and provider loops for a selected workflow.
+`budgets.max_cost` is a hard estimated-cost limit for the active workflow,
+including workflow phase turns. `budgets.warn_threshold` is an optional
+workflow-local warning fraction, and `budgets.max_provider_requests_per_turn`
+overrides the session provider-request cap for workflow phase turns.
+
+Final phases build their summary from recorded workflow results. The runtime
+fills requested `include` fields from exact phase-output fields or known result
+types such as `git_status`, `verification_result`, and `review_outcome`.
+Requested fields without recorded results are shown as not recorded rather than
+being guessed.
+
+Each workflow phase is anchored to the turn that runs it before the phase prompt
+is assembled. Phase start, resume, and blocked-state recovery are stored as
+workflow events, so `/trace` can show which turn executed each phase.
+
+Review phases (`type: review`) can declare `review_passes`. Each pass has an
+`id`, an optional `description`, and optional `instructions`. The runtime expands
+those fields into a review directive in the phase prompt. For every required
+pass, the reviewer must call `workflow_review_result` exactly once with
+`review_pass` set to the pass id. Use `findings: []` when that pass found no
+issue. Final summaries combine all recorded review outcomes instead of using
+only the latest review result.
+
+## Example workflows
+
+Each sample below documents every YAML line with an inline comment. The comments
+are valid YAML, but you can remove them when copying a workflow into
+`.kodacode/workflows/*.yaml`.
+
+Full delivery workflow with every phase type:
+
+```yaml
+id: sample-delivery # Workflow id selected with Ctrl+W or --workflow.
+description: Plan, implement, verify, review, and summarize a code change. # Human-readable catalog text.
+model: openai/gpt-5-mini # Optional default model for provider-backed phases.
+review_mode: auto # Run the workflow review behavior instead of normal automatic review.
+max_revision_loops: 2 # Cap automatic loops from failed checks or review back to implementation.
+budgets: # Optional workflow-local spending and provider request limits.
+  max_cost: 2 # Stop the workflow when estimated cost reaches this amount.
+  warn_threshold: 0.75 # Warn when estimated cost reaches 75 percent of max_cost.
+  max_provider_requests_per_turn: 8 # Override the per-turn provider request cap.
+phases: # Ordered workflow phases.
+  - id: plan # Stable phase id used by evidence, transitions, and trace output.
+    agent: planner # Run this phase with the read-focused planner agent.
+    mode: read_only # Remove mutation tools from the phase tool surface.
+    prompt: Produce a concrete implementation plan before editing. # Extra instruction for this phase.
+    requires_output: # Require structured phase output before advancing.
+      - plan # Saved plan text used by later phases and final summaries.
+      - affected_files # Saved list of likely touched files.
+      - risks # Saved implementation risks or unknowns.
+  - id: approve # Stable phase id for the approval step.
+    type: user_approval # Runtime asks the user instead of calling a model.
+    prompt: Approve this implementation plan before edits? # Question shown to the user.
+    skip_when: # Optional rule for skipping approval automatically.
+      max_affected_files: 2 # Skip approval when the plan lists two or fewer affected files.
+  - id: implement # Stable phase id for the edit step.
+    agent: engineer # Run this phase with the engineer agent.
+    model: openai/gpt-5 # Optional phase-level model override.
+    requires: # Evidence needed before entering this phase.
+      approved_phase: plan # Require approval for the plan phase.
+    completion: # Evidence needed before leaving this phase.
+      requires: # Completion evidence requirements for implementation.
+        - file_mutation # Require recorded file mutation evidence before review.
+    tools: # Narrow normal tools for this phase.
+      allow: # Allow only this tool subset, subject to agent and sandbox policy.
+        - read # Permit file reads.
+        - search # Permit repository search.
+        - apply_patch # Permit patch-based file edits.
+        - bash # Permit command execution through normal approval rules.
+        - task_workflow # Permit workflow-bound task tracking.
+  - id: verify # Stable phase id for checks.
+    type: verification # Runtime executes declared check commands and records results.
+    agent: engineer # Agent identity used for phase configuration and policy.
+    commands: # Checks the runtime should run for this phase.
+      - tool: test # Use the test tool for one-shot verification.
+        command: go test ./... # Command passed to the test tool.
+    required: true # Require successful verification evidence before advancing.
+  - id: review # Stable phase id for review.
+    type: review # Runtime records structured review outcomes.
+    agent: reviewer # Run review with the reviewer agent.
+    mode: read_only # Keep review from mutating the workspace.
+    review_passes: # Named review lenses included in the review prompt and final result.
+      - id: correctness # Review pass id for implementation correctness.
+        description: Correctness against the request and approved plan. # Goal text for this pass.
+        instructions: # Concrete checks included in the generated review directive.
+          - Compare behavior with the approved plan and request.
+          - Check the main path and important edge cases.
+          - Find incorrect, incomplete, or out-of-scope behavior.
+      - id: tests # Review pass id for test coverage.
+        description: Tests, edge cases, and missing checks. # Goal text for this pass.
+        instructions: # Concrete checks included in the generated review directive.
+          - Inspect tests changed or affected.
+          - Check coverage for behavior, edge cases, and declared verification.
+          - Find missing, brittle, unrelated, or non-exercising tests.
+      - id: architecture # Review pass id for APIs, data structures, and integration points.
+        description: APIs, data, config, permissions, and compatibility. # Goal text for this pass.
+        instructions: # Concrete checks included in the generated review directive.
+          - Inspect APIs, request/response shapes, persisted data, config, permissions, and integrations.
+          - Check callers, stored data, config, and related modules.
+          - Find broken callers, incompatible data changes, permission/config risk, or maintainability issues.
+  - id: summarize # Stable phase id for the final output.
+    type: final # Runtime builds the final summary from recorded workflow data.
+    include: # Fields or known result types to include in the final summary.
+      - changed_files # Include changed file evidence when available.
+      - verification_result # Include latest verification result.
+      - review_outcome # Include recorded review outcomes.
+      - risks # Include the saved risks field from the plan phase.
+transitions: # Explicit non-linear phase moves.
+  - from: approve # Transition starts from the approval phase.
+    on: skipped # Trigger when approval is skipped.
+    to: implement # Continue into implementation.
+  - from: verify # Transition starts from verification.
+    on: verification_failed # Trigger when verification fails.
+    to: implement # Loop back to implementation.
+    max_loops: 2 # Stop looping after two failed verification attempts.
+  - from: review # Transition starts from review.
+    on: review_failed # Trigger when review records a failed outcome.
+    to: implement # Loop back to implementation.
+    max_loops: 2 # Stop looping after two failed review attempts.
+```
+
+Debug workflow:
+
+```yaml
+id: sample-debug # Workflow id for bug reports and failing tests.
+description: Reproduce, identify, patch, verify, review, and summarize a bug fix. # Catalog description.
+max_revision_loops: 2 # Cap automatic fix loops after failed checks or review.
+phases: # Ordered debug phases.
+  - id: reproduce # Stable phase id for finding a concrete failure signal.
+    agent: engineer # Use the engineer agent because this phase may run commands.
+    prompt: Reproduce the failure or capture the closest concrete signal. # Phase-specific instruction.
+  - id: identify # Stable phase id for cause analysis.
+    agent: planner # Use planner for read-focused analysis.
+    mode: read_only # Prevent workspace mutations while identifying the cause.
+  - id: patch # Stable phase id for the fix.
+    agent: engineer # Use engineer for edits.
+    tools: # Tool surface for patching.
+      allow: # Allow the tools needed for inspection, edits, and local checks.
+        - read # Permit file reads.
+        - search # Permit repository search.
+        - apply_patch # Permit patch-based edits.
+        - bash # Permit command execution through normal approval rules.
+        - test # Permit one-shot test execution.
+        - diagnostics # Permit diagnostics inspection.
+        - task_workflow # Permit workflow-bound task tracking.
+  - id: verify # Stable phase id for bounded checks.
+    agent: engineer # Normal engineer phase, not a runtime verification gate.
+    prompt: Run or inspect bounded verification for the bug fix and report remaining risk. # Phase-specific instruction.
+    tools:
+      allow:
+        - read # Permit file reads.
+        - search # Permit repository search.
+        - bash # Permit command execution through normal approval rules.
+        - test # Permit one-shot test execution.
+        - diagnostics # Permit diagnostics inspection.
+        - task_workflow # Permit workflow-bound task tracking.
+  - id: review # Stable phase id for read-only review.
+    type: review # Runtime records review outcomes.
+    agent: reviewer # Use the reviewer agent.
+    mode: read_only # Keep review from editing files.
+    tools:
+      allow:
+        - read # Permit file reads.
+        - search # Permit repository search.
+        - test # Permit bounded verification during review.
+        - git_status # Permit status inspection.
+        - workflow_review_result # Permit structured review pass recording.
+    review_passes: # Review lenses for this bug fix.
+      - id: cause # Review pass id for cause coverage.
+        description: Fixes the reproduced cause. # Goal text for this pass.
+        instructions:
+          - Compare the failure signal, identified cause, and patch.
+          - Check that the patch fixes the cause directly.
+          - Find masked symptoms, wrong fixes, or unresolved cause.
+      - id: regression # Review pass id for regression coverage.
+        description: Regression tests and edge cases. # Goal text for this pass.
+        instructions:
+          - Inspect tests for the reproduced failure.
+          - Run or inspect the most relevant bounded tests through the test tool when useful.
+          - Check fail-before/pass-after behavior when practical.
+          - Find missing, brittle, unrelated, or edge-gap coverage.
+      - id: side-effects # Review pass id for nearby behavior risks.
+        description: Side effects in nearby code, config, or permissions. # Goal text for this pass.
+        instructions:
+          - Inspect nearby callers, helpers, config, and permission/auth checks.
+          - Check behavior outside the intended bug fix.
+          - Find unintended caller, config, permission, or runtime-path changes.
+  - id: summarize # Stable phase id for the final workflow message.
+    type: final # Runtime writes the final summary.
+transitions: # Explicit retry loops.
+  - from: review # Transition starts from review.
+    on: review_failed # Trigger when review fails.
+    to: patch # Return to patching.
+    max_loops: 2 # Retry at most twice.
+```
+
+Read-only review workflow:
+
+```yaml
+id: sample-review # Workflow id for read-only review.
+description: Review current changes without editing files. # Catalog description.
+phases: # Ordered review phases.
+  - id: inspect # Stable phase id for initial inspection.
+    agent: reviewer # Use the reviewer agent.
+    mode: read_only # Remove mutation tools.
+  - id: review # Stable phase id for structured review.
+    type: review # Runtime records review outcomes.
+    agent: reviewer # Use the reviewer agent for review work.
+    mode: read_only # Keep review read-only.
+    review_passes: # Named review lenses.
+      - id: correctness # Review pass id for behavior correctness.
+        description: Correctness against the intended change. # Goal text for this pass.
+        instructions:
+          - Inspect git status, affected files, and nearby behavior.
+          - Check that it satisfies the intended change without wrong paths.
+          - Find incorrect, incomplete, or mismatched behavior.
+      - id: tests # Review pass id for test coverage.
+        description: Tests, edge cases, and missing checks. # Goal text for this pass.
+        instructions:
+          - Inspect relevant tests and verification evidence.
+          - Check coverage for important behavior and edge cases.
+          - Find missing tests, weak assertions, brittle coverage, or unverified behavior.
+      - id: architecture # Review pass id for APIs, data structures, and integration points.
+        description: APIs, data, config, permissions, and compatibility. # Goal text for this pass.
+        instructions:
+          - Inspect APIs, request/response shapes, persisted data, config, permissions, and nearby integrations.
+          - Check callers, stored data, config, and related modules.
+          - Find broken callers, incompatible data changes, config/permission risk, compatibility breaks, or maintainability issues.
+  - id: summarize # Stable phase id for final output.
+    type: final # Runtime builds the final summary.
+    include: # Recorded data to include.
+      - review_outcome # Include review pass outcomes.
+      - findings # Include saved findings when available.
+      - evidence # Include recorded workflow evidence summaries.
+```
+
+Read-only exploration workflow:
+
+```yaml
+id: sample-explore # Workflow id for read-only exploration.
+description: Map repository architecture and constraints without edits. # Catalog description.
+phases: # Ordered exploration phases.
+  - id: inspect # Stable phase id for initial inspection.
+    agent: planner # Use the planner agent.
+    mode: read_only # Remove mutation tools.
+    prompt: Inspect the minimum repository surface needed to answer the question. # Phase-specific instruction.
+  - id: map # Stable phase id for the architecture map.
+    agent: planner # Use the planner agent again.
+    mode: read_only # Keep this phase read-only.
+    prompt: Map relevant files, dependencies, decisions, and tradeoffs. # Phase-specific instruction.
+    requires_output: # Require structured output so the final phase can include these fields.
+      - inspected_files # Save the files inspected during exploration.
+      - architecture_notes # Save the architecture notes.
+      - constraints # Save constraints found during exploration.
+      - next_steps # Save recommended next steps.
+  - id: summarize # Stable phase id for final output.
+    type: final # Runtime builds the final summary.
+    include: # Recorded fields to include from the map phase output.
+      - inspected_files # Include the saved inspected_files field.
+      - architecture_notes # Include the saved architecture_notes field.
+      - constraints # Include the saved constraints field.
+      - next_steps # Include the saved next_steps field.
+```
 
 ## First-time setup
 
@@ -46,7 +427,7 @@ This is the normal implementation path when you already know the repo you want t
 
 Good prompts for this flow:
 
-- "Fix the failing search cache invalidation test and explain the root cause."
+- "Fix the failing search cache invalidation test and explain the cause."
 - "Add a docs page for session resume behavior and link it from quick start."
 - "Review the current implementation and point out the highest-risk regression."
 
@@ -110,10 +491,10 @@ Related pages:
 
 ## Review a change
 
-Use this flow when you want verification, risk assessment, or acceptance checks instead of direct implementation.
+Use this flow when you want checks or risk review instead of direct implementation.
 
 1. Switch to the `reviewer` agent with `Tab`.
-2. Ask for a review, acceptance check, or regression pass.
+2. Ask for a review, risk check, or bug check.
 3. Read the findings first.
 4. Open `/trace` if you want to verify which files and tools informed the review.
 
@@ -121,7 +502,7 @@ Good prompts for this flow:
 
 - "Review the current branch for behavioural regressions."
 - "Check whether the new config loader has missing edge-case coverage."
-- "Validate the docs change against the current command surface."
+- "Validate the docs change against the current commands."
 
 Related pages:
 
@@ -134,7 +515,7 @@ Related pages:
 Use this when you want analysis without file edits.
 
 1. Switch to `planner` for read-only repository analysis.
-2. Ask for architecture, ownership, or implementation planning.
+2. Ask for repo structure, responsible code, or implementation planning.
 3. Follow links into the code or docs once you know the right area.
 
 If `web_search` is configured, `planner` can also bring in external references
@@ -144,7 +525,7 @@ Good prompts for this flow:
 
 - "Map the runtime flow for workspace initialization."
 - "Explain how permissions are evaluated end to end."
-- "Plan the cleanest way to simplify this tool contract."
+- "Plan the cleanest way to simplify this tool architecture."
 
 Related pages:
 
@@ -157,7 +538,7 @@ Related pages:
 Once you know your flow, the next useful pages are usually:
 
 - [Quick Start](/getting-started/quick-start/) for the first interactive session
-- [Project Memory & Instructions](/features/project-memory/) for durable repo guidance and saved project facts
+- [Project Memory & Instructions](/features/project-memory/) for saved repo guidance and saved project facts
 - [Budgets](/features/budgets/) for hard spending guardrails
 - [Configuration](/reference/configuration/) for defaults and policy
 - [Slash Commands](/reference/commands/) for the composer command surface

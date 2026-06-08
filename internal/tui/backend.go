@@ -27,10 +27,12 @@ type Backend interface {
 	InitializeWorkspaceInstructions(ctx context.Context, input app.InitializeWorkspaceInstructionsInput) (app.InitializeWorkspaceInstructionsResult, error)
 	CompressWorkspacePromptSources(ctx context.Context, input app.CompressWorkspacePromptSourcesInput) (app.CompressWorkspacePromptSourcesResult, error)
 	ListAgents(ctx context.Context, workspaceRoot string) ([]app.AvailableAgent, error)
+	ListWorkflows(ctx context.Context, workspaceRoot string) ([]app.AvailableWorkflow, error)
 	ListSkills(ctx context.Context, workspaceRoot string) ([]app.AvailableSkill, error)
 	ListWorkspacePaths(ctx context.Context, workspaceRoot string) ([]app.WorkspacePath, error)
 	SetPermissionMode(ctx context.Context, sessionID string, mode app.PermissionMode) error
-	StartTurn(ctx context.Context, sessionID, turnID, userText string, attachments []app.AttachmentInput, agentID string, thinkingEnabled bool, thinkingMode string, skillIDs []string) error
+	ResumeWorkflow(ctx context.Context, sessionID, turnID string) error
+	StartTurn(ctx context.Context, sessionID, turnID, userText string, attachments []app.AttachmentInput, agentID, workflowID string, thinkingEnabled bool, thinkingMode string, skillIDs []string) error
 	StartReview(ctx context.Context, sessionID, turnID, instructions string, thinkingEnabled bool, thinkingMode string, skillIDs []string) error
 	CancelTurn(ctx context.Context, sessionID, turnID string) error
 	RunLocalShellCommand(ctx context.Context, sessionID, turnID, command string) error
@@ -39,10 +41,6 @@ type Backend interface {
 		sessionID, turnID, requestID, userText, answer string,
 		skillIDs []string,
 	) (app.RunSessionResult, error)
-	AnswerDelegatedQuestion(
-		ctx context.Context,
-		sessionID, handoffID, answer string,
-	) (app.AnswerDelegatedSessionQuestionResult, error)
 	ResolvePermission(
 		ctx context.Context,
 		sessionID, turnID, requestID, userText string,
@@ -55,22 +53,10 @@ type Backend interface {
 		executionExecPolicy *events.ExecutionPolicyAmendment,
 		executionNetworkPolicy *events.ExecutionNetworkPolicyAmendment,
 	) error
-	ResolveDelegatedPermission(
-		ctx context.Context,
-		sessionID, handoffID string,
-		decision events.PermissionDecision,
-		scope events.PermissionScope,
-		grantPath string,
-		recursive bool,
-		executionDecision events.ExecutionApprovalDecision,
-		executionExecPolicy *events.ExecutionPolicyAmendment,
-		executionNetworkPolicy *events.ExecutionNetworkPolicyAmendment,
-	) error
 	DialogState(ctx context.Context) (app.DialogState, error)
 	ListSessions(ctx context.Context) ([]app.SessionSummary, error)
 	GenerateBranchSummary(ctx context.Context, sessionID string) (app.GenerateBranchSummaryResult, error)
 	ListPromptHistory(ctx context.Context, limit int) ([]app.PromptHistoryEntry, error)
-	DeleteSession(ctx context.Context, sessionID string) error
 	SetSessionTitle(ctx context.Context, sessionID, title string) error
 	SetThemeName(ctx context.Context, themeName string) error
 	SetTUILayout(ctx context.Context, layout string) error

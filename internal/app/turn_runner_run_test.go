@@ -366,6 +366,7 @@ func TestTurnRunnerRunRetriesPromiseOnlyContextContinuation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewTurnRunner() error = %v", err)
 	}
+	tools.SetWorkflowConfig(WorkflowConfig{PlannerApproval: true})
 
 	result, err := runner.Run(context.Background(), RunTurnInput{
 		SessionID:          "session-1",
@@ -476,6 +477,7 @@ func TestTurnRunnerRunDeclaresAndExecutesToolCall(t *testing.T) {
 			AllowedTools: []string{tool.TaskWorkflowToolName},
 		},
 		nil,
+		"",
 		false,
 		false,
 		"",
@@ -541,6 +543,7 @@ func TestTurnRunnerRunCommitsPlannerPlanBeforeSaveQuestion(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewTurnRunner() error = %v", err)
 	}
+	tools.SetWorkflowConfig(WorkflowConfig{PlannerApproval: true})
 
 	result, err := runner.Run(context.Background(), RunTurnInput{
 		SessionID:    "session-1",
@@ -625,6 +628,7 @@ func TestTurnRunnerRunFailsPlannerSaveQuestionWithoutVisiblePlanInsteadOfLooping
 	if err != nil {
 		t.Fatalf("NewTurnRunner() error = %v", err)
 	}
+	tools.SetWorkflowConfig(WorkflowConfig{PlannerApproval: true})
 
 	result, err := runner.Run(context.Background(), RunTurnInput{
 		SessionID:    "session-1",

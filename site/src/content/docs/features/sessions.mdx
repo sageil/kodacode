@@ -22,7 +22,7 @@ or `~/.local/state/kodacode/search`.
 
 ## Retention and deletion
 
-`retention.expiry_days` does not auto-delete durable session history. It only
+`retention.expiry_days` does not auto-delete stored session history. It only
 expires derived artifacts and cache data:
 
 - tool-result blobs in `kodacode.db`
@@ -30,9 +30,8 @@ expires derived artifacts and cache data:
 - persisted search-cache files on disk
 - app log files
 
-Session removal is explicit. Open `/sessions` when you want to inspect, switch,
-delete, or purge stored sessions. That delete path removes the session event
-history and the related derived artifacts together.
+Stored session history is retained explicitly. The TUI no longer exposes a
+session manager for deleting or purging saved sessions.
 
 ## Timeline branching
 
@@ -58,7 +57,7 @@ summary while it is fresh. Select a row and press:
 Branching is available only from completed turns. A running turn can still be
 highlighted and inspected, but runtime will not create a branch until the turn
 has a completion sequence. Failed or canceled turns count as completed because
-they have a durable terminal event.
+they have a stored terminal event.
 
 The branched session keeps the same workspace roots and permission mode, records
 its parent session, parent turn, and parent sequence, then replays the original
@@ -139,7 +138,7 @@ Useful `config.yaml` keys under `sessions` include:
 - `response_style`: `default` or `terse`; `terse` reduces ordinary model reply length and output token cost; default `terse`
 - `max_provider_requests_per_turn`: maximum provider requests in one turn; `-1` removes the cap; default `32`
 - `max_output_continuations`: automatically continue clipped provider output only on explicit length stops; `0` disables it; maximum `2`; default `1`
-- `compaction_threshold`: fraction of context limit at which older replayed history starts rebuilding into the durable `History Summary`; default `0.8`
+- `compaction_threshold`: fraction of context limit at which older replayed history starts rebuilding into the saved `History Summary`; default `0.8`
 - `compaction_target_threshold`: acceptance ceiling for that history-summary pass; must be lower than `compaction_threshold`; default `0.60`
 - `max_retries`: provider retry attempts per turn; default `2`
 
@@ -151,13 +150,12 @@ The advantage of session configuration is not just persistence.
 - warnings surface problems before a turn or a week of sessions gets expensive
 - history-summary compaction helps long-running sessions stay useful instead of degrading into context overflow
 - round caps and stall detection keep the runtime honest when a model stops making progress
-- a custom `db_path` is useful when you want one repo or environment to keep its own durable history
+- a custom `db_path` is useful when you want one repo or environment to keep its own stored history
 
 ## TUI session commands
 
-- `/sessions`: open the workspace session manager to resume, switch, delete, or purge sessions
 - `/timeline`: branch a new session from a completed turn in the current session
-- `/compact`: rebuild older session history into the durable `History Summary` now
+- `/compact`: rebuild older session history into the saved `History Summary` now
 - `/new`: start a new session
 - `/history`: search recent prompts
 - `/restore [turn-number]`: restore writes from one turn

@@ -18,7 +18,7 @@ import (
 func TestStartTurnCmdIncludesSkillIDs(t *testing.T) {
 	controller := &fakeController{}
 
-	msg := startTurnCmd(context.Background(), controller, "session-1", "turn-1", "review the code", nil, "engineer", false, "high", []string{"review", "go"})()
+	msg := startTurnCmd(context.Background(), controller, "session-1", "turn-1", "review the code", nil, "engineer", "delivery", false, "high", []string{"review", "go"})()
 	done, ok := msg.(operationDoneMsg)
 	if !ok {
 		t.Fatalf("cmd() msg = %#v", msg)
@@ -39,11 +39,163 @@ func TestStartTurnCmdIncludesSkillIDs(t *testing.T) {
 	if got.AgentID != "engineer" {
 		t.Fatalf("AgentID = %q, want engineer", got.AgentID)
 	}
+	if got.WorkflowID != "delivery" {
+		t.Fatalf("WorkflowID = %q, want delivery", got.WorkflowID)
+	}
 	if got.ThinkingMode != "high" {
 		t.Fatalf("ThinkingMode = %q, want high", got.ThinkingMode)
 	}
 	if !reflect.DeepEqual(got.SkillIDs, []string{"review", "go"}) {
 		t.Fatalf("SkillIDs = %#v", got.SkillIDs)
+	}
+}
+
+func TestModelWorkflowCommandSelectsWorkflow(t *testing.T) {
+	controller := &fakeController{
+		workflows: []app.AvailableWorkflow{{ID: "delivery", Description: "Delivery workflow"}},
+	}
+	model := NewModel(controller, ModelConfig{
+		Context:       context.Background(),
+		WorkspaceRoot: t.TempDir(),
+	})
+	model.composer.SetValue("/workflow delivery")
+
+	next, cmd := model.submitComposer()
+	if cmd == nil {
+		t.Fatal("submitComposer cmd = nil, want footer activity")
+	}
+	updated := next.(Model)
+	if updated.workflowID != "delivery" {
+		t.Fatalf("workflowID = %q, want delivery", updated.workflowID)
+	}
+}
+
+func TestModelWorkflowCommandResumesBlockedWorkflow(t *testing.T) {
+	controller := &fakeController{}
+	state := blockedWorkflowSessionState("session-1")
+	model := NewModel(controller, ModelConfig{
+		Context:       context.Background(),
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: t.TempDir(),
+		InitialState:  &state,
+	})
+	model.composer.SetValue("/workflow resume")
+
+	next, cmd := model.submitComposer()
+	if cmd == nil {
+		t.Fatal("submitComposer cmd = nil, want resume workflow command")
+	}
+	updated := next.(Model)
+	if !updated.busy {
+		t.Fatal("busy = false, want resume command in flight")
+	}
+	msg, ok := cmd().(workflowResumedMsg)
+	if !ok {
+		t.Fatalf("cmd() msg = %#v, want workflowResumedMsg", msg)
+	}
+	if msg.err != nil {
+		t.Fatalf("workflowResumedMsg err = %v", msg.err)
+	}
+	if len(controller.resumeWorkflowCalls) != 1 {
+		t.Fatalf("resumeWorkflowCalls = %#v, want one", controller.resumeWorkflowCalls)
+	}
+	call := controller.resumeWorkflowCalls[0]
+	if call.SessionID != "session-1" || strings.TrimSpace(call.TurnID) == "" {
+		t.Fatalf("resume workflow call = %#v", call)
+	}
+}
+
+func TestModelWorkflowCommandRetryDoesNotAliasResume(t *testing.T) {
+	controller := &fakeController{}
+	state := blockedWorkflowSessionState("session-1")
+	model := NewModel(controller, ModelConfig{
+		Context:       context.Background(),
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: t.TempDir(),
+		InitialState:  &state,
+	})
+	model.composer.SetValue("/workflow retry")
+
+	next, cmd := model.submitComposer()
+	if cmd != nil {
+		t.Fatalf("submitComposer cmd = %#v, want nil", cmd)
+	}
+	updated := next.(Model)
+	if !strings.Contains(updated.composerState.err, "Workflow retry is not available") {
+		t.Fatalf("composer error = %q, want retry unavailable message", updated.composerState.err)
+	}
+	if len(controller.resumeWorkflowCalls) != 0 {
+		t.Fatalf("resumeWorkflowCalls = %#v, want none", controller.resumeWorkflowCalls)
+	}
+}
+
+func TestModelWorkflowCommandResumeRequiresBlockedWorkflow(t *testing.T) {
+	controller := &fakeController{}
+	model := NewModel(controller, ModelConfig{
+		Context:       context.Background(),
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: t.TempDir(),
+	})
+	model.composer.SetValue("/workflow resume")
+
+	next, cmd := model.submitComposer()
+	if cmd != nil {
+		t.Fatalf("submitComposer cmd = %#v, want nil", cmd)
+	}
+	updated := next.(Model)
+	if updated.composerState.err != workflowResumeUnavailableMessage {
+		t.Fatalf("composer error = %q, want %q", updated.composerState.err, workflowResumeUnavailableMessage)
+	}
+	if len(controller.resumeWorkflowCalls) != 0 {
+		t.Fatalf("resumeWorkflowCalls = %#v, want none", controller.resumeWorkflowCalls)
+	}
+}
+
+func TestModelSubmitComposerPassesSelectedWorkflow(t *testing.T) {
+	controller := &fakeController{}
+	model := NewModel(controller, ModelConfig{
+		Context:       context.Background(),
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: t.TempDir(),
+	})
+	model.workflowID = "delivery"
+	model.composer.SetValue("add the feature")
+
+	_, cmd := model.submitComposer()
+	if cmd == nil {
+		t.Fatal("submitComposer cmd = nil")
+	}
+	if done := operationDoneFromCmd(t, cmd); done.err != nil {
+		t.Fatalf("operation err = %v", done.err)
+	}
+	if len(controller.startCalls) != 1 {
+		t.Fatalf("startCalls = %#v", controller.startCalls)
+	}
+	if controller.startCalls[0].WorkflowID != "delivery" {
+		t.Fatalf("WorkflowID = %q, want delivery", controller.startCalls[0].WorkflowID)
+	}
+}
+
+func blockedWorkflowSessionState(sessionID string) events.SessionState {
+	return events.SessionState{
+		SessionID: sessionID,
+		Workflow: &events.WorkflowState{
+			WorkflowID:     "delivery",
+			Status:         events.WorkflowStatusBlocked,
+			CurrentPhaseID: "verify",
+			Phases: map[string]*events.WorkflowPhaseState{
+				"verify": {
+					PhaseID:    "verify",
+					Status:     events.WorkflowPhaseStatusBlocked,
+					StopReason: "verification failed",
+				},
+			},
+			Evidence: map[string]*events.WorkflowEvidenceState{},
+		},
 	}
 }
 
@@ -628,137 +780,6 @@ func TestModelEscCancelsRunningTurnDuringToolExecution(t *testing.T) {
 	}
 }
 
-func TestModelEscClosesDialogBeforeCancelingRunningDelegatedTurn(t *testing.T) {
-	defaultTheme := theme.StaticDefault()
-	controller := &fakeController{}
-	ctx, cancel := context.WithCancel(context.TODO())
-	defer cancel()
-
-	state := events.SessionState{
-		SessionID:     "session-1",
-		WorkspaceRoot: "/repo",
-		TurnOrder:     []string{"turn-1"},
-		Turns: map[string]*events.TurnState{
-			"turn-1": {
-				TurnID:       "turn-1",
-				Status:       events.TurnStatusRunning,
-				UserText:     "plan the SSO integration",
-				HandoffOrder: []string{"handoff-1"},
-				Handoffs: map[string]*events.AgentHandoffState{
-					"handoff-1": {
-						HandoffID:       "handoff-1",
-						ParentSessionID: "session-1",
-						ParentTurnID:    "turn-1",
-						ParentAgentID:   "engineer",
-						ChildSessionID:  "session-child",
-						ChildTurnID:     "turn-child",
-						ChildAgentID:    "planner",
-						Task:            "Create an SSO implementation plan.",
-						ContextSummary:  "Inspect the current auth system and propose a phased rollout.",
-						Model:           "openai/gpt-5-mini",
-						PreviewActive:   true,
-						PreviewToolName: "read",
-						PreviewAction:   "reading auth files",
-					},
-				},
-			},
-		},
-	}
-
-	model := NewModel(controller, ModelConfig{
-		Context:       ctx,
-		Theme:         &defaultTheme,
-		SessionID:     "session-1",
-		TurnID:        "turn-1",
-		WorkspaceRoot: "/repo",
-		InitialState:  &state,
-	})
-	model.chrome.focus = focusTranscript
-	model.dialog = &handoffDetailDialog{id: dialogIDHandoffDetail}
-
-	updated, cmd := model.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
-	next := updated.(Model)
-	if next.liveTurn.cancelRequested {
-		t.Fatal("cancelTurnRequested = true, want false while closing dialog")
-	}
-	if next.dialog == nil {
-		t.Fatal("dialog = nil, want dialog to stay open until close message is applied")
-	}
-	if cmd == nil {
-		t.Fatal("esc cmd = nil, want close dialog cmd")
-	}
-
-	msg := cmd()
-	var (
-		closed dialogClosedMsg
-		ok     bool
-	)
-	switch typed := msg.(type) {
-	case dialogClosedMsg:
-		closed = typed
-		ok = true
-	case tea.BatchMsg:
-		for _, batchCmd := range typed {
-			if batchCmd == nil {
-				continue
-			}
-			if typedMsg, match := batchCmd().(dialogClosedMsg); match {
-				closed = typedMsg
-				ok = true
-				break
-			}
-		}
-	}
-	if !ok {
-		t.Fatalf("cmd() msg = %#v", msg)
-	}
-	if len(controller.cancelTurnCalls) != 0 {
-		t.Fatalf("cancelTurnCalls = %#v, want none", controller.cancelTurnCalls)
-	}
-	if closed.id != dialogIDHandoffDetail {
-		t.Fatalf("dialog close id = %q, want %q", closed.id, dialogIDHandoffDetail)
-	}
-
-	updated, _ = next.Update(closed)
-	next = updated.(Model)
-	if next.dialog != nil {
-		t.Fatalf("dialog = %#v, want nil after close", next.dialog)
-	}
-	if next.liveTurn.cancelRequested {
-		t.Fatal("cancelTurnRequested = true, want false after dialog close")
-	}
-	if len(controller.cancelTurnCalls) != 0 {
-		t.Fatalf("cancelTurnCalls = %#v, want none", controller.cancelTurnCalls)
-	}
-}
-
-func TestModelCtrlCQuitsEvenWhenDelegatedDialogIsOpen(t *testing.T) {
-	defaultTheme := theme.StaticDefault()
-	ctx, cancel := context.WithCancel(context.TODO())
-	defer cancel()
-
-	model := NewModel(&fakeController{}, ModelConfig{
-		Context:       ctx,
-		Theme:         &defaultTheme,
-		SessionID:     "session-1",
-		TurnID:        "turn-1",
-		WorkspaceRoot: "/repo",
-	})
-	model.dialog = &toolDetailDialog{id: dialogIDToolDetail}
-
-	updated, cmd := model.Update(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
-	next := updated.(Model)
-	if !next.shuttingDown {
-		t.Fatal("shuttingDown = false, want true after ctrl+c")
-	}
-	if cmd == nil {
-		t.Fatal("ctrl+c cmd = nil, want quit cmd")
-	}
-	if _, ok := cmd().(tea.QuitMsg); !ok {
-		t.Fatalf("cmd() did not return tea.QuitMsg")
-	}
-}
-
 func TestModelEscEntersNormalModeWhenTurnNotRunning(t *testing.T) {
 	defaultTheme := theme.StaticDefault()
 	controller := &fakeController{}
@@ -1140,8 +1161,8 @@ func TestQuestionResolutionKeepsSameTurnRunningAfterQuestionAnswered(t *testing.
 	if next.turnID != "turn-1" {
 		t.Fatalf("turnID = %q, want turn-1", next.turnID)
 	}
-	if next.interaction.resolveReq != "" || next.interaction.resolveHandoff != "" {
-		t.Fatalf("resolve state = req %q handoff %q, want cleared after the answer is observed", next.interaction.resolveReq, next.interaction.resolveHandoff)
+	if next.interaction.resolveReq != "" {
+		t.Fatalf("resolve state = req %q, want cleared after the answer is observed", next.interaction.resolveReq)
 	}
 	if !next.liveTurn.spinnerArmed {
 		t.Fatal("liveTurnSpinnerArmed = false, want true")
@@ -1211,8 +1232,8 @@ func TestQuestionResolutionDoesNotFollowSyntheticNextTurnFromWatchBatch(t *testi
 	if next.userText != "investigate failing task routes" {
 		t.Fatalf("userText = %q, want %q", next.userText, "investigate failing task routes")
 	}
-	if next.interaction.resolveReq != "" || next.interaction.resolveHandoff != "" {
-		t.Fatalf("resolve state = req %q handoff %q, want cleared after the answer is observed", next.interaction.resolveReq, next.interaction.resolveHandoff)
+	if next.interaction.resolveReq != "" {
+		t.Fatalf("resolve state = req %q, want cleared after the answer is observed", next.interaction.resolveReq)
 	}
 	if !next.busy {
 		t.Fatal("busy = false, want true until answer operation completes")
@@ -1282,8 +1303,11 @@ func TestQuestionResolutionSnapshotRefreshKeepsSameTurn(t *testing.T) {
 	if next.selection.detailTurnID != "turn-1" {
 		t.Fatalf("detailTurnID = %q, want turn-1", next.selection.detailTurnID)
 	}
-	if next.userText != "investigate failing task routes" {
-		t.Fatalf("userText = %q, want %q", next.userText, "investigate failing task routes")
+	if next.userText != "" {
+		t.Fatalf("userText = %q, want cleared after acknowledged snapshot state", next.userText)
+	}
+	if turn := currentTurn(next.projector.Snapshot(), "turn-1"); turn == nil || turn.UserText != "investigate failing task routes" {
+		t.Fatalf("turn-1 userText = %#v, want acknowledged prompt on turn state", turn)
 	}
 	if !next.busy {
 		t.Fatal("busy = false, want true while answer operation is still in flight")
@@ -1449,8 +1473,11 @@ func TestQuestionAnswerContinuationTracksNewTurnWithAnswerText(t *testing.T) {
 	if next.selection.detailTurnID != "turn-2" {
 		t.Fatalf("detailTurnID = %q, want question-answer continuation turn", next.selection.detailTurnID)
 	}
-	if next.userText != "Inspect middleware" {
-		t.Fatalf("userText = %q, want answer text", next.userText)
+	if next.userText != "" {
+		t.Fatalf("userText = %q, want cleared after acknowledged continuation user message", next.userText)
+	}
+	if turn := currentTurn(next.projector.Snapshot(), "turn-2"); turn == nil || turn.UserText != "Inspect middleware" {
+		t.Fatalf("turn-2 userText = %#v, want answer text on turn state", turn)
 	}
 	if !next.busy {
 		t.Fatal("busy = false, want true while question-answer continuation is running")
@@ -1466,8 +1493,11 @@ func TestQuestionAnswerContinuationTracksNewTurnWithAnswerText(t *testing.T) {
 	if next.turnID != "turn-2" {
 		t.Fatalf("turnID after operation done = %q, want question-answer continuation turn", next.turnID)
 	}
-	if next.userText != "Inspect middleware" {
-		t.Fatalf("userText after operation done = %q, want answer text", next.userText)
+	if next.userText != "" {
+		t.Fatalf("userText after operation done = %q, want cleared acknowledged text", next.userText)
+	}
+	if turn := currentTurn(next.projector.Snapshot(), "turn-2"); turn == nil || turn.UserText != "Inspect middleware" {
+		t.Fatalf("turn-2 userText after operation done = %#v, want answer text on turn state", turn)
 	}
 }
 
@@ -1766,795 +1796,6 @@ func TestHandleWatchEventsDefersLiveTranscriptRefreshWhileScrolledOffBottom(t *t
 	}
 }
 
-func TestHandleWatchEventsRefreshesDelegatedChildSnapshotOnPreview(t *testing.T) {
-	defaultTheme := theme.StaticDefault()
-	ctx, cancel := context.WithCancel(context.TODO())
-	defer cancel()
-
-	controller := &fakeController{
-		snapshots: map[string]events.SessionState{
-			"session-child": {
-				SessionID:     "session-child",
-				WorkspaceRoot: "/repo",
-				TurnOrder:     []string{"turn-child"},
-				Turns: map[string]*events.TurnState{
-					"turn-child": {
-						TurnID:        "turn-child",
-						Status:        events.TurnStatusRunning,
-						ToolCallOrder: []string{"call-1"},
-						ToolCalls: map[string]*events.ToolCallState{
-							"call-1": {
-								CallID:    "call-1",
-								ToolName:  "read",
-								Input:     `{"paths":["internal/app/runtime_delegate.go"],"start_line":1,"max_lines":80}`,
-								Output:    "1: package app",
-								Declared:  true,
-								Completed: true,
-								Succeeded: true,
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-
-	model := NewModel(controller, ModelConfig{
-		Context:       ctx,
-		Theme:         &defaultTheme,
-		SessionID:     "session-parent",
-		TurnID:        "turn-parent",
-		WorkspaceRoot: "/repo",
-	})
-	model.projector = events.NewProjectorFromSnapshot(events.SessionState{
-		SessionID:     "session-parent",
-		WorkspaceRoot: "/repo",
-		LastSequence:  1,
-		TurnOrder:     []string{"turn-parent"},
-		Turns: map[string]*events.TurnState{
-			"turn-parent": {
-				TurnID:       "turn-parent",
-				Status:       events.TurnStatusRunning,
-				HandoffOrder: []string{"handoff-1"},
-				Handoffs: map[string]*events.AgentHandoffState{
-					"handoff-1": {
-						HandoffID:      "handoff-1",
-						ChildSessionID: "session-child",
-						ChildTurnID:    "turn-child",
-						ChildAgentID:   "planner",
-						Status:         events.AgentResultStatusCompleted,
-					},
-				},
-				ToolCallOrder: []string{"call-parent"},
-				ToolCalls: map[string]*events.ToolCallState{
-					"call-parent": {
-						CallID:    "call-parent",
-						ToolName:  "delegate",
-						HandoffID: "handoff-1",
-						Input:     `{"agent_id":"planner","task":"Inspect runtime delegate flow.","context_summary":"Review the delegated child session."}`,
-						Declared:  true,
-						Completed: true,
-						Succeeded: true,
-					},
-				},
-			},
-		},
-	})
-	model.delegatedSnapshots.snapshots["session-child"] = events.SessionState{
-		SessionID:     "session-child",
-		WorkspaceRoot: "/repo",
-		TurnOrder:     []string{"turn-child"},
-		Turns: map[string]*events.TurnState{
-			"turn-child": {
-				TurnID: "turn-child",
-				Status: events.TurnStatusRunning,
-			},
-		},
-	}
-	model.width = 160
-	model.height = 40
-	model.chrome.wideSidebarOpen = true
-	model.chrome.inspectorOpen = true
-	model.inspector.tab = 1
-	model.chrome.focus = focusInspector
-	model.watchID = 1
-	stream := make(chan events.Event)
-	close(stream)
-	model.stream = stream
-
-	event := draftEvent(2, events.TypeAgentHandoffPreview, "session-parent", "turn-parent", events.AgentHandoffPreviewPayload{
-		HandoffID:      "handoff-1",
-		ChildSessionID: "session-child",
-		ChildTurnID:    "turn-child",
-		Active:         true,
-		ToolName:       "read",
-		Action:         "reading runtime_delegate.go",
-		AssistantText:  "Inspecting delegated runtime flow.",
-	})
-
-	updated, cmd := model.handleWatchEvents(model.watchID, []events.Event{event}, false)
-	next := updated.(Model)
-	if cmd == nil {
-		t.Fatalf("cmd = nil, err = %v, watchID = %d", next.err, next.watchID)
-	}
-	msg := cmd()
-	batch, ok := msg.(tea.BatchMsg)
-	if !ok {
-		t.Fatalf("cmd() msg = %#v, want tea.BatchMsg", msg)
-	}
-
-	var refreshMsg sessionSnapshotRefreshedMsg
-	found := false
-	for _, batchCmd := range batch {
-		if batchCmd == nil {
-			continue
-		}
-		if typed, ok := batchCmd().(sessionSnapshotRefreshedMsg); ok && typed.sessionID == "session-child" {
-			refreshMsg = typed
-			found = true
-			break
-		}
-	}
-	if !found {
-		t.Fatalf("missing delegated child snapshot refresh, snapshotCalls = %#v", controller.snapshotCalls)
-	}
-
-	updated, _ = next.Update(refreshMsg)
-	next = updated.(Model)
-	childState, ok := next.delegatedSnapshots.snapshots["session-child"]
-	if !ok {
-		t.Fatal("delegated child snapshot missing after refresh")
-	}
-	turn := childState.Turns["turn-child"]
-	if turn == nil || turn.ToolCalls["call-1"] == nil {
-		t.Fatalf("delegated child tool call missing after refresh: %#v", turn)
-	}
-
-	rendered := ansi.Strip(renderGroupedToolsInspector(next, next.projector.Snapshot(), 48).Content)
-	if !strings.Contains(strings.Join(strings.Fields(rendered), " "), "Read runtime_delegate.go") {
-		t.Fatalf("grouped tools inspector missing refreshed child tool row\nrendered:\n%s", rendered)
-	}
-	if len(controller.snapshotCalls) == 0 || controller.snapshotCalls[len(controller.snapshotCalls)-1] != "session-child" {
-		t.Fatalf("snapshotCalls = %#v, want refresh for session-child", controller.snapshotCalls)
-	}
-}
-
-func TestHandleSessionSnapshotRefreshedRequeuesDelegatedChildRefreshAfterInFlightPreview(t *testing.T) {
-	defaultTheme := theme.StaticDefault()
-	ctx, cancel := context.WithCancel(context.TODO())
-	defer cancel()
-
-	controller := &fakeController{
-		snapshots: map[string]events.SessionState{
-			"session-child": {
-				SessionID:     "session-child",
-				WorkspaceRoot: "/repo",
-				TurnOrder:     []string{"turn-child"},
-				Turns: map[string]*events.TurnState{
-					"turn-child": {
-						TurnID:        "turn-child",
-						Status:        events.TurnStatusRunning,
-						ToolCallOrder: []string{"call-1"},
-						ToolCalls: map[string]*events.ToolCallState{
-							"call-1": {
-								CallID:    "call-1",
-								ToolName:  "read",
-								Input:     `{"paths":["internal/app/runtime_delegate.go"],"start_line":1,"max_lines":80}`,
-								Declared:  true,
-								Executing: true,
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-
-	model := NewModel(controller, ModelConfig{
-		Context:       ctx,
-		Theme:         &defaultTheme,
-		SessionID:     "session-parent",
-		TurnID:        "turn-parent",
-		WorkspaceRoot: "/repo",
-	})
-	model.projector = events.NewProjectorFromSnapshot(events.SessionState{
-		SessionID:     "session-parent",
-		WorkspaceRoot: "/repo",
-		LastSequence:  1,
-		TurnOrder:     []string{"turn-parent"},
-		Turns: map[string]*events.TurnState{
-			"turn-parent": {
-				TurnID:       "turn-parent",
-				Status:       events.TurnStatusRunning,
-				HandoffOrder: []string{"handoff-1"},
-				Handoffs: map[string]*events.AgentHandoffState{
-					"handoff-1": {
-						HandoffID:      "handoff-1",
-						ChildSessionID: "session-child",
-						ChildTurnID:    "turn-child",
-						ChildAgentID:   "planner",
-					},
-				},
-				ToolCallOrder: []string{"call-parent"},
-				ToolCalls: map[string]*events.ToolCallState{
-					"call-parent": {
-						CallID:    "call-parent",
-						ToolName:  "delegate",
-						HandoffID: "handoff-1",
-						Input:     `{"agent_id":"planner","task":"Inspect runtime delegate flow.","context_summary":"Review the delegated child session."}`,
-						Declared:  true,
-					},
-				},
-			},
-		},
-	})
-	model.delegatedSnapshots.snapshots["session-child"] = events.SessionState{
-		SessionID:     "session-child",
-		WorkspaceRoot: "/repo",
-		TurnOrder:     []string{"turn-child"},
-		Turns: map[string]*events.TurnState{
-			"turn-child": {
-				TurnID: "turn-child",
-				Status: events.TurnStatusRunning,
-			},
-		},
-	}
-	model.delegatedSnapshots.loading["session-child"] = true
-	model.width = 160
-	model.height = 40
-	model.chrome.wideSidebarOpen = true
-	model.chrome.inspectorOpen = true
-	model.inspector.tab = 1
-	model.chrome.focus = focusInspector
-	model.watchID = 1
-	stream := make(chan events.Event)
-	close(stream)
-	model.stream = stream
-
-	event := draftEvent(2, events.TypeAgentHandoffPreview, "session-parent", "turn-parent", events.AgentHandoffPreviewPayload{
-		HandoffID:      "handoff-1",
-		ChildSessionID: "session-child",
-		ChildTurnID:    "turn-child",
-		Active:         true,
-		ToolName:       "read",
-		Action:         "reading runtime_delegate.go",
-		AssistantText:  "Inspecting delegated runtime flow.",
-	})
-
-	updated, _ := model.handleWatchEvents(model.watchID, []events.Event{event}, false)
-	next := updated.(Model)
-	if !next.delegatedSnapshots.pending["session-child"] {
-		t.Fatalf("pendingDelegatedSnapshots = %#v, want queued refresh for session-child", next.delegatedSnapshots.pending)
-	}
-
-	staleChild := events.SessionState{
-		SessionID:     "session-child",
-		WorkspaceRoot: "/repo",
-		TurnOrder:     []string{"turn-child"},
-		Turns: map[string]*events.TurnState{
-			"turn-child": {
-				TurnID: "turn-child",
-				Status: events.TurnStatusRunning,
-			},
-		},
-	}
-
-	queued, cmd := next.handleSessionSnapshotRefreshedMsg(sessionSnapshotRefreshedMsg{
-		sessionID: "session-child",
-		state:     staleChild,
-	})
-	if cmd == nil {
-		t.Fatal("handleSessionSnapshotRefreshedMsg() cmd = nil, want follow-up delegated refresh")
-	}
-	if !queued.delegatedSnapshots.loading["session-child"] {
-		t.Fatalf("loadingDelegatedSnapshots = %#v, want session-child reload in progress", queued.delegatedSnapshots.loading)
-	}
-	if queued.delegatedSnapshots.pending["session-child"] {
-		t.Fatalf("pendingDelegatedSnapshots = %#v, want session-child pending flag consumed", queued.delegatedSnapshots.pending)
-	}
-
-	rendered := ansi.Strip(renderGroupedToolsInspector(queued, queued.projector.Snapshot(), 48).Content)
-	if !strings.Contains(rendered, "Loading planner tool calls...") {
-		t.Fatalf("grouped tools inspector missing loading state while delegated refresh is queued\nrendered:\n%s", rendered)
-	}
-
-	msg := cmd()
-	var refreshMsg sessionSnapshotRefreshedMsg
-	found := false
-	switch typed := msg.(type) {
-	case sessionSnapshotRefreshedMsg:
-		refreshMsg = typed
-		found = true
-	case tea.BatchMsg:
-		for _, batchCmd := range typed {
-			if batchCmd == nil {
-				continue
-			}
-			candidate, ok := batchCmd().(sessionSnapshotRefreshedMsg)
-			if !ok || candidate.sessionID != "session-child" {
-				continue
-			}
-			refreshMsg = candidate
-			found = true
-			break
-		}
-	}
-	if !found {
-		t.Fatalf("cmd() msg = %#v, want delegated sessionSnapshotRefreshedMsg", msg)
-	}
-
-	finalUpdated, _ := queued.Update(refreshMsg)
-	final := finalUpdated.(Model)
-	childState, ok := final.delegatedSnapshots.snapshots["session-child"]
-	if !ok {
-		t.Fatal("delegated child snapshot missing after queued refresh")
-	}
-	turn := childState.Turns["turn-child"]
-	if turn == nil || turn.ToolCalls["call-1"] == nil || !turn.ToolCalls["call-1"].Executing {
-		t.Fatalf("delegated child tool call missing running state after queued refresh: %#v", turn)
-	}
-
-	rendered = ansi.Strip(renderGroupedToolsInspector(final, final.projector.Snapshot(), 48).Content)
-	normalized := strings.Join(strings.Fields(rendered), " ")
-	if !strings.Contains(normalized, "Reading runtime_delegate.go") {
-		t.Fatalf("grouped tools inspector missing live delegated child tool row after queued refresh\nrendered:\n%s", rendered)
-	}
-	if len(controller.snapshotCalls) == 0 || controller.snapshotCalls[len(controller.snapshotCalls)-1] != "session-child" {
-		t.Fatalf("snapshotCalls = %#v, want queued refresh for session-child", controller.snapshotCalls)
-	}
-}
-
-func TestHandleSessionSnapshotRefreshedLoadsSelectedDelegatedToolResult(t *testing.T) {
-	defaultTheme := theme.StaticDefault()
-	ctx, cancel := context.WithCancel(context.TODO())
-	defer cancel()
-
-	ref := sessionToolCallRef{TurnID: "turn-child", CallID: "call-1"}
-	controller := &fakeController{
-		toolResults: map[sessionToolCallRef]app.ToolResultDetail{
-			ref: {Output: "full child output"},
-		},
-	}
-
-	model := NewModel(controller, ModelConfig{
-		Context:       ctx,
-		Theme:         &defaultTheme,
-		SessionID:     "session-parent",
-		TurnID:        "turn-parent",
-		WorkspaceRoot: "/repo",
-	})
-	model.projector = events.NewProjectorFromSnapshot(events.SessionState{
-		SessionID:     "session-parent",
-		WorkspaceRoot: "/repo",
-		TurnOrder:     []string{"turn-parent"},
-		Turns: map[string]*events.TurnState{
-			"turn-parent": {
-				TurnID:       "turn-parent",
-				Status:       events.TurnStatusRunning,
-				HandoffOrder: []string{"handoff-1"},
-				Handoffs: map[string]*events.AgentHandoffState{
-					"handoff-1": {
-						HandoffID:      "handoff-1",
-						ChildSessionID: "session-child",
-						ChildTurnID:    "turn-child",
-						ChildAgentID:   "planner",
-						Status:         events.AgentResultStatusCompleted,
-					},
-				},
-			},
-		},
-	})
-	model.selection.callSessionID = "session-child"
-	model.selection.callTurnID = ref.TurnID
-	model.selection.callID = ref.CallID
-
-	if cmd := model.ensureSelectedToolResultLoadedCmd(); cmd != nil {
-		t.Fatal("ensureSelectedToolResultLoadedCmd() returned load cmd before delegated snapshot existed")
-	}
-
-	childState := events.SessionState{
-		SessionID:     "session-child",
-		WorkspaceRoot: "/repo",
-		TurnOrder:     []string{"turn-child"},
-		Turns: map[string]*events.TurnState{
-			"turn-child": {
-				TurnID:        "turn-child",
-				Status:        events.TurnStatusCompleted,
-				ToolCallOrder: []string{"call-1"},
-				ToolCalls: map[string]*events.ToolCallState{
-					"call-1": {
-						CallID:          "call-1",
-						ToolName:        "read",
-						Input:           `{"paths":["internal/app/runtime_delegate.go"],"max_lines":80}`,
-						Output:          `[output truncated: 9216 chars total]`,
-						OutputBlob:      &events.ToolResultBlobRef{Ref: "child-output", Bytes: 9216},
-						OutputTruncated: true,
-						Declared:        true,
-						Completed:       true,
-						Succeeded:       true,
-					},
-				},
-			},
-		},
-	}
-
-	updated, cmd := model.handleSessionSnapshotRefreshedMsg(sessionSnapshotRefreshedMsg{
-		sessionID: "session-child",
-		state:     childState,
-	})
-	if cmd == nil {
-		t.Fatal("handleSessionSnapshotRefreshedMsg() cmd = nil, want delegated tool result load")
-	}
-
-	msg := cmd()
-	var loaded toolResultLoadedMsg
-	found := false
-	switch typed := msg.(type) {
-	case toolResultLoadedMsg:
-		loaded = typed
-		found = true
-	case tea.BatchMsg:
-		for _, batchCmd := range typed {
-			if batchCmd == nil {
-				continue
-			}
-			candidate, ok := batchCmd().(toolResultLoadedMsg)
-			if !ok {
-				continue
-			}
-			loaded = candidate
-			found = true
-			break
-		}
-	}
-	if !found {
-		t.Fatalf("cmd() msg = %#v, want toolResultLoadedMsg", msg)
-	}
-	if loaded.err != nil {
-		t.Fatalf("toolResultLoadedMsg.err = %v", loaded.err)
-	}
-	if loaded.sessionID != "session-child" {
-		t.Fatalf("toolResultLoadedMsg.sessionID = %q, want session-child", loaded.sessionID)
-	}
-	if loaded.ref != ref {
-		t.Fatalf("toolResultLoadedMsg.ref = %#v, want %#v", loaded.ref, ref)
-	}
-	if loaded.result.Output != "full child output" {
-		t.Fatalf("toolResultLoadedMsg.result = %#v", loaded.result)
-	}
-
-	finalUpdated, _ := updated.Update(loaded)
-	final := finalUpdated.(Model)
-	got, ok := final.toolHydration.loadedResults[scopedToolKey("session-child", ref)]
-	if !ok {
-		t.Fatalf("loadedToolResults missing delegated child key: %#v", final.toolHydration.loadedResults)
-	}
-	if got.Output != "full child output" {
-		t.Fatalf("loaded child output = %#v, want full child output", got)
-	}
-}
-
-func TestHandleWatchEventsSkipsDelegatedSnapshotRefreshWhenInspectorToolsHidden(t *testing.T) {
-	defaultTheme := theme.StaticDefault()
-	ctx, cancel := context.WithCancel(context.TODO())
-	defer cancel()
-
-	controller := &fakeController{
-		snapshots: map[string]events.SessionState{
-			"session-child": {SessionID: "session-child", WorkspaceRoot: "/repo"},
-		},
-	}
-
-	model := NewModel(controller, ModelConfig{
-		Context:       ctx,
-		Theme:         &defaultTheme,
-		SessionID:     "session-parent",
-		TurnID:        "turn-parent",
-		WorkspaceRoot: "/repo",
-	})
-	model.projector = events.NewProjectorFromSnapshot(events.SessionState{
-		SessionID:     "session-parent",
-		WorkspaceRoot: "/repo",
-		LastSequence:  1,
-		TurnOrder:     []string{"turn-parent"},
-		Turns: map[string]*events.TurnState{
-			"turn-parent": {
-				TurnID:       "turn-parent",
-				Status:       events.TurnStatusRunning,
-				HandoffOrder: []string{"handoff-1"},
-				Handoffs: map[string]*events.AgentHandoffState{
-					"handoff-1": {
-						HandoffID:      "handoff-1",
-						ChildSessionID: "session-child",
-						ChildTurnID:    "turn-child",
-						ChildAgentID:   "planner",
-						PreviewActive:  true,
-						PreviewAction:  "drafting response",
-						Status:         "",
-					},
-				},
-				ToolCallOrder: []string{"call-parent"},
-				ToolCalls: map[string]*events.ToolCallState{
-					"call-parent": {
-						CallID:    "call-parent",
-						ToolName:  "delegate",
-						HandoffID: "handoff-1",
-						Declared:  true,
-					},
-				},
-			},
-		},
-	})
-	model.width = 160
-	model.height = 40
-	model.chrome.focus = focusComposer
-	model.watchID = 1
-	stream := make(chan events.Event)
-	close(stream)
-	model.stream = stream
-
-	event := draftEvent(2, events.TypeAgentHandoffPreview, "session-parent", "turn-parent", events.AgentHandoffPreviewPayload{
-		HandoffID:      "handoff-1",
-		ChildSessionID: "session-child",
-		ChildTurnID:    "turn-child",
-		Active:         true,
-		ToolName:       "read",
-		Action:         "running read",
-		AssistantText:  "Inspecting delegated runtime flow.",
-	})
-
-	updated, cmd := model.handleWatchEvents(model.watchID, []events.Event{event}, false)
-	next := updated.(Model)
-	if cmd == nil {
-		t.Fatalf("cmd = nil, err = %v", next.err)
-	}
-	msg := cmd()
-	if batch, ok := msg.(tea.BatchMsg); ok {
-		for _, batchCmd := range batch {
-			if batchCmd == nil {
-				continue
-			}
-			_ = batchCmd()
-		}
-	}
-	if len(controller.snapshotCalls) != 0 {
-		t.Fatalf("snapshotCalls = %#v, want no delegated child refresh while inspector tools are hidden", controller.snapshotCalls)
-	}
-}
-
-func TestHandleWatchEventsSkipsDelegatedSnapshotRefreshForPreviewTextOnly(t *testing.T) {
-	defaultTheme := theme.StaticDefault()
-	ctx, cancel := context.WithCancel(context.TODO())
-	defer cancel()
-
-	controller := &fakeController{
-		snapshots: map[string]events.SessionState{
-			"session-child": {SessionID: "session-child", WorkspaceRoot: "/repo"},
-		},
-	}
-
-	model := NewModel(controller, ModelConfig{
-		Context:       ctx,
-		Theme:         &defaultTheme,
-		SessionID:     "session-parent",
-		TurnID:        "turn-parent",
-		WorkspaceRoot: "/repo",
-	})
-	model.projector = events.NewProjectorFromSnapshot(events.SessionState{
-		SessionID:     "session-parent",
-		WorkspaceRoot: "/repo",
-		LastSequence:  1,
-		TurnOrder:     []string{"turn-parent"},
-		Turns: map[string]*events.TurnState{
-			"turn-parent": {
-				TurnID:       "turn-parent",
-				Status:       events.TurnStatusRunning,
-				HandoffOrder: []string{"handoff-1"},
-				Handoffs: map[string]*events.AgentHandoffState{
-					"handoff-1": {
-						HandoffID:            "handoff-1",
-						ChildSessionID:       "session-child",
-						ChildTurnID:          "turn-child",
-						ChildAgentID:         "planner",
-						PreviewActive:        true,
-						PreviewToolName:      "read",
-						PreviewAction:        "running read",
-						PreviewAssistantText: "Reading runtime_delegate.go.",
-						Status:               "",
-					},
-				},
-				ToolCallOrder: []string{"call-parent"},
-				ToolCalls: map[string]*events.ToolCallState{
-					"call-parent": {
-						CallID:    "call-parent",
-						ToolName:  "delegate",
-						HandoffID: "handoff-1",
-						Declared:  true,
-					},
-				},
-			},
-		},
-	})
-	model.delegatedSnapshots.snapshots["session-child"] = events.SessionState{
-		SessionID:     "session-child",
-		WorkspaceRoot: "/repo",
-		TurnOrder:     []string{"turn-child"},
-		Turns: map[string]*events.TurnState{
-			"turn-child": {
-				TurnID: "turn-child",
-				Status: events.TurnStatusRunning,
-			},
-		},
-	}
-	model.width = 160
-	model.height = 40
-	model.chrome.wideSidebarOpen = true
-	model.chrome.inspectorOpen = true
-	model.inspector.tab = inspectorTabTools
-	model.chrome.focus = focusInspector
-	model.watchID = 1
-	stream := make(chan events.Event)
-	close(stream)
-	model.stream = stream
-
-	event := draftEvent(2, events.TypeAgentHandoffPreview, "session-parent", "turn-parent", events.AgentHandoffPreviewPayload{
-		HandoffID:      "handoff-1",
-		ChildSessionID: "session-child",
-		ChildTurnID:    "turn-child",
-		Active:         true,
-		ToolName:       "read",
-		Action:         "running read",
-		AssistantText:  "Inspecting delegated runtime flow.",
-	})
-
-	updated, cmd := model.handleWatchEvents(model.watchID, []events.Event{event}, false)
-	next := updated.(Model)
-	if cmd == nil {
-		t.Fatalf("cmd = nil, err = %v", next.err)
-	}
-	msg := cmd()
-	if batch, ok := msg.(tea.BatchMsg); ok {
-		for _, batchCmd := range batch {
-			if batchCmd == nil {
-				continue
-			}
-			_ = batchCmd()
-		}
-	}
-	if len(controller.snapshotCalls) != 0 {
-		t.Fatalf("snapshotCalls = %#v, want no delegated child refresh for assistant-text-only preview updates", controller.snapshotCalls)
-	}
-}
-
-func TestHandleWatchEventsRefreshesDelegatedSnapshotForPreviewPhaseChangeWhenToolsVisible(t *testing.T) {
-	defaultTheme := theme.StaticDefault()
-	ctx, cancel := context.WithCancel(context.TODO())
-	defer cancel()
-
-	controller := &fakeController{
-		snapshots: map[string]events.SessionState{
-			"session-child": {
-				SessionID:     "session-child",
-				WorkspaceRoot: "/repo",
-				TurnOrder:     []string{"turn-child"},
-				Turns: map[string]*events.TurnState{
-					"turn-child": {
-						TurnID:        "turn-child",
-						Status:        events.TurnStatusRunning,
-						ToolCallOrder: []string{"call-1"},
-						ToolCalls: map[string]*events.ToolCallState{
-							"call-1": {
-								CallID:    "call-1",
-								ToolName:  "read",
-								Input:     `{"paths":["internal/app/runtime_delegate.go"],"start_line":1,"max_lines":80}`,
-								Declared:  true,
-								Executing: true,
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-
-	model := NewModel(controller, ModelConfig{
-		Context:       ctx,
-		Theme:         &defaultTheme,
-		SessionID:     "session-parent",
-		TurnID:        "turn-parent",
-		WorkspaceRoot: "/repo",
-	})
-	model.projector = events.NewProjectorFromSnapshot(events.SessionState{
-		SessionID:     "session-parent",
-		WorkspaceRoot: "/repo",
-		LastSequence:  1,
-		TurnOrder:     []string{"turn-parent"},
-		Turns: map[string]*events.TurnState{
-			"turn-parent": {
-				TurnID:       "turn-parent",
-				Status:       events.TurnStatusRunning,
-				HandoffOrder: []string{"handoff-1"},
-				Handoffs: map[string]*events.AgentHandoffState{
-					"handoff-1": {
-						HandoffID:      "handoff-1",
-						ChildSessionID: "session-child",
-						ChildTurnID:    "turn-child",
-						ChildAgentID:   "planner",
-						Status:         "",
-					},
-				},
-				ToolCallOrder: []string{"call-parent"},
-				ToolCalls: map[string]*events.ToolCallState{
-					"call-parent": {
-						CallID:    "call-parent",
-						ToolName:  "delegate",
-						HandoffID: "handoff-1",
-						Declared:  true,
-					},
-				},
-			},
-		},
-	})
-	model.delegatedSnapshots.snapshots["session-child"] = events.SessionState{
-		SessionID:     "session-child",
-		WorkspaceRoot: "/repo",
-		TurnOrder:     []string{"turn-child"},
-		Turns: map[string]*events.TurnState{
-			"turn-child": {
-				TurnID: "turn-child",
-				Status: events.TurnStatusRunning,
-			},
-		},
-	}
-	model.width = 160
-	model.height = 40
-	model.chrome.wideSidebarOpen = true
-	model.chrome.inspectorOpen = true
-	model.inspector.tab = inspectorTabTools
-	model.chrome.focus = focusInspector
-	model.watchID = 1
-	stream := make(chan events.Event)
-	close(stream)
-	model.stream = stream
-
-	event := draftEvent(2, events.TypeAgentHandoffPreview, "session-parent", "turn-parent", events.AgentHandoffPreviewPayload{
-		HandoffID:      "handoff-1",
-		ChildSessionID: "session-child",
-		ChildTurnID:    "turn-child",
-		Active:         true,
-		ToolName:       "read",
-		Action:         "running read",
-		AssistantText:  "Inspecting delegated runtime flow.",
-	})
-
-	updated, cmd := model.handleWatchEvents(model.watchID, []events.Event{event}, false)
-	next := updated.(Model)
-	if cmd == nil {
-		t.Fatalf("cmd = nil, err = %v", next.err)
-	}
-	msg := cmd()
-	batch, ok := msg.(tea.BatchMsg)
-	if !ok {
-		t.Fatalf("cmd() msg = %#v, want tea.BatchMsg", msg)
-	}
-
-	foundRefresh := false
-	for _, batchCmd := range batch {
-		if batchCmd == nil {
-			continue
-		}
-		if typed, ok := batchCmd().(sessionSnapshotRefreshedMsg); ok && typed.sessionID == "session-child" {
-			foundRefresh = true
-		}
-	}
-	if !foundRefresh {
-		t.Fatalf("missing delegated child snapshot refresh, snapshotCalls = %#v", controller.snapshotCalls)
-	}
-	if len(controller.snapshotCalls) == 0 || controller.snapshotCalls[len(controller.snapshotCalls)-1] != "session-child" {
-		t.Fatalf("snapshotCalls = %#v, want refresh for session-child", controller.snapshotCalls)
-	}
-}
-
 func TestHandleWatchEventsDefersLiveTranscriptRefreshWhileComposerFocusedOffBottom(t *testing.T) {
 	defaultTheme := theme.StaticDefault()
 	ctx, cancel := context.WithCancel(context.TODO())
@@ -2794,15 +2035,11 @@ func TestTabCyclesSelectedAgentRegardlessOfFocus(t *testing.T) {
 	}
 
 	first.chrome.focus = focusInspector
-	first.selection.handoffID = "handoff-1"
 	first.selection.detailTurnID = "turn-0"
 	secondUpdated, _ := first.Update(tea.KeyPressMsg{Code: tea.KeyTab})
 	second := secondUpdated.(Model)
 	if second.agentID != "reviewer" {
 		t.Fatalf("agentID after inspector tab = %q, want reviewer", second.agentID)
-	}
-	if second.selection.handoffID != "" {
-		t.Fatalf("selectedHandoffID = %q, want cleared after agent cycle", second.selection.handoffID)
 	}
 	if second.selection.detailTurnID != second.turnID {
 		t.Fatalf("detailTurnID = %q, want %q after agent cycle", second.selection.detailTurnID, second.turnID)
@@ -2860,15 +2097,11 @@ func TestTabDoesNotCycleSelectedAgentWhileCurrentTurnRunning(t *testing.T) {
 	}
 
 	first.chrome.focus = focusInspector
-	first.selection.handoffID = "handoff-1"
 	first.selection.detailTurnID = "turn-0"
 	secondUpdated, _ := first.Update(tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift})
 	second := secondUpdated.(Model)
 	if second.agentID != "builder" {
 		t.Fatalf("agentID after blocked shift+tab = %q, want builder while current turn runs", second.agentID)
-	}
-	if second.selection.handoffID != "handoff-1" {
-		t.Fatalf("selectedHandoffID = %q, want preserved when agent cycle is blocked", second.selection.handoffID)
 	}
 	if second.selection.detailTurnID != "turn-0" {
 		t.Fatalf("detailTurnID = %q, want preserved when agent cycle is blocked", second.selection.detailTurnID)

@@ -43,12 +43,12 @@ func buildRuntimeTools(webSearch *websearchsvc.Service, extensionTools []tool.To
 type runtimeToolExecutorConfig struct {
 	Sessions     *SessionService
 	Execution    ExecutionConfig
+	Workflow     WorkflowConfig
 	Search       *searchsvc.Service
 	WebSearch    *websearchsvc.Service
 	CodeIntel    *codeintel.CodeIntelService
 	Memory       *MemoryService
 	Skills       *skill.Registry
-	Delegate     delegateRuntime
 	Logger       *observability.Logger
 	Background   BackgroundExecutionLogStore
 	RuntimeTools []tool.Tool
@@ -65,10 +65,10 @@ func newRuntimeToolExecutor(config runtimeToolExecutorConfig) (*ToolExecutor, er
 	}
 	executor.SetSearchService(config.Search)
 	executor.SetWebSearchService(config.WebSearch)
+	executor.SetWorkflowConfig(config.Workflow)
 	executor.SetCodeIntelService(config.CodeIntel)
 	executor.SetMemoryService(config.Memory)
 	executor.SetSkillRegistry(config.Skills)
-	executor.SetDelegateRuntime(config.Delegate)
 	executor.SetLogger(config.Logger)
 	if len(config.MCPTools) > 0 {
 		executor.ReplaceMCPTools(config.MCPTools)

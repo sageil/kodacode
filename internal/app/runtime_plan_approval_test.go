@@ -26,6 +26,7 @@ func TestRuntimePrimaryPlannerSaveAnswerCreatesRuntimeTurn(t *testing.T) {
 		},
 	}
 	runtime := newRuntimeWithClient(t, client)
+	enablePlannerApprovalForTest(runtime)
 	sessionID, err := runtime.CreateSession(context.Background(), root)
 	if err != nil {
 		t.Fatalf("CreateSession() error = %v", err)
@@ -107,6 +108,7 @@ func TestRuntimePrimaryPlannerApplyAnswerStartsEngineerTurn(t *testing.T) {
 		},
 	}
 	runtime := newRuntimeWithClient(t, client)
+	enablePlannerApprovalForTest(runtime)
 	sessionID, err := runtime.CreateSession(context.Background(), root)
 	if err != nil {
 		t.Fatalf("CreateSession() error = %v", err)
@@ -167,6 +169,7 @@ func TestRuntimePrimaryPlannerApplyAnswerProviderRequestLimitOffersSessionYOLO(t
 		},
 	}
 	runtime := newRuntimeWithClient(t, client)
+	enablePlannerApprovalForTest(runtime)
 	runtime.Runner.SetSessionConfig(SessionConfig{
 		MaxProviderRequestsPerTurn: 1,
 		MaxRetries:                 defaultProviderRetryAttempts,

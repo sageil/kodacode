@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/sageil/kodacode/internal/events"
@@ -216,7 +217,7 @@ func TestTraceDialogRendersDurableTurnDetails(t *testing.T) {
 		"input savings: $0.00213 from 1200 avoided input tokens",
 		"savings mix: 100 prompt compaction • 900 history compaction • 200 tool catalog compression (180 schema • 20 descriptions)",
 		"2.1 | openai/gpt-5 | 910 ms | 500 input | 60 output | $0.00280",
-		"result: retryable error temporary provider error before retry | durable progress | 1 tool executed",
+		"result: retryable error temporary provider error before retry | saved progress | 1 tool executed",
 		"request mix: 180 prompt | 180 conversation | 140 tool surface (60 schema | 60 descriptions | 20 names | 1 tool)",
 		"input savings: $0.00202 from 1220 avoided input tokens",
 		"savings mix: 100 prompt compaction • 900 history compaction • 220 tool catalog compression (210 schema • 10 descriptions)",
@@ -245,6 +246,132 @@ func TestTraceDialogRendersDurableTurnDetails(t *testing.T) {
 	} {
 		if !containsLine(bodyRendered, want) {
 			t.Fatalf("dialog body missing %q\nrendered:\n%s", want, bodyRendered)
+		}
+	}
+}
+
+func TestTraceDialogIncludesWorkflowPhaseHistory(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	exitCode := 1
+	successful := false
+	state := events.SessionState{
+		Workflow: &events.WorkflowState{
+			WorkflowID:        "delivery",
+			Status:            events.WorkflowStatusBlocked,
+			CurrentPhaseID:    "verify",
+			PhaseOrder:        []string{"plan", "approve", "implement", "verify"},
+			EvidenceOrder:     []string{"evidence-1"},
+			CompletedPhaseIDs: []string{"plan", "approve", "implement"},
+			BlockedPhaseIDs:   []string{"verify"},
+			StopReason:        "verification failed",
+			StartedAtSeq:      2,
+			UpdatedAtSeq:      9,
+			Phases: map[string]*events.WorkflowPhaseState{
+				"plan":      {PhaseID: "plan", Status: events.WorkflowPhaseStatusCompleted, StartedAtSeq: 2, CompletedAtSeq: 4, UpdatedAtSeq: 4},
+				"approve":   {PhaseID: "approve", Status: events.WorkflowPhaseStatusCompleted, StartedAtSeq: 4, CompletedAtSeq: 5, UpdatedAtSeq: 5},
+				"implement": {PhaseID: "implement", Status: events.WorkflowPhaseStatusCompleted, StartedAtSeq: 5, CompletedAtSeq: 7, UpdatedAtSeq: 7},
+				"verify": {
+					PhaseID:      "verify",
+					Status:       events.WorkflowPhaseStatusBlocked,
+					StopReason:   "verification failed",
+					EvidenceIDs:  []string{"evidence-1"},
+					StartedAtSeq: 7,
+					BlockedAtSeq: 9,
+					UpdatedAtSeq: 9,
+				},
+			},
+			Evidence: map[string]*events.WorkflowEvidenceState{
+				"evidence-1": {
+					EvidenceID:    "evidence-1",
+					WorkflowID:    "delivery",
+					PhaseID:       "verify",
+					Type:          events.WorkflowEvidenceTypeVerificationResult,
+					ToolCallID:    "call-1",
+					ExecutionID:   "exec-1",
+					Command:       "go test ./...",
+					ExitCode:      &exitCode,
+					Successful:    &successful,
+					Summary:       "verification failed",
+					RecordedAtSeq: 8,
+				},
+			},
+		},
+	}
+
+	rendered := traceDialogWorkflowSection(&defaultTheme, state)
+	for _, want := range []string{
+		"Workflow",
+		"Workflow: delivery | status blocked | phase verify | started seq 2 | updated seq 9",
+		"Stop reason: verification failed",
+		"Phase history:",
+		"1. plan | completed | started seq 2 | completed seq 4 | updated seq 4",
+		"4. verify | blocked | started seq 7 | blocked seq 9 | updated seq 9 | 1 evidence item",
+		"   stop: verification failed",
+		"Evidence:",
+		"1. verification_result | phase verify | seq 8 | failed | exit 1 | command go test ./... | verification failed | tool call-1, exec exec-1",
+	} {
+		if !containsLine(rendered, want) {
+			t.Fatalf("workflow trace missing %q\nrendered:\n%s", want, rendered)
+		}
+	}
+}
+
+func TestTraceDialogWorkflowSectionUsesSelectedTurnWorkflowPhase(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	state := events.SessionState{
+		Turns: map[string]*events.TurnState{
+			"turn-1": {
+				TurnID: "turn-1",
+				Config: &events.TurnConfigState{
+					AgentID:         "planner",
+					Model:           "openai/gpt-5",
+					WorkflowID:      "delivery",
+					WorkflowPhaseID: "plan",
+				},
+			},
+		},
+		Workflow: &events.WorkflowState{
+			WorkflowID:     "delivery",
+			Status:         events.WorkflowStatusActive,
+			CurrentPhaseID: "verify",
+		},
+	}
+
+	rendered := traceDialogBody(&defaultTheme, state, "turn-1")
+	if !strings.Contains(rendered, "Workflow: delivery | turn phase plan") {
+		t.Fatalf("trace missing selected turn workflow phase\nrendered:\n%s", rendered)
+	}
+	if strings.Contains(rendered, "phase verify") {
+		t.Fatalf("trace used current workflow phase for selected turn\nrendered:\n%s", rendered)
+	}
+}
+
+func TestTraceDialogIncludesWorkflowRouteRecommendation(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	state := events.SessionState{
+		Turns: map[string]*events.TurnState{
+			"turn-1": {
+				TurnID: "turn-1",
+				WorkflowRoute: &events.WorkflowRouteRecommendationState{
+					WorkflowID:    "debug",
+					AgentID:       "engineer",
+					Confidence:    "high",
+					Reasons:       []string{"request describes a failure, bug, or reproduction task"},
+					Alternatives:  []string{"delivery", "review"},
+					RecordedAtSeq: 3,
+				},
+			},
+		},
+	}
+
+	rendered := traceDialogBody(&defaultTheme, state, "turn-1")
+	for _, want := range []string{
+		"Recommended workflow: debug | agent engineer | confidence high | seq 3",
+		"Reason: request describes a failure, bug, or reproduction task",
+		"Alternatives: delivery, review",
+	} {
+		if !strings.Contains(rendered, want) {
+			t.Fatalf("trace missing workflow route %q\nrendered:\n%s", want, rendered)
 		}
 	}
 }
@@ -484,7 +611,7 @@ func TestTraceDialogShowsCachePricingResolution(t *testing.T) {
 	dialog := newTraceDialog(model, state, "turn-1")
 	rendered := dialog.body.raw
 	for _, want := range []string{
-		"Trace source: durable runtime provider call records. Failed and successful provider calls are counted. Provider-reported usage is shown when available; cache pricing is applied when known and cost otherwise remains estimated. Request-mix attribution uses the same runtime token estimator used for budgeting when providers do not report per-component splits.",
+		"Trace source: stored runtime provider call records. Failed and successful provider calls are counted. Provider-reported usage is shown when available; cache pricing is applied when known and cost otherwise remains estimated. Request-mix attribution uses the same runtime token estimator used for budgeting when providers do not report per-component splits.",
 		"1.1 | openai/gpt-5 | 0 ms | 1400 input | 120 output | 300 cache-read | 40 cache-write | 1520 total | reported | $0.00270",
 		"result: cache pricing applied",
 	} {

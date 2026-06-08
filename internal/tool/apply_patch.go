@@ -57,7 +57,7 @@ func NewApplyPatchTool() ApplyPatchTool {
 }
 
 func (ApplyPatchTool) Definition() Definition {
-	description := "Edit files by sending raw structured patch text. Do not wrap the patch in JSON. Patch lines MUST NOT include read output line number prefixes like \"40:\" either directly or after patch prefixes like \"-40:\" or \"+40:\". The required patch grammar is provided by this tool."
+	description := "Edit files with raw structured patch text, not JSON or Markdown. Format: first line \"*** Begin Patch\", then Add/Update/Delete file sections, final line \"*** End Patch\". Add File content lines start with +; Update File hunk lines start with space, +, or -. Do not include read output line-number prefixes like \"40:\"."
 	return Definition{
 		Name:                ApplyPatchToolName,
 		Description:         description,
@@ -69,7 +69,12 @@ func (ApplyPatchTool) Definition() Definition {
 			Syntax:     "lark",
 			Definition: applyPatchLarkGrammar,
 		},
-		ArgumentExamples:  []string{"*** Begin Patch\n*** Update File: file.txt\n-old\n+new\n*** End Patch\n"},
+		ArgumentExamples: []string{
+			"*** Begin Patch\n*** Update File: file.txt\n@@\n-old\n+new\n*** End Patch\n",
+			"*** Begin Patch\n*** Add File: file.txt\n+first line\n+\n+third line\n*** End Patch\n",
+			"*** Begin Patch\n*** Delete File: file.txt\n*** End Patch\n",
+			"*** Begin Patch\n*** Update File: old.txt\n*** Move to: new.txt\n*** End Patch\n",
+		},
 		RequiresWorkspace: true,
 	}
 }
@@ -129,9 +134,9 @@ type applyPatchExecutionError struct {
 
 func (e applyPatchExecutionError) Error() string {
 	if e.cause == nil {
-		return "apply_patch failed"
+		return "apply_patch: edit failed."
 	}
-	return "apply_patch failed: " + strings.TrimSuffix(e.cause.Error(), ".") + "."
+	return "apply_patch: " + strings.TrimSuffix(e.cause.Error(), ".") + "."
 }
 
 func (e applyPatchExecutionError) Unwrap() error {
@@ -456,9 +461,9 @@ func computeApplyPatchReplacements(lines []string, path string, hunks []ApplyPat
 
 func applyPatchHunkNoMatchError(path string, oldLines []string) error {
 	if prefix, ok := detectAnyReadLinePrefix(oldLines); ok {
-		return fmt.Errorf("%w in %s; the hunk includes read output line number prefixes like %q. Remove line numbers copied from read output, then retry with current file content", ErrApplyPatchHunkNoMatch, path, prefix)
+		return fmt.Errorf("%s: %w. Remove line numbers copied from read output like %q", path, ErrApplyPatchHunkNoMatch, prefix)
 	}
-	return fmt.Errorf("%w in %s; re-read the relevant section and retry with current file context", ErrApplyPatchHunkNoMatch, path)
+	return fmt.Errorf("%s: %w. Re-read this file section and retry", path, ErrApplyPatchHunkNoMatch)
 }
 
 func applyPatchReplacements(lines []string, replacements []applyPatchReplacement) []string {

@@ -164,6 +164,22 @@ func decodePayload(kind Type, raw json.RawMessage) (Payload, error) {
 		return decodePayloadAs[TaskCompletedPayload](raw)
 	case TypeTaskReviewed:
 		return decodePayloadAs[TaskReviewedPayload](raw)
+	case TypeWorkflowRouteRecommended:
+		return decodePayloadAs[WorkflowRouteRecommendedPayload](raw)
+	case TypeWorkflowStarted:
+		return decodePayloadAs[WorkflowStartedPayload](raw)
+	case TypeWorkflowPhaseStarted:
+		return decodePayloadAs[WorkflowPhaseStartedPayload](raw)
+	case TypeWorkflowPhaseAdvanced:
+		return decodePayloadAs[WorkflowPhaseAdvancedPayload](raw)
+	case TypeWorkflowPhaseBlocked:
+		return decodePayloadAs[WorkflowPhaseBlockedPayload](raw)
+	case TypeWorkflowPhaseResumed:
+		return decodePayloadAs[WorkflowPhaseResumedPayload](raw)
+	case TypeWorkflowEvidenceRecorded:
+		return decodePayloadAs[WorkflowEvidenceRecordedPayload](raw)
+	case TypeWorkflowCompleted:
+		return decodePayloadAs[WorkflowCompletedPayload](raw)
 	case TypeAssistantPreviewDelta:
 		return decodePayloadAs[AssistantPreviewDeltaPayload](raw)
 	case TypeAssistantPreviewReset:
@@ -254,14 +270,6 @@ func decodePayload(kind Type, raw json.RawMessage) (Payload, error) {
 		return decodePayloadAs[ContextPrunedPayload](raw)
 	case TypeSessionHistoryContinuationUpdated:
 		return decodePayloadAs[SessionHistoryContinuationUpdatedPayload](raw)
-	case TypeAgentHandoff:
-		return decodePayloadAs[AgentHandoffPayload](raw)
-	case TypeAgentHandoffPreview:
-		return decodePayloadAs[AgentHandoffPreviewPayload](raw)
-	case TypeAgentResult:
-		return decodePayloadAs[AgentResultPayload](raw)
-	case TypeAgentResultReused:
-		return decodePayloadAs[AgentResultReusedPayload](raw)
 	default:
 		return nil, fmt.Errorf("unsupported event type %q", kind)
 	}

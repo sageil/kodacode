@@ -117,17 +117,20 @@ func (s *SessionService) CreateTaskDetailed(ctx context.Context, input CreateTas
 	if err := validateTaskInProgressTransition(state, "", parentTaskID, status); err != nil {
 		return CreateTaskOutcome{}, err
 	}
+	workflowID, workflowPhaseID := activeWorkflowTaskBinding(state)
 	draft := events.Draft{
 		SessionID: input.SessionID,
 		TurnID:    input.TurnID,
 		Type:      events.TypeTaskCreated,
 		Payload: events.TaskCreatedPayload{
-			TaskID:       strings.TrimSpace(input.TaskID),
-			ParentTaskID: parentTaskID,
-			Title:        strings.TrimSpace(input.Title),
-			Kind:         strings.TrimSpace(input.Kind),
-			Status:       status,
-			Notes:        strings.TrimSpace(input.Notes),
+			TaskID:          strings.TrimSpace(input.TaskID),
+			ParentTaskID:    parentTaskID,
+			WorkflowID:      workflowID,
+			WorkflowPhaseID: workflowPhaseID,
+			Title:           strings.TrimSpace(input.Title),
+			Kind:            strings.TrimSpace(input.Kind),
+			Status:          status,
+			Notes:           strings.TrimSpace(input.Notes),
 		},
 	}
 	if err := draft.Validate(); err != nil {
@@ -182,15 +185,18 @@ func (s *SessionService) UpdateTaskProgress(ctx context.Context, input UpdateTas
 	if taskStatesEqual(*task, next) {
 		return next, nil
 	}
+	workflowID, workflowPhaseID := activeWorkflowTaskBinding(state)
 	draft := events.Draft{
 		SessionID: input.SessionID,
 		TurnID:    input.TurnID,
 		Type:      events.TypeTaskProgressUpdated,
 		Payload: events.TaskProgressUpdatedPayload{
-			TaskID:   taskID,
-			Status:   strings.TrimSpace(input.Status),
-			Progress: strings.TrimSpace(input.Progress),
-			Notes:    strings.TrimSpace(input.Notes),
+			TaskID:          taskID,
+			WorkflowID:      workflowID,
+			WorkflowPhaseID: workflowPhaseID,
+			Status:          strings.TrimSpace(input.Status),
+			Progress:        strings.TrimSpace(input.Progress),
+			Notes:           strings.TrimSpace(input.Notes),
 		},
 	}
 	if err := draft.Validate(); err != nil {
@@ -200,6 +206,66 @@ func (s *SessionService) UpdateTaskProgress(ctx context.Context, input UpdateTas
 		return events.TaskState{}, err
 	}
 	return findTaskByID(ctx, s, input.SessionID, taskID)
+}
+
+func (s *SessionService) appendWorkflowTaskReviewEvidence(ctx context.Context, input ReviewTaskInput) error {
+	state, err := s.Snapshot(ctx, input.SessionID)
+	if err != nil {
+		return err
+	}
+	workflow := state.Workflow
+	if workflow == nil || workflow.Status != events.WorkflowStatusActive {
+		return nil
+	}
+	reviewPhase, err := s.workflowPhaseIsReview(ctx, state, workflow.WorkflowID, workflow.CurrentPhaseID)
+	if err != nil {
+		return err
+	}
+	if !reviewPhase {
+		return nil
+	}
+	successful := taskReviewStatusSuccessful(input.ReviewStatus)
+	_, err = s.append(ctx, events.Draft{
+		SessionID: input.SessionID,
+		TurnID:    workflowEventTurnID(input.TurnID),
+		Type:      events.TypeWorkflowEvidenceRecorded,
+		Payload: events.WorkflowEvidenceRecordedPayload{
+			EvidenceID: newRuntimeID("workflow-evidence"),
+			WorkflowID: workflow.WorkflowID,
+			PhaseID:    workflow.CurrentPhaseID,
+			Type:       events.WorkflowEvidenceTypeTaskReview,
+			TaskID:     strings.TrimSpace(input.TaskID),
+			Successful: &successful,
+			Summary:    strings.TrimSpace(input.ReviewSummary),
+			Fields: map[string]string{
+				"review_status": strings.TrimSpace(input.ReviewStatus),
+			},
+		},
+	})
+	return err
+}
+
+func (s *SessionService) workflowPhaseIsReview(ctx context.Context, state events.SessionState, workflowID, phaseID string) (bool, error) {
+	phaseID = strings.TrimSpace(phaseID)
+	if phaseID == "" {
+		return false, nil
+	}
+	s.workflowReviewMu.RLock()
+	resolver := s.workflowReviewPhaseResolver
+	s.workflowReviewMu.RUnlock()
+	if resolver != nil {
+		return resolver(ctx, state, workflowID, phaseID)
+	}
+	return false, nil
+}
+
+func taskReviewStatusSuccessful(status string) bool {
+	switch strings.TrimSpace(status) {
+	case events.TaskReviewStatusPass, events.TaskReviewStatusAccepted:
+		return true
+	default:
+		return false
+	}
 }
 
 func (s *SessionService) BlockTask(ctx context.Context, input BlockTaskInput) (events.TaskState, error) {
@@ -213,7 +279,7 @@ func (s *SessionService) BlockTask(ctx context.Context, input BlockTaskInput) (e
 	if taskID == "" {
 		return events.TaskState{}, ErrTaskIDRequired
 	}
-	_, task, err := s.existingTask(ctx, input.SessionID, taskID)
+	state, task, err := s.existingTask(ctx, input.SessionID, taskID)
 	if err != nil {
 		return events.TaskState{}, err
 	}
@@ -228,15 +294,18 @@ func (s *SessionService) BlockTask(ctx context.Context, input BlockTaskInput) (e
 	if taskStatesEqual(*task, next) {
 		return next, nil
 	}
+	workflowID, workflowPhaseID := activeWorkflowTaskBinding(state)
 
 	draft := events.Draft{
 		SessionID: input.SessionID,
 		TurnID:    input.TurnID,
 		Type:      events.TypeTaskBlocked,
 		Payload: events.TaskBlockedPayload{
-			TaskID:      taskID,
-			BlockReason: strings.TrimSpace(input.BlockReason),
-			Notes:       strings.TrimSpace(input.Notes),
+			TaskID:          taskID,
+			WorkflowID:      workflowID,
+			WorkflowPhaseID: workflowPhaseID,
+			BlockReason:     strings.TrimSpace(input.BlockReason),
+			Notes:           strings.TrimSpace(input.Notes),
 		},
 	}
 	if err := draft.Validate(); err != nil {
@@ -276,13 +345,16 @@ func (s *SessionService) CompleteTask(ctx context.Context, input CompleteTaskInp
 	if taskStatesEqual(*task, next) {
 		return next, nil
 	}
+	workflowID, workflowPhaseID := activeWorkflowTaskBinding(state)
 	draft := events.Draft{
 		SessionID: input.SessionID,
 		TurnID:    input.TurnID,
 		Type:      events.TypeTaskCompleted,
 		Payload: events.TaskCompletedPayload{
-			TaskID:  taskID,
-			Summary: strings.TrimSpace(input.Summary),
+			TaskID:          taskID,
+			WorkflowID:      workflowID,
+			WorkflowPhaseID: workflowPhaseID,
+			Summary:         strings.TrimSpace(input.Summary),
 		},
 	}
 	if err := draft.Validate(); err != nil {
@@ -308,7 +380,7 @@ func (s *SessionService) ReviewTask(ctx context.Context, input ReviewTaskInput) 
 	if strings.TrimSpace(input.ReviewSummary) == "" {
 		return events.TaskState{}, ErrTaskReviewSummaryNeeded
 	}
-	_, task, err := s.existingTask(ctx, input.SessionID, taskID)
+	state, task, err := s.existingTask(ctx, input.SessionID, taskID)
 	if err != nil {
 		return events.TaskState{}, err
 	}
@@ -319,21 +391,27 @@ func (s *SessionService) ReviewTask(ctx context.Context, input ReviewTaskInput) 
 	if taskStatesEqual(*task, next) {
 		return next, nil
 	}
+	workflowID, workflowPhaseID := activeWorkflowTaskBinding(state)
 
 	draft := events.Draft{
 		SessionID: input.SessionID,
 		TurnID:    input.TurnID,
 		Type:      events.TypeTaskReviewed,
 		Payload: events.TaskReviewedPayload{
-			TaskID:        taskID,
-			ReviewStatus:  strings.TrimSpace(input.ReviewStatus),
-			ReviewSummary: strings.TrimSpace(input.ReviewSummary),
+			TaskID:          taskID,
+			WorkflowID:      workflowID,
+			WorkflowPhaseID: workflowPhaseID,
+			ReviewStatus:    strings.TrimSpace(input.ReviewStatus),
+			ReviewSummary:   strings.TrimSpace(input.ReviewSummary),
 		},
 	}
 	if err := draft.Validate(); err != nil {
 		return events.TaskState{}, err
 	}
 	if _, err := s.append(ctx, draft); err != nil {
+		return events.TaskState{}, err
+	}
+	if err := s.appendWorkflowTaskReviewEvidence(ctx, input); err != nil {
 		return events.TaskState{}, err
 	}
 	return findTaskByID(ctx, s, input.SessionID, taskID)
@@ -398,6 +476,8 @@ func findTaskByID(ctx context.Context, sessions *SessionService, sessionID, task
 func taskStatesEqual(left, right events.TaskState) bool {
 	return left.TaskID == right.TaskID &&
 		left.ParentTaskID == right.ParentTaskID &&
+		left.WorkflowID == right.WorkflowID &&
+		left.WorkflowPhaseID == right.WorkflowPhaseID &&
 		left.Title == right.Title &&
 		left.Kind == right.Kind &&
 		left.Status == right.Status &&
@@ -407,4 +487,12 @@ func taskStatesEqual(left, right events.TaskState) bool {
 		left.ReviewStatus == right.ReviewStatus &&
 		left.ReviewSummary == right.ReviewSummary &&
 		left.CompletedAtSeq == right.CompletedAtSeq
+}
+
+func activeWorkflowTaskBinding(state events.SessionState) (string, string) {
+	workflow := state.Workflow
+	if workflow == nil || workflow.Status != events.WorkflowStatusActive {
+		return "", ""
+	}
+	return strings.TrimSpace(workflow.WorkflowID), strings.TrimSpace(workflow.CurrentPhaseID)
 }

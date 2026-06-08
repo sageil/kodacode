@@ -3,10 +3,8 @@ package app
 import (
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/sageil/kodacode/internal/agent"
-	"github.com/sageil/kodacode/internal/events"
 	"github.com/sageil/kodacode/internal/provider"
 )
 
@@ -17,17 +15,6 @@ func (r *Runtime) resolveTurnAgent(workspaceRoot, agentID string) (agent.Definit
 		return agent.Definition{}, fmt.Errorf("%w: catalog not initialized", agent.ErrAgentNotFound)
 	}
 	return r.Agents.Get(workspaceRoot, agentID)
-}
-
-func (r *Runtime) resolveTurnModelRoute(definition agent.Definition) (provider.ModelRoute, error) {
-	if strings.TrimSpace(definition.ID) == reviewerAgentID {
-		return r.resolveReviewerModelRoute(definition, r.Config.ModelRoute)
-	}
-	route := definition.ModelRoute
-	if strings.TrimSpace(route.Primary.ProviderID) == "" && strings.TrimSpace(route.Primary.ModelID) == "" {
-		route = r.Config.ModelRoute
-	}
-	return r.resolveConfiguredTurnModelRoute(route)
 }
 
 func (r *Runtime) resolveReviewerModelRoute(definition agent.Definition, current provider.ModelRoute) (provider.ModelRoute, error) {
@@ -56,59 +43,4 @@ func (r *Runtime) resolveConfiguredTurnModelRoute(route provider.ModelRoute) (pr
 		return provider.ModelRoute{}, err
 	}
 	return route, nil
-}
-
-func (r *Runtime) resolveDelegatedChildModelRoute(parentState events.SessionState, parentTurnID string, childDefinition agent.Definition) (provider.ModelRoute, error) {
-	if strings.TrimSpace(childDefinition.ID) == reviewerAgentID {
-		current, err := delegatedCurrentModelRoute(parentState, parentTurnID)
-		if err != nil {
-			return provider.ModelRoute{}, err
-		}
-		return r.resolveReviewerModelRoute(childDefinition, current)
-	}
-	if hasConfiguredModelRoute(childDefinition.ModelRoute) {
-		return r.resolveConfiguredTurnModelRoute(childDefinition.ModelRoute)
-	}
-	if turn := parentState.Turns[parentTurnID]; turn != nil {
-		route, err := parseTurnConfigModelRoute(turn.Config)
-		if err != nil {
-			return provider.ModelRoute{}, err
-		}
-		if hasConfiguredModelRoute(route) {
-			return r.resolveConfiguredTurnModelRoute(route)
-		}
-	}
-	route, err := parseStoredModelRoute(parentState.Model)
-	if err != nil {
-		return provider.ModelRoute{}, err
-	}
-	if hasConfiguredModelRoute(route) {
-		return r.resolveConfiguredTurnModelRoute(route)
-	}
-	return r.resolveTurnModelRoute(childDefinition)
-}
-
-func delegatedCurrentModelRoute(parentState events.SessionState, parentTurnID string) (provider.ModelRoute, error) {
-	if turn := parentState.Turns[parentTurnID]; turn != nil {
-		route, err := parseTurnConfigModelRoute(turn.Config)
-		if err != nil {
-			return provider.ModelRoute{}, err
-		}
-		if hasConfiguredModelRoute(route) {
-			return route, nil
-		}
-	}
-	return parseStoredModelRoute(parentState.Model)
-}
-
-func parseStoredModelRoute(primary string) (provider.ModelRoute, error) {
-	if strings.TrimSpace(primary) == "" {
-		return provider.ModelRoute{}, nil
-	}
-	model, err := provider.ParseModelRef(primary)
-	if err != nil {
-		return provider.ModelRoute{}, err
-	}
-	route := provider.ModelRoute{Primary: model}
-	return route, route.Validate()
 }

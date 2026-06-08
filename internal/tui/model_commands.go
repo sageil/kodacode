@@ -8,9 +8,9 @@ import (
 	"github.com/sageil/kodacode/internal/events"
 )
 
-func startTurnCmd(ctx context.Context, controller controller, sessionID, turnID, userText string, attachments []app.AttachmentInput, agentID string, thinkingEnabled bool, thinkingMode string, skillIDs []string) tea.Cmd {
+func startTurnCmd(ctx context.Context, controller controller, sessionID, turnID, userText string, attachments []app.AttachmentInput, agentID, workflowID string, thinkingEnabled bool, thinkingMode string, skillIDs []string) tea.Cmd {
 	return func() tea.Msg {
-		return operationDoneMsg{err: controller.StartTurn(ctx, sessionID, turnID, userText, attachments, agentID, thinkingEnabled, thinkingMode, skillIDs)}
+		return operationDoneMsg{err: controller.StartTurn(ctx, sessionID, turnID, userText, attachments, agentID, workflowID, thinkingEnabled, thinkingMode, skillIDs)}
 	}
 }
 
@@ -44,6 +44,12 @@ func restoreTurnWritesCmd(ctx context.Context, controller controller, sessionID,
 			result: result,
 			err:    err,
 		}
+	}
+}
+
+func resumeWorkflowCmd(ctx context.Context, controller controller, sessionID, turnID string) tea.Cmd {
+	return func() tea.Msg {
+		return workflowResumedMsg{err: controller.ResumeWorkflow(ctx, sessionID, turnID)}
 	}
 }
 
@@ -110,55 +116,6 @@ func answerQuestionCmd(
 		return operationDoneMsg{
 			err:           err,
 			sessionResult: &result,
-		}
-	}
-}
-
-func answerDelegatedQuestionCmd(
-	ctx context.Context,
-	controller controller,
-	sessionID, handoffID, answer string,
-) tea.Cmd {
-	return func() tea.Msg {
-		result, err := controller.AnswerDelegatedQuestion(
-			ctx,
-			sessionID,
-			handoffID,
-			answer,
-		)
-		return operationDoneMsg{
-			err:                     err,
-			delegatedQuestionResult: &result,
-		}
-	}
-}
-
-func resolveDelegatedPermissionCmd(
-	ctx context.Context,
-	controller controller,
-	sessionID, handoffID string,
-	decision events.PermissionDecision,
-	scope events.PermissionScope,
-	grantPath string,
-	recursive bool,
-	executionDecision events.ExecutionApprovalDecision,
-	executionExecPolicy *events.ExecutionPolicyAmendment,
-	executionNetworkPolicy *events.ExecutionNetworkPolicyAmendment,
-) tea.Cmd {
-	return func() tea.Msg {
-		return operationDoneMsg{
-			err: controller.ResolveDelegatedPermission(
-				ctx,
-				sessionID,
-				handoffID,
-				decision,
-				scope,
-				grantPath,
-				recursive,
-				executionDecision,
-				executionExecPolicy,
-				executionNetworkPolicy,
-			),
 		}
 	}
 }

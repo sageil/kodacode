@@ -27,18 +27,21 @@ var (
 )
 
 type ToolExecutor struct {
-	sessions  *SessionService
-	exec      *ExecutionService
-	tools     map[string]tool.Tool
-	mcpTools  map[string]struct{}
-	search    *searchsvc.Service
-	webSearch *websearchsvc.Service
-	skills    *skill.Registry
-	delegates delegateRuntime
-	codeIntel codeIntelRuntime
-	memory    *MemoryService
-	logger    *observability.Logger
+	sessions                     *SessionService
+	exec                         *ExecutionService
+	tools                        map[string]tool.Tool
+	mcpTools                     map[string]struct{}
+	search                       *searchsvc.Service
+	webSearch                    *websearchsvc.Service
+	skills                       *skill.Registry
+	codeIntel                    codeIntelRuntime
+	memory                       *MemoryService
+	workflowConfig               WorkflowConfig
+	workflowPhaseCommandResolver workflowPhaseCommandResolver
+	logger                       *observability.Logger
 }
+
+type workflowPhaseCommandResolver func(ctx context.Context, workspaceRoot, workflowID, phaseID string) ([]workflowVerificationCommandSpec, error)
 
 func NewToolExecutor(sessions *SessionService, tools ...tool.Tool) (*ToolExecutor, error) {
 	return NewToolExecutorWithConfig(sessions, defaultExecutionConfig(), tools...)
@@ -91,8 +94,18 @@ func (e *ToolExecutor) SetSkillRegistry(registry *skill.Registry) {
 	e.skills = registry
 }
 
-func (e *ToolExecutor) SetDelegateRuntime(runtime delegateRuntime) {
-	e.delegates = runtime
+func (e *ToolExecutor) SetWorkflowConfig(config WorkflowConfig) {
+	if e == nil {
+		return
+	}
+	e.workflowConfig = config
+}
+
+func (e *ToolExecutor) SetWorkflowPhaseCommandResolver(resolver workflowPhaseCommandResolver) {
+	if e == nil {
+		return
+	}
+	e.workflowPhaseCommandResolver = resolver
 }
 
 func (e *ToolExecutor) ResumeBackgroundExecutions(ctx context.Context, sessionID string) error {
@@ -104,6 +117,22 @@ func (e *ToolExecutor) ResumeBackgroundExecutions(ctx context.Context, sessionID
 
 func (e *ToolExecutor) Register(tl tool.Tool) {
 	e.tools[tl.Definition().Name] = tl
+}
+
+func (e *ToolExecutor) RegisteredToolsForValidation() []tool.Tool {
+	if e == nil {
+		return nil
+	}
+	names := make([]string, 0, len(e.tools))
+	for name := range e.tools {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	out := make([]tool.Tool, 0, len(names))
+	for _, name := range names {
+		out = append(out, e.tools[name])
+	}
+	return out
 }
 
 func (e *ToolExecutor) toolDefinition(toolName string) (tool.Definition, bool) {
@@ -229,12 +258,15 @@ func (e *ToolExecutor) providerToolSurfaceAllowedFiltered(allowed []string, incl
 }
 
 func providerFunctionApplyPatchDefinition(definition tool.Definition) tool.Definition {
-	description := "Edit files by sending JSON with one `patch` string. The patch string must follow the structured patch grammar. Patch lines MUST NOT include read output line number prefixes like \"40:\" either directly or after patch prefixes like \"-40:\" or \"+40:\"."
+	description := "Edit files by sending JSON with one `patch` string. The patch is structured text: first line \"*** Begin Patch\", then Add/Update/Delete file sections, final line \"*** End Patch\". Add File lines start with +; Update File hunk lines start with space, +, or -. Do not include read output line-number prefixes like \"40:\"."
 	definition.InputKind = tool.InputKindFunction
 	definition.InputFormat = nil
-	definition.InputSchema = json.RawMessage(`{"type":"object","properties":{"patch":{"type":"string","description":"Raw structured patch text. First line: *** Begin Patch. Final line: *** End Patch. Use file headers like *** Update File: path and prefixed changed lines. Patch lines MUST NOT include read output line number prefixes like \"40:\" either directly or after patch prefixes like \"-40:\" or \"+40:\"."}},"required":["patch"],"additionalProperties":false}`)
+	definition.InputSchema = json.RawMessage(`{"type":"object","properties":{"patch":{"type":"string","description":"Structured patch text from *** Begin Patch to *** End Patch. Use *** Add File:, *** Update File:, or *** Delete File:. Do not include read output line-number prefixes like \"40:\"."}},"required":["patch"],"additionalProperties":false}`)
 	definition.ProviderDescription = description
-	definition.ArgumentExamples = []string{`{"patch":"*** Begin Patch\n*** Update File: file.txt\n-old\n+new\n*** End Patch\n"}`}
+	definition.ArgumentExamples = []string{
+		`{"patch":"*** Begin Patch\n*** Update File: file.txt\n@@\n-old\n+new\n*** End Patch\n"}`,
+		`{"patch":"*** Begin Patch\n*** Add File: file.txt\n+first line\n+\n+third line\n*** End Patch\n"}`,
+	}
 	definition.ProviderRichGuidance = true
 	return definition
 }
@@ -392,6 +424,7 @@ type ExecuteToolInput struct {
 	TemporaryNetworkTargets []string
 	ExecutionExecPolicy     *events.ExecutionPolicyAmendment
 	ExecutionNetworkPolicy  *events.ExecutionNetworkPolicyAmendment
+	WorkflowBudget          workflowTurnBudget
 }
 
 type ToolExecutionStatus string

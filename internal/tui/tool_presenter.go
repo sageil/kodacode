@@ -139,11 +139,6 @@ func allToolPresenters() []toolPresenter {
 		InspectorParams: skillInspectorParams,
 		ListSummary:     skillToolListSummary,
 	}, {
-		Names:           []string{"delegate"},
-		DisplayName:     func(_ string, call *events.ToolCallState) string { return delegateToolDisplayName(call) },
-		InspectorParams: delegateInspectorParams,
-		ListSummary:     delegateToolListSummary,
-	}, {
 		Names:           []string{"task", "task_workflow", "task_review"},
 		DisplayName:     func(_ string, call *events.ToolCallState) string { return taskToolDisplayName(call) },
 		InspectorParams: taskInspectorParams,

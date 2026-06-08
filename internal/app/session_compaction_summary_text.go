@@ -22,14 +22,6 @@ func appendCompactionBlock(blocks *[]string, block string, remaining *int) bool 
 	return true
 }
 
-func truncateCompact(content string) string {
-	text := strings.TrimSpace(content)
-	if len(text) <= 160 {
-		return text
-	}
-	return truncateUTF8Bytes(text, 160)
-}
-
 func truncateUTF8Bytes(text string, limit int) string {
 	if limit <= 0 || text == "" {
 		return ""

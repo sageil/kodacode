@@ -201,7 +201,7 @@ func TestToolExecutorTaskWorkflowRejectsChildUnderCompletedParent(t *testing.T) 
 	if result.Status != ToolExecutionStatusExecuted {
 		t.Fatalf("result = %#v, want executed", result)
 	}
-	if result.Error != "task_workflow failed: parent_task_id is already complete. Use a pending parent or omit parent_task_id." {
+	if result.Error != "task_workflow: parent task is complete. Use a pending parent_task_id or omit parent_task_id." {
 		t.Fatalf("result error = %q", result.Error)
 	}
 }
@@ -271,7 +271,7 @@ func TestToolExecutorTaskWorkflowUnsupportedFieldsReturnActionPayload(t *testing
 		TurnID:     "turn-1",
 		ToolCallID: "call-workflow",
 		ToolName:   tool.TaskWorkflowToolName,
-		Arguments:  json.RawMessage(`{"action":"create","title":"Implement fix","summary":"done"}`),
+		Arguments:  json.RawMessage(`{"action":"create","title":"Implement fix","block_reason":"waiting on API schema"}`),
 	})
 	if err != nil {
 		t.Fatalf("Execute(workflow) transport error = %v", err)
@@ -280,9 +280,9 @@ func TestToolExecutorTaskWorkflowUnsupportedFieldsReturnActionPayload(t *testing
 		t.Fatalf("result = %#v, want executed result with tool error", result)
 	}
 	for _, want := range []string{
-		`task_workflow failed`,
-		`create does not accept summary`,
-		`Remove unsupported fields`,
+		`task_workflow:`,
+		`create cannot use block_reason`,
+		`Use create for title/parent/kind/status/notes`,
 	} {
 		if !strings.Contains(result.Error, want) {
 			t.Fatalf("result error = %q, missing %q", result.Error, want)
@@ -459,7 +459,7 @@ func TestToolExecutorTaskWorkflowRejectsSecondInProgressTask(t *testing.T) {
 	if result.Status != ToolExecutionStatusExecuted {
 		t.Fatalf("result = %#v, want executed result with tool error", result)
 	}
-	if result.Error != "task_workflow failed: task-a is already in progress. Update, block, or complete it first." {
+	if result.Error != "task_workflow: task-a is already in progress. Update, block, or complete it first." {
 		t.Fatalf("result error = %q", result.Error)
 	}
 }
@@ -543,114 +543,6 @@ func TestToolExecutorTaskWorkflowMarksRepeatedFailureAsRetry(t *testing.T) {
 	}
 }
 
-func TestToolExecutorTaskReviewUsesDelegatedParentTaskScope(t *testing.T) {
-	store := events.NewMemoryStore()
-	sessions, err := NewSessionService(store)
-	if err != nil {
-		t.Fatalf("NewSessionService() error = %v", err)
-	}
-	executor, err := NewToolExecutor(sessions, tool.NewTaskReviewTool())
-	if err != nil {
-		t.Fatalf("NewToolExecutor() error = %v", err)
-	}
-
-	root := t.TempDir()
-	for _, input := range []CreateSessionInput{
-		{SessionID: "session-parent", WorkspaceRoot: root},
-		{SessionID: "session-child", WorkspaceRoot: root},
-	} {
-		if _, err := sessions.CreateSession(context.Background(), input); err != nil {
-			t.Fatalf("CreateSession(%s) error = %v", input.SessionID, err)
-		}
-	}
-
-	taskState, err := sessions.CreateTask(context.Background(), CreateTaskInput{
-		SessionID: "session-parent",
-		TurnID:    "turn-setup",
-		TaskID:    "task-1",
-		Title:     "Apply Performance Enhancements",
-		Status:    events.TaskStatusInProgress,
-	})
-	if err != nil {
-		t.Fatalf("CreateTask(parent) error = %v", err)
-	}
-	if _, err := sessions.UpdateTaskProgress(context.Background(), UpdateTaskProgressInput{
-		SessionID: "session-parent",
-		TurnID:    "turn-setup",
-		TaskID:    taskState.TaskID,
-		Progress:  "Implementation in progress.",
-	}); err != nil {
-		t.Fatalf("UpdateTaskProgress(parent) error = %v", err)
-	}
-	taskState, err = sessions.CompleteTask(context.Background(), CompleteTaskInput{
-		SessionID: "session-parent",
-		TurnID:    "turn-setup",
-		TaskID:    taskState.TaskID,
-		Summary:   "Implementation finished.",
-	})
-	if err != nil {
-		t.Fatalf("CompleteTask(parent) error = %v", err)
-	}
-
-	appendDelegatedHandoffForToolReuseTest(t, sessions, events.AgentHandoffPayload{
-		HandoffID:       "handoff-1",
-		ParentSessionID: "session-parent",
-		ParentTurnID:    "turn-parent",
-		ParentAgentID:   "planner",
-		ChildSessionID:  "session-child",
-		ChildTurnID:     "turn-child",
-		ChildAgentID:    "reviewer",
-		Task:            "Review the implementation changes",
-		ContextSummary:  "Inspect the parent work and record a review outcome.",
-		Model:           "openai/gpt-5",
-	})
-
-	listResult, err := executor.Execute(context.Background(), ExecuteToolInput{
-		SessionID:  "session-child",
-		TurnID:     "turn-child",
-		ToolCallID: "call-list",
-		ToolName:   tool.TaskReviewToolName,
-		Arguments:  json.RawMessage(`{"action":"list"}`),
-	})
-	if err != nil {
-		t.Fatalf("Execute(list) error = %v", err)
-	}
-	if listResult.Status != ToolExecutionStatusExecuted || !strings.Contains(listResult.Output, `"task_id":"task-1"`) || !strings.Contains(listResult.Output, taskState.Title) {
-		t.Fatalf("list result = %#v", listResult)
-	}
-
-	reviewResult, err := executor.Execute(context.Background(), ExecuteToolInput{
-		SessionID:  "session-child",
-		TurnID:     "turn-child",
-		ToolCallID: "call-review",
-		ToolName:   tool.TaskReviewToolName,
-		Arguments:  json.RawMessage(`{"action":"review","task_id":"task-1","review_status":"pass","review_summary":"Verified the performance changes."}`),
-	})
-	if err != nil {
-		t.Fatalf("Execute(review) error = %v", err)
-	}
-	if reviewResult.Status != ToolExecutionStatusExecuted || !strings.Contains(reviewResult.Output, `"review_status":"pass"`) {
-		t.Fatalf("review result = %#v", reviewResult)
-	}
-
-	parentState, err := sessions.Snapshot(context.Background(), "session-parent")
-	if err != nil {
-		t.Fatalf("Snapshot(parent) error = %v", err)
-	}
-	parentTask := parentState.Tasks["task-1"]
-	if parentTask == nil || parentTask.ReviewStatus != "pass" || parentTask.ReviewSummary != "Verified the performance changes." {
-		t.Fatalf("parent task = %#v", parentTask)
-	}
-
-	childState, err := sessions.Snapshot(context.Background(), "session-child")
-	if err != nil {
-		t.Fatalf("Snapshot(child) error = %v", err)
-	}
-	if len(childState.TaskOrder) != 0 {
-		t.Fatalf("child task order = %#v, want no child-owned tasks", childState.TaskOrder)
-	}
-}
-
 func TestToolExecutorTaskWorkflowRejectsCompletionWithoutRecordedWork(t *testing.T) {
 	store := events.NewMemoryStore()
 	sessions, err := NewSessionService(store)
@@ -690,6 +582,7 @@ func TestToolExecutorTaskWorkflowRejectsCompletionWithoutRecordedWork(t *testing
 				AllowedTools: []string{tool.TaskWorkflowToolName},
 			},
 			nil,
+			"",
 			false,
 			false,
 			"",

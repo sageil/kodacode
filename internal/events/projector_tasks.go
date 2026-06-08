@@ -21,14 +21,16 @@ func (p *Projector) applyTaskCreated(sequence int64, payload TaskCreatedPayload)
 		return errors.New("task already exists")
 	}
 	task := &TaskState{
-		TaskID:       taskID,
-		ParentTaskID: strings.TrimSpace(payload.ParentTaskID),
-		Title:        strings.TrimSpace(payload.Title),
-		Kind:         strings.TrimSpace(payload.Kind),
-		Status:       strings.TrimSpace(payload.Status),
-		Notes:        strings.TrimSpace(payload.Notes),
-		CreatedAtSeq: sequence,
-		UpdatedAtSeq: sequence,
+		TaskID:          taskID,
+		ParentTaskID:    strings.TrimSpace(payload.ParentTaskID),
+		WorkflowID:      strings.TrimSpace(payload.WorkflowID),
+		WorkflowPhaseID: strings.TrimSpace(payload.WorkflowPhaseID),
+		Title:           strings.TrimSpace(payload.Title),
+		Kind:            strings.TrimSpace(payload.Kind),
+		Status:          strings.TrimSpace(payload.Status),
+		Notes:           strings.TrimSpace(payload.Notes),
+		CreatedAtSeq:    sequence,
+		UpdatedAtSeq:    sequence,
 	}
 	p.state.Tasks[taskID] = task
 	p.state.TaskOrder = append(p.state.TaskOrder, taskID)
@@ -55,6 +57,7 @@ func (p *Projector) applyTaskProgressUpdated(sequence int64, payload TaskProgres
 	if notes := strings.TrimSpace(payload.Notes); notes != "" {
 		task.Notes = notes
 	}
+	updateTaskWorkflowBinding(task, payload.WorkflowID, payload.WorkflowPhaseID)
 	task.UpdatedAtSeq = sequence
 	return nil
 }
@@ -69,6 +72,7 @@ func (p *Projector) applyTaskBlocked(sequence int64, payload TaskBlockedPayload)
 	if notes := strings.TrimSpace(payload.Notes); notes != "" {
 		task.Notes = notes
 	}
+	updateTaskWorkflowBinding(task, payload.WorkflowID, payload.WorkflowPhaseID)
 	task.UpdatedAtSeq = sequence
 	task.CompletedAtSeq = 0
 	return nil
@@ -86,6 +90,7 @@ func (p *Projector) applyTaskCompleted(sequence int64, payload TaskCompletedPayl
 	if summary := strings.TrimSpace(payload.Summary); summary != "" {
 		task.Progress = summary
 	}
+	updateTaskWorkflowBinding(task, payload.WorkflowID, payload.WorkflowPhaseID)
 	return nil
 }
 
@@ -96,6 +101,19 @@ func (p *Projector) applyTaskReviewed(sequence int64, payload TaskReviewedPayloa
 	}
 	task.ReviewStatus = strings.TrimSpace(payload.ReviewStatus)
 	task.ReviewSummary = strings.TrimSpace(payload.ReviewSummary)
+	updateTaskWorkflowBinding(task, payload.WorkflowID, payload.WorkflowPhaseID)
 	task.UpdatedAtSeq = sequence
 	return nil
+}
+
+func updateTaskWorkflowBinding(task *TaskState, workflowID, phaseID string) {
+	if task == nil {
+		return
+	}
+	if workflowID = strings.TrimSpace(workflowID); workflowID != "" {
+		task.WorkflowID = workflowID
+	}
+	if phaseID = strings.TrimSpace(phaseID); phaseID != "" {
+		task.WorkflowPhaseID = phaseID
+	}
 }

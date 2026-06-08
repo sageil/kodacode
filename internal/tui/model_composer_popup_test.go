@@ -21,57 +21,6 @@ func (f *fakeController) ListPromptHistory(_ context.Context, limit int) ([]app.
 	return append([]app.PromptHistoryEntry(nil), f.promptHistory...), nil
 }
 
-func TestComposerSlashCommandOpensSessionsDialog(t *testing.T) {
-	defaultTheme := theme.StaticDefault()
-	ctx, cancel := context.WithCancel(context.TODO())
-	defer cancel()
-
-	controller := &fakeController{
-		sessions: []app.SessionSummary{{
-			ID:    "session-2",
-			Title: "Previous session",
-		}},
-	}
-	model := NewModel(controller, ModelConfig{
-		Context:       ctx,
-		Theme:         &defaultTheme,
-		SessionID:     "session-1",
-		TurnID:        "turn-1",
-		WorkspaceRoot: "/repo",
-	})
-	model.chrome.focus = focusComposer
-	model.composer.SetValue("/sessions")
-
-	next, cmd := model.submitComposer()
-	if cmd == nil {
-		t.Fatal("submitComposer cmd = nil")
-	}
-	opened, ok := cmd().(dialogOpenedMsg)
-	if !ok {
-		t.Fatalf("cmd() = %#v", cmd())
-	}
-	if opened.err != nil {
-		t.Fatalf("dialogOpenedMsg.err = %v", opened.err)
-	}
-	nextModel := next.(Model)
-	if nextModel.composer.Value() != "" {
-		t.Fatalf("composer value = %q, want empty", nextModel.composer.Value())
-	}
-	if nextModel.composerState.popupMode != composerPopupNone {
-		t.Fatalf("composer popup mode = %q, want none", nextModel.composerState.popupMode)
-	}
-	dialog, ok := opened.dialog.(*sessionsDialog)
-	if !ok {
-		t.Fatalf("dialog = %#v", opened.dialog)
-	}
-	if dialog.ID() != dialogIDSessions {
-		t.Fatalf("dialog id = %q, want %q", dialog.ID(), dialogIDSessions)
-	}
-	if len(controller.startCalls) != 0 {
-		t.Fatalf("startCalls = %#v", controller.startCalls)
-	}
-}
-
 func TestComposerSlashCommandDoesNotExposeSkillsDialog(t *testing.T) {
 	defaultTheme := theme.StaticDefault()
 	ctx, cancel := context.WithCancel(context.TODO())
@@ -95,6 +44,38 @@ func TestComposerSlashCommandDoesNotExposeSkillsDialog(t *testing.T) {
 	nextModel := next.(Model)
 	if nextModel.composerState.err != "unknown command /skills" {
 		t.Fatalf("composer error = %q", nextModel.composerState.err)
+	}
+}
+
+func TestComposerSlashPopupShowsWorkflowCommand(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	model := NewModel(&fakeController{}, ModelConfig{
+		Context:       ctx,
+		Theme:         &defaultTheme,
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: "/repo",
+	})
+	model.chrome.focus = focusComposer
+	model.composer.SetValue("/")
+	model.setComposerCursorOffset(1)
+
+	cmd := model.refreshComposerPopup()
+	if cmd != nil {
+		t.Fatalf("refreshComposerPopup cmd = %#v, want nil for slash commands", cmd)
+	}
+	if model.composerState.popupMode != composerPopupSlash {
+		t.Fatalf("composer popup mode = %q, want slash", model.composerState.popupMode)
+	}
+	rendered := ansi.Strip(renderComposerPopup(model, 80))
+	if !strings.Contains(rendered, "/model") {
+		t.Fatalf("slash popup missing visible command /model\n%s", rendered)
+	}
+	if !strings.Contains(rendered, "/workflow") {
+		t.Fatalf("slash popup missing workflow command\n%s", rendered)
 	}
 }
 
@@ -1804,6 +1785,44 @@ func TestComposerSlashPopupTraceStagesCommandForTurnSelection(t *testing.T) {
 	nextModel := next.(Model)
 	if got := nextModel.composer.Value(); got != "/trace " {
 		t.Fatalf("composer value = %q, want staged trace command", got)
+	}
+	if nextModel.composerState.popupMode != composerPopupNone {
+		t.Fatalf("composer popup mode = %q, want none", nextModel.composerState.popupMode)
+	}
+}
+
+func TestComposerSlashPopupWorkflowStagesCommandForArgument(t *testing.T) {
+	defaultTheme := theme.StaticDefault()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	controller := &fakeController{
+		workflows: []app.AvailableWorkflow{{ID: "delivery", Description: "Delivery workflow"}},
+	}
+	model := NewModel(controller, ModelConfig{
+		Context:       ctx,
+		Theme:         &defaultTheme,
+		SessionID:     "session-1",
+		TurnID:        "turn-1",
+		WorkspaceRoot: "/repo",
+	})
+	model.chrome.focus = focusComposer
+	model.composer.SetValue("/workflow")
+	_ = model.refreshComposerPopup()
+
+	next, cmd, handled := model.handleComposerPopupInput(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if !handled {
+		t.Fatal("enter should be handled by slash popup")
+	}
+	if cmd != nil {
+		t.Fatalf("cmd = %#v, want nil while staging workflow command", cmd)
+	}
+	nextModel := next.(Model)
+	if got := nextModel.composer.Value(); got != "/workflow " {
+		t.Fatalf("composer value = %q, want staged workflow command", got)
+	}
+	if nextModel.dialog != nil {
+		t.Fatal("workflow dialog opened while selecting slash command")
 	}
 	if nextModel.composerState.popupMode != composerPopupNone {
 		t.Fatalf("composer popup mode = %q, want none", nextModel.composerState.popupMode)

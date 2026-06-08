@@ -13,7 +13,6 @@ func TestToolPresenterRegistryCoversKnownTools(t *testing.T) {
 		"bash",
 		"code_action",
 		"definition",
-		"delegate",
 		"diagnostics",
 		"git_diff",
 		"git_show",

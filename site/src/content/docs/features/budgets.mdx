@@ -7,9 +7,10 @@ Budgets are one of KodaCode's most opinionated user-facing features.
 
 They are not passive dashboards. They are runtime-enforced spending limits that can warn early and stop new turns before more model cost is incurred.
 
-## Two budget scopes
+## Budget scopes
 
-KodaCode supports two separate limits under `sessions` in `config.yaml`:
+KodaCode supports session and cross-session limits under `sessions` in
+`config.yaml`:
 
 ```yaml
 sessions:
@@ -24,10 +25,26 @@ sessions:
 | `budget` | One session | Prevent one long session from running away |
 | `total_budget` | All stored sessions | Prevent many sessions in the same database from quietly adding up |
 
+Runtime workflow YAML can also declare a per-workflow hard cost limit:
+
+```yaml
+budgets:
+  max_cost: 2
+  warn_threshold: 0.75
+  max_provider_requests_per_turn: 8
+```
+
+| Setting | Scope | What it protects |
+| --- | --- | --- |
+| `budgets.max_cost` | One active workflow | Stop a selected workflow before its recorded parent and child turn cost exceeds the workflow limit |
+| `budgets.warn_threshold` | One active workflow | Show a workflow warning before the hard workflow limit |
+| `budgets.max_provider_requests_per_turn` | Each workflow phase turn | Stop a workflow turn from repeatedly calling the provider |
+
 Warning thresholds are fractions between `0` and `1`.
 
 - `budget_warn: 0.8` means "warn when this session reaches 80% of its budget"
 - `total_budget_warn: 0.8` means "warn when all stored sessions together reach 80% of the total budget"
+- `budgets.warn_threshold: 0.8` means "warn when the active workflow reaches 80% of its workflow budget"
 
 ## What happens at warn level
 
@@ -37,14 +54,17 @@ Examples of footer labels:
 
 - `budget 80%`
 - `total 80%`
+- `workflow 80%`
 - `budget warn`
 - `total warn`
+- `workflow warn`
 
 The goal is to make cost pressure visible while you still have time to switch models, keep the default terse mode, summarize history, or stop the session deliberately.
 
 ## What happens when a budget is hit
 
-When a session or cross-session budget is exceeded, KodaCode blocks the next turn before a provider call is made.
+When a session, workflow, or cross-session budget is exceeded, KodaCode blocks
+the next provider-backed turn before a provider call is made.
 
 That means:
 
@@ -55,17 +75,21 @@ That means:
 The runtime distinguishes:
 
 - `Session budget reached`
+- `Workflow budget reached`
 - `Cross-session budget reached`
 
 This is the main reason budgets deserve their own feature page: they are active execution controls, not just reporting.
 
 ## Validation rules
 
-Budget settings are validated at startup:
+Budget settings are validated when config and workflow definitions are loaded:
 
 - `budget` and `total_budget` must be non-negative
 - `budget_warn` and `total_budget_warn` must be between `0` and `1`
 - a warning threshold requires its corresponding budget to be positive
+- workflow `budgets.max_cost` must be non-negative
+- workflow `budgets.warn_threshold` must be between `0` and `1` and requires `budgets.max_cost > 0`
+- workflow `budgets.max_provider_requests_per_turn` must be non-negative
 
 If the config is invalid, KodaCode rejects it instead of silently guessing.
 

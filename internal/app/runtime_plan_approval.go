@@ -15,64 +15,19 @@ import (
 )
 
 const (
-	plannerPlanApprovalQuestion   = "What should happen with the completed plan?"
-	plannerPlanApprovalSave       = "Save plan"
-	plannerPlanApprovalApply      = "Apply plan"
-	plannerPlanApprovalRevise     = "Revise plan"
-	plannerPlanApprovalStop       = "Stop"
-	handoffKindImplementationPlan = "implementation_plan"
-	handoffKindReviewFindings     = "review_findings"
+	plannerPlanApprovalQuestion = "What should happen with the completed plan?"
+	plannerPlanApprovalSave     = "Save plan"
+	plannerPlanApprovalApply    = "Apply plan"
+	plannerPlanApprovalRevise   = "Revise plan"
+	plannerPlanApprovalStop     = "Stop"
 )
-
-func (e *ToolExecutor) requestPlannerPlanApprovalForDelegateResult(ctx context.Context, input ExecuteToolInput, output string) (ToolExecutionResult, bool, error) {
-	record, ok := delegateRecordFromToolResult(input.ToolName, output)
-	if !ok || record.Status != tool.DelegateStatusCompleted || strings.TrimSpace(record.ChildAgentID) != "planner" {
-		return ToolExecutionResult{}, false, nil
-	}
-	state, err := e.sessions.Snapshot(ctx, input.SessionID)
-	if err != nil {
-		return ToolExecutionResult{}, false, err
-	}
-	_, handoff := findHandoffState(state, record.HandoffID)
-	if handoff == nil || strings.TrimSpace(handoff.ChildAgentID) != "planner" || strings.TrimSpace(handoff.AssistantText) == "" {
-		return ToolExecutionResult{}, false, nil
-	}
-	if strings.TrimSpace(handoff.ToolCallID) != strings.TrimSpace(input.ToolCallID) {
-		return ToolExecutionResult{}, false, nil
-	}
-	if !plannerHandoffRequiresPlanApproval(handoff) {
-		return ToolExecutionResult{}, false, nil
-	}
-	if err := appendTextToParentTurn(ctx, e.sessions, input.SessionID, input.TurnID, handoff.AssistantText); err != nil {
-		return ToolExecutionResult{}, false, err
-	}
-	planID, err := ensurePlannerPlanRecorded(ctx, e.sessions, input.SessionID, input.TurnID, handoff)
-	if err != nil {
-		return ToolExecutionResult{}, false, err
-	}
-	requestID, err := e.sessions.RequestQuestion(ctx, QuestionRequestInput{
-		SessionID:  input.SessionID,
-		TurnID:     input.TurnID,
-		ToolCallID: input.ToolCallID,
-		ToolName:   input.ToolName,
-		PlanID:     planID,
-		Question:   plannerPlanApprovalQuestion,
-		Options:    plannerPlanApprovalOptions(state),
-		Purpose:    events.QuestionPurposePlannerPlanDecision,
-	})
-	if err != nil {
-		return ToolExecutionResult{}, false, err
-	}
-	return ToolExecutionResult{
-		Status:             ToolExecutionStatusPending,
-		CanonicalArguments: string(input.Arguments),
-		PendingRequestID:   requestID,
-	}, true, nil
-}
 
 func (e *ToolExecutor) preparePlannerSavePlanQuestion(ctx context.Context, state events.SessionState, input ExecuteToolInput) (ExecuteToolInput, error) {
 	if !isPlannerSavePlanQuestion(input.ToolName, input.Arguments) {
 		return input, nil
+	}
+	if workflowOwnsPlanApproval(state) {
+		return ExecuteToolInput{}, ErrPlannerPlanApprovalDisabledByWorkflow
 	}
 	planID, err := ensurePrimaryPlannerPlanRecorded(ctx, e.sessions, state, input.SessionID, input.TurnID)
 	if err != nil {
@@ -85,6 +40,34 @@ func (e *ToolExecutor) preparePlannerSavePlanQuestion(ctx context.Context, state
 	input.PlanID = planID
 	input.Arguments = arguments
 	return input, nil
+}
+
+func (e *ToolExecutor) plannerApprovalEnabled() bool {
+	return e != nil && e.workflowConfig.PlannerApproval
+}
+
+func plannerApprovalPromptFragment() prompt.Fragment {
+	return prompt.Fragment{
+		Kind:      prompt.KindRuntime,
+		Source:    prompt.SourceRuntime,
+		Stability: prompt.StabilityDynamic,
+		Key:       "planner-approval-opt-in",
+		Label:     "planner approval",
+		Content: strings.Join([]string{
+			"Planner approval is enabled for this turn.",
+			"When you are running as the primary planner and the current repository-grounded implementation plan is complete, first show the complete finished plan to the user in assistant text. Then use the `question` tool to signal that the runtime should ask which action to take.",
+			"Do not ask a broader strategy question after producing a plan. Implementation, checklist generation, and \"do nothing\" are not save-plan approval options.",
+			"Use exactly these options:",
+			"- Save plan",
+			"- Revise plan",
+			"Use purpose `planner_save_plan`.",
+			"Do not ask this question in assistant prose.",
+			"The question must not be the first user-visible output for a new plan. The visible plan body is the accepted plan body the runtime will save, apply, or pass back for revision.",
+			"If `question` fails with a planner plan-decision contract error, do not re-explore the repository or recreate the plan. Reuse the already-produced plan text and repair only the plan-decision workflow ordering.",
+			"If the answer is `Save plan`, `Apply plan`, or `Stop`, the runtime owns the next action. Do not call tools or add prose for those decisions.",
+			"If the answer is `Revise plan`, continue revising the plan in the current turn and do not delegate.",
+		}, "\n"),
+	}
 }
 
 func plannerPlanApprovalQuestionArguments(state events.SessionState) (json.RawMessage, error) {
@@ -138,23 +121,6 @@ func isPlannerPlanApprovalQuestion(request *events.QuestionRequestState) bool {
 	return request != nil && strings.TrimSpace(request.Purpose) == events.QuestionPurposePlannerPlanDecision
 }
 
-func plannerHandoffRequiresPlanApproval(handoff *events.AgentHandoffState) bool {
-	return handoffProvidesKind(handoff, handoffKindImplementationPlan)
-}
-
-func plannerPlanForHandoff(state events.SessionState, handoff *events.AgentHandoffState) *events.PlanState {
-	if handoff == nil {
-		return nil
-	}
-	for _, planID := range state.PlanOrder {
-		plan := state.Plans[planID]
-		if plan != nil && strings.TrimSpace(plan.SourceHandoffID) == strings.TrimSpace(handoff.HandoffID) {
-			return plan
-		}
-	}
-	return nil
-}
-
 func plannerPlanForTurn(state events.SessionState, turnID string) *events.PlanState {
 	turnID = strings.TrimSpace(turnID)
 	if turnID == "" {
@@ -169,18 +135,6 @@ func plannerPlanForTurn(state events.SessionState, turnID string) *events.PlanSt
 	return nil
 }
 
-func planStateFromHandoff(handoff *events.AgentHandoffState) *events.PlanState {
-	if handoff == nil {
-		return nil
-	}
-	return &events.PlanState{
-		SourceHandoffID: strings.TrimSpace(handoff.HandoffID),
-		Title:           plannerPlanTitle(handoff),
-		Markdown:        strings.TrimRight(handoff.AssistantText, "\n"),
-		CreatedByAgent:  strings.TrimSpace(handoff.ChildAgentID),
-	}
-}
-
 func planStateFromTurn(turn *events.TurnState, turnID string) *events.PlanState {
 	if turn == nil {
 		return nil
@@ -191,36 +145,6 @@ func planStateFromTurn(turn *events.TurnState, turnID string) *events.PlanState 
 		Markdown:       strings.TrimRight(turn.AssistantText, "\n"),
 		CreatedByAgent: "planner",
 	}
-}
-
-func ensurePlannerPlanRecorded(ctx context.Context, sessions *SessionService, sessionID, turnID string, handoff *events.AgentHandoffState) (string, error) {
-	if handoff == nil {
-		return "", ErrHandoffNotFound
-	}
-	state, err := sessions.Snapshot(ctx, sessionID)
-	if err != nil {
-		return "", err
-	}
-	for _, planID := range state.PlanOrder {
-		plan := state.Plans[planID]
-		if plan != nil && strings.TrimSpace(plan.SourceHandoffID) == strings.TrimSpace(handoff.HandoffID) {
-			return strings.TrimSpace(plan.PlanID), nil
-		}
-	}
-	planID := newRuntimeID("plan")
-	_, err = sessions.append(ctx, events.Draft{
-		SessionID: sessionID,
-		TurnID:    turnID,
-		Type:      events.TypePlanRecorded,
-		Payload: events.PlanRecordedPayload{
-			PlanID:          planID,
-			SourceHandoffID: strings.TrimSpace(handoff.HandoffID),
-			Title:           plannerPlanTitle(handoff),
-			Markdown:        strings.TrimRight(handoff.AssistantText, "\n"),
-			CreatedByAgent:  strings.TrimSpace(handoff.ChildAgentID),
-		},
-	})
-	return planID, err
 }
 
 func ensurePrimaryPlannerPlanRecorded(ctx context.Context, sessions *SessionService, state events.SessionState, sessionID, turnID string) (string, error) {
@@ -254,13 +178,6 @@ func ensurePrimaryPlannerPlanRecorded(ctx context.Context, sessions *SessionServ
 	return planID, err
 }
 
-func plannerPlanTitle(handoff *events.AgentHandoffState) string {
-	if handoff == nil {
-		return "Implementation Plan"
-	}
-	return plannerPlanTitleFromText(handoff.AssistantText, handoff.Task)
-}
-
 func plannerPlanTitleFromText(markdown, fallback string) string {
 	if title := firstMarkdownHeading(markdown); title != "" {
 		return title
@@ -290,62 +207,10 @@ func (r *Runtime) answerPlannerPlanApproval(ctx context.Context, state events.Se
 		return RunSessionResult{}, false, nil
 	}
 	switch strings.TrimSpace(request.ToolName) {
-	case tool.DelegateToolName:
-		return r.answerDelegatedPlannerPlanApproval(ctx, state, input, turnID, request, answer)
 	case tool.QuestionToolName:
 		return r.answerPrimaryPlannerPlanApproval(ctx, state, input, turnID, request, answer)
 	default:
 		return RunSessionResult{}, false, nil
-	}
-}
-
-func (r *Runtime) answerDelegatedPlannerPlanApproval(ctx context.Context, state events.SessionState, input AnswerSessionQuestionInput, turnID string, request *events.QuestionRequestState, answer string) (RunSessionResult, bool, error) {
-	answer = strings.TrimSpace(answer)
-	if !plannerPlanApprovalAnswerAllowed(request, answer) {
-		return RunSessionResult{}, true, ErrQuestionAnswerInvalid
-	}
-	handoff := plannerHandoffForToolCall(state.Turns[turnID], request.ToolCallID)
-	if handoff == nil {
-		return RunSessionResult{}, true, ErrHandoffNotFound
-	}
-	initialState, err := buildTurnRolloverInitialState(state.Turns[turnID])
-	if err != nil {
-		return RunSessionResult{}, true, err
-	}
-	if _, err := r.Sessions.AnswerQuestion(ctx, AnswerQuestionInput{
-		SessionID: state.SessionID,
-		TurnID:    turnID,
-		RequestID: request.QuestionID,
-		Answer:    answer,
-	}); err != nil {
-		return RunSessionResult{}, true, err
-	}
-	output, err := plannerDelegateRecordOutput(handoff)
-	if err != nil {
-		return RunSessionResult{}, true, err
-	}
-	if err := appendPlannerDelegateToolResult(ctx, r.Sessions, state.SessionID, turnID, request, handoff, output); err != nil {
-		return RunSessionResult{}, true, err
-	}
-	if err := r.Runner.appendTurnDone(ctx, state.SessionID, turnID); err != nil {
-		return RunSessionResult{}, true, err
-	}
-	plan := plannerPlanForHandoff(state, handoff)
-	if plan == nil {
-		plan = planStateFromHandoff(handoff)
-	}
-
-	switch answer {
-	case plannerPlanApprovalSave:
-		return r.continueAfterPlannerPlanSaveAnswer(ctx, state, turnID, handoff, plan, initialState)
-	case plannerPlanApprovalApply:
-		return r.continueAfterPlannerPlanApplyAnswer(ctx, state, input, turnID, request, plan, initialState)
-	case plannerPlanApprovalRevise:
-		return r.continueAfterPlannerPlanRevisionAnswer(ctx, state, input, turnID, request, plan, initialState)
-	case plannerPlanApprovalStop:
-		return r.continueAfterPlannerPlanStopAnswer(ctx, state, turnID, initialState)
-	default:
-		return RunSessionResult{}, true, ErrQuestionAnswerInvalid
 	}
 }
 
@@ -376,7 +241,7 @@ func (r *Runtime) answerPrimaryPlannerPlanApproval(ctx context.Context, state ev
 
 	switch answer {
 	case plannerPlanApprovalSave:
-		return r.continueAfterPlannerPlanSaveAnswer(ctx, state, turnID, nil, plan, initialState)
+		return r.continueAfterPlannerPlanSaveAnswer(ctx, state, turnID, plan, initialState)
 	case plannerPlanApprovalApply:
 		return r.continueAfterPlannerPlanApplyAnswer(ctx, state, input, turnID, request, plan, initialState)
 	case plannerPlanApprovalRevise:
@@ -410,30 +275,11 @@ func plannerPlanApprovalAnswerAllowed(request *events.QuestionRequestState, answ
 	return false
 }
 
-func appendPlannerDelegateToolResult(ctx context.Context, sessions *SessionService, sessionID, turnID string, request *events.QuestionRequestState, handoff *events.AgentHandoffState, output string) error {
-	_, err := sessions.append(ctx, events.Draft{
-		SessionID: sessionID,
-		TurnID:    turnID,
-		Type:      events.TypeToolExecEnd,
-		Payload: events.ToolExecEndPayload{
-			Succeeded: true,
-			CallID:    request.ToolCallID,
-			ToolName:  request.ToolName,
-			HandoffID: handoff.HandoffID,
-			Output:    output,
-		},
-	})
-	return err
-}
-
-func (r *Runtime) continueAfterPlannerPlanSaveAnswer(ctx context.Context, state events.SessionState, turnID string, handoff *events.AgentHandoffState, plan *events.PlanState, initialState *turnLoopState) (RunSessionResult, bool, error) {
-	path := defaultPlannerPlanPath(state, turnID, handoff, plan)
+func (r *Runtime) continueAfterPlannerPlanSaveAnswer(ctx context.Context, state events.SessionState, turnID string, plan *events.PlanState, initialState *turnLoopState) (RunSessionResult, bool, error) {
+	path := defaultPlannerPlanPath(state, turnID, plan)
 	content := ""
 	if plan != nil {
 		content = plan.Markdown
-	}
-	if strings.TrimSpace(content) == "" && handoff != nil {
-		content = handoff.AssistantText
 	}
 	if err := writeRuntimePlanFile(state, path, content); err != nil {
 		return RunSessionResult{}, true, err
@@ -587,41 +433,8 @@ func plannerPlanRuntimeFragment(plan *events.PlanState, instruction string) prom
 	}
 }
 
-func plannerHandoffForToolCall(turn *events.TurnState, toolCallID string) *events.AgentHandoffState {
-	if turn == nil {
-		return nil
-	}
-	toolCallID = strings.TrimSpace(toolCallID)
-	for _, handoffID := range turn.HandoffOrder {
-		handoff := turn.Handoffs[handoffID]
-		if handoff != nil && strings.TrimSpace(handoff.ToolCallID) == toolCallID && strings.TrimSpace(handoff.ChildAgentID) == "planner" {
-			return handoff
-		}
-	}
-	return nil
-}
-
-func plannerDelegateRecordOutput(handoff *events.AgentHandoffState) (string, error) {
-	record := tool.DelegateRecord{
-		HandoffID:      strings.TrimSpace(handoff.HandoffID),
-		ChildSessionID: strings.TrimSpace(handoff.ChildSessionID),
-		ChildTurnID:    strings.TrimSpace(handoff.ChildTurnID),
-		ChildAgentID:   strings.TrimSpace(handoff.ChildAgentID),
-		Status:         tool.DelegateStatusCompleted,
-		AssistantText:  strings.TrimSpace(handoff.AssistantText),
-	}
-	encoded, err := json.Marshal(record)
-	if err != nil {
-		return "", err
-	}
-	return string(encoded), nil
-}
-
-func defaultPlannerPlanPath(state events.SessionState, turnID string, handoff *events.AgentHandoffState, plan *events.PlanState) string {
+func defaultPlannerPlanPath(state events.SessionState, turnID string, plan *events.PlanState) string {
 	base := strings.TrimSpace(state.Title)
-	if base == "" && handoff != nil {
-		base = strings.TrimSpace(handoff.Task)
-	}
 	if base == "" && plan != nil {
 		base = strings.TrimSpace(plan.Title)
 	}

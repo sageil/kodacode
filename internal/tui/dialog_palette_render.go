@@ -19,7 +19,7 @@ func (d *commandPaletteDialog) Draw(surface dialogSurface, area dialogRenderArea
 
 func (d *commandPaletteDialog) headerPrompt() string {
 	switch d.kind {
-	case commandPaletteActions, commandPaletteModel, commandPaletteAgent, commandPaletteUtilityModel, commandPaletteReviewerModel:
+	case commandPaletteActions, commandPaletteModel, commandPaletteAgent, commandPaletteWorkflow, commandPaletteUtilityModel, commandPaletteReviewerModel:
 		return d.filter.View()
 	}
 	return ""
@@ -28,7 +28,7 @@ func (d *commandPaletteDialog) headerPrompt() string {
 func (d *commandPaletteDialog) bodyView() string {
 	parts := []string{}
 	switch d.kind {
-	case commandPaletteActions, commandPaletteModel, commandPaletteAgent, commandPaletteUtilityModel, commandPaletteReviewerModel:
+	case commandPaletteActions, commandPaletteModel, commandPaletteAgent, commandPaletteWorkflow, commandPaletteUtilityModel, commandPaletteReviewerModel:
 		parts = append(parts, d.renderListRows())
 	}
 	if buttons := d.renderButtons(); buttons != "" {
@@ -47,6 +47,11 @@ func (d *commandPaletteDialog) hintView() string {
 	case commandPaletteAgent:
 		if d.mutableSelectionLocked() {
 			return "↑/↓ navigate • enter select enabled agent • esc close"
+		}
+		return "↑/↓ navigate • enter select • esc close"
+	case commandPaletteWorkflow:
+		if d.mutableSelectionLocked() {
+			return "↑/↓ navigate • enter select enabled workflow • esc close"
 		}
 		return "↑/↓ navigate • enter select • esc close"
 	case commandPaletteUtilityModel:

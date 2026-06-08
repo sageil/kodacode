@@ -270,6 +270,9 @@ func traceDialogBody(th *theme.Theme, state events.SessionState, turnID string) 
 	sections := []string{
 		traceDialogSummarySection(th, state, turnID, turn),
 	}
+	if section := traceDialogWorkflowSection(th, state, turn); section != "" {
+		sections = append(sections, section)
+	}
 	if section := traceDialogProviderAttemptSection(th, turn); section != "" {
 		sections = append(sections, section)
 	}

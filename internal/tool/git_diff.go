@@ -21,8 +21,8 @@ func NewGitDiffTool() GitDiffTool {
 func (GitDiffTool) Definition() Definition {
 	return Definition{
 		Name:                "git_diff",
-		Description:         "Show a workspace-scoped Git patch diff for the current working directory. Set staged=true to review staged changes, or false to review unstaged working tree changes.",
-		ProviderDescription: "Show the workspace Git patch diff. Set `staged=true` for staged changes.",
+		Description:         "Show a capped workspace-scoped Git patch diff for the current working directory. Prefer git_status and targeted file reads for large changes. Set staged=true to review staged changes, or false to review unstaged working tree changes.",
+		ProviderDescription: "Show a capped workspace Git patch diff. Prefer `git_status` and targeted file reads for large changes. Set `staged=true` for staged changes.",
 		InputSchema:         json.RawMessage(`{"type":"object","properties":{"staged":{"type":["boolean","string"],"description":"Set true to diff staged changes. Set false to diff unstaged working tree changes."}},"required":["staged"],"additionalProperties":false}`),
 		ArgumentExamples:    []string{`{"staged":false}`},
 		RequiresWorkspace:   true,

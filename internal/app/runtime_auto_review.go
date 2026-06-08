@@ -6,16 +6,18 @@ import (
 
 	"github.com/sageil/kodacode/internal/agent"
 	"github.com/sageil/kodacode/internal/events"
+	"github.com/sageil/kodacode/internal/prompt"
 	"github.com/sageil/kodacode/internal/provider"
 )
 
-const autoReviewUserText = "[auto review] Review completed tasks without durable review outcomes and record task review results."
+const autoReviewUserText = "[auto review] Review completed tasks without saved review outcomes and record task review results."
 const autoReviewAssistantPrefix = "Review:\n"
 
 func (r *Runtime) maybeRunAutoReview(
 	ctx context.Context,
 	workspaceRoot, completedAgentID string,
 	result RunSessionResult,
+	reviewMode WorkflowReviewMode,
 ) (RunSessionResult, bool, error) {
 	if r == nil || strings.TrimSpace(completedAgentID) != "engineer" {
 		return RunSessionResult{}, false, nil
@@ -23,13 +25,19 @@ func (r *Runtime) maybeRunAutoReview(
 	if result.Status != TurnRunStatusCompleted || strings.TrimSpace(result.SessionID) == "" {
 		return RunSessionResult{}, false, nil
 	}
-	if strings.TrimSpace(string(r.Config.Workflow.ReviewMode)) != string(WorkflowReviewAuto) {
+	if strings.TrimSpace(string(reviewMode)) == "" {
+		reviewMode = r.Config.Workflow.ReviewMode
+	}
+	if strings.TrimSpace(string(reviewMode)) != string(WorkflowReviewAuto) {
 		return RunSessionResult{}, false, nil
 	}
 
 	state, err := r.Sessions.Snapshot(ctx, result.SessionID)
 	if err != nil {
 		return RunSessionResult{}, false, err
+	}
+	if state.Workflow != nil && state.Workflow.Status != events.WorkflowStatusCompleted {
+		return RunSessionResult{}, false, nil
 	}
 	if !shouldAutoReviewTasks(state) {
 		return RunSessionResult{}, false, nil
@@ -44,11 +52,12 @@ func (r *Runtime) maybeRunAutoReview(
 		return RunSessionResult{}, false, err
 	}
 
-	reviewResult, err := r.runExistingSessionTurn(ctx, runExistingTurnInput{
+	reviewResult, err := r.runDerivedSessionTurn(ctx, runExistingTurnInput{
 		SessionID:            result.SessionID,
 		TurnID:               newRuntimeID("turn"),
 		UserText:             autoReviewUserText,
 		AgentID:              reviewer.ID,
+		AdditionalFragments:  autoReviewContextPromptFragments(state, result),
 		ModelRouteOverride:   modelRoute,
 		PreserveSessionModel: true,
 	})
@@ -57,6 +66,64 @@ func (r *Runtime) maybeRunAutoReview(
 	}
 	reviewResult.AssistantText = combineAutoReviewAssistantText(result.AssistantText, reviewResult.AssistantText)
 	return reviewResult, true, nil
+}
+
+const autoReviewContextMaxChars = 4000
+
+func autoReviewContextPromptFragments(state events.SessionState, result RunSessionResult) []prompt.Fragment {
+	lines := []string{
+		"Auto-review compact context.",
+		"Session history is intentionally omitted for this derived review turn.",
+		"Review the completed tasks below that do not already have a saved review outcome.",
+		"Use `task_review` with action `review` to record an outcome for each listed task.",
+		"Completed engineer turn user request: " + strings.TrimSpace(result.UserText),
+	}
+	if assistant := boundedDerivedTurnText(result.AssistantText, autoReviewContextMaxChars); assistant != "" {
+		lines = append(lines,
+			"Completed engineer turn assistant output:",
+			assistant,
+		)
+	}
+	taskLines := autoReviewUnreviewedCompletedTaskLines(state)
+	if len(taskLines) == 0 {
+		taskLines = []string{"- none"}
+	}
+	lines = append(lines, "Completed unreviewed tasks:")
+	lines = append(lines, taskLines...)
+	return []prompt.Fragment{{
+		Kind:      prompt.KindRuntime,
+		Source:    prompt.SourceRuntime,
+		Stability: prompt.StabilityDynamic,
+		Key:       "auto-review-compact-context",
+		Label:     "auto review context",
+		Content:   strings.Join(lines, "\n"),
+	}}
+}
+
+func autoReviewUnreviewedCompletedTaskLines(state events.SessionState) []string {
+	lines := make([]string, 0, len(state.TaskOrder))
+	for _, taskID := range state.TaskOrder {
+		task := state.Tasks[taskID]
+		if task == nil || strings.TrimSpace(task.Status) != events.TaskStatusCompleted || strings.TrimSpace(task.ReviewStatus) != "" {
+			continue
+		}
+		lines = append(lines, "- "+autoReviewTaskContextLine(*task))
+	}
+	return lines
+}
+
+func autoReviewTaskContextLine(task events.TaskState) string {
+	parts := []string{
+		"id=" + strings.TrimSpace(task.TaskID),
+		"title=" + strings.TrimSpace(task.Title),
+	}
+	if summary := boundedDerivedTurnText(task.Progress, 800); summary != "" {
+		parts = append(parts, "summary="+summary)
+	}
+	if notes := boundedDerivedTurnText(task.Notes, 800); notes != "" {
+		parts = append(parts, "notes="+notes)
+	}
+	return strings.Join(parts, "; ")
 }
 
 func (r *Runtime) resolveAutoReviewModelRoute(reviewer agent.Definition, state events.SessionState) (provider.ModelRoute, error) {

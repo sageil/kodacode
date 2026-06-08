@@ -18,6 +18,7 @@ type CommandInput struct {
 	WorkspaceRoot            string
 	AdditionalWorkspaceRoots []string
 	SkillIDs                 []string
+	WorkflowID               string
 	Resume                   bool
 }
 
@@ -76,6 +77,18 @@ func parseCommandOptions(args []string, cwd string, input *CommandInput) ([]stri
 				return nil, false, ErrCommandOptionValueRequired
 			}
 			input.SkillIDs = appendUniqueValue(input.SkillIDs, skillID)
+		case arg == "--workflow":
+			if idx+1 >= len(args) || strings.TrimSpace(args[idx+1]) == "" {
+				return nil, false, ErrCommandOptionValueRequired
+			}
+			input.WorkflowID = strings.TrimSpace(args[idx+1])
+			idx++
+		case strings.HasPrefix(arg, "--workflow="):
+			workflowID := strings.TrimSpace(strings.TrimPrefix(arg, "--workflow="))
+			if workflowID == "" {
+				return nil, false, ErrCommandOptionValueRequired
+			}
+			input.WorkflowID = workflowID
 		case strings.HasPrefix(arg, "-"):
 			return nil, false, ErrUnknownCommandOption
 		default:

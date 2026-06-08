@@ -94,6 +94,10 @@ func RunWithBackend(backend Backend, opts RunOpts) error {
 	if strings.TrimSpace(input.WorkspaceRoot) != "" {
 		workspaceRoot = input.WorkspaceRoot
 	}
+	startupPermissionMode, err := loadStartupPermissionMode(getenv)
+	if err != nil {
+		return err
+	}
 
 	tuiSettings, err := app.LoadTUISettings(getenv)
 	if err != nil {
@@ -178,7 +182,9 @@ func RunWithBackend(backend Backend, opts RunOpts) error {
 		TurnID:             turnID,
 		WorkspaceRoot:      workspaceRoot,
 		UserText:           input.UserText,
+		WorkflowID:         input.WorkflowID,
 		SkillIDs:           append([]string(nil), input.SkillIDs...),
+		PermissionMode:     startupPermissionMode,
 		InitialState:       initialState,
 		InitialStateOwned:  initialState != nil,
 	})
@@ -201,6 +207,14 @@ func RunWithBackend(backend Backend, opts RunOpts) error {
 		return finished.Err()
 	}
 	return nil
+}
+
+func loadStartupPermissionMode(getenv func(string) string) (app.PermissionMode, error) {
+	config, err := app.LoadRuntimeConfig(getenv)
+	if err != nil {
+		return "", err
+	}
+	return config.Execution.PermissionMode, nil
 }
 
 func loadStartupTheme(name string) (*theme.Theme, string, bool, error) {
@@ -246,15 +260,6 @@ func initialTurnID(state events.SessionState, startTurn bool) string {
 		requestID := state.PendingQuestionOrder[0]
 		if pending := state.PendingQuestions[requestID]; pending != nil && strings.TrimSpace(pending.TurnID) != "" {
 			return pending.TurnID
-		}
-	}
-	for idx := len(state.TurnOrder) - 1; idx >= 0; idx-- {
-		turnID := strings.TrimSpace(state.TurnOrder[idx])
-		if turnID == "" {
-			continue
-		}
-		if pendingDelegatedInteractionFromState(state, turnID) != nil {
-			return turnID
 		}
 	}
 	for idx := len(state.TurnOrder) - 1; idx >= 0; idx-- {

@@ -9,6 +9,7 @@ import (
 const (
 	TurnContinuationReasonContextLimit   = "context_limit"
 	TurnContinuationReasonQuestionAnswer = "question_answer"
+	TurnContinuationReasonWorkflowPhase  = "workflow_phase"
 )
 
 type TurnContinuationStartedPayload struct {
@@ -27,6 +28,8 @@ func (p TurnContinuationStartedPayload) validate() error {
 	case TurnContinuationReasonContextLimit:
 		return p.Summary.validate()
 	case TurnContinuationReasonQuestionAnswer:
+		return p.Summary.validate()
+	case TurnContinuationReasonWorkflowPhase:
 		return p.Summary.validate()
 	default:
 		return fmt.Errorf("reason %q is invalid", p.Reason)

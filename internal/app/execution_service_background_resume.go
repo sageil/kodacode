@@ -124,7 +124,7 @@ func (s *ExecutionService) resumeBackgroundExecution(ctx context.Context, candid
 	}
 	if strings.TrimSpace(candidate.LogRef) == "" {
 		s.finishBackgroundRun(candidate.ExecutionID)
-		return s.appendBackgroundLostEvent(ctx, input, "background process is still running, but its durable log reference is missing and supervision cannot be resumed", observer)
+		return s.appendBackgroundLostEvent(ctx, input, "background process is still running, but its saved log reference is missing and supervision cannot be resumed", observer)
 	}
 
 	go s.monitorResumedBackgroundExecution(monitorCtx, input, candidate, observer)
@@ -212,7 +212,7 @@ func (s *ExecutionService) resumeExitedBackgroundExecution(ctx context.Context, 
 	if !candidate.Ready && len(candidate.ReadyPatterns) > 0 {
 		detector := newExecutionBackgroundReadyDetector(candidate.ReadyPatterns)
 		if ready, err := s.scanHistoricalBackgroundReady(ctx, candidate.LogRef, detector); err != nil && !errors.Is(err, os.ErrNotExist) {
-			return s.appendBackgroundLostEvent(ctx, input, fmt.Sprintf("background process exited, but readiness could not be recovered from its durable log during resume: %v", err), observer)
+			return s.appendBackgroundLostEvent(ctx, input, fmt.Sprintf("background process exited, but readiness could not be recovered from its saved log during resume: %v", err), observer)
 		} else if ready != nil {
 			if err := s.appendBackgroundReadyEvent(ctx, input, *ready, observer); err != nil {
 				return errors.Join(
@@ -224,7 +224,7 @@ func (s *ExecutionService) resumeExitedBackgroundExecution(ctx context.Context, 
 	}
 	offset := max(candidate.OutputBytes, int64(0))
 	if err := s.syncResumedBackgroundLog(ctx, candidate.LogRef, &offset, observer, nil); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return s.appendBackgroundLostEvent(ctx, input, fmt.Sprintf("background process exited, but its durable log could not be finalized during resume: %v", err), observer)
+		return s.appendBackgroundLostEvent(ctx, input, fmt.Sprintf("background process exited, but its saved log could not be finalized during resume: %v", err), observer)
 	}
 	return s.appendRecoveredBackgroundExitedEvent(ctx, input, summary, observer)
 }

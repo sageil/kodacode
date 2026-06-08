@@ -7,7 +7,8 @@ import (
 )
 
 type transcriptTurnRenderOptions struct {
-	suppressHistoryCompaction bool
+	suppressHistoryCompaction              bool
+	suppressCompletedWorkflowReviewEntries bool
 }
 
 func renderTurnTranscriptSections(m Model, state events.SessionState, turnID string, turn *events.TurnState, width int) []transcriptSection {
@@ -20,7 +21,6 @@ func renderTurnTranscriptSectionsWithOptions(m Model, state events.SessionState,
 	}
 
 	sections := make([]transcriptSection, 0, len(turn.Transcript)+3)
-	renderedHandoffIDs := make(map[string]struct{})
 	hasCompactionTranscriptEntry := turnHasHistoryCompactionTranscriptEntry(turn)
 	compactionRendered := false
 	maybeRenderFallbackCompaction := func() {
@@ -78,6 +78,9 @@ func renderTurnTranscriptSectionsWithOptions(m Model, state events.SessionState,
 				compactionRendered = true
 			}
 		case events.TranscriptEntryReview:
+			if options.suppressCompletedWorkflowReviewEntries && isWorkflowReviewTranscriptEntry(turn) {
+				continue
+			}
 			maybeRenderFallbackCompaction()
 			row := newReviewTranscriptRow(turnID, turn, entry, i, width)
 			if section, ok := row.section(m); ok {
@@ -103,15 +106,6 @@ func renderTurnTranscriptSectionsWithOptions(m Model, state events.SessionState,
 				for i < len(turn.Transcript) && turn.Transcript[i].Kind == events.TranscriptEntryTool {
 					callID := turn.Transcript[i].CallID
 					call := turn.ToolCalls[callID]
-					if handoff := anchoredShellDelegatedHandoff(m, turn, call); handoff != nil {
-						flushRefs()
-						sections = append(sections, renderDelegatedHandoffTranscriptSections(m, turnID, handoff, width)...)
-						if handoffID := strings.TrimSpace(handoff.HandoffID); handoffID != "" {
-							renderedHandoffIDs[handoffID] = struct{}{}
-						}
-						i++
-						continue
-					}
 					if toolRenderer.ShouldRenderCall(m, turn, callID, call) {
 						refs = append(refs, sessionToolCallRef{TurnID: turnID, CallID: callID})
 					}
@@ -135,49 +129,14 @@ func renderTurnTranscriptSectionsWithOptions(m Model, state events.SessionState,
 		sections = append(sections, section)
 	}
 	sections = append(sections, renderLiveToolCallPreviewSections(m, state, turnID, turn, width)...)
-	sections = append(sections, renderRemainingDelegatedHandoffTranscriptSections(m, turnID, turn, width, renderedHandoffIDs)...)
 	return sections
 }
 
-func anchoredShellDelegatedHandoff(m Model, turn *events.TurnState, call *events.ToolCallState) *events.AgentHandoffState {
-	if !shellLayoutEnabled(m) || !m.shellToolCallsVisible {
-		return nil
+func isWorkflowReviewTranscriptEntry(turn *events.TurnState) bool {
+	if turn == nil || turn.Review == nil {
+		return false
 	}
-	return delegateHandoffForCall(turn, call)
-}
-
-func renderDelegatedHandoffTranscriptSections(m Model, turnID string, handoff *events.AgentHandoffState, width int) []transcriptSection {
-	if handoff == nil {
-		return nil
-	}
-	return renderDelegatedHandoffListTranscriptSections(m, turnID, []*events.AgentHandoffState{handoff}, width)
-}
-
-func renderRemainingDelegatedHandoffTranscriptSections(m Model, turnID string, turn *events.TurnState, width int, rendered map[string]struct{}) []transcriptSection {
-	if turn == nil || len(turn.HandoffOrder) == 0 {
-		return nil
-	}
-	handoffs := make([]*events.AgentHandoffState, 0, len(turn.HandoffOrder))
-	for _, handoffID := range orderedHandoffIDs(turn) {
-		if _, ok := rendered[strings.TrimSpace(handoffID)]; ok {
-			continue
-		}
-		handoffs = append(handoffs, turn.Handoffs[handoffID])
-	}
-	return renderDelegatedHandoffListTranscriptSections(m, turnID, handoffs, width)
-}
-
-func renderDelegatedHandoffListTranscriptSections(m Model, turnID string, handoffs []*events.AgentHandoffState, width int) []transcriptSection {
-	if len(handoffs) == 0 {
-		return nil
-	}
-	sections := make([]transcriptSection, 0, 2)
-	delegationRow := newDelegationTranscriptRowForHandoffs(turnID, handoffs, m.selection.handoffID, width)
-	if section, ok := delegationRow.section(m); ok {
-		sections = append(sections, section)
-	}
-	sections = append(sections, renderShellDelegatedToolOutcomeSectionsForHandoffs(m, handoffs, width)...)
-	return sections
+	return strings.HasPrefix(strings.TrimSpace(turn.Review.Title), "Workflow review:")
 }
 
 func renderLiveToolCallPreviewSections(m Model, state events.SessionState, turnID string, turn *events.TurnState, width int) []transcriptSection {
@@ -417,14 +376,7 @@ func suppressAssistantEntryForStructuredReview(turn *events.TurnState, entryInde
 }
 
 func renderDraftTurnSections(m Model, state events.SessionState, width int) []transcriptSection {
-	if m.busy {
-		return nil
-	}
-	if strings.TrimSpace(m.userText) == "" {
-		return nil
-	}
-	turn := currentTurn(state, m.turnID)
-	if turn != nil && strings.TrimSpace(turn.UserText) != "" {
+	if !shouldRenderDraftTranscriptSection(m, state) {
 		return nil
 	}
 	row := newDraftTranscriptMessageRow(m.turnID, m.userText, width)
@@ -432,6 +384,20 @@ func renderDraftTurnSections(m Model, state events.SessionState, width int) []tr
 		return []transcriptSection{section}
 	}
 	return nil
+}
+
+func shouldRenderDraftTranscriptSection(m Model, state events.SessionState) bool {
+	if m.busy {
+		return false
+	}
+	if strings.TrimSpace(m.userText) == "" {
+		return false
+	}
+	turn := currentTurn(state, m.turnID)
+	if turn != nil && (strings.TrimSpace(turn.UserText) != "" || isTurnFinished(turn)) {
+		return false
+	}
+	return true
 }
 
 func visibleTranscriptTurnIDs(m Model, state events.SessionState) []string {

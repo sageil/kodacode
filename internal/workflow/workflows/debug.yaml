@@ -1,0 +1,108 @@
+id: debug
+description: Reproduce, identify, patch, verify, and review a bug fix.
+review_mode: auto
+max_revision_loops: 2
+
+phases:
+  - id: reproduce
+    agent: engineer
+    prompt: Reproduce the reported failure or capture the closest concrete signal before patching.
+    tools:
+      allow:
+        - read
+        - search
+        - bash
+        - test
+        - diagnostics
+        - task_workflow
+
+  - id: identify
+    agent: planner
+    mode: read_only
+    prompt: Find the likely cause, the code area involved, and the smallest useful change.
+
+  - id: patch
+    agent: engineer
+    prompt: Fix the cause and record useful task progress.
+    tools:
+      allow:
+        - read
+        - search
+        - apply_patch
+        - write
+        - bash
+        - test
+        - diagnostics
+        - task_workflow
+
+  - id: regression
+    agent: engineer
+    prompt: Add or update a test when there is a good place for one.
+    tools:
+      allow:
+        - read
+        - search
+        - apply_patch
+        - write
+        - bash
+        - test
+        - diagnostics
+        - task_workflow
+
+  - id: verify
+    agent: engineer
+    prompt: Run or inspect bounded verification for the bug fix, then report the result and any remaining unverified risk.
+    tools:
+      allow:
+        - read
+        - search
+        - bash
+        - test
+        - diagnostics
+        - task_workflow
+
+  - id: review
+    type: review
+    agent: reviewer
+    mode: read_only
+    tools:
+      allow:
+        - read
+        - search
+        - test
+        - git_status
+        - workflow_review_result
+    review_passes:
+      - id: cause
+        description: Fixes the reproduced cause.
+        instructions:
+          - Compare the failure signal, identified cause, and patch.
+          - Check that the patch fixes the cause directly.
+          - Find masked symptoms, wrong fixes, or unresolved cause.
+      - id: regression
+        description: Regression tests and edge cases.
+        instructions:
+          - Inspect tests for the reproduced failure.
+          - Run or inspect the most relevant bounded tests through the test tool when useful.
+          - Check fail-before/pass-after behavior when practical.
+          - Find missing, brittle, unrelated, or edge-gap coverage.
+      - id: side-effects
+        description: Side effects in nearby code, config, or permissions.
+        instructions:
+          - Inspect nearby callers, helpers, config, and permission/auth checks.
+          - Check behavior outside the intended bug fix.
+          - Find unintended caller, config, permission, or runtime-path changes.
+
+  - id: summarize
+    type: final
+    include:
+      - failure_signal
+      - root_cause
+      - changed_files
+      - review_outcome
+
+transitions:
+  - from: review
+    on: review_failed
+    to: patch
+    max_loops: 2

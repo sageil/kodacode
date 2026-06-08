@@ -47,18 +47,6 @@ func (s *SessionService) runtimeForSession(sessionID string) *sessionRuntime {
 	return runtime
 }
 
-func (s *SessionService) existingRuntimeForSession(sessionID string) *sessionRuntime {
-	s.registryMu.Lock()
-	defer s.registryMu.Unlock()
-	return s.sessions[sessionID]
-}
-
-func (s *SessionService) removeRuntimeForSession(sessionID string) {
-	s.registryMu.Lock()
-	delete(s.sessions, sessionID)
-	s.registryMu.Unlock()
-}
-
 func (s *SessionService) ensureProjectorLocked(ctx context.Context, sessionID string, runtime *sessionRuntime) error {
 	if runtime == nil || runtime.projector != nil {
 		return nil

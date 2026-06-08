@@ -18,8 +18,8 @@ func NewMemoryTool() MemoryTool {
 func (MemoryTool) Definition() Definition {
 	return Definition{
 		Name:                MemoryToolName,
-		Description:         "Save, list, or delete explicit project memory entries that persist across sessions. Use this for durable architectural decisions, project facts, and non-obvious context worth carrying forward. Saved content must stay at or below 2000 characters.",
-		ProviderDescription: "Save, list, or delete durable project memory entries. Saved content must stay at or below 2000 characters.",
+		Description:         "Save, list, or delete explicit project memory entries that persist across sessions. Use this for saved architectural decisions, project facts, and non-obvious context worth carrying forward. Saved content must stay at or below 2000 characters.",
+		ProviderDescription: "Save, list, or delete saved project memory entries. Saved content must stay at or below 2000 characters.",
 		InputSchema:         json.RawMessage(`{"type":"object","properties":{"action":{"type":"string","enum":["save","list","delete"],"description":"Memory operation to perform."},"content":{"type":["string","null"],"description":"Memory content to save. Keep saved content at or below 2000 characters. Use null or omit this field for list or delete."},"id":{"type":["string","null"],"description":"Existing memory id to delete. Use null or omit this field for save or list."}},"required":["action"],"additionalProperties":false}`),
 		ArgumentExamples:    []string{`{"action":"list","content":null,"id":null}`},
 	}

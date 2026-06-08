@@ -51,12 +51,15 @@ func (m Model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.toggleDrawerVisibility()
 	}
 
-	if isSessionsDialogShortcut(msg) {
-		return m, m.openSessionsDialog()
-	}
-
 	if isNewSessionShortcut(msg) {
 		return m.startNewWorkspaceSession(m.chrome.focus == focusComposer, m.chrome.focus == focusComposer)
+	}
+
+	if isWorkflowDialogShortcut(msg) {
+		if m.busy || m.hasPendingInteraction() {
+			return m, nil
+		}
+		return m, m.openWorkflowDialog()
 	}
 
 	if isLayoutToggleShortcut(msg) {
@@ -77,8 +80,6 @@ func (m Model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case "i":
 		return m.enterInsertMode()
-	case "s":
-		return m, m.openSessionsDialog()
 	case "/":
 		if !m.hasPendingInteraction() {
 			return m, m.openCommandPalette()
@@ -87,9 +88,6 @@ func (m Model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "ctrl+p":
 		return m, m.openCommandPalette()
 	default:
-		if m.pendingDelegatedPermission() != nil {
-			return m.handlePermissionInput(msg)
-		}
 		if updated, cmd, handled := m.handlePaneFocusShortcut(msg); handled {
 			return updated, cmd
 		}
@@ -102,14 +100,14 @@ func (m Model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 					m.inspector.tab = nextTab
 					m.syncInspectorBody(true)
 				}
-				return m, m.ensureRelevantDelegatedSessionSnapshotsLoadedCmd(m.projector.Snapshot())
+				return m, nil
 			case "l", "right":
 				nextTab := stepInspectorTab(m, 1)
 				if m.inspector.tab != nextTab || activeTab != nextTab {
 					m.inspector.tab = nextTab
 					m.syncInspectorBody(true)
 				}
-				return m, m.ensureRelevantDelegatedSessionSnapshotsLoadedCmd(m.projector.Snapshot())
+				return m, nil
 			case "k":
 				if activeTab == inspectorTabTools {
 					return m, m.moveSelectedInspectorTool(-1)
@@ -168,17 +166,12 @@ func isDrawerToggleShortcut(msg tea.KeyPressMsg) bool {
 	return msg.Keystroke() == "ctrl+\\"
 }
 
-func isSessionsDialogShortcut(msg tea.KeyPressMsg) bool {
-	switch msg.Keystroke() {
-	case "ctrl+s", "ctrl+o":
-		return true
-	default:
-		return false
-	}
-}
-
 func isNewSessionShortcut(msg tea.KeyPressMsg) bool {
 	return msg.Keystroke() == "ctrl+n"
+}
+
+func isWorkflowDialogShortcut(msg tea.KeyPressMsg) bool {
+	return msg.Keystroke() == "ctrl+w"
 }
 
 func isLayoutToggleShortcut(msg tea.KeyPressMsg) bool {
@@ -253,7 +246,7 @@ func (m Model) turnCancellationAvailable() bool {
 	if strings.TrimSpace(m.sessionID) == "" || strings.TrimSpace(m.turnID) == "" {
 		return false
 	}
-	if m.interaction.resolveReq != "" || m.interaction.resolveHandoff != "" {
+	if m.interaction.resolveReq != "" {
 		return true
 	}
 	if turn := currentTurn(m.projector.Snapshot(), m.turnID); turn != nil {
@@ -287,7 +280,7 @@ func (m Model) handlePaneFocusShortcut(msg tea.KeyPressMsg) (tea.Model, tea.Cmd,
 		return m, nil, false
 	}
 	m.syncViewportLayout()
-	return m, tea.Batch(m.syncComposerFocus(), m.ensureRelevantDelegatedSessionSnapshotsLoadedCmd(m.projector.Snapshot())), true
+	return m, m.syncComposerFocus(), true
 }
 
 func (m Model) handleAgentCycleShortcut(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool) {
@@ -318,17 +311,12 @@ func (m *Model) resetInspectorAgentSelectionToCurrentTurn() {
 		return
 	}
 	oldSelectedCallTurnID := strings.TrimSpace(m.selection.callTurnID)
-	selectedHandoffTurnID := ""
-	if strings.TrimSpace(m.selection.handoffID) != "" {
-		selectedHandoffTurnID = strings.TrimSpace(m.turnID)
-	}
 	m.selection.detailTurnID = m.turnID
-	m.selection.handoffID = ""
 	m.selection.callSessionID = ""
 	m.selection.callTurnID = ""
 	m.selection.callID = ""
 	m.clearExpandedToolCall()
-	_ = m.applyTranscriptRefreshPlan(transcriptTurnRefreshPlan(oldSelectedCallTurnID, selectedHandoffTurnID))
+	_ = m.applyTranscriptRefreshPlan(transcriptTurnRefreshPlan(oldSelectedCallTurnID))
 }
 
 func (m Model) cycleSelectedAgent(delta int) tea.Model {
@@ -413,12 +401,12 @@ func (m Model) enterInsertMode() (tea.Model, tea.Cmd) {
 }
 
 func (m Model) toggleDrawerVisibility() (tea.Model, tea.Cmd) {
-	if m.pendingDelegatedPermission() != nil || m.hasPendingApproval() {
+	if m.hasPendingApproval() {
 		m.chrome.inspectorOpen = true
 		m.chrome.wideSidebarOpen = true
 		m.chrome.focus = focusTranscript
 		m.syncViewportLayout()
-		return m, tea.Batch(m.syncComposerFocus(), m.ensureRelevantDelegatedSessionSnapshotsLoadedCmd(m.projector.Snapshot()))
+		return m, m.syncComposerFocus()
 	}
 
 	if !shellLayoutEnabled(m) && (m.chrome.wideSidebarOpen || m.chrome.inspectorOpen) {
@@ -426,7 +414,7 @@ func (m Model) toggleDrawerVisibility() (tea.Model, tea.Cmd) {
 		m.chrome.inspectorOpen = true
 		m.chrome.focus = focusInspector
 		m.syncViewportLayout()
-		return m, tea.Batch(m.syncComposerFocus(), m.ensureRelevantDelegatedSessionSnapshotsLoadedCmd(m.projector.Snapshot()))
+		return m, m.syncComposerFocus()
 	}
 
 	if m.chrome.wideSidebarOpen || m.chrome.inspectorOpen {
@@ -443,7 +431,7 @@ func (m Model) toggleDrawerVisibility() (tea.Model, tea.Cmd) {
 	m.chrome.inspectorOpen = true
 	m.chrome.focus = focusInspector
 	m.syncViewportLayout()
-	return m, tea.Batch(m.syncComposerFocus(), m.ensureRelevantDelegatedSessionSnapshotsLoadedCmd(m.projector.Snapshot()))
+	return m, m.syncComposerFocus()
 }
 
 func (m *Model) syncFocusState() {
@@ -459,19 +447,6 @@ func (m *Model) syncFocusState() {
 		m.syncViewportLayout()
 		return
 	}
-	if pendingDelegatedQuestionFromState(state, m.turnID) != nil {
-		m.chrome.focus = focusTranscript
-		m.syncViewportLayout()
-		return
-	}
-	if pendingDelegatedPermissionFromState(state, m.turnID) != nil {
-		m.chrome.inspectorOpen = true
-		m.chrome.wideSidebarOpen = true
-		m.chrome.focus = focusTranscript
-		m.syncViewportLayout()
-		return
-	}
-
 	layout := resolveShellLayout(*m, state)
 	for _, region := range visibleFocusRegions(*m, state, layout) {
 		if region == m.chrome.focus {

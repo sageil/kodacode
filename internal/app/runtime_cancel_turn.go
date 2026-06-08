@@ -167,24 +167,7 @@ func turnHasPendingInteraction(state events.SessionState, turnID string) bool {
 			return true
 		}
 	}
-	if _, handoff := pendingDelegatedHandoffForTurn(state, turnID); handoff != nil {
-		return true
-	}
 	return false
-}
-
-func pendingDelegatedHandoffForTurn(state events.SessionState, turnID string) (string, *events.AgentHandoffState) {
-	turn := state.Turns[turnID]
-	if turn == nil {
-		return "", nil
-	}
-	for _, handoffID := range turn.HandoffOrder {
-		handoff := turn.Handoffs[handoffID]
-		if delegatedHandoffPending(handoff) {
-			return handoffID, handoff
-		}
-	}
-	return "", nil
 }
 
 func (r *Runtime) loadCanceledSessionTurnResult(sessionID, turnID, userText string, attachments []provider.Attachment) (RunSessionResult, error) {
