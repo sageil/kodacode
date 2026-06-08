@@ -106,12 +106,13 @@ approval, event, and trace contracts.
 
 ## Git and workflow
 
-- `delegate`
 - `git_status`
 - `git_diff`
 - `git_show`
 - `task_workflow`
 - `task_review`
+- `workflow_phase_output`
+- `workflow_review_result`
 
 The workflow tools are primarily relevant to the structured agent paths.
 
@@ -120,18 +121,13 @@ Their responsibilities are intentionally separate:
 - `task_workflow`: create, list, update, block, and complete saved tasks
 - `task_review`: list tasks and record `pass`, `concern`, `fail`, or
   `accepted` review outcomes without changing workflow status directly
+- `workflow_phase_output`: record required structured output for an active
+  runtime workflow phase
+- `workflow_review_result`: record one structured outcome for a workflow review
+  pass
 
-`delegate` starts a runtime-owned child agent handoff. It creates a child
-session, narrows the child agent's tools through agent policy, and returns a
-saved handoff result instead of hiding orchestration in prompt text.
-
-In normal use, primary agents call `delegate` themselves when their markdown
-policy says a child boundary is the right tool. It is runtime plumbing for
-agent delegation, not something users should have to invoke manually.
-
-When a `reviewer` child uses `task_review`, runtime records that review against
-the parent work session's tasks rather than creating a separate child-session
-task list.
+`workflow_phase_output` and `workflow_review_result` are only useful while a
+runtime workflow is active. Normal direct coding turns do not need them.
 
 ## Knowledge and extension
 

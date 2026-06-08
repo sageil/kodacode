@@ -103,12 +103,12 @@ and wait for approval before making code changes.
 ## Agents
 
 - `builder`: default project-sandboxed coding agent
-- `engineer`: structured planning, task tracking, and delegation
+- `engineer`: structured planning and workflow task tracking
 - `reviewer`: read-only review of current changes
 - `planner`: read-only repository analysis and implementation planning
 
 See [Agents](https://kodacode.dev/features/agents/) for custom agent definitions
-and delegation behavior.
+and tool policy behavior.
 
 ## Layouts
 

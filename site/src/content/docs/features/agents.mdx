@@ -3,11 +3,10 @@ title: Agents
 description: Builder, engineer, reviewer, planner, and custom agent definitions
 ---
 
-KodaCode exposes agents as explicit runtime definitions, not prompt-only personas.
-The runtime also supports delegated child agents through the `delegate` tool, so
-subagent behavior uses a real runtime boundary. Agent markdown can still guide
-when delegation is appropriate, but child eligibility is decided by runtime
-mode checks rather than parent-side allow or deny lists.
+KodaCode exposes agents as explicit runtime definitions, not prompt-only
+personas. Agent markdown can narrow tool access, select a primary model, and add
+prompt text, while runtime code still owns workflow phases, permissions, tool
+execution, and replay.
 
 ## Built-in agents
 
@@ -20,10 +19,10 @@ Built-in agents:
 - `reviewer`
 - `planner`
 
-`builder` and `engineer` are the common interactive choices. They now have a
-clear boundary: `builder` is the plain direct-execution agent, while
-`engineer` owns structured workflow tracking and child delegation. `reviewer`
-and `planner` are selectable and can also be delegated to.
+`builder` and `engineer` are the common interactive choices. They have a clear
+boundary: `builder` is the plain direct-execution agent, while `engineer` owns
+structured workflow task tracking. `reviewer` and `planner` are selectable and
+can also be used by runtime workflow phases.
 
 When `web_search` is configured at the runtime level, all built-in agents can
 use it. `builder` and `engineer` inherit it from the current turn surface, and
@@ -33,20 +32,20 @@ use it. `builder` and `engineer` inherit it from the current turn surface, and
 
 The default direct-execution agent. It is meant for normal coding work: inspect
 the code, make changes, run checks, and finish the task. It does not own
-workflow tracking or subagent delegation.
+workflow task tracking.
 
-Its policy is "all tools except `delegate`, `task_workflow`, and
-`task_review`." That includes the full code-intelligence surface, including
-read-only tools such as `symbols`, `definition`, `diagnostics`, `refs`, and
-`trace`, plus mutation tools such as `rename_symbol` and `code_action`.
+Its policy is "all tools except `task_workflow` and `task_review`." That
+includes the full code-intelligence surface, including read-only tools such as
+`symbols`, `definition`, `diagnostics`, `refs`, and `trace`, plus mutation
+tools such as `rename_symbol` and `code_action`.
 
 ### engineer
 
 A structured execution agent with access to runtime task tools such as
-`task_workflow` and to the `delegate` tool. Use it when the work benefits from
-saved task state, planner/reviewer handoffs, or a more explicit execution
-workflow. Its intended boundary is: narrow local planning stays inline, but
-repository-scoped plans and architecture mapping should be handed to `planner`.
+`task_workflow`. Use it when the work benefits from saved task state or a more
+explicit execution workflow. Its intended boundary is: narrow local planning
+stays inline, while configured workflow phases can separate planning, approval,
+implementation, verification, review, and summary behavior.
 
 Its policy is "all tools except `task_review`." That includes the full
 code-intelligence surface. `engineer` can use read-only semantic tools for
@@ -98,19 +97,21 @@ It does not have mutation tools, including `apply_patch`, `write`,
 
 ## Workflow and review
 
-The structured workflow path is centered on `engineer` and `reviewer`.
+The structured workflow path is centered on `engineer`, `planner`, and
+`reviewer`.
 
-- `engineer` owns `task_workflow` and the main implementation session
-- `reviewer` owns `task_review` and records saved review outcomes
-- delegated reviewer sessions review the parent work session's tasks, not an
-  empty child-local task list
+- `engineer` owns `task_workflow` for saved implementation task state
+- `planner` owns read-only planning phases and primary plan approval turns
+- `reviewer` owns `task_review` for saved task review outcomes
+- workflow review phases use `workflow_review_result` to record required
+  review-pass outcomes
 
 The top-level `workflow` config controls whether runtime injects an automatic
 review turn:
 
 - `workflow.review_mode: off`: runtime never starts an automatic review turn
-- `workflow.review_mode: manual`: review stays agent-driven; `engineer` can
-  still delegate to `reviewer` when it decides a review boundary is useful
+- `workflow.review_mode: manual`: review stays agent-driven; runtime does not
+  add a follow-up review turn automatically
 - `workflow.review_mode: auto`: runtime starts a reviewer turn only after an
   `engineer` turn completes, every current task is already completed, and at
   least one completed task still lacks a review outcome
@@ -176,11 +177,11 @@ These are the complete supported keys. Older route keys such as
 
 ### Full example
 
-This is a complete primary agent example that includes delegation guidance:
+This is a complete primary agent example for delivery-oriented work:
 
 ```md
 ---
-description: Delivery-focused engineer with planner and reviewer handoffs
+description: Delivery-focused engineer
 model: openai/gpt-5-mini
 mode: all
 AllowTools:
@@ -195,7 +196,6 @@ AllowTools:
   - write
   - bash
   - git_diff
-  - delegate
   - question
   - task_workflow
 DisallowedTools:
@@ -207,18 +207,9 @@ You are the delivery agent for this repository.
 <workflow>
 Own the main implementation from start to finish.
 
-When the task needs architecture mapping or repo-scoped planning before edits,
-delegate to `planner`.
-
-If the user explicitly asks for a plan, implementation sequence, architecture
-map, design exploration, or repo-scoped "what needs to change" analysis,
-delegate to `planner` unless the work is obviously limited to one or two
-files.
-
-When implementation is complete and you want an acceptance pass before
-finishing, delegate to `reviewer`.
-
 Use `task_workflow` when the work naturally breaks into saved steps.
+For broad planning or review, either answer directly in this agent or select a
+runtime workflow that has explicit planner or reviewer phases.
 </workflow>
 
 <execution>
@@ -227,19 +218,18 @@ Prefer small, verifiable changes.
 Use `question` only when a real user decision is required.
 </execution>
 
-<delegation_examples>
-- Delegate to `planner` for: "Map the auth flow and identify the files that must change."
-- Delegate to `reviewer` for: "Review the patch for regressions and missing tests."
-</delegation_examples>
+<workflow_examples>
+- Use direct engineer work for: "Add the schema change and focused tests."
+- Use a workflow for: "Plan, implement, verify, and review this change."
+</workflow_examples>
 ```
 
-If you want a child-only helper that can be delegated to, make that agent
-`mode: subagent`:
+If you want an agent excluded from the normal picker, use `hidden: true`:
 
 ```md
 ---
 description: Release notes writer
-mode: subagent
+hidden: true
 AllowTools:
   - read
   - search
@@ -254,14 +244,15 @@ You only prepare release notes and changelog updates.
 
 - Filename:
   `delivery.md` becomes the runtime agent ID `delivery`. This is the ID the
-  TUI and the `delegate` tool use.
+  TUI and workflow YAML use.
 - `description`:
   short human-readable text for the picker and catalog.
 - `model`:
   optional primary model override for this agent. If omitted, the turn uses the
   session model.
 - `mode`:
-  decides whether the agent is selectable, delegatable, or both.
+  decides whether the agent is selectable in the picker, reserved as a
+  subagent-only definition, or both.
 - `hidden`:
   removes the agent from the normal picker without deleting it from the
   catalog.
@@ -274,26 +265,26 @@ You only prepare release notes and changelog updates.
 
 The XML-like sections in the example such as `<workflow>` and `<execution>` are
 just prompt organization. Runtime does not parse them as structured config.
-They help the model read the prompt, but they do not grant tools, delegation
-rights, filesystem access, or network access by themselves.
-
-The delegation lines in the body are guidance, not enforcement. They tell the
-agent when it should use the `delegate` tool, but runtime still decides whether
-the child agent can actually be delegated to based on that child's `mode`.
+They help the model read the prompt, but they do not grant tools, workflow
+authority, filesystem access, or network access by themselves.
 
 ### Agent modes
 
 `mode` controls where an agent is allowed to appear:
 
-- `primary`: selectable in the normal agent picker, but not delegatable
-- `subagent`: delegatable and not shown in the normal picker
-- `all`: both selectable and delegatable
+- `primary`: selectable in the normal agent picker
+- `subagent`: not shown in the normal picker
+- `all`: selectable in the normal agent picker and also marked as compatible
+  with runtime paths that require subagent eligibility
 
 If `mode` is omitted, runtime treats the agent as `primary`.
 
 `hidden: true` removes an agent from the normal picker even if its mode would
-otherwise make it selectable. Hidden agents can still be valid delegation
-targets when their mode is `subagent` or `all`.
+otherwise make it selectable.
+
+Runtime workflow phases must use agents whose effective mode is not
+`subagent`. A phase that names a subagent-only agent is rejected during workflow
+validation.
 
 ### Tool permission semantics
 
@@ -321,49 +312,13 @@ This tool access is not the same thing as runtime permission policy:
 That separation is intentional. Agent markdown can narrow tool availability,
 but it does not grant filesystem, execution, or network authority by itself.
 
-### Delegation controls
+### Handoff metadata
 
-Delegation is runtime-owned.
-
-- the child must have `mode: subagent` or `mode: all`
-- if that mode allows delegation, any parent agent may delegate to it
-
-There is no separate parent-side allow or deny list for child agents.
-
-### Child model routing
-
-Delegated child turns can choose their own primary model.
-
-- If the child agent defines `model`, runtime uses that model for the child
-  turn.
-- If the child does not define `model`, runtime inherits the parent turn's
-  selected model.
-
-There is no fallback model chain in agent frontmatter or session routing.
-
-### Runtime behavior
-
-The `delegate` tool starts a child session and returns a saved handoff
-record. The record can be:
-
-- `completed`
-- `failed`
-- `pending_permission`
-- `pending_question`
-
-The parent transcript shows a delegation row for each child handoff. While the
-child is running, that row includes a lightweight live preview of the current
-activity, active tool, and latest short assistant snippet. The child session
-remains the canonical detailed transcript.
-
-Users normally interact with a primary agent. Subagents are expected to be
-chosen by that parent agent through markdown guidance and child `mode`, not by
-asking the user to manually pick a child helper.
-
-In the TUI:
-
-- `Enter` opens the selected child session
-- `Backspace` returns to the parent session
+Agent markdown can include a `handoff:` frontmatter block. Current runtime
+parses and stores that metadata for compatibility with agent definitions, but
+the user-facing built-in tool surface does not include a standalone `delegate`
+tool. For explicit multi-phase work, use runtime workflows and name the agent
+for each phase in workflow YAML.
 
 Examples:
 

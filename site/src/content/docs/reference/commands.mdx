@@ -21,6 +21,7 @@ behavior.
 | `/new` | Start a new session | Leaves the current session intact |
 | `/history` | Search recent prompts | Opens the same searchable history surface as `Ctrl+R`; separate from inline `Up` / `Down` recall |
 | `/review [instructions]` | Run a one-off runtime review | Uses the `reviewer` agent path, defaults to current workspace changes, and leaves your selected agent unchanged |
+| `/workflow [id\|off\|resume]` | Select, clear, or resume a runtime workflow | Without an argument, opens the workflow picker; `off` clears the selection; `resume` continues a blocked workflow |
 | `!<command>` | Run a local shell command from the composer | User-initiated execution path; uses the same runtime execution, approval, and event model |
 | `/model` | Switch model | Changes the active model route |
 | `/utility-model` | Select utility model | Sets or unsets the cheaper utility route used for runtime text work |
@@ -46,6 +47,7 @@ behavior.
 - `/history`: search recent prompts through the searchable history popup
 - `/timeline`: branch a new session from a completed previous turn
 - `/review [instructions]`: run a focused runtime-owned review of the current workspace changes
+- `/workflow [id|off|resume]`: select a runtime workflow, clear it, or resume a blocked workflow
 - `Ctrl+W`: list available runtime workflows or select one for later turns
 
 Use this group when you want to branch from prior work, inspect turns, or prepare the current session before another turn.
@@ -65,11 +67,14 @@ inspection, but only completed turns can be branched.
 
 `/review` is the exception in this group: it is a repository-work command, but it lives beside session controls because it is an explicit TUI action rather than a prompt convention. It starts a one-off runtime-owned review, defaults to the current workspace changes, uses the configured review model when available, and leaves your selected default agent unchanged for later turns. Review behavior is guided by the active `reviewer` agent definition, so you can tune it with a global or project-local `reviewer.md` override while runtime keeps the review scope and structured output format authoritative.
 
-`Ctrl+W` opens the workflow dialog. Use it to choose `delivery`, `debug`,
-`review`, `explore`, or a project-defined workflow for later turns in the current
-session. Selected workflow state, active phase, blocked reason, and evidence are
-runtime-owned and visible in `/trace`; the status footer shows the active
-workflow and phase while a workflow is running.
+`/workflow` and `Ctrl+W` both open the workflow dialog. Use them to choose
+`delivery`, `debug`, `review`, `explore`, or a project-defined workflow for
+later turns in the current session. `/workflow delivery` selects a workflow by
+ID, `/workflow off` clears the current selection, and `/workflow resume`
+continues a blocked workflow phase when one exists. Selected workflow state,
+active phase, blocked reason, and evidence are runtime-owned and visible in
+`/trace`; the status footer shows the active workflow and phase while a
+workflow is running.
 
 `!<command>` is not a slash command, but it shares the composer command path.
 It starts a normal local shell execution turn from the user instead of asking

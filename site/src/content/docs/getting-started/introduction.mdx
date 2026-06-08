@@ -41,7 +41,7 @@ It is less interested in hiding runtime decisions behind a polished illusion. If
 KodaCode ships four built-in agents:
 
 - `builder`: the default direct-execution coding agent
-- `engineer`: a structured execution agent with task tracking and delegation
+- `engineer`: a structured execution agent with workflow task tracking
 - `reviewer`: a read-only agent for checking current changes
 - `planner`: a read-only agent for repository analysis, design exploration, and implementation planning
 
@@ -68,7 +68,7 @@ KodaCode ships four built-in agents:
 - Use `response_style: default` only if you want to opt out of the default terse reply style
 - Let the runtime compact long session history automatically to keep context usable
 - Search, read, patch, test, and inspect Git state with built-in tools
-- Add stdio MCP servers for external systems while keeping startup trust explicit
+- Add MCP servers for external systems while keeping startup trust explicit
 - Mention skills with `$name` when you want reusable workflow guidance for one turn
 - Resume workspace sessions from persisted SQLite-backed history
 - Inspect per-turn cost, token savings, and cache activity from inside the TUI

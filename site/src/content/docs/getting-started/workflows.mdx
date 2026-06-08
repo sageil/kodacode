@@ -42,15 +42,24 @@ Select a workflow in the TUI:
 Ctrl+W
 ```
 
+Or use the slash command:
+
+```text
+/workflow delivery
+/workflow off
+/workflow resume
+```
+
 Or select one for a one-shot CLI turn:
 
 ```bash
 kodacode --workflow debug "reproduce and fix the failing cache test"
 ```
 
-If a workflow is active, the footer shows the workflow id, current phase, and
-blocked reason when one exists. `/trace` shows phase history and recorded
-results.
+`/workflow <id>` selects a workflow for later turns, `/workflow off` clears the
+selection, and `/workflow resume` resumes a blocked workflow phase. If a
+workflow is active, the footer shows the workflow id, current phase, and blocked
+reason when one exists. `/trace` shows phase history and recorded results.
 
 When no workflow is selected, KodaCode may record an advisory workflow route
 recommendation for clear requests such as debugging, review, implementation, or
@@ -115,8 +124,9 @@ with declared `commands` run those commands through the declared execution tool,
 such as `test` or `bash`, so normal execution permissions and check results
 apply.
 
-`max_revision_loops` caps automatic loops from a failed verification phase back
-to an implementation phase. Approval phases can use
+`max_revision_loops` caps automatic revision loops after failed verification or
+review evidence. A transition-specific `max_loops` overrides that workflow
+default for the matching transition. Approval phases can use
 `skip_when.max_affected_files` to skip human approval for small structured
 plans; the signal comes from the previous phase's `affected_files` output.
 Workflow `transitions` make jumps between phases explicit for supported events
