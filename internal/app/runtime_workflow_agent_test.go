@@ -220,7 +220,7 @@ func TestRuntimeWorkflowPlanPhaseRunsPlannerReadFocused(t *testing.T) {
 		t.Fatalf("RunSessionTurn() error = %v", err)
 	}
 	if result.Status != TurnRunStatusCompleted {
-		t.Fatalf("status = %q", result.Status)
+		t.Fatalf("status = %q, error = %q, assistant text = %q", result.Status, result.Error, result.AssistantText)
 	}
 	if len(client.requests) != 2 {
 		t.Fatalf("provider requests = %d, want 2", len(client.requests))
@@ -282,7 +282,7 @@ func TestRuntimeWorkflowPlanPhaseRecoversMissingPhaseOutputToolCall(t *testing.T
 		t.Fatalf("RunSessionTurn() error = %v", err)
 	}
 	if result.Status != TurnRunStatusCompleted {
-		t.Fatalf("status = %q", result.Status)
+		t.Fatalf("status = %q, assistant text = %q", result.Status, result.AssistantText)
 	}
 	if len(client.requests) != 3 {
 		t.Fatalf("provider requests = %d, want 3", len(client.requests))
@@ -718,7 +718,7 @@ func TestRuntimeWorkflowImplementPhaseUsesPhaseToolIntersection(t *testing.T) {
 		t.Fatalf("provider requests = %d, want 1", len(client.requests))
 	}
 	gotTools := requestToolNames(client.requests[0].Tools)
-	for _, want := range []string{"read", "search", "apply_patch", "write", "bash", "git_diff", "task_workflow"} {
+	for _, want := range []string{"read", "search", "apply_patch", "write", "bash", "task_workflow"} {
 		if !containsString(gotTools, want) {
 			t.Fatalf("implement phase tools = %#v, want %s", gotTools, want)
 		}
@@ -892,21 +892,14 @@ func TestRuntimeWorkflowFailedVerificationLoopsBackToImplementationWithinCap(t *
 func TestRuntimeWorkflowReviewerPhaseCannotEditFiles(t *testing.T) {
 	client := newWorkflowReviewResultProvider(map[string]string{
 		"correctness":  "Correctness pass clean.",
+		"verification": "Verification pass clean.",
 		"tests":        "Tests pass clean.",
 		"architecture": "Architecture pass clean.",
 	})
 	runtime := newRuntimeWithClient(t, client)
 	root := t.TempDir()
 	sessionID := createWorkflowTestSession(t, runtime, root)
-	startDeliveryAtVerify(t, runtime, sessionID, root)
-	recordDeliveryVerificationEvidence(t, runtime, sessionID, "turn-1", true, "go test ./... passed")
-	if err := runtime.AdvanceWorkflow(context.Background(), AdvanceWorkflowInput{
-		SessionID: sessionID,
-		TurnID:    "turn-1",
-		ToPhaseID: "review",
-	}); err != nil {
-		t.Fatalf("AdvanceWorkflow(review) error = %v", err)
-	}
+	startDeliveryAtReview(t, runtime, sessionID, root)
 
 	result, err := runtime.runExistingSessionTurn(context.Background(), runExistingTurnInput{
 		SessionID: sessionID,
@@ -925,10 +918,13 @@ func TestRuntimeWorkflowReviewerPhaseCannotEditFiles(t *testing.T) {
 	}
 	for _, request := range client.requests[:1] {
 		gotTools := requestToolNames(request.Tools)
-		for _, blocked := range []string{"apply_patch", "bash", "task_workflow", "test", "write"} {
+		for _, blocked := range []string{"apply_patch", "bash", "task_workflow", "write"} {
 			if containsString(gotTools, blocked) {
 				t.Fatalf("review phase tools = %#v, want %s removed", gotTools, blocked)
 			}
+		}
+		if !containsString(gotTools, tool.TestToolName) {
+			t.Fatalf("review phase tools = %#v, want test available for review verification", gotTools)
 		}
 		if !strings.Contains(request.Instructions, tool.WorkflowReviewResultToolName) && !strings.Contains(request.Inputs[len(request.Inputs)-1].Content, tool.WorkflowReviewResultToolName) {
 			t.Fatalf("review input missing workflow review result channel:\n%#v", request.Inputs)
@@ -959,15 +955,7 @@ func TestRuntimeWorkflowFinalPhaseCompletesWithoutProviderFallback(t *testing.T)
 	runtime := newRuntimeWithClient(t, client)
 	root := t.TempDir()
 	sessionID := createWorkflowTestSession(t, runtime, root)
-	startDeliveryAtVerify(t, runtime, sessionID, root)
-	recordDeliveryVerificationEvidence(t, runtime, sessionID, "turn-1", true, "go test ./... passed")
-	if err := runtime.AdvanceWorkflow(context.Background(), AdvanceWorkflowInput{
-		SessionID: sessionID,
-		TurnID:    "turn-1",
-		ToPhaseID: "review",
-	}); err != nil {
-		t.Fatalf("AdvanceWorkflow(review) error = %v", err)
-	}
+	startDeliveryAtReview(t, runtime, sessionID, root)
 	recordDeliveryReviewEvidence(t, runtime, sessionID, "turn-1")
 	if err := runtime.AdvanceWorkflow(context.Background(), AdvanceWorkflowInput{
 		SessionID: sessionID,
@@ -1016,6 +1004,7 @@ func TestRuntimeWorkflowBlockedPhaseCanRecoverFromUserTurn(t *testing.T) {
 	}
 	runtime := newRuntimeWithClient(t, client)
 	root := t.TempDir()
+	writeProjectWorkflow(t, root, "delivery.yaml", phaseTaskCompletionWorkflowYAML())
 	sessionID := createWorkflowTestSession(t, runtime, root)
 	startDeliveryAtImplement(t, runtime, sessionID, root)
 	recordDeliveryFileMutationEvidence(t, runtime, sessionID, "turn-implement")
@@ -1032,9 +1021,9 @@ func TestRuntimeWorkflowBlockedPhaseCanRecoverFromUserTurn(t *testing.T) {
 	if err := runtime.AdvanceWorkflow(context.Background(), AdvanceWorkflowInput{
 		SessionID: sessionID,
 		TurnID:    "turn-implement",
-		ToPhaseID: "verify",
+		ToPhaseID: "review",
 	}); !errors.Is(err, ErrWorkflowEvidenceMissing) {
-		t.Fatalf("AdvanceWorkflow(verify with active task) error = %v, want ErrWorkflowEvidenceMissing", err)
+		t.Fatalf("AdvanceWorkflow(review with active task) error = %v, want ErrWorkflowEvidenceMissing", err)
 	}
 
 	result, err := runtime.runExistingSessionTurn(context.Background(), runExistingTurnInput{
@@ -1138,6 +1127,36 @@ func writeProjectWorkflow(t *testing.T, root, name, content string) {
 	}
 }
 
+func phaseTaskCompletionWorkflowYAML() string {
+	return `
+id: delivery
+description: Test workflow that opts into active task completion.
+phases:
+  - id: plan
+    agent: planner
+    mode: read_only
+    requires_output:
+      - plan
+      - affected_files
+      - risks
+
+  - id: approve
+    type: user_approval
+
+  - id: implement
+    agent: engineer
+    completion:
+      requires:
+        - active_phase_tasks_complete
+        - file_mutation
+
+  - id: review
+    type: review
+    agent: reviewer
+    mode: read_only
+`
+}
+
 func writeDeliveryWorkflowWithManualVerify(t *testing.T, root string) {
 	t.Helper()
 	writeProjectWorkflow(t, root, "delivery.yaml", `
@@ -1218,7 +1237,6 @@ phases:
         - apply_patch
         - write
         - bash
-        - git_diff
         - task_workflow
     requires:
       approved_phase: plan
@@ -1271,7 +1289,6 @@ phases:
         - apply_patch
         - write
         - bash
-        - git_diff
         - task_workflow
     requires:
       approved_phase: plan
@@ -1322,7 +1339,6 @@ phases:
         - apply_patch
         - write
         - bash
-        - git_diff
         - task_workflow
     requires:
       approved_phase: plan
@@ -1381,7 +1397,6 @@ phases:
         - apply_patch
         - write
         - bash
-        - git_diff
         - task_workflow
     requires:
       approved_phase: plan

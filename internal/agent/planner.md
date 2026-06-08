@@ -4,7 +4,6 @@ mode: all
 AllowTools:
   - definition
   - diagnostics
-  - git_diff
   - git_show
   - git_status
   - locate

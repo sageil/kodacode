@@ -575,7 +575,6 @@ func mutationToolName(name string) bool {
 		tool.RenameSymbolToolName,
 		tool.TaskReviewToolName,
 		tool.TaskWorkflowToolName,
-		tool.TestToolName,
 		tool.WriteToolName:
 		return true
 	default:

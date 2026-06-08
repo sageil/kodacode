@@ -90,10 +90,10 @@ func TestRuntimeWorkflowImplementationRequiresFileMutationBeforeVerification(t *
 	err := runtime.AdvanceWorkflow(ctx, AdvanceWorkflowInput{
 		SessionID: sessionID,
 		TurnID:    "turn-1",
-		ToPhaseID: "verify",
+		ToPhaseID: "review",
 	})
 	if !errors.Is(err, ErrWorkflowEvidenceMissing) {
-		t.Fatalf("AdvanceWorkflow(verify without edit) error = %v, want ErrWorkflowEvidenceMissing", err)
+		t.Fatalf("AdvanceWorkflow(review without edit) error = %v, want ErrWorkflowEvidenceMissing", err)
 	}
 	state, err := runtime.Sessions.Snapshot(ctx, sessionID)
 	if err != nil {
@@ -107,62 +107,11 @@ func TestRuntimeWorkflowImplementationRequiresFileMutationBeforeVerification(t *
 	}
 }
 
-func TestRuntimeWorkflowImplementationRequiresTaskBeforeVerification(t *testing.T) {
-	ctx := context.Background()
-	runtime := newRuntimeWithClient(t, &fakeProvider{})
-	root := t.TempDir()
-	sessionID := createWorkflowTestSession(t, runtime, root)
-
-	if err := runtime.StartWorkflow(ctx, StartWorkflowInput{
-		SessionID:     sessionID,
-		TurnID:        "turn-1",
-		WorkspaceRoot: root,
-		WorkflowID:    "delivery",
-	}); err != nil {
-		t.Fatalf("StartWorkflow() error = %v", err)
-	}
-	recordDeliveryPlanEvidence(t, runtime, sessionID, "turn-1")
-	if err := runtime.AdvanceWorkflow(ctx, AdvanceWorkflowInput{
-		SessionID: sessionID,
-		TurnID:    "turn-1",
-		ToPhaseID: "approve",
-	}); err != nil {
-		t.Fatalf("AdvanceWorkflow(approve) error = %v", err)
-	}
-	recordDeliveryApprovalEvidence(t, runtime, sessionID, "turn-1")
-	if err := runtime.AdvanceWorkflow(ctx, AdvanceWorkflowInput{
-		SessionID: sessionID,
-		TurnID:    "turn-1",
-		ToPhaseID: "implement",
-	}); err != nil {
-		t.Fatalf("AdvanceWorkflow(implement) error = %v", err)
-	}
-	recordDeliveryFileMutationEvidence(t, runtime, sessionID, "turn-1")
-
-	err := runtime.AdvanceWorkflow(ctx, AdvanceWorkflowInput{
-		SessionID: sessionID,
-		TurnID:    "turn-1",
-		ToPhaseID: "verify",
-	})
-	if !errors.Is(err, ErrWorkflowEvidenceMissing) {
-		t.Fatalf("AdvanceWorkflow(verify without task) error = %v, want ErrWorkflowEvidenceMissing", err)
-	}
-	state, err := runtime.Sessions.Snapshot(ctx, sessionID)
-	if err != nil {
-		t.Fatalf("Snapshot() error = %v", err)
-	}
-	if state.Workflow == nil || state.Workflow.Status != events.WorkflowStatusBlocked || state.Workflow.CurrentPhaseID != "implement" {
-		t.Fatalf("workflow = %#v, want blocked implement", state.Workflow)
-	}
-	if state.Workflow.StopReason != "workflow phase has no tasks" {
-		t.Fatalf("stop reason = %q", state.Workflow.StopReason)
-	}
-}
-
 func TestRuntimeWorkflowImplementationRequiresAllPlannedTasksComplete(t *testing.T) {
 	ctx := context.Background()
 	runtime := newRuntimeWithClient(t, &fakeProvider{})
 	root := t.TempDir()
+	writeProjectWorkflow(t, root, "delivery.yaml", plannedTasksCompletionWorkflowYAML())
 	sessionID := createWorkflowTestSession(t, runtime, root)
 
 	if err := runtime.StartWorkflow(ctx, StartWorkflowInput{
@@ -195,10 +144,10 @@ func TestRuntimeWorkflowImplementationRequiresAllPlannedTasksComplete(t *testing
 	err := runtime.AdvanceWorkflow(ctx, AdvanceWorkflowInput{
 		SessionID: sessionID,
 		TurnID:    "turn-implement",
-		ToPhaseID: "verify",
+		ToPhaseID: "review",
 	})
 	if !errors.Is(err, ErrWorkflowEvidenceMissing) {
-		t.Fatalf("AdvanceWorkflow(verify with partial planned tasks) error = %v, want ErrWorkflowEvidenceMissing", err)
+		t.Fatalf("AdvanceWorkflow(review with partial planned tasks) error = %v, want ErrWorkflowEvidenceMissing", err)
 	}
 	state, err := runtime.Sessions.Snapshot(ctx, sessionID)
 	if err != nil {
@@ -267,9 +216,9 @@ func TestRuntimeWorkflowWriteRecordsFileMutationEvidenceForImplementation(t *tes
 	if err := runtime.AdvanceWorkflow(ctx, AdvanceWorkflowInput{
 		SessionID: sessionID,
 		TurnID:    "turn-implement",
-		ToPhaseID: "verify",
+		ToPhaseID: "review",
 	}); err != nil {
-		t.Fatalf("AdvanceWorkflow(verify) error = %v", err)
+		t.Fatalf("AdvanceWorkflow(review) error = %v", err)
 	}
 }
 
@@ -277,6 +226,7 @@ func TestRuntimeWorkflowPassedVerificationWithDeferredWorkRevisesImplementation(
 	ctx := context.Background()
 	runtime := newRuntimeWithClient(t, &fakeProvider{})
 	root := t.TempDir()
+	writeProjectWorkflow(t, root, "delivery.yaml", phaseOutputVerificationRevisionWorkflowYAML())
 	sessionID := createWorkflowTestSession(t, runtime, root)
 	startDeliveryAtVerify(t, runtime, sessionID, root)
 
@@ -477,14 +427,6 @@ func TestRuntimeWorkflowCompleteRequiresFinalPhase(t *testing.T) {
 	if err := runtime.AdvanceWorkflow(ctx, AdvanceWorkflowInput{
 		SessionID: sessionID,
 		TurnID:    "turn-1",
-		ToPhaseID: "verify",
-	}); err != nil {
-		t.Fatalf("AdvanceWorkflow(verify) error = %v", err)
-	}
-	recordDeliveryVerificationEvidence(t, runtime, sessionID, "turn-1", true, "go test ./... passed")
-	if err := runtime.AdvanceWorkflow(ctx, AdvanceWorkflowInput{
-		SessionID: sessionID,
-		TurnID:    "turn-1",
 		ToPhaseID: "review",
 	}); err != nil {
 		t.Fatalf("AdvanceWorkflow(review) error = %v", err)
@@ -519,15 +461,7 @@ func TestRuntimeWorkflowFinalPhaseSynthesizesEvidenceSummary(t *testing.T) {
 	root := t.TempDir()
 	sessionID := createWorkflowTestSession(t, runtime, root)
 
-	startDeliveryAtVerify(t, runtime, sessionID, root)
-	recordDeliveryVerificationEvidence(t, runtime, sessionID, "turn-1", true, "go test ./... passed")
-	if err := runtime.AdvanceWorkflow(ctx, AdvanceWorkflowInput{
-		SessionID: sessionID,
-		TurnID:    "turn-1",
-		ToPhaseID: "review",
-	}); err != nil {
-		t.Fatalf("AdvanceWorkflow(review) error = %v", err)
-	}
+	startDeliveryAtReview(t, runtime, sessionID, root)
 	recordDeliveryReviewEvidence(t, runtime, sessionID, "turn-1")
 	if err := runtime.AdvanceWorkflow(ctx, AdvanceWorkflowInput{
 		SessionID: sessionID,
@@ -560,7 +494,6 @@ func TestRuntimeWorkflowFinalPhaseSynthesizesEvidenceSummary(t *testing.T) {
 	for _, want := range []string{
 		"Workflow `delivery` completed.",
 		"- changed_files: diff captured",
-		"- verification_result: passed: go test ./... - go test ./... passed",
 		"- review_outcome: review passed",
 		"Not recorded:",
 		"- unresolved_risks",
@@ -583,15 +516,7 @@ func TestRuntimeWorkflowFinalPhaseAggregatesReviewOutcomes(t *testing.T) {
 	root := t.TempDir()
 	sessionID := createWorkflowTestSession(t, runtime, root)
 
-	startDeliveryAtVerify(t, runtime, sessionID, root)
-	recordDeliveryVerificationEvidence(t, runtime, sessionID, "turn-1", true, "go test ./... passed")
-	if err := runtime.AdvanceWorkflow(ctx, AdvanceWorkflowInput{
-		SessionID: sessionID,
-		TurnID:    "turn-1",
-		ToPhaseID: "review",
-	}); err != nil {
-		t.Fatalf("AdvanceWorkflow(review) error = %v", err)
-	}
+	startDeliveryAtReview(t, runtime, sessionID, root)
 	recordDeliveryReviewPassEvidence(t, runtime, sessionID, "turn-1", "correctness", events.TaskReviewStatusPass, "behavior is covered")
 	recordDeliveryReviewPassEvidence(t, runtime, sessionID, "turn-1", "tests", events.TaskReviewStatusConcern, "missing edge-case assertion")
 	if err := runtime.AdvanceWorkflow(ctx, AdvanceWorkflowInput{
@@ -676,96 +601,29 @@ func TestRuntimeWorkflowImplementationRequiresApprovalEvidence(t *testing.T) {
 	}
 }
 
-func TestRuntimeWorkflowImplementationRequiresPhaseTasksComplete(t *testing.T) {
+func TestRuntimeWorkflowFinalRequiresReviewEvidence(t *testing.T) {
 	ctx := context.Background()
 	runtime := newRuntimeWithClient(t, &fakeProvider{})
 	root := t.TempDir()
 	sessionID := createWorkflowTestSession(t, runtime, root)
-	startDeliveryAtImplement(t, runtime, sessionID, root)
-	recordDeliveryFileMutationEvidence(t, runtime, sessionID, "turn-implement")
-
-	if _, err := runtime.Sessions.CreateTask(ctx, CreateTaskInput{
-		SessionID: sessionID,
-		TurnID:    "turn-implement",
-		TaskID:    "task-implement",
-		Title:     "Finish implementation",
-		Status:    events.TaskStatusInProgress,
-	}); err != nil {
-		t.Fatalf("CreateTask() error = %v", err)
-	}
-
-	err := runtime.AdvanceWorkflow(ctx, AdvanceWorkflowInput{
-		SessionID: sessionID,
-		TurnID:    "turn-implement",
-		ToPhaseID: "verify",
-	})
-	if !errors.Is(err, ErrWorkflowEvidenceMissing) {
-		t.Fatalf("AdvanceWorkflow(verify with active task) error = %v, want ErrWorkflowEvidenceMissing", err)
-	}
-	state, err := runtime.Sessions.Snapshot(ctx, sessionID)
-	if err != nil {
-		t.Fatalf("Snapshot() error = %v", err)
-	}
-	if state.Workflow == nil || state.Workflow.Status != events.WorkflowStatusBlocked || state.Workflow.CurrentPhaseID != "implement" {
-		t.Fatalf("workflow = %#v, want blocked implement", state.Workflow)
-	}
-	if state.Workflow.StopReason != "workflow phase has unfinished task: task-implement" {
-		t.Fatalf("stop reason = %q", state.Workflow.StopReason)
-	}
-
-	if _, err := runtime.Sessions.CompleteTask(ctx, CompleteTaskInput{
-		SessionID: sessionID,
-		TurnID:    "turn-implement",
-		TaskID:    "task-implement",
-		Summary:   "implementation complete",
-	}); err != nil {
-		t.Fatalf("CompleteTask() error = %v", err)
-	}
-	if err := runtime.ResumeWorkflow(ctx, ResumeWorkflowInput{
-		SessionID: sessionID,
-		TurnID:    "turn-resume",
-	}); err != nil {
-		t.Fatalf("ResumeWorkflow() error = %v", err)
-	}
-	if err := runtime.AdvanceWorkflow(ctx, AdvanceWorkflowInput{
-		SessionID: sessionID,
-		TurnID:    "turn-implement",
-		ToPhaseID: "verify",
-	}); err != nil {
-		t.Fatalf("AdvanceWorkflow(verify after task complete) error = %v", err)
-	}
-	state, err = runtime.Sessions.Snapshot(ctx, sessionID)
-	if err != nil {
-		t.Fatalf("Snapshot(after advance) error = %v", err)
-	}
-	if state.Workflow == nil || state.Workflow.Status != events.WorkflowStatusActive || state.Workflow.CurrentPhaseID != "verify" {
-		t.Fatalf("workflow = %#v, want active verify", state.Workflow)
-	}
-}
-
-func TestRuntimeWorkflowReviewRequiresVerificationEvidence(t *testing.T) {
-	ctx := context.Background()
-	runtime := newRuntimeWithClient(t, &fakeProvider{})
-	root := t.TempDir()
-	sessionID := createWorkflowTestSession(t, runtime, root)
-	startDeliveryAtVerify(t, runtime, sessionID, root)
+	startDeliveryAtReview(t, runtime, sessionID, root)
 
 	err := runtime.AdvanceWorkflow(ctx, AdvanceWorkflowInput{
 		SessionID: sessionID,
 		TurnID:    "turn-1",
-		ToPhaseID: "review",
+		ToPhaseID: "summarize",
 	})
 	if !errors.Is(err, ErrWorkflowEvidenceMissing) {
-		t.Fatalf("AdvanceWorkflow(review) error = %v, want ErrWorkflowEvidenceMissing", err)
+		t.Fatalf("AdvanceWorkflow(summarize) error = %v, want ErrWorkflowEvidenceMissing", err)
 	}
 	state, err := runtime.Sessions.Snapshot(ctx, sessionID)
 	if err != nil {
 		t.Fatalf("Snapshot() error = %v", err)
 	}
-	if state.Workflow == nil || state.Workflow.Status != events.WorkflowStatusBlocked || state.Workflow.CurrentPhaseID != "verify" {
-		t.Fatalf("workflow = %#v, want blocked verify", state.Workflow)
+	if state.Workflow == nil || state.Workflow.Status != events.WorkflowStatusBlocked || state.Workflow.CurrentPhaseID != "review" {
+		t.Fatalf("workflow = %#v, want blocked review", state.Workflow)
 	}
-	if !strings.Contains(state.Workflow.StopReason, "missing required phase output: commands_run") {
+	if !strings.Contains(state.Workflow.StopReason, "missing review evidence") {
 		t.Fatalf("stop reason = %q", state.Workflow.StopReason)
 	}
 }
@@ -782,6 +640,7 @@ func TestRuntimeWorkflowPhaseOutputRecordsVerificationEvidence(t *testing.T) {
 	ctx := context.Background()
 	runtime := newRuntimeWithClient(t, &fakeProvider{})
 	root := t.TempDir()
+	writeProjectWorkflow(t, root, "delivery.yaml", phaseOutputVerificationRevisionWorkflowYAML())
 	sessionID := createWorkflowTestSession(t, runtime, root)
 	startDeliveryAtVerify(t, runtime, sessionID, root)
 
@@ -834,6 +693,7 @@ func TestRuntimeWorkflowPhaseOutputRejectsTextOnlySuccessfulVerification(t *test
 	ctx := context.Background()
 	runtime := newRuntimeWithClient(t, &fakeProvider{})
 	root := t.TempDir()
+	writeProjectWorkflow(t, root, "delivery.yaml", phaseOutputVerificationRevisionWorkflowYAML())
 	sessionID := createWorkflowTestSession(t, runtime, root)
 	startDeliveryAtVerify(t, runtime, sessionID, root)
 
@@ -926,6 +786,7 @@ func TestRuntimeWorkflowPhaseOutputRejectsAdHocBashVerificationEvidence(t *testi
 	ctx := context.Background()
 	runtime := newRuntimeWithClient(t, &fakeProvider{})
 	root := t.TempDir()
+	writeProjectWorkflow(t, root, "delivery.yaml", phaseOutputVerificationRevisionWorkflowYAML())
 	sessionID := createWorkflowTestSession(t, runtime, root)
 	startDeliveryAtVerify(t, runtime, sessionID, root)
 
@@ -964,6 +825,7 @@ func TestRuntimeWorkflowPhaseOutputRejectsNoOpVerificationResult(t *testing.T) {
 	ctx := context.Background()
 	runtime := newRuntimeWithClient(t, &fakeProvider{})
 	root := t.TempDir()
+	writeProjectWorkflow(t, root, "delivery.yaml", phaseOutputVerificationRevisionWorkflowYAML())
 	sessionID := createWorkflowTestSession(t, runtime, root)
 	startDeliveryAtVerify(t, runtime, sessionID, root)
 
@@ -1062,6 +924,7 @@ func TestRuntimeWorkflowFailedVerificationRecordsStopReason(t *testing.T) {
 	ctx := context.Background()
 	runtime := newRuntimeWithClient(t, &fakeProvider{})
 	root := t.TempDir()
+	writeProjectWorkflow(t, root, "delivery.yaml", phaseOutputVerificationRevisionWorkflowYAML())
 	sessionID := createWorkflowTestSession(t, runtime, root)
 	startDeliveryAtVerify(t, runtime, sessionID, root)
 
@@ -1091,6 +954,7 @@ func TestRuntimeWorkflowFailedVerificationDoesNotReviseAfterLoopCap(t *testing.T
 	ctx := context.Background()
 	runtime := newRuntimeWithClient(t, &fakeProvider{})
 	root := t.TempDir()
+	writeProjectWorkflow(t, root, "delivery.yaml", phaseOutputVerificationRevisionWorkflowYAML())
 	sessionID := createWorkflowTestSession(t, runtime, root)
 	startDeliveryAtVerify(t, runtime, sessionID, root)
 
@@ -1118,15 +982,7 @@ func TestRuntimeWorkflowFailedReviewLoopsBackToImplementationWithinCap(t *testin
 	runtime := newRuntimeWithClient(t, &fakeProvider{})
 	root := t.TempDir()
 	sessionID := createWorkflowTestSession(t, runtime, root)
-	startDeliveryAtVerify(t, runtime, sessionID, root)
-	recordDeliveryVerificationEvidence(t, runtime, sessionID, "turn-1", true, "go test ./... passed")
-	if err := runtime.AdvanceWorkflow(ctx, AdvanceWorkflowInput{
-		SessionID: sessionID,
-		TurnID:    "turn-1",
-		ToPhaseID: "review",
-	}); err != nil {
-		t.Fatalf("AdvanceWorkflow(review) error = %v", err)
-	}
+	startDeliveryAtReview(t, runtime, sessionID, root)
 	recordDeliveryTaskReviewEvidence(t, runtime, sessionID, "turn-1", "task-1", events.TaskReviewStatusFail, "review failed")
 
 	revised, err := runtime.maybeReviseWorkflowAfterReviewFailure(ctx, sessionID, "turn-1")
@@ -1291,15 +1147,7 @@ func TestRuntimeWorkflowFailedStructuredReviewRecordsFindingRevisionTrigger(t *t
 	runtime := newRuntimeWithClient(t, &fakeProvider{})
 	root := t.TempDir()
 	sessionID := createWorkflowTestSession(t, runtime, root)
-	startDeliveryAtVerify(t, runtime, sessionID, root)
-	recordDeliveryVerificationEvidence(t, runtime, sessionID, "turn-1", true, "go test ./... passed")
-	if err := runtime.AdvanceWorkflow(ctx, AdvanceWorkflowInput{
-		SessionID: sessionID,
-		TurnID:    "turn-1",
-		ToPhaseID: "review",
-	}); err != nil {
-		t.Fatalf("AdvanceWorkflow(review) error = %v", err)
-	}
+	startDeliveryAtReview(t, runtime, sessionID, root)
 	if _, err := runtime.Sessions.append(ctx, events.Draft{
 		SessionID: sessionID,
 		TurnID:    "turn-1",
@@ -1367,15 +1215,7 @@ func TestRuntimeWorkflowFailedReviewDoesNotReviseAfterLoopCap(t *testing.T) {
 	runtime := newRuntimeWithClient(t, &fakeProvider{})
 	root := t.TempDir()
 	sessionID := createWorkflowTestSession(t, runtime, root)
-	startDeliveryAtVerify(t, runtime, sessionID, root)
-	recordDeliveryVerificationEvidence(t, runtime, sessionID, "turn-1", true, "go test ./... passed")
-	if err := runtime.AdvanceWorkflow(ctx, AdvanceWorkflowInput{
-		SessionID: sessionID,
-		TurnID:    "turn-1",
-		ToPhaseID: "review",
-	}); err != nil {
-		t.Fatalf("AdvanceWorkflow(review) error = %v", err)
-	}
+	startDeliveryAtReview(t, runtime, sessionID, root)
 	for _, taskID := range []string{"task-1", "task-2", "task-3"} {
 		recordDeliveryTaskReviewEvidence(t, runtime, sessionID, "turn-1", taskID, events.TaskReviewStatusFail, "review failed")
 	}
@@ -1403,8 +1243,8 @@ func TestRuntimeWorkflowEvidenceSurvivesReplay(t *testing.T) {
 	root := t.TempDir()
 	sessionID := createWorkflowTestSession(t, runtime, root)
 
-	startDeliveryAtVerify(t, runtime, sessionID, root)
-	recordDeliveryVerificationEvidence(t, runtime, sessionID, "turn-1", true, "go test ./... passed")
+	startDeliveryAtReview(t, runtime, sessionID, root)
+	recordDeliveryReviewEvidence(t, runtime, sessionID, "turn-1")
 
 	restarted := newRuntimeWithClientAndStore(t, &fakeProvider{}, store)
 	state, err := restarted.Sessions.Snapshot(ctx, sessionID)
@@ -1420,7 +1260,7 @@ func TestRuntimeWorkflowEvidenceSurvivesReplay(t *testing.T) {
 		events.WorkflowEvidenceTypeApproval,
 		events.WorkflowEvidenceTypeFileMutation,
 		events.WorkflowEvidenceTypeGitDiff,
-		events.WorkflowEvidenceTypeVerificationResult,
+		events.WorkflowEvidenceTypeReviewOutcome,
 	} {
 		if !workflowHasAnyEvidenceType(workflow, "", evidenceType) {
 			t.Fatalf("workflow evidence missing %s: %#v", evidenceType, workflow.Evidence)
@@ -1464,6 +1304,7 @@ func TestRuntimeWorkflowVerificationToolResultIgnoresUndeclaredCommand(t *testin
 	ctx := context.Background()
 	runtime := newRuntimeWithClient(t, &fakeProvider{})
 	root := t.TempDir()
+	writeProjectWorkflow(t, root, "delivery.yaml", goVerificationNoAutoReviewWorkflowYAML())
 	sessionID := createWorkflowTestSession(t, runtime, root)
 	startDeliveryAtVerify(t, runtime, sessionID, root)
 
@@ -1495,6 +1336,7 @@ func TestRuntimeWorkflowVerificationToolResultRequiresDeclaredTool(t *testing.T)
 	ctx := context.Background()
 	runtime := newRuntimeWithClient(t, &fakeProvider{})
 	root := t.TempDir()
+	writeProjectWorkflow(t, root, "delivery.yaml", goVerificationNoAutoReviewWorkflowYAML())
 	sessionID := createWorkflowTestSession(t, runtime, root)
 	startDeliveryAtVerify(t, runtime, sessionID, root)
 
@@ -1527,15 +1369,7 @@ func TestRuntimeWorkflowTaskReviewRecordsEvidence(t *testing.T) {
 	runtime := newRuntimeWithClient(t, &fakeProvider{})
 	root := t.TempDir()
 	sessionID := createWorkflowTestSession(t, runtime, root)
-	startDeliveryAtVerify(t, runtime, sessionID, root)
-	recordDeliveryVerificationEvidence(t, runtime, sessionID, "turn-1", true, "go test ./... passed")
-	if err := runtime.AdvanceWorkflow(ctx, AdvanceWorkflowInput{
-		SessionID: sessionID,
-		TurnID:    "turn-1",
-		ToPhaseID: "review",
-	}); err != nil {
-		t.Fatalf("AdvanceWorkflow(review) error = %v", err)
-	}
+	startDeliveryAtReview(t, runtime, sessionID, root)
 	if _, err := runtime.Sessions.CreateTask(ctx, CreateTaskInput{
 		SessionID: sessionID,
 		TurnID:    "turn-1",
@@ -1640,6 +1474,16 @@ func appendWorkflowTestExecutionDeclared(t *testing.T, runtime *Runtime, session
 
 func startDeliveryAtVerify(t *testing.T, runtime *Runtime, sessionID, root string) {
 	t.Helper()
+	startDeliveryAtPhase(t, runtime, sessionID, root, "verify")
+}
+
+func startDeliveryAtReview(t *testing.T, runtime *Runtime, sessionID, root string) {
+	t.Helper()
+	startDeliveryAtPhase(t, runtime, sessionID, root, "review")
+}
+
+func startDeliveryAtPhase(t *testing.T, runtime *Runtime, sessionID, root, targetPhaseID string) {
+	t.Helper()
 	ctx := context.Background()
 	if err := runtime.StartWorkflow(ctx, StartWorkflowInput{
 		SessionID:     sessionID,
@@ -1656,7 +1500,7 @@ func startDeliveryAtVerify(t *testing.T, runtime *Runtime, sessionID, root strin
 	}{
 		{to: "approve"},
 		{to: "implement", record: func() { recordDeliveryApprovalEvidence(t, runtime, sessionID, "turn-1") }},
-		{to: "verify", record: func() { recordDeliveryGitDiffEvidence(t, runtime, sessionID, "turn-1") }},
+		{to: targetPhaseID, record: func() { recordDeliveryGitDiffEvidence(t, runtime, sessionID, "turn-1") }},
 	} {
 		if step.record != nil {
 			step.record()
@@ -1700,7 +1544,6 @@ phases:
         - apply_patch
         - write
         - bash
-        - git_diff
         - task_workflow
     requires:
       approved_phase: plan
@@ -1720,6 +1563,14 @@ phases:
       - failures
       - confidence
     required: true
+
+  - id: review
+    type: review
+    agent: reviewer
+    mode: read_only
+    auto_continue: false
+    requires:
+      - verification_result
 
 transitions:
   - from: verify
@@ -1756,7 +1607,6 @@ phases:
         - apply_patch
         - write
         - bash
-        - git_diff
         - task_workflow
     requires:
       approved_phase: plan
@@ -1789,6 +1639,49 @@ phases:
     auto_continue: false
     requires:
       - verification_result
+`
+}
+
+func plannedTasksCompletionWorkflowYAML() string {
+	return `
+id: delivery
+description: Test workflow that opts into planned task completion.
+phases:
+  - id: plan
+    agent: planner
+    mode: read_only
+    requires_output:
+      - plan
+      - affected_files
+      - risks
+      - implementation_tasks
+
+  - id: approve
+    type: user_approval
+
+  - id: implement
+    agent: engineer
+    tools:
+      allow:
+        - read
+        - search
+        - apply_patch
+        - write
+        - bash
+        - task_workflow
+    requires:
+      approved_phase: plan
+    completion:
+      requires:
+        - active_phase_tasks_complete
+        - planned_tasks_complete
+        - file_mutation
+
+  - id: review
+    type: review
+    agent: reviewer
+    mode: read_only
+    auto_continue: false
 `
 }
 

@@ -58,6 +58,49 @@ func TestNormalizeSessionCompactionPayloadRendersSummaryTextFromArtifact(t *test
 	}
 }
 
+func TestRenderSessionCompactionArtifactSummaryHidesVerificationEvidence(t *testing.T) {
+	artifact := events.HistoryContinuationArtifact{
+		SessionObjective: "finish the workflow cleanup",
+		CompletedEpisodes: []events.HistoryEpisodePayload{{
+			EpisodeID: "episode:turn-1",
+			Summary:   "delivery workflow simplified",
+			Verification: []events.HistoryVerificationPayload{
+				{Kind: events.HistoryVerificationKindRuntimeNote, Value: "Workflow phase approved.", Succeeded: true},
+				{Kind: events.HistoryVerificationKindToolResult, Value: "git diff --no-color", Succeeded: true},
+				{Kind: events.HistoryVerificationKindTurnStatus, Value: "completed", Succeeded: true},
+			},
+			SourceTurnIDs: []string{"turn-1"},
+		}},
+		WorkspaceFacts: []events.HistoryWorkspaceFactPayload{{
+			Path:         "internal/workflow/workflows/delivery.yaml",
+			Fact:         "delivery workflow no longer uses planned task completion",
+			SourceTurnID: "turn-1",
+		}},
+	}
+
+	rendered := renderSessionCompactionArtifactSummary(artifact, compactionSummaryBudgetBytes)
+	for _, forbidden := range []string{
+		"runtime_note",
+		"tool_result",
+		"turn_status",
+		"Workflow phase approved",
+		"git diff --no-color",
+	} {
+		if strings.Contains(rendered, forbidden) {
+			t.Fatalf("rendered summary leaked verification evidence %q:\n%s", forbidden, rendered)
+		}
+	}
+	if !strings.Contains(rendered, "delivery workflow simplified") {
+		t.Fatalf("rendered summary missing episode summary:\n%s", rendered)
+	}
+	if !strings.Contains(rendered, "delivery workflow no longer uses planned task completion") {
+		t.Fatalf("rendered summary missing workspace fact:\n%s", rendered)
+	}
+	if len(artifact.CompletedEpisodes[0].Verification) != 3 {
+		t.Fatalf("artifact verification = %#v, want preserved evidence", artifact.CompletedEpisodes[0].Verification)
+	}
+}
+
 func TestParseSessionCompactionArtifactRejectsPromptRuleConstraints(t *testing.T) {
 	_, err := parseSessionCompactionArtifact(testHistoryContinuationArtifactJSON(events.HistoryContinuationArtifact{
 		SessionObjective: "review the current project and provide performance recommendations",

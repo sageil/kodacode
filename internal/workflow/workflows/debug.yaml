@@ -14,7 +14,6 @@ phases:
         - bash
         - test
         - diagnostics
-        - git_diff
         - task_workflow
 
   - id: identify
@@ -34,7 +33,6 @@ phases:
         - bash
         - test
         - diagnostics
-        - git_diff
         - task_workflow
 
   - id: regression
@@ -49,29 +47,31 @@ phases:
         - bash
         - test
         - diagnostics
-        - git_diff
         - task_workflow
 
   - id: verify
-    type: verification
     agent: engineer
+    prompt: Run or inspect bounded verification for the bug fix, then report the result and any remaining unverified risk.
     tools:
       allow:
         - read
         - search
-        - test
         - bash
-    requires_output:
-      - commands_run
-      - result
-      - failures
-      - confidence
-    required: true
+        - test
+        - diagnostics
+        - task_workflow
 
   - id: review
     type: review
     agent: reviewer
     mode: read_only
+    tools:
+      allow:
+        - read
+        - search
+        - test
+        - git_status
+        - workflow_review_result
     review_passes:
       - id: cause
         description: Fixes the reproduced cause.
@@ -83,6 +83,7 @@ phases:
         description: Regression tests and edge cases.
         instructions:
           - Inspect tests for the reproduced failure.
+          - Run or inspect the most relevant bounded tests through the test tool when useful.
           - Check fail-before/pass-after behavior when practical.
           - Find missing, brittle, unrelated, or edge-gap coverage.
       - id: side-effects
@@ -91,8 +92,6 @@ phases:
           - Inspect nearby callers, helpers, config, and permission/auth checks.
           - Check behavior outside the intended bug fix.
           - Find unintended caller, config, permission, or runtime-path changes.
-    requires:
-      - verification_result
 
   - id: summarize
     type: final
@@ -100,14 +99,9 @@ phases:
       - failure_signal
       - root_cause
       - changed_files
-      - verification_result
       - review_outcome
 
 transitions:
-  - from: verify
-    on: verification_failed
-    to: patch
-    max_loops: 2
   - from: review
     on: review_failed
     to: patch

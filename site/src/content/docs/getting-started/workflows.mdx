@@ -10,8 +10,8 @@ This page is the shortest path from "I installed KodaCode" to "I know which flow
 Use the workflow that matches your current job:
 
 - First-time setup: install, connect a provider, choose a model, and create workspace instructions
-- Delivery workflow: use `delivery` for planned implementation, verification, and review
-- Debug workflow: use `debug` for reproduce, identify, patch, regression, verify, review
+- Delivery workflow: use `delivery` for planned implementation and review-owned verification
+- Debug workflow: use `debug` for reproduce, identify, patch, regression checks, and review
 - Review workflow: use `review` to check current changes without editing
 - Explore workflow: use `explore` for read-only repo structure, responsible code, or planning
 - Daily coding session: open a repo, ask for implementation work, and inspect what happened
@@ -31,7 +31,7 @@ KodaCode ships these built-in workflows:
 
 | Workflow | Use it for | Shape |
 | --- | --- | --- |
-| `delivery` | Serious code delivery | plan, approve, implement, verify, review, summarize |
+| `delivery` | Serious code delivery | plan, approve, implement, review, summarize |
 | `debug` | Bug reports and failing tests | reproduce, identify, patch, regression, verify, review, summarize |
 | `review` | Read-only review of current changes | inspect, review, summarize |
 | `explore` | Read-only repository exploration | inspect, map, summarize |
@@ -130,7 +130,7 @@ overrides the session provider-request cap for workflow phase turns.
 
 Final phases build their summary from recorded workflow results. The runtime
 fills requested `include` fields from exact phase-output fields or known result
-types such as `git_diff`, `verification_result`, and `review_outcome`.
+types such as `git_status`, `verification_result`, and `review_outcome`.
 Requested fields without recorded results are shown as not recorded rather than
 being guessed.
 
@@ -185,14 +185,13 @@ phases: # Ordered workflow phases.
       approved_phase: plan # Require approval for the plan phase.
     completion: # Evidence needed before leaving this phase.
       requires: # Completion evidence requirements for implementation.
-        - git_diff # Require recorded diff evidence before verification and review.
+        - file_mutation # Require recorded file mutation evidence before review.
     tools: # Narrow normal tools for this phase.
       allow: # Allow only this tool subset, subject to agent and sandbox policy.
         - read # Permit file reads.
         - search # Permit repository search.
         - apply_patch # Permit patch-based file edits.
         - bash # Permit command execution through normal approval rules.
-        - git_diff # Permit diff inspection.
         - task_workflow # Permit workflow-bound task tracking.
   - id: verify # Stable phase id for checks.
     type: verification # Runtime executes declared check commands and records results.
@@ -224,9 +223,6 @@ phases: # Ordered workflow phases.
           - Inspect APIs, request/response shapes, persisted data, config, permissions, and integrations.
           - Check callers, stored data, config, and related modules.
           - Find broken callers, incompatible data changes, permission/config risk, or maintainability issues.
-    requires: # Evidence needed before entering review.
-      - git_diff # Require recorded diff evidence.
-      - verification_result # Require recorded verification evidence.
   - id: summarize # Stable phase id for the final output.
     type: final # Runtime builds the final summary from recorded workflow data.
     include: # Fields or known result types to include in the final summary.
@@ -271,19 +267,29 @@ phases: # Ordered debug phases.
         - bash # Permit command execution through normal approval rules.
         - test # Permit one-shot test execution.
         - diagnostics # Permit diagnostics inspection.
-        - git_diff # Permit diff inspection.
         - task_workflow # Permit workflow-bound task tracking.
-  - id: verify # Stable phase id for regression checks.
-    type: verification # Runtime runs declared commands and records check results.
-    agent: engineer # Agent identity used for phase configuration and policy.
-    commands: # Declared checks for this workflow.
-      - tool: test # Use the test tool.
-        command: go test ./... # Run the repository Go test suite.
-    required: true # Require passing verification before advancing.
+  - id: verify # Stable phase id for bounded checks.
+    agent: engineer # Normal engineer phase, not a runtime verification gate.
+    prompt: Run or inspect bounded verification for the bug fix and report remaining risk. # Phase-specific instruction.
+    tools:
+      allow:
+        - read # Permit file reads.
+        - search # Permit repository search.
+        - bash # Permit command execution through normal approval rules.
+        - test # Permit one-shot test execution.
+        - diagnostics # Permit diagnostics inspection.
+        - task_workflow # Permit workflow-bound task tracking.
   - id: review # Stable phase id for read-only review.
     type: review # Runtime records review outcomes.
     agent: reviewer # Use the reviewer agent.
     mode: read_only # Keep review from editing files.
+    tools:
+      allow:
+        - read # Permit file reads.
+        - search # Permit repository search.
+        - test # Permit bounded verification during review.
+        - git_status # Permit status inspection.
+        - workflow_review_result # Permit structured review pass recording.
     review_passes: # Review lenses for this bug fix.
       - id: cause # Review pass id for cause coverage.
         description: Fixes the reproduced cause. # Goal text for this pass.
@@ -295,6 +301,7 @@ phases: # Ordered debug phases.
         description: Regression tests and edge cases. # Goal text for this pass.
         instructions:
           - Inspect tests for the reproduced failure.
+          - Run or inspect the most relevant bounded tests through the test tool when useful.
           - Check fail-before/pass-after behavior when practical.
           - Find missing, brittle, unrelated, or edge-gap coverage.
       - id: side-effects # Review pass id for nearby behavior risks.
@@ -303,15 +310,9 @@ phases: # Ordered debug phases.
           - Inspect nearby callers, helpers, config, and permission/auth checks.
           - Check behavior outside the intended bug fix.
           - Find unintended caller, config, permission, or runtime-path changes.
-    requires: # Evidence needed before review.
-      - verification_result # Require recorded verification data.
   - id: summarize # Stable phase id for the final workflow message.
     type: final # Runtime writes the final summary.
 transitions: # Explicit retry loops.
-  - from: verify # Transition starts from verification.
-    on: verification_failed # Trigger when verification fails.
-    to: patch # Return to patching.
-    max_loops: 2 # Retry at most twice.
   - from: review # Transition starts from review.
     on: review_failed # Trigger when review fails.
     to: patch # Return to patching.
@@ -335,7 +336,7 @@ phases: # Ordered review phases.
       - id: correctness # Review pass id for behavior correctness.
         description: Correctness against the intended change. # Goal text for this pass.
         instructions:
-          - Inspect the diff and nearby behavior.
+          - Inspect git status, affected files, and nearby behavior.
           - Check that it satisfies the intended change without wrong paths.
           - Find incorrect, incomplete, or mismatched behavior.
       - id: tests # Review pass id for test coverage.

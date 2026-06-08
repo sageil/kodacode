@@ -227,7 +227,6 @@ func workflowMutationToolName(name string) bool {
 		"mkdir",
 		tool.RenameSymbolToolName,
 		tool.TaskWorkflowToolName,
-		tool.TestToolName,
 		tool.WriteToolName:
 		return true
 	default:

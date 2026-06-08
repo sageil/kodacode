@@ -6,7 +6,7 @@ phases:
   - id: inspect
     agent: reviewer
     mode: read_only
-    prompt: Inspect the relevant diff, files, tests, and session context before reporting findings.
+    prompt: Inspect git status, the relevant files, tests, and session context before reporting findings. Use full diffs only when exact before/after evidence is necessary.
 
   - id: review
     type: review
@@ -17,7 +17,7 @@ phases:
       - id: correctness
         description: Correctness against the intended change.
         instructions:
-          - Inspect the diff and nearby behavior.
+          - Inspect affected files and nearby behavior; use full diffs only when targeted reads are insufficient.
           - Check that it satisfies the intended change without wrong paths.
           - Find incorrect, incomplete, or mismatched behavior.
       - id: tests

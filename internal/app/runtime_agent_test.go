@@ -36,7 +36,7 @@ func TestRuntimeRunSessionTurnUsesPlannerToolSurface(t *testing.T) {
 	for _, tool := range client.requests[0].Tools {
 		got = append(got, tool.Name)
 	}
-	want := []string{"definition", "diagnostics", "git_diff", "git_show", "git_status", "locate", "question", "read", "refs", "search", "symbols", "trace"}
+	want := []string{"definition", "diagnostics", "git_show", "git_status", "locate", "question", "read", "refs", "search", "symbols", "trace"}
 	if len(got) != len(want) {
 		t.Fatalf("planner tool count = %#v, want %#v", got, want)
 	}

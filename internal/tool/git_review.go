@@ -9,9 +9,11 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 )
 
 const gitReviewOutputLimit = 0
+const gitDiffRenderedOutputLimit = 12 * 1024
 const gitReviewTimeout = 30 * time.Second
 
 var ErrGitRepositoryRequired = errors.New("workspace directory is not inside a git repository")
@@ -89,10 +91,22 @@ func formatGitDiffResult(command []string, staged bool, raw string, truncated bo
 		return fmt.Sprintf("command: %s\nscope: %s\nstatus: clean", strings.Join(command, " "), scope)
 	}
 	body := raw
-	if truncated {
-		body += "\n\n[output truncated]"
+	body, capped := capGitDiffRenderedOutput(body)
+	if truncated || capped {
+		body += "\n\n[diff output capped; use git_status and targeted file reads for large changes]"
 	}
 	return fmt.Sprintf("command: %s\nscope: %s\n\n%s", strings.Join(command, " "), scope, body)
+}
+
+func capGitDiffRenderedOutput(raw string) (string, bool) {
+	if gitDiffRenderedOutputLimit <= 0 || len(raw) <= gitDiffRenderedOutputLimit {
+		return raw, false
+	}
+	capped := raw[:gitDiffRenderedOutputLimit]
+	for len(capped) > 0 && !utf8.ValidString(capped) {
+		capped = capped[:len(capped)-1]
+	}
+	return strings.TrimRight(capped, "\n"), true
 }
 
 func formatGitShowResult(command []string, rev, raw string, truncated bool) string {

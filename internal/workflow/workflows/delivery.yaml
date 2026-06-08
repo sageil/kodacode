@@ -1,5 +1,5 @@
 id: delivery
-description: Plan, implement, verify, and review a code change.
+description: Plan, implement, and review a code change.
 review_mode: auto
 max_revision_loops: 2
 
@@ -30,39 +30,24 @@ phases:
         - apply_patch
         - write
         - bash
-        - git_diff
         - task_workflow
     requires:
       approved_phase: plan
     completion:
       requires:
-        - active_phase_tasks_complete
-        - planned_tasks_complete
         - file_mutation
-
-  - id: verify
-    type: verification
-    agent: engineer
-    tools:
-      allow:
-        - read
-        - search
-        - test
-        - bash
-    requires_output:
-      - commands_run
-      - result
-      - criteria_checked
-      - unverified_criteria
-      - deferred_items
-      - failures
-      - confidence
-    required: true
 
   - id: review
     type: review
     agent: reviewer
     mode: read_only
+    tools:
+      allow:
+        - read
+        - search
+        - test
+        - git_status
+        - workflow_review_result
     review_passes:
       - id: correctness
         description: Correctness against the request and approved plan.
@@ -70,11 +55,17 @@ phases:
           - Compare behavior with the approved plan and request.
           - Check the main path and important edge cases.
           - Find incorrect, incomplete, or out-of-scope behavior.
+      - id: verification
+        description: Verification against acceptance criteria and the approved verification plan.
+        instructions:
+          - Check the implemented change against the approved acceptance_criteria and verification_plan.
+          - Run or inspect the most relevant bounded tests through the test tool when useful.
+          - Find failed, missing, weak, or skipped verification.
       - id: tests
         description: Tests, edge cases, and missing checks.
         instructions:
           - Inspect tests changed or affected.
-          - Check coverage for behavior, edge cases, and declared verification.
+          - Check coverage for behavior, edge cases, and review verification.
           - Find missing, brittle, unrelated, or non-exercising tests.
       - id: architecture
         description: APIs, data, config, permissions, and compatibility.
@@ -82,14 +73,10 @@ phases:
           - Inspect APIs, request/response shapes, persisted data, config, permissions, and integrations.
           - Check callers, stored data, config, and related modules.
           - Find broken callers, incompatible data changes, permission/config risk, or maintainability issues.
-    requires:
-      - verification_result
-
   - id: summarize
     type: final
     include:
       - changed_files
-      - verification_result
       - review_outcome
       - unresolved_risks
 
@@ -97,10 +84,6 @@ transitions:
   - from: approve
     on: skipped
     to: implement
-  - from: verify
-    on: verification_failed
-    to: implement
-    max_loops: 2
   - from: review
     on: review_failed
     to: implement

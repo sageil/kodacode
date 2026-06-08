@@ -145,6 +145,9 @@ func TestNewBuiltinsCatalogIncludesBuiltinsAndSubagents(t *testing.T) {
 	if !reviewer.AllowsTool("question") {
 		t.Fatal("reviewer should allow question")
 	}
+	if !reviewer.AllowsTool("test") {
+		t.Fatal("reviewer should allow test")
+	}
 	if reviewer.AllowsTool("task_workflow") {
 		t.Fatal("reviewer should not allow task_workflow")
 	}
@@ -157,20 +160,15 @@ func TestNewBuiltinsCatalogIncludesBuiltinsAndSubagents(t *testing.T) {
 	if len(reviewer.Handoff.Provides) != 1 || reviewer.Handoff.Provides[0].Kind != "review_findings" {
 		t.Fatalf("reviewer handoff provides = %#v", reviewer.Handoff.Provides)
 	}
+	if got := strings.Count(reviewer.PromptFragment().Content, "\n") + 1; got > 40 {
+		t.Fatalf("reviewer prompt lines = %d, want compact prompt", got)
+	}
 	for _, want := range []string{
-		"Treat requests framed as review, repo review, code review, audit, or issue",
-		"Treat performance review, bottleneck review, \"recommend improvements\", and",
-		"When the request is about current changes or a diff, inspect `git_status`",
-		"Prefer no findings over speculative findings.",
-		"Do not flag style, formatting, typos, or generic best-practice advice",
-		"Read the repository to gather review evidence, not to produce architecture",
-		"Use tools only when they resolve concrete review uncertainty.",
-		"You MUST not drift into implementation planning when the task is",
-		"If an assigned review task asks for an implementation plan",
-		"do not ask the user whether to create or\nsave a file",
-		"Treat `question` and `task_review` as logical jobs",
-		"Format reports as readable GitHub-flavored Markdown",
-		"do not use inline backticks around multi-line\n  snippets",
+		"Stay read-only: do not implement, plan, or\nsave files.",
+		"`git_status` first and prefer targeted reads over full diffs.",
+		"Report defensible findings first with file/line evidence.",
+		"When `workflow_review_result` is available for a workflow review pass",
+		"When `task_review` is available for an assigned saved task",
 	} {
 		if !strings.Contains(reviewer.PromptFragment().Content, want) {
 			t.Fatalf("reviewer prompt missing guidance %q: %q", want, reviewer.PromptFragment().Content)

@@ -687,23 +687,6 @@ func renderHistoryEpisodeLines(values []events.HistoryEpisodePayload) []string {
 	return out
 }
 
-func renderHistoryVerificationSummary(values []events.HistoryVerificationPayload) string {
-	if len(values) == 0 {
-		return ""
-	}
-	summaries := make([]string, 0, len(values))
-	for _, value := range values {
-		prefix := value.Kind
-		if value.Succeeded {
-			prefix += ":ok"
-		} else {
-			prefix += ":fail"
-		}
-		summaries = append(summaries, prefix+"="+value.Value)
-	}
-	return compactOutcomeSingleLine(strings.Join(summaries, "; "), 240)
-}
-
 func renderHistoryInProgressLines(values []events.HistoryOpenThreadPayload) []string {
 	if len(values) == 0 {
 		return nil
@@ -763,18 +746,13 @@ func historyOpenThreadBlocked(value events.HistoryOpenThreadPayload) bool {
 }
 
 func renderHistoryCriticalContextLines(artifact events.HistoryContinuationArtifact) []string {
-	out := make([]string, 0, len(artifact.WorkspaceFacts)+len(artifact.CompletedEpisodes))
+	out := make([]string, 0, len(artifact.WorkspaceFacts))
 	for _, fact := range artifact.WorkspaceFacts {
 		line := fact.Fact
 		if fact.Path != "" {
 			line = fact.Path + ": " + line
 		}
 		out = append(out, compactOutcomeSingleLine(line, 320))
-	}
-	for _, episode := range artifact.CompletedEpisodes {
-		if verification := renderHistoryVerificationSummary(episode.Verification); verification != "" {
-			out = append(out, compactOutcomeSingleLine(verification, 240))
-		}
 	}
 	return out
 }

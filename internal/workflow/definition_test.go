@@ -34,7 +34,7 @@ func TestLoadBytesParsesValidDeliveryWorkflow(t *testing.T) {
 	if definition.Model != "openai/gpt-5-mini" {
 		t.Fatalf("Model = %q, want openai/gpt-5-mini", definition.Model)
 	}
-	if got := definition.PhaseIDs(); strings.Join(got, ",") != "approve,implement,plan,review,verify" {
+	if got := definition.PhaseIDs(); strings.Join(got, ",") != "approve,implement,plan,review" {
 		t.Fatalf("PhaseIDs() = %#v", got)
 	}
 	approve := definition.Phases[1]
@@ -48,34 +48,28 @@ func TestLoadBytesParsesValidDeliveryWorkflow(t *testing.T) {
 	if implement.Requires.Fields["approved_phase"] != "plan" {
 		t.Fatalf("implement requires = %#v, want approved_phase plan", implement.Requires.Fields)
 	}
-	if strings.Join(implement.Completion.Requires.Items, ",") != CompletionRequirementActivePhaseTasksComplete+",planned_tasks_complete,file_mutation" {
+	if strings.Join(implement.Completion.Requires.Items, ",") != "file_mutation" {
 		t.Fatalf("implement completion requires = %#v", implement.Completion.Requires.Items)
 	}
-	verify := definition.Phases[3]
-	if len(verify.Commands) != 0 {
-		t.Fatalf("verify commands = %#v, want none", verify.Commands)
+	plan := definition.Phases[0]
+	if strings.Join(plan.RequiresOutput, ",") != "plan,affected_files,risks,implementation_tasks,acceptance_criteria,verification_plan" {
+		t.Fatalf("plan requires_output = %#v", plan.RequiresOutput)
 	}
-	if strings.Join(verify.RequiresOutput, ",") != "commands_run,result,criteria_checked,unverified_criteria,deferred_items,failures,confidence" {
-		t.Fatalf("verify requires_output = %#v", verify.RequiresOutput)
-	}
-	review := definition.Phases[4]
-	if strings.Join(review.Requires.Items, ",") != "verification_result" {
-		t.Fatalf("review requires = %#v", review.Requires.Items)
+	review := definition.Phases[3]
+	if len(review.Requires.Items) != 0 {
+		t.Fatalf("review requires = %#v, want none", review.Requires.Items)
 	}
 	if review.AutoContinue != nil {
 		t.Fatalf("auto_continue = %#v, want unset", review.AutoContinue)
 	}
-	if len(review.ReviewPasses) != 2 || review.ReviewPasses[0].ID != "correctness" || review.ReviewPasses[1].ID != "tests" {
+	if len(review.ReviewPasses) != 3 || review.ReviewPasses[0].ID != "correctness" || review.ReviewPasses[1].ID != "verification" || review.ReviewPasses[2].ID != "tests" {
 		t.Fatalf("review passes = %#v", review.ReviewPasses)
 	}
-	if len(definition.Transitions) != 3 {
-		t.Fatalf("transitions = %#v, want 3", definition.Transitions)
+	if len(definition.Transitions) != 2 {
+		t.Fatalf("transitions = %#v, want 2", definition.Transitions)
 	}
-	if definition.Transitions[1].From != "verify" || definition.Transitions[1].On != TransitionOnVerificationFailed || definition.Transitions[1].To != "implement" || definition.Transitions[1].MaxLoops != 2 {
-		t.Fatalf("verification transition = %#v", definition.Transitions[1])
-	}
-	if definition.Transitions[2].From != "review" || definition.Transitions[2].On != TransitionOnReviewFailed || definition.Transitions[2].To != "implement" || definition.Transitions[2].MaxLoops != 2 {
-		t.Fatalf("review transition = %#v", definition.Transitions[2])
+	if definition.Transitions[1].From != "review" || definition.Transitions[1].On != TransitionOnReviewFailed || definition.Transitions[1].To != "implement" || definition.Transitions[1].MaxLoops != 2 {
+		t.Fatalf("review transition = %#v", definition.Transitions[1])
 	}
 }
 
@@ -634,6 +628,24 @@ phases:
 	}
 }
 
+func TestDefinitionValidateAllowsTestToolInReadOnlyReviewPhase(t *testing.T) {
+	_, err := LoadBytes([]byte(`
+id: delivery
+phases:
+  - id: review
+    type: review
+    agent: reviewer
+    mode: read_only
+    tools:
+      allow:
+        - read
+        - test
+`), testValidationContext())
+	if err != nil {
+		t.Fatalf("LoadBytes() error = %v", err)
+	}
+}
+
 func TestDefinitionValidateRejectsSubagentOnlyPhaseAgent(t *testing.T) {
 	ctx := testValidationContext()
 	ctx.Agents["helper"] = agent.Definition{ID: "helper", Mode: agent.ModeSubagent}
@@ -678,7 +690,7 @@ func testValidationContext() ValidationContext {
 func validDeliveryWorkflowYAML() string {
 	return `
 id: delivery
-description: Plan, implement, verify, and review a code change.
+description: Plan, implement, and review a code change.
 model: openai/gpt-5-mini
 review_mode: auto
 max_revision_loops: 2
@@ -715,54 +727,35 @@ phases:
         - apply_patch
         - write
         - bash
-        - git_diff
         - task_workflow
     requires:
       approved_phase: plan
     completion:
       requires:
-        - active_phase_tasks_complete
-        - planned_tasks_complete
         - file_mutation
-
-  - id: verify
-    type: verification
-    agent: engineer
-    tools:
-      allow:
-        - read
-        - search
-        - test
-        - bash
-    requires_output:
-      - commands_run
-      - result
-      - criteria_checked
-      - unverified_criteria
-      - deferred_items
-      - failures
-      - confidence
-    required: true
 
   - id: review
     type: review
     agent: reviewer
     mode: read_only
+    tools:
+      allow:
+        - read
+        - search
+        - test
+        - git_status
+        - workflow_review_result
     review_passes:
       - id: correctness
         description: Behavior changes and whether the implementation is correct.
+      - id: verification
+        description: Verification against acceptance criteria and the approved verification plan.
       - id: tests
         description: Test coverage, edge cases, and missing checks.
-    requires:
-      - verification_result
 transitions:
   - from: approve
     on: skipped
     to: implement
-  - from: verify
-    on: verification_failed
-    to: implement
-    max_loops: 2
   - from: review
     on: review_failed
     to: implement
