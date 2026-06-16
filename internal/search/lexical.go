@@ -41,8 +41,20 @@ func lexicalObservedWithSkipDirs(req Request, skipDirs skipDirMatcher) (Response
 	if err != nil {
 		return Response{}, err
 	}
+	ignores := newRequestGitignoreMatcher(req)
 	if info.IsDir() {
-		return lexicalDirectoryObserved(req, skipDirs)
+		return lexicalDirectoryObserved(req, skipDirs, ignores)
+	}
+	if err := ignores.loadDir(filepath.Dir(req.RootPath)); err != nil {
+		return Response{}, err
+	}
+	if ignores.ignored(req.RootPath, false) {
+		return Response{
+			Mode: ModeLexical,
+			Observation: &Observation{
+				Complete: true,
+			},
+		}, nil
 	}
 	outcome, err := lexicalFileObserved(req, req.RootPath, filepath.Base(req.RootPath), req.MaxResults)
 	if err != nil {
@@ -65,7 +77,7 @@ type lexicalOutcome struct {
 	Complete  bool
 }
 
-func lexicalDirectoryObserved(req Request, skipDirs skipDirMatcher) (Response, error) {
+func lexicalDirectoryObserved(req Request, skipDirs skipDirMatcher, ignores *gitignoreMatcher) (Response, error) {
 	results := make([]Result, 0, req.MaxResults)
 	resources := make([]ObservedResource, 0, 32)
 	complete := true
@@ -73,6 +85,9 @@ func lexicalDirectoryObserved(req Request, skipDirs skipDirMatcher) (Response, e
 
 	var walk func(string) error
 	walk = func(dir string) error {
+		if err := ignores.loadDir(dir); err != nil {
+			return err
+		}
 		entries, observedDir, err := readDirStable(dir)
 		if err != nil {
 			return err
@@ -94,9 +109,15 @@ func lexicalDirectoryObserved(req Request, skipDirs skipDirMatcher) (Response, e
 			current := filepath.Join(dir, name)
 			relPath := relPathFromRoot(req.RootPath, current)
 			if entry.IsDir() {
+				if ignores.ignored(current, true) {
+					continue
+				}
 				if err := walk(current); err != nil {
 					return err
 				}
+				continue
+			}
+			if ignores.ignored(current, false) {
 				continue
 			}
 			fileOutcome, err := lexicalFileObserved(req, current, relPath, req.MaxResults-len(results))

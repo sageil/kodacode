@@ -44,7 +44,14 @@ func semanticPathsWithSkipDirs(req Request, skipDirs skipDirMatcher) ([]string, 
 	if err != nil {
 		return nil, err
 	}
+	ignores := newRequestGitignoreMatcher(req)
 	if !info.IsDir() {
+		if err := ignores.loadDir(filepath.Dir(req.RootPath)); err != nil {
+			return nil, err
+		}
+		if ignores.ignored(req.RootPath, false) {
+			return nil, nil
+		}
 		return []string{req.RootPath}, nil
 	}
 
@@ -57,6 +64,15 @@ func semanticPathsWithSkipDirs(req Request, skipDirs skipDirMatcher) ([]string, 
 			if skipDirs.shouldSkip(entry.Name()) {
 				return filepath.SkipDir
 			}
+			if current != req.RootPath && ignores.ignored(current, true) {
+				return filepath.SkipDir
+			}
+			if err := ignores.loadDir(current); err != nil {
+				return err
+			}
+			return nil
+		}
+		if ignores.ignored(current, false) {
 			return nil
 		}
 		relative := relPathFromRoot(req.RootPath, current)
