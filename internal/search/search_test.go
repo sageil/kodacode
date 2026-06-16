@@ -18,11 +18,13 @@ type fakeEmbedder struct {
 	mu      sync.Mutex
 	vectors map[string][]float32
 	calls   int
+	inputs  []string
 }
 
 func (f *fakeEmbedder) Embed(_ context.Context, req provider.EmbeddingRequest) ([][]float32, error) {
 	f.mu.Lock()
 	f.calls++
+	f.inputs = append(f.inputs, req.Inputs...)
 	f.mu.Unlock()
 	out := make([][]float32, len(req.Inputs))
 	for idx, input := range req.Inputs {
@@ -39,6 +41,12 @@ func (f *fakeEmbedder) CallCount() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.calls
+}
+
+func (f *fakeEmbedder) Inputs() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]string(nil), f.inputs...)
 }
 
 func TestLexicalSearchFindsLiteralMatches(t *testing.T) {

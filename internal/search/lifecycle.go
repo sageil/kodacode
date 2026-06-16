@@ -170,6 +170,7 @@ func (s *Service) workspaceTracking(workspaceRoot string) bool {
 
 func (s *Service) scanWorkspace(workspaceRoot string) map[string]trackedFile {
 	files := map[string]trackedFile{}
+	ignores := newGitignoreMatcher(workspaceRoot)
 	_ = filepath.WalkDir(workspaceRoot, func(current string, entry os.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return nil
@@ -181,6 +182,13 @@ func (s *Service) scanWorkspace(workspaceRoot string) map[string]trackedFile {
 			return nil
 		}
 		if entry.IsDir() {
+			if current != workspaceRoot && ignores.ignored(current, true) {
+				return filepath.SkipDir
+			}
+			_ = ignores.loadDir(current)
+			return nil
+		}
+		if ignores.ignored(current, false) {
 			return nil
 		}
 		info, err := entry.Info()
